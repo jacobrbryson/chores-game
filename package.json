@@ -1,0 +1,14 @@
+{
+	"name": "chores-game",
+	"private": true,
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	],
+	"scripts": {
+		"dev": "npm run dev -w @apps/web & npm run dev -w @apps/ws",
+		"dev:web": "npm run dev -w @apps/web",
+		"dev:ws": "npm run dev -w @apps/ws",
+		"build": "npm run build -w @apps/web && npm run build -w @apps/ws"
+	}
+}
