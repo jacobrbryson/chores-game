@@ -22,12 +22,27 @@ type FirebaseSession = {
   photoUrl?: string;
 };
 
+function resolvePublicOrigin(request: NextRequest) {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  if (configured) {
+    return configured;
+  }
+
+  const proto = request.headers.get("x-forwarded-proto");
+  const host = request.headers.get("x-forwarded-host");
+  if (proto && host) {
+    return `${proto}://${host}`;
+  }
+
+  return request.nextUrl.origin;
+}
+
 function redirectToPath(
   request: NextRequest,
   path: string,
   params: Record<string, string>,
 ) {
-  const url = new URL(path, request.url);
+  const url = new URL(path, resolvePublicOrigin(request));
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
@@ -154,9 +169,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const tokenInfo = await verifyGoogleCredential(credential);
+    const publicOrigin = resolvePublicOrigin(request);
     const firebaseSession = await signInWithFirebase(
       credential,
-      request.nextUrl.origin,
+      publicOrigin,
     );
     let persisted = "0";
 

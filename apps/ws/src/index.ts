@@ -2,7 +2,11 @@ import { createServer } from "node:http";
 import { Server } from "socket.io";
 
 const PORT = Number(process.env.PORT ?? 3001);
-const ORIGIN = process.env.WS_ORIGIN ?? "http://localhost:3000";
+const ORIGIN = process.env.WS_ORIGIN;
+
+if (!ORIGIN) {
+	throw new Error("WS_ORIGIN env var is required for websocket CORS.");
+}
 
 const httpServer = createServer();
 
