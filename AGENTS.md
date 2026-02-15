@@ -54,12 +54,34 @@ Build a family chore game where:
 - Keep business logic in shared/domain modules, not only UI handlers.
 - Validate all incoming API payloads.
 - Prefer explicit enums/constants for statuses and roles.
+- Keep source files small and focused. Target a max of ~400 lines per file; split large files by feature/component.
 - Add tests for workflow-critical behavior:
   - chore status transitions
   - approval/rejection permissions
   - currency payout
   - purchase flow and insufficient funds
 - Avoid breaking changes to API contracts without updating this file.
+
+## Recent Decisions (2026-02-15)
+- Homepage is the primary auth entry point; the standalone `/login` page was removed.
+- Google sign-in uses Google Identity Services button on homepage and posts to `/api/auth/google/gsi`.
+- Auth callback now redirects with `303` to avoid stale POST behavior after sign-in/logout.
+- A `session_user` HTTP-only cookie is set after successful sign-in and used to render profile state in navbar.
+- `session_user` is now a signed cookie (HMAC) with expiry; unsigned/invalid cookies are treated as anonymous.
+- Navbar behavior:
+  - Logged out: show Google sign-in button.
+  - Logged in: show profile avatar with dropdown and logout action.
+- Logout endpoint: `POST /api/auth/logout` clears `session_user` and redirects home (`GET` not supported).
+- Firestore persistence path (current implementation):
+  - Verify Google ID token.
+  - Exchange with Firebase Identity Toolkit (`signInWithIdp`).
+  - Upsert user record in `users/{uid}` with role defaulting to `player`.
+- Environment variables currently expected by web auth flow:
+  - `GOOGLE_CLIENT_ID`
+  - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+  - `FIREBASE_PROJECT_ID`
+  - `FIREBASE_WEB_API_KEY`
+  - `SESSION_SECRET` (>= 32 chars)
 
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.

@@ -10,5 +10,8 @@
 		"dev:web": "npm run dev -w @apps/web",
 		"dev:ws": "npm run dev -w @apps/ws",
 		"build": "npm run build --workspaces --if-present"
+	},
+	"dependencies": {
+		"firebase": "^12.9.0"
 	}
 }
