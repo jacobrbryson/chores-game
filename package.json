@@ -6,9 +6,9 @@
 		"packages/*"
 	],
 	"scripts": {
-		"dev": "npm run dev -w @apps/web & npm run dev -w @apps/ws",
+		"dev": "npm run dev --workspaces --if-present --parallel",
 		"dev:web": "npm run dev -w @apps/web",
 		"dev:ws": "npm run dev -w @apps/ws",
-		"build": "npm run build -w @apps/web && npm run build -w @apps/ws"
+		"build": "npm run build --workspaces --if-present"
 	}
 }
