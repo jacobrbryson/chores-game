@@ -49,6 +49,13 @@ export default function FamilyPage() {
           ) : null}
           {!isLoading && !error ? (
             <>
+              {summary?.pendingInvite ? (
+                <p className="small">
+                  Invitation is pending acceptance. Go back to the home dashboard to accept it.
+                </p>
+              ) : null}
+              {!summary?.pendingInvite ? (
+                <>
               <p className="small family-page-subhead">
                 {members.length} member{members.length === 1 ? "" : "s"}
               </p>
@@ -89,6 +96,8 @@ export default function FamilyPage() {
                   </tbody>
                 </table>
               </div>
+                </>
+              ) : null}
             </>
           ) : null}
         </main>

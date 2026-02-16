@@ -116,6 +116,8 @@ export function FamilyCard() {
   const [memberActionError, setMemberActionError] = useState("");
   const [choreActionLoadingId, setChoreActionLoadingId] = useState("");
   const [choreActionError, setChoreActionError] = useState("");
+  const [acceptingInvite, setAcceptingInvite] = useState(false);
+  const [acceptInviteError, setAcceptInviteError] = useState("");
   const [pendingRemoveMember, setPendingRemoveMember] =
     useState<PendingRemoveMember | null>(null);
   const [showAddMemberForm, setShowAddMemberForm] = useState(false);
@@ -125,8 +127,22 @@ export function FamilyCard() {
     error === "SUMMARY_HTTP_401";
   const firestoreNotConfigured = error === "firestore_not_configured";
   const firestoreForbidden = error === "firestore_forbidden";
-  const visibleMembers = summary?.members.slice(0, 5) ?? [];
+  const visibleMembers =
+    summary?.members
+      .slice()
+      .sort((a, b) => {
+        if (a.status === b.status) {
+          return 0;
+        }
+        return a.status === "invited" ? -1 : 1;
+      })
+      .slice(0, 5) ?? [];
   const hasMoreMembers = (summary?.members.length ?? 0) > 5;
+  const viewerMember =
+    summary?.members.find(
+      (member) => member.uid === summary.viewerUid || member.id === summary.viewerUid,
+    ) ?? null;
+  const canManageMembers = viewerMember?.role === "admin";
   const shouldShowAddMemberModal = showAddMemberForm;
 
   async function loadSummary() {
@@ -240,11 +256,35 @@ export function FamilyCard() {
     }
   }
 
+  async function onAcceptInvite() {
+    if (acceptingInvite) {
+      return;
+    }
+    setAcceptInviteError("");
+    setAcceptingInvite(true);
+    try {
+      const response = await fetch("/api/family/invitations/accept", {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `ACCEPT_INVITE_HTTP_${response.status}`);
+      }
+      await loadSummary();
+    } catch (acceptError) {
+      const message =
+        acceptError instanceof Error ? acceptError.message : "accept_invite_failed";
+      setAcceptInviteError(message);
+    } finally {
+      setAcceptingInvite(false);
+    }
+  }
+
   return (
     <section className="card family-card">
       <div className="family-header">
         <h2>My Family</h2>
-        {!isLoading && !error ? (
+        {!isLoading && !error && canManageMembers ? (
           <details className="family-settings">
             <summary title="Family settings" aria-label="Family settings">
               <span className="family-kebab" aria-hidden="true">
@@ -291,6 +331,41 @@ export function FamilyCard() {
       ) : null}
       {!isLoading && !error && summary ? (
         <>
+          {summary.pendingInvite ? (
+            <div className="family-grid">
+              <article className="family-panel">
+                <h3>Invitation Pending</h3>
+                <p className="small">
+                  You&apos;ve been invited to join <strong>{summary.pendingInvite.familyName}</strong>.
+                </p>
+                {summary.pendingInvite.inviter ? (
+                  <p className="small">
+                    Invited by {summary.pendingInvite.inviter.name}
+                    {summary.pendingInvite.inviter.email
+                      ? ` (${summary.pendingInvite.inviter.email})`
+                      : ""}.
+                  </p>
+                ) : (
+                  <p className="small">Inviter details are unavailable.</p>
+                )}
+                {acceptInviteError ? (
+                  <p className="small family-error">
+                    Could not accept invite: {acceptInviteError}
+                  </p>
+                ) : null}
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={onAcceptInvite}
+                    disabled={acceptingInvite}>
+                    {acceptingInvite ? "Accepting..." : "Accept invitation"}
+                  </button>
+                </div>
+              </article>
+            </div>
+          ) : (
+            <>
           <p className="small family-subhead">
             Your family has {summary.members.length} member
             {summary.members.length === 1 ? "" : "s"}.
@@ -348,7 +423,9 @@ export function FamilyCard() {
                               : "-"}
                           </span>
                         ) : null}
-                        {member.id !== summary.viewerUid && member.uid !== summary.viewerUid ? (
+                        {canManageMembers &&
+                        member.id !== summary.viewerUid &&
+                        member.uid !== summary.viewerUid ? (
                           <div className="member-actions">
                             <button
                               type="button"
@@ -445,6 +522,8 @@ export function FamilyCard() {
               )}
             </article>
           </div>
+            </>
+          )}
         </>
       ) : null}
 

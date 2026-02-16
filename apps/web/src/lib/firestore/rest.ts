@@ -189,6 +189,67 @@ export async function findFirstFamilyIdByMemberUid(uid: string, idToken: string)
   return "";
 }
 
+export async function findFirstFamilyIdByMemberEmail(email: string, idToken: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) {
+    return "";
+  }
+
+  const response = await fetch(getRunQueryPath(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: "members", allDescendants: true }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: "email" },
+            op: "EQUAL",
+            value: { stringValue: normalizedEmail },
+          },
+        },
+        limit: 20,
+      },
+    }),
+    cache: "no-store",
+  });
+
+  if (response.status === 403) {
+    return "";
+  }
+
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const json = (await response.json()) as { error?: { message?: string } };
+      detail = json.error?.message ?? "";
+    } catch {
+      detail = await response.text();
+    }
+    throw new Error(`FIRESTORE_HTTP_${response.status}${detail ? `_${detail}` : ""}`);
+  }
+
+  const rows = (await response.json()) as FirestoreRunQueryResult[];
+  for (const row of rows) {
+    const doc = row.document;
+    if (!doc) {
+      continue;
+    }
+    if (readBoolean(doc.fields, "deleted")) {
+      continue;
+    }
+    const familyId = familyIdFromMemberDocumentName(doc.name);
+    if (familyId) {
+      return familyId;
+    }
+  }
+
+  return "";
+}
+
 export function documentIdFromName(name: string) {
   const parts = name.split("/");
   return parts[parts.length - 1] ?? "";

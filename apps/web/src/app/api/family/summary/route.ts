@@ -4,6 +4,7 @@ import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import {
   documentIdFromName,
+  findFirstFamilyIdByMemberEmail,
   findFirstFamilyIdByMemberUid,
   getDocument,
   listDocuments,
@@ -17,10 +18,23 @@ import {
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
-import type { FamilySummaryResponse } from "@/lib/family/types";
+import type { FamilySnapshotMember, FamilySummaryResponse } from "@/lib/family/types";
 
 export const dynamic = "force-dynamic";
 const MAX_FAMILY_MEMBERS = 100;
+
+function maskEmail(email: string) {
+  const normalized = email.trim().toLowerCase();
+  const atIndex = normalized.indexOf("@");
+  if (atIndex <= 1) {
+    return normalized || "(empty)";
+  }
+  return `${normalized.slice(0, 2)}***${normalized.slice(atIndex)}`;
+}
+
+function logInviteDebug(event: string, details: Record<string, unknown>) {
+  console.info("[INVITE_DEBUG]", event, JSON.stringify(details));
+}
 
 function toUnixMillis(value: string | undefined) {
   if (!value) {
@@ -30,6 +44,14 @@ function toUnixMillis(value: string | undefined) {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function toMemberRole(value: string | undefined): FamilySnapshotMember["role"] {
+  return value === "admin" ? "admin" : "player";
+}
+
+function toMemberStatus(value: string | undefined): FamilySnapshotMember["status"] {
+  return value === "active" ? "active" : "invited";
+}
+
 function emptySummary(viewerUid: string): FamilySummaryResponse {
   return {
     viewerUid,
@@ -37,6 +59,7 @@ function emptySummary(viewerUid: string): FamilySummaryResponse {
     family: null,
     members: [],
     choresToday: [],
+    pendingInvite: null,
   };
 }
 
@@ -100,9 +123,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    logInviteDebug("summary_start", {
+      uid: session.uid,
+      email: maskEmail(session.email),
+    });
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
-        let userDoc;
+        let userDoc: Awaited<ReturnType<typeof getDocument>> | null = null;
         try {
           userDoc = await getDocument(`users/${session.uid}`, idToken);
         } catch (error) {
@@ -112,16 +139,59 @@ export async function GET(request: NextRequest) {
             reason.toLowerCase().includes("document") &&
             reason.toLowerCase().includes("not found")
           ) {
-            return emptySummary(session.uid);
+            userDoc = null;
+          } else {
+            throw error;
           }
-          throw error;
         }
 
-        const familyIds = readStringArray(userDoc.fields, "familyIds");
+        const familyIds = readStringArray(userDoc?.fields, "familyIds");
         let familyId = familyIds[0];
+        logInviteDebug("summary_user_doc", {
+          uid: session.uid,
+          userDocFound: Boolean(userDoc),
+          familyIdsCount: familyIds.length,
+          familyId: familyId || null,
+        });
 
         if (!familyId) {
-          const recoveredFamilyId = await findFirstFamilyIdByMemberUid(session.uid, idToken);
+          let inviteLookupFamilyId = "";
+          if (session.email) {
+            try {
+              const inviteLookupDoc = await getDocument(
+                `inviteLookup/${session.email.trim().toLowerCase()}`,
+                idToken,
+              );
+              const status = readString(inviteLookupDoc.fields, "status");
+              const candidateFamilyId = readString(inviteLookupDoc.fields, "familyId");
+              if ((status === "invited" || status === "claimed") && candidateFamilyId) {
+                inviteLookupFamilyId = candidateFamilyId;
+              }
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (!reason.includes("FIRESTORE_HTTP_404")) {
+                logInviteDebug("summary_invite_lookup_error", {
+                  uid: session.uid,
+                  email: maskEmail(session.email),
+                  reason: reason.slice(0, 180),
+                });
+              }
+            }
+          }
+          const uidRecoveredFamilyId = await findFirstFamilyIdByMemberUid(session.uid, idToken);
+          const emailRecoveredFamilyId = uidRecoveredFamilyId || inviteLookupFamilyId
+            ? ""
+            : await findFirstFamilyIdByMemberEmail(session.email, idToken);
+          const recoveredFamilyId =
+            uidRecoveredFamilyId || inviteLookupFamilyId || emailRecoveredFamilyId;
+          logInviteDebug("summary_family_recovery", {
+            uid: session.uid,
+            email: maskEmail(session.email),
+            uidRecoveredFamilyId: uidRecoveredFamilyId || null,
+            inviteLookupFamilyId: inviteLookupFamilyId || null,
+            emailRecoveredFamilyId: emailRecoveredFamilyId || null,
+            recoveredFamilyId: recoveredFamilyId || null,
+          });
           if (!recoveredFamilyId) {
             return emptySummary(session.uid);
           }
@@ -136,48 +206,125 @@ export async function GET(request: NextRequest) {
         ]);
 
         const today = new Date().toISOString().slice(0, 10);
+        const rawMemberCount = memberDocs.length;
+        const familyName = readString(familyDoc.fields, "name") || "My Family";
+
+        const rawMembers = memberDocs
+          .map((doc) => ({
+            id: documentIdFromName(doc.name),
+            uid: readString(doc.fields, "uid") || undefined,
+            name: readString(doc.fields, "name") || "Unnamed member",
+            email: readString(doc.fields, "email"),
+            role: toMemberRole(readString(doc.fields, "role")),
+            status: toMemberStatus(readString(doc.fields, "status")),
+            lastSignInAt: readTimestamp(doc.fields, "lastSignInAt") || undefined,
+            createdBy: readString(doc.fields, "createdBy"),
+            createdAt: readTimestamp(doc.fields, "createdAt") || undefined,
+            deleted: readBoolean(doc.fields, "deleted"),
+          }))
+          .filter((member) => !member.deleted);
+
+        const normalizedSessionEmail = session.email.trim().toLowerCase();
+        const viewerMember =
+          rawMembers.find((member) => member.uid === session.uid) ||
+          rawMembers.find(
+            (member) => !member.uid && member.email.trim().toLowerCase() === normalizedSessionEmail,
+          );
+        if (viewerMember?.status === "invited") {
+          const inviter =
+            rawMembers.find(
+              (member) => member.uid === viewerMember.createdBy || member.id === viewerMember.createdBy,
+            ) ?? null;
+          const pendingSummary: FamilySummaryResponse = {
+            viewerUid: session.uid,
+            noFamily: false,
+            family: {
+              id: familyId,
+              name: familyName,
+            },
+            members: inviter
+              ? [
+                  {
+                    id: inviter.id,
+                    uid: inviter.uid,
+                    name: inviter.name,
+                    email: inviter.email,
+                    role: inviter.role,
+                    status: inviter.status,
+                    lastSignInAt: inviter.lastSignInAt,
+                  },
+                ]
+              : [],
+            choresToday: [],
+            pendingInvite: {
+              familyId,
+              familyName,
+              invitedEmail: viewerMember.email || normalizedSessionEmail,
+              invitedAt: viewerMember.createdAt,
+              inviter: inviter
+                ? {
+                    id: inviter.id,
+                    name: inviter.name,
+                    email: inviter.email,
+                  }
+                : null,
+            },
+          };
+          return pendingSummary;
+        }
+
+        const mappedMembers = rawMembers
+          .filter((member, _index, members) => {
+            if (member.uid) {
+              return true;
+            }
+            const normalizedEmail = member.email.trim().toLowerCase();
+            if (!normalizedEmail) {
+              return true;
+            }
+            return !members.some(
+              (candidate) =>
+                Boolean(candidate.uid) &&
+                candidate.email.trim().toLowerCase() === normalizedEmail,
+            );
+          })
+          .sort((a, b) => {
+            const aIsViewer = a.id === session.uid || a.uid === session.uid;
+            const bIsViewer = b.id === session.uid || b.uid === session.uid;
+            if (aIsViewer && !bIsViewer) {
+              return -1;
+            }
+            if (!aIsViewer && bIsViewer) {
+              return 1;
+            }
+            return toUnixMillis(b.lastSignInAt) - toUnixMillis(a.lastSignInAt);
+          })
+          .map((member) => ({
+            id: member.id,
+            uid: member.uid,
+            name: member.name,
+            email: member.email,
+            role: member.role,
+            status: member.status,
+            lastSignInAt: member.lastSignInAt,
+          }))
+          .slice(0, MAX_FAMILY_MEMBERS);
+
+        logInviteDebug("summary_members_loaded", {
+          uid: session.uid,
+          familyId,
+          rawMemberCount,
+          returnedMemberCount: mappedMembers.length,
+        });
 
         return {
           viewerUid: session.uid,
           noFamily: false,
           family: {
             id: familyId,
-            name: readString(familyDoc.fields, "name") || "My Family",
+            name: familyName,
           },
-          members: memberDocs
-            .map((doc) => ({
-              id: documentIdFromName(doc.name),
-              uid: readString(doc.fields, "uid") || undefined,
-              name: readString(doc.fields, "name") || "Unnamed member",
-              email: readString(doc.fields, "email"),
-              role: readString(doc.fields, "role") === "admin" ? "admin" : "player",
-              status:
-                readString(doc.fields, "status") === "active" ? "active" : "invited",
-              lastSignInAt: readTimestamp(doc.fields, "lastSignInAt") || undefined,
-              deleted: readBoolean(doc.fields, "deleted"),
-            }))
-            .filter((member) => !member.deleted)
-            .sort((a, b) => {
-              const aIsViewer = a.id === session.uid || a.uid === session.uid;
-              const bIsViewer = b.id === session.uid || b.uid === session.uid;
-              if (aIsViewer && !bIsViewer) {
-                return -1;
-              }
-              if (!aIsViewer && bIsViewer) {
-                return 1;
-              }
-              return toUnixMillis(b.lastSignInAt) - toUnixMillis(a.lastSignInAt);
-            })
-            .map((member) => ({
-              id: member.id,
-              uid: member.uid,
-              name: member.name,
-              email: member.email,
-              role: member.role,
-              status: member.status,
-              lastSignInAt: member.lastSignInAt,
-            }))
-            .slice(0, MAX_FAMILY_MEMBERS),
+          members: mappedMembers,
           choresToday: choreDocs
             .map((doc) => ({
               id: documentIdFromName(doc.name),
@@ -203,6 +350,7 @@ export async function GET(request: NextRequest) {
                   ? chore.status
                   : "Unknown",
             })),
+          pendingInvite: null,
         } satisfies FamilySummaryResponse;
       });
 

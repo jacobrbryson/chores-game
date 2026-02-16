@@ -90,6 +90,7 @@ Build a family chore game where:
   - `POST /api/family/members` creates a family automatically if needed, then adds a member.
   - `DELETE /api/family/members/{memberId}` removes a non-self family member.
   - `POST /api/family/members/{memberId}/reinvite` marks a non-self member as re-invited.
+  - `POST /api/family/invitations/accept` lets an invited member accept and activate their own family membership.
 - New chores browsing/creation flow:
   - Home "Today's Chores" includes `All Chores` link to `/chores`.
   - `/chores` shows all chores in a table and an empty-state CTA.
@@ -115,6 +116,19 @@ Build a family chore game where:
   - `families/{familyId}` readable by family members, writable by family admins.
   - `families/{familyId}/members` readable by family members; create/update/delete by family admins, with bootstrap exception for family creator's first admin membership doc.
   - `families/{familyId}/chores` readable by family members, writable by family admins.
+- Invite/member resolution updates (2026-02-16):
+  - New invites use the normalized invitee email as `members/{memberId}` when email is provided.
+  - Family summary recovery now falls back to member-email lookup when `familyIds` and UID-based membership lookup are missing.
+  - Re-invite migrates legacy random-ID invite docs (no `uid`) to the email-keyed member doc and soft-deletes the legacy doc.
+  - Firestore rules treat an email-keyed member doc as valid family membership (non-deleted), while admin checks remain UID-doc based.
+  - Google sign-in now auto-links an invited user to the matching family by email and writes `users/{uid}.familyIds` on login when missing.
+  - Google sign-in now also auto-claims the invite by creating/updating `families/{familyId}/members/{uid}` as `active` from the email-keyed invite record.
+  - Family summary de-duplicates legacy email-only invite records when a UID-linked member with the same email exists.
+  - Firestore rules now allow a signed-in invitee to create their own UID member doc from a claimable email invite.
+  - Invite linking now writes an explicit index doc at `inviteLookup/{email}` with `{ familyId, status }` to avoid collection-group lookup failures.
+  - Child sign-in and family summary recovery now read `inviteLookup/{email}` first, then fall back to member queries.
+- Pending invite UX: invited users see only inviter context + an accept action until they accept; full family members and chores are shown only after acceptance.
+  - Member-management permissions tightened: only `admin` members can re-invite or remove family members; `player` users cannot perform these actions in UI or API.
 
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.

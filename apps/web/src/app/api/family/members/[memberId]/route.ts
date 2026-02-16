@@ -4,8 +4,10 @@ import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import {
   boolField,
+  createOrReplaceDocument,
   getDocument,
   patchDocument,
+  stringField,
   readString,
   readStringArray,
   timestampField,
@@ -66,21 +68,44 @@ export async function DELETE(
           return { kind: "family_not_found" as const };
         }
 
+        const requesterMemberDoc = await getDocument(
+          `families/${familyId}/members/${session.uid}`,
+          idToken,
+        );
+        const requesterRole = readString(requesterMemberDoc.fields, "role");
+        if (requesterRole !== "admin") {
+          return { kind: "not_allowed" as const };
+        }
+
         const memberDoc = await getDocument(`families/${familyId}/members/${memberId}`, idToken);
         const memberUid = readString(memberDoc.fields, "uid");
+        const memberEmail = readString(memberDoc.fields, "email").trim().toLowerCase();
         if (memberId === session.uid || memberUid === session.uid) {
           return { kind: "cannot_remove_self" as const };
         }
 
+        const now = new Date().toISOString();
         await patchDocument(
           `families/${familyId}/members/${memberId}`,
           {
             deleted: boolField(true),
-            deletedAt: timestampField(new Date().toISOString()),
+            deletedAt: timestampField(now),
           },
           idToken,
           ["deleted", "deletedAt"],
         );
+        if (memberEmail) {
+          await createOrReplaceDocument(
+            `inviteLookup/${memberEmail}`,
+            {
+              email: stringField(memberEmail),
+              familyId: stringField(familyId),
+              status: stringField("revoked"),
+              updatedAt: timestampField(now),
+            },
+            idToken,
+          );
+        }
         return { kind: "ok" as const };
       });
 
@@ -89,6 +114,9 @@ export async function DELETE(
     }
     if (data.kind === "cannot_remove_self") {
       return NextResponse.json({ error: "cannot_remove_self" }, { status: 400 });
+    }
+    if (data.kind === "not_allowed") {
+      return NextResponse.json({ error: "not_allowed" }, { status: 403 });
     }
 
     const response = NextResponse.json({ success: true });

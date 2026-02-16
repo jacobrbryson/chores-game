@@ -3,7 +3,16 @@ import {
   type SessionUser,
 } from "@/lib/auth/session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
-import { patchDocument, stringField, timestampField } from "@/lib/firestore/rest";
+import {
+  findFirstFamilyIdByMemberEmail,
+  getDocument,
+  patchDocument,
+  readString,
+  readStringArray,
+  stringArrayField,
+  stringField,
+  timestampField,
+} from "@/lib/firestore/rest";
 
 type GoogleTokenInfo = {
   aud: string;
@@ -22,6 +31,19 @@ type FirebaseSession = {
   localId: string;
   photoUrl?: string;
 };
+
+function maskEmail(email: string) {
+  const normalized = email.trim().toLowerCase();
+  const atIndex = normalized.indexOf("@");
+  if (atIndex <= 1) {
+    return normalized || "(empty)";
+  }
+  return `${normalized.slice(0, 2)}***${normalized.slice(atIndex)}`;
+}
+
+function logInviteDebug(event: string, details: Record<string, unknown>) {
+  console.info("[INVITE_DEBUG]", event, JSON.stringify(details));
+}
 
 function resolvePublicOrigin(request: NextRequest) {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
@@ -116,14 +138,84 @@ async function upsertFirebaseUser(
   tokenInfo: GoogleTokenInfo,
 ) {
   const now = new Date().toISOString();
+  const normalizedEmail = (tokenInfo.email ?? session.email ?? "").trim().toLowerCase();
+  logInviteDebug("gsi_upsert_start", {
+    uid: session.localId,
+    email: maskEmail(normalizedEmail),
+  });
+  let existingFamilyIds: string[] = [];
+  try {
+    const existingUserDoc = await getDocument(`users/${session.localId}`, session.idToken);
+    existingFamilyIds = readStringArray(existingUserDoc.fields, "familyIds");
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
+
+  let linkedFamilyId = existingFamilyIds[0] ?? "";
+  logInviteDebug("gsi_existing_user", {
+    uid: session.localId,
+    familyIdsCount: existingFamilyIds.length,
+    linkedFamilyId: linkedFamilyId || null,
+  });
+  if (!linkedFamilyId && normalizedEmail) {
+    try {
+      const inviteLookupDoc = await getDocument(`inviteLookup/${normalizedEmail}`, session.idToken);
+      const inviteLookupStatus = readString(inviteLookupDoc.fields, "status");
+      const inviteLookupFamilyId = readString(inviteLookupDoc.fields, "familyId");
+      if (inviteLookupStatus === "invited" && inviteLookupFamilyId) {
+        linkedFamilyId = inviteLookupFamilyId;
+      }
+      logInviteDebug("gsi_invite_lookup_doc", {
+        uid: session.localId,
+        email: maskEmail(normalizedEmail),
+        inviteLookupStatus: inviteLookupStatus || null,
+        inviteLookupFamilyId: inviteLookupFamilyId || null,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      if (!reason.includes("FIRESTORE_HTTP_404")) {
+        logInviteDebug("gsi_invite_lookup_error", {
+          uid: session.localId,
+          email: maskEmail(normalizedEmail),
+          reason: reason.slice(0, 180),
+        });
+      }
+    }
+  }
+  if (!linkedFamilyId && normalizedEmail) {
+    linkedFamilyId = await findFirstFamilyIdByMemberEmail(normalizedEmail, session.idToken);
+    logInviteDebug("gsi_email_lookup", {
+      uid: session.localId,
+      email: maskEmail(normalizedEmail),
+      linkedFamilyId: linkedFamilyId || null,
+    });
+  }
+
+  if (linkedFamilyId && normalizedEmail) {
+    logInviteDebug("gsi_invite_pending", {
+      uid: session.localId,
+      familyId: linkedFamilyId,
+      email: maskEmail(normalizedEmail),
+    });
+  }
+
   const authFields = {
     uid: stringField(session.localId),
     role: stringField("player"),
-    email: stringField(tokenInfo.email ?? session.email ?? ""),
+    email: stringField(normalizedEmail),
     displayName: stringField(tokenInfo.name ?? session.displayName ?? ""),
     photoUrl: stringField(tokenInfo.picture ?? session.photoUrl ?? ""),
     provider: stringField("google"),
     lastSignInAt: timestampField(now),
+    ...(linkedFamilyId
+      ? {
+          familyIds: stringArrayField([linkedFamilyId]),
+          lastFamilyUpdateAt: timestampField(now),
+        }
+      : {}),
   };
   await patchDocument(
     `users/${session.localId}`,
@@ -131,6 +223,11 @@ async function upsertFirebaseUser(
     session.idToken,
     Object.keys(authFields),
   );
+  logInviteDebug("gsi_user_patch_success", {
+    uid: session.localId,
+    email: maskEmail(normalizedEmail),
+    linkedFamilyId: linkedFamilyId || null,
+  });
   return true;
 }
 
@@ -161,6 +258,7 @@ export async function POST(request: NextRequest) {
       credential,
       publicOrigin,
     );
+    const normalizedEmail = (tokenInfo.email ?? firebaseSession.email ?? "").trim().toLowerCase();
     if (firebaseSession) {
       await upsertFirebaseUser(firebaseSession, tokenInfo);
     }
@@ -169,7 +267,7 @@ export async function POST(request: NextRequest) {
     const sessionCookie: SessionUser = {
       uid: firebaseSession.localId,
       role: "player",
-      email: tokenInfo.email ?? firebaseSession.email ?? "",
+      email: normalizedEmail,
       name: tokenInfo.name ?? firebaseSession.displayName ?? "",
       picture: tokenInfo.picture ?? firebaseSession.photoUrl ?? "",
       firebaseIdToken: firebaseSession.idToken,

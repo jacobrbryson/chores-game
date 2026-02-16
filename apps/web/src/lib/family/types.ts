@@ -8,6 +8,18 @@ export type FamilySnapshotMember = {
   lastSignInAt?: string;
 };
 
+export type FamilyPendingInvite = {
+  familyId: string;
+  familyName: string;
+  invitedEmail: string;
+  invitedAt?: string;
+  inviter: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+};
+
 export type FamilySnapshotChore = {
   id: string;
   title: string;
@@ -26,4 +38,5 @@ export type FamilySummaryResponse = {
   };
   members: FamilySnapshotMember[];
   choresToday: FamilySnapshotChore[];
+  pendingInvite: FamilyPendingInvite | null;
 };

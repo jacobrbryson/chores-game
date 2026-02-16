@@ -21,6 +21,19 @@ type AddMemberBody = {
   role?: string;
 };
 
+function maskEmail(email: string) {
+  const normalized = email.trim().toLowerCase();
+  const atIndex = normalized.indexOf("@");
+  if (atIndex <= 1) {
+    return normalized || "(empty)";
+  }
+  return `${normalized.slice(0, 2)}***${normalized.slice(atIndex)}`;
+}
+
+function logInviteDebug(event: string, details: Record<string, unknown>) {
+  console.info("[INVITE_DEBUG]", event, JSON.stringify(details));
+}
+
 function jsonReauthRequired() {
   return NextResponse.json(
     {
@@ -163,6 +176,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    logInviteDebug("add_member_start", {
+      requesterUid: session.uid,
+      email: maskEmail(email),
+      role,
+    });
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
         let familyIds = await getUserFamilyIds(session.uid, idToken);
@@ -183,7 +201,7 @@ export async function POST(request: NextRequest) {
           familyIds = [familyId];
         }
 
-        const memberId = randomUUID();
+        const memberId = email || randomUUID();
         const now = new Date().toISOString();
         await createOrReplaceDocument(
           `families/${familyId}/members/${memberId}`,
@@ -198,6 +216,26 @@ export async function POST(request: NextRequest) {
           },
           idToken,
         );
+        if (email) {
+          await createOrReplaceDocument(
+            `inviteLookup/${email}`,
+            {
+              email: stringField(email),
+              familyId: stringField(familyId),
+              role: stringField(role),
+              status: stringField("invited"),
+              updatedAt: timestampField(now),
+            },
+            idToken,
+          );
+        }
+        logInviteDebug("add_member_written", {
+          requesterUid: session.uid,
+          familyId,
+          memberId,
+          email: maskEmail(email),
+          role,
+        });
 
         return {
           familyId,

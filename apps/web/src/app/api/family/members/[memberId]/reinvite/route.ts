@@ -3,10 +3,14 @@ import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import {
+  boolField,
+  createOrReplaceDocument,
   getDocument,
   patchDocument,
+  readBoolean,
   readString,
   readStringArray,
+  readTimestamp,
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
@@ -66,9 +70,23 @@ export async function POST(
           return { kind: "family_not_found" as const };
         }
 
+        const requesterMemberDoc = await getDocument(
+          `families/${familyId}/members/${session.uid}`,
+          idToken,
+        );
+        const requesterRole = readString(requesterMemberDoc.fields, "role");
+        if (requesterRole !== "admin") {
+          return { kind: "not_allowed" as const };
+        }
+
         const memberDoc = await getDocument(`families/${familyId}/members/${memberId}`, idToken);
         const memberUid = readString(memberDoc.fields, "uid");
-        const memberEmail = readString(memberDoc.fields, "email");
+        const memberEmail = readString(memberDoc.fields, "email").trim().toLowerCase();
+        const memberName = readString(memberDoc.fields, "name");
+        const memberRole = readString(memberDoc.fields, "role") === "admin" ? "admin" : "player";
+        const createdBy = readString(memberDoc.fields, "createdBy");
+        const createdAt = readTimestamp(memberDoc.fields, "createdAt");
+        const deleted = readBoolean(memberDoc.fields, "deleted");
 
         if (memberId === session.uid || memberUid === session.uid) {
           return { kind: "cannot_reinvite_self" as const };
@@ -76,8 +94,52 @@ export async function POST(
         if (!memberEmail) {
           return { kind: "member_email_required" as const };
         }
+        if (deleted) {
+          return { kind: "member_not_found" as const };
+        }
 
         const now = new Date().toISOString();
+        const emailKeyedMemberId = memberEmail;
+
+        // Migrate older random-id invite docs to email-keyed IDs so invitees can resolve membership.
+        if (!memberUid && emailKeyedMemberId !== memberId) {
+          await createOrReplaceDocument(
+            `families/${familyId}/members/${emailKeyedMemberId}`,
+            {
+              name: stringField(memberName || "Unnamed member"),
+              email: stringField(memberEmail),
+              role: stringField(memberRole),
+              status: stringField("invited"),
+              deleted: boolField(false),
+              createdBy: stringField(createdBy || session.uid),
+              createdAt: timestampField(createdAt || now),
+              reinvitedAt: timestampField(now),
+            },
+            idToken,
+          );
+          await patchDocument(
+            `families/${familyId}/members/${memberId}`,
+            {
+              deleted: boolField(true),
+              deletedAt: timestampField(now),
+            },
+            idToken,
+            ["deleted", "deletedAt"],
+          );
+          await createOrReplaceDocument(
+            `inviteLookup/${memberEmail}`,
+            {
+              email: stringField(memberEmail),
+              familyId: stringField(familyId),
+              role: stringField(memberRole),
+              status: stringField("invited"),
+              updatedAt: timestampField(now),
+            },
+            idToken,
+          );
+          return { kind: "ok" as const, reinvitedAt: now };
+        }
+
         await patchDocument(
           `families/${familyId}/members/${memberId}`,
           {
@@ -86,6 +148,17 @@ export async function POST(
           },
           idToken,
           ["status", "reinvitedAt"],
+        );
+        await createOrReplaceDocument(
+          `inviteLookup/${memberEmail}`,
+          {
+            email: stringField(memberEmail),
+            familyId: stringField(familyId),
+            role: stringField(memberRole),
+            status: stringField("invited"),
+            updatedAt: timestampField(now),
+          },
+          idToken,
         );
 
         return { kind: "ok" as const, reinvitedAt: now };
@@ -99,6 +172,12 @@ export async function POST(
     }
     if (data.kind === "member_email_required") {
       return NextResponse.json({ error: "member_email_required" }, { status: 400 });
+    }
+    if (data.kind === "member_not_found") {
+      return NextResponse.json({ error: "member_not_found" }, { status: 404 });
+    }
+    if (data.kind === "not_allowed") {
+      return NextResponse.json({ error: "not_allowed" }, { status: 403 });
     }
 
     const response = NextResponse.json({ success: true, reinvitedAt: data.reinvitedAt });
