@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  createSessionToken,
-  SESSION_COOKIE_MAX_AGE,
   type SessionUser,
 } from "@/lib/auth/session";
+import { setSessionUserCookie } from "@/lib/auth/session-cookie";
+import { patchDocument, stringField, timestampField } from "@/lib/firestore/rest";
 
 type GoogleTokenInfo = {
   aud: string;
@@ -18,6 +18,7 @@ type FirebaseSession = {
   displayName?: string;
   email?: string;
   idToken: string;
+  refreshToken?: string;
   localId: string;
   photoUrl?: string;
 };
@@ -40,7 +41,7 @@ function resolvePublicOrigin(request: NextRequest) {
 function redirectToPath(
   request: NextRequest,
   path: string,
-  params: Record<string, string>,
+  params: Record<string, string> = {},
 ) {
   const url = new URL(path, resolvePublicOrigin(request));
   for (const [key, value] of Object.entries(params)) {
@@ -114,37 +115,23 @@ async function upsertFirebaseUser(
   session: FirebaseSession,
   tokenInfo: GoogleTokenInfo,
 ) {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  if (!projectId) {
-    return false;
-  }
-
-  const docUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${session.localId}`;
   const now = new Date().toISOString();
-
-  const response = await fetch(docUrl, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.idToken}`,
-    },
-    body: JSON.stringify({
-      fields: {
-        uid: { stringValue: session.localId },
-        role: { stringValue: "player" },
-        email: { stringValue: tokenInfo.email ?? session.email ?? "" },
-        displayName: {
-          stringValue: tokenInfo.name ?? session.displayName ?? "",
-        },
-        photoUrl: { stringValue: tokenInfo.picture ?? session.photoUrl ?? "" },
-        provider: { stringValue: "google" },
-        lastSignInAt: { timestampValue: now },
-      },
-    }),
-    cache: "no-store",
-  });
-
-  return response.ok;
+  const authFields = {
+    uid: stringField(session.localId),
+    role: stringField("player"),
+    email: stringField(tokenInfo.email ?? session.email ?? ""),
+    displayName: stringField(tokenInfo.name ?? session.displayName ?? ""),
+    photoUrl: stringField(tokenInfo.picture ?? session.photoUrl ?? ""),
+    provider: stringField("google"),
+    lastSignInAt: timestampField(now),
+  };
+  await patchDocument(
+    `users/${session.localId}`,
+    authFields,
+    session.idToken,
+    Object.keys(authFields),
+  );
+  return true;
 }
 
 export async function POST(request: NextRequest) {
@@ -174,33 +161,21 @@ export async function POST(request: NextRequest) {
       credential,
       publicOrigin,
     );
-    let persisted = "0";
-
     if (firebaseSession) {
-      const written = await upsertFirebaseUser(firebaseSession, tokenInfo);
-      persisted = written ? "1" : "0";
+      await upsertFirebaseUser(firebaseSession, tokenInfo);
     }
 
-    const redirect = redirectToPath(request, "/", { success: "1", persisted });
+    const redirect = redirectToPath(request, "/");
     const sessionCookie: SessionUser = {
       uid: firebaseSession.localId,
       role: "player",
       email: tokenInfo.email ?? firebaseSession.email ?? "",
       name: tokenInfo.name ?? firebaseSession.displayName ?? "",
       picture: tokenInfo.picture ?? firebaseSession.photoUrl ?? "",
+      firebaseIdToken: firebaseSession.idToken,
+      firebaseRefreshToken: firebaseSession.refreshToken,
     };
-    const sessionValue = createSessionToken(sessionCookie);
-    if (!sessionValue) {
-      return redirectToPath(request, "/", { error: "session_config" });
-    }
-
-    redirect.cookies.set("session_user", sessionValue, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: SESSION_COOKIE_MAX_AGE,
-    });
+    setSessionUserCookie(redirect, sessionCookie);
     return redirect;
   } catch (error) {
     const reason =

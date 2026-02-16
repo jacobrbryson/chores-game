@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function memberDocPath(familyId) {
+      return /databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid);
+    }
+
+    function isFamilyMember(familyId) {
+      return isSignedIn() && exists(memberDocPath(familyId));
+    }
+
+    function isFamilyAdmin(familyId) {
+      return isFamilyMember(familyId) && get(memberDocPath(familyId)).data.role == "admin";
+    }
+
+    function isFamilyCreatorBootstrap(familyId) {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/families/$(familyId)).data.createdBy == request.auth.uid;
+    }
+
+    match /users/{uid} {
+      allow read: if isSelf(uid);
+      allow create: if isSelf(uid) && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isSelf(uid);
+    }
+
+    match /families/{familyId} {
+      allow read: if isFamilyMember(familyId);
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isFamilyAdmin(familyId);
+
+      match /members/{memberId} {
+        allow read: if isFamilyMember(familyId);
+
+        // Admins can add members.
+        // Bootstrap exception: family creator can create their own initial admin member doc.
+        allow create: if isFamilyAdmin(familyId)
+          || (
+            isSelf(memberId)
+            && isFamilyCreatorBootstrap(familyId)
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.role == "admin"
+            && request.resource.data.status == "active"
+          );
+
+        allow update, delete: if isFamilyAdmin(familyId);
+      }
+
+      match /chores/{choreId} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update, delete: if isFamilyAdmin(familyId);
+      }
+
+      match /choreUsage/{usageId} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update, delete: if isFamilyAdmin(familyId);
+      }
+    }
+
+    match /choreUsageGlobal/{usageId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

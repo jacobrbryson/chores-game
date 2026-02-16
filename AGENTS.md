@@ -82,6 +82,39 @@ Build a family chore game where:
   - `FIREBASE_PROJECT_ID`
   - `FIREBASE_WEB_API_KEY`
   - `SESSION_SECRET` (>= 32 chars)
+- Homepage view split by auth state:
+  - Logged out users see the marketing hero + "How it works".
+  - Logged in users see a "My Family" dashboard card instead of the hero.
+- New authenticated family APIs:
+  - `GET /api/family/summary` returns family snapshot (members + chores due today).
+  - `POST /api/family/members` creates a family automatically if needed, then adds a member.
+  - `DELETE /api/family/members/{memberId}` removes a non-self family member.
+  - `POST /api/family/members/{memberId}/reinvite` marks a non-self member as re-invited.
+- New chores browsing/creation flow:
+  - Home "Today's Chores" includes `All Chores` link to `/chores`.
+  - `/chores` shows all chores in a table and an empty-state CTA.
+  - Shared CTA button text is `Let's add some!` and opens the same add-chores dialog.
+- New chores API:
+  - `GET /api/chores` returns all chores for the signed-in user's primary family.
+  - `POST /api/chores` creates one or more chores from a list of titles.
+  - `GET /api/chores/suggestions` returns up to 100 chore description suggestions ranked by family usage then global usage; with `q` (3+ chars), suggestions are filtered by character match.
+  - `DELETE /api/chores/{choreId}` performs a soft delete (`deleted=true`, timestamped).
+- Add Chores dialog UX:
+  - Primary required field is `Description` with autocomplete suggestions.
+  - `Assignee` selector loads current family members.
+  - `Additional Options` toggles due date and details fields.
+- Chore list UX:
+  - Non-empty chore lists include an `Add more chores` CTA at the bottom.
+  - Chore rows include coin display and a remove (`X`) action with tooltip.
+- If a logged-in user has no family, homepage dashboard shows a "Get Started" add-member flow.
+- Firebase ID token handling:
+  - Session stores Firebase refresh token in signed HTTP-only `session_user` cookie payload.
+  - Protected API routes auto-refresh Firebase ID tokens on `401` from Firestore and rotate `session_user` cookie.
+- Firestore security rules baseline is now collection-scoped (no global authenticated read/write):
+  - `users/{uid}` only accessible by that user.
+  - `families/{familyId}` readable by family members, writable by family admins.
+  - `families/{familyId}/members` readable by family members; create/update/delete by family admins, with bootstrap exception for family creator's first admin membership doc.
+  - `families/{familyId}/chores` readable by family members, writable by family admins.
 
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.

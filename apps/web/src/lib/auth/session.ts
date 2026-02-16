@@ -6,6 +6,8 @@ export type SessionUser = {
   email: string;
   name: string;
   picture: string;
+  firebaseIdToken?: string;
+  firebaseRefreshToken?: string;
 };
 
 type SessionPayload = SessionUser & {
@@ -76,6 +78,8 @@ export function parseSessionToken(token: string | undefined): SessionUser | null
       email: parsed.email,
       name: parsed.name,
       picture: parsed.picture,
+      firebaseIdToken: parsed.firebaseIdToken,
+      firebaseRefreshToken: parsed.firebaseRefreshToken,
     };
   } catch {
     return null;
