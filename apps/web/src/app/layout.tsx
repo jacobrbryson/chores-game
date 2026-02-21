@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Chore Quest",
+  title: "Family Chores",
   description:
     "A family chore game where kids complete quests and parents approve rewards.",
 };

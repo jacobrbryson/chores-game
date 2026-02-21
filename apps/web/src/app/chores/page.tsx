@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AddChoresDialog } from "@/components/add-chores-dialog";
+import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
+import { Button } from "@/components/button";
 
 type ChoreRow = {
   id: string;
@@ -23,8 +24,11 @@ export default function ChoresPage() {
   const [error, setError] = useState("");
   const [removingChoreId, setRemovingChoreId] = useState("");
 
-  async function loadChores() {
-    setIsLoading(true);
+  async function loadChores(options?: { silent?: boolean }) {
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setIsLoading(true);
+    }
     setError("");
     try {
       const response = await fetch("/api/chores", { cache: "no-store" });
@@ -38,7 +42,9 @@ export default function ChoresPage() {
       const message = loadError instanceof Error ? loadError.message : "chores_unavailable";
       setError(message);
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }
 
@@ -58,7 +64,7 @@ export default function ChoresPage() {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? `REMOVE_CHORE_HTTP_${response.status}`);
       }
-      await loadChores();
+      await loadChores({ silent: true });
     } catch (removeError) {
       const message =
         removeError instanceof Error ? removeError.message : "remove_chore_failed";
@@ -86,7 +92,7 @@ export default function ChoresPage() {
                 <div className="flex flex-col gap-3">
                   <p className="small">No chores found.</p>
                   <div className="chores-empty-cta">
-                    <AddChoresDialog onCreated={loadChores} />
+                    <AddEditChoresDialog onSaved={() => loadChores({ silent: true })} />
                   </div>
                 </div>
               ) : (
@@ -120,7 +126,7 @@ export default function ChoresPage() {
                               </span>
                             </td>
                             <td>
-                              <button
+                              <Button
                                 type="button"
                                 title="Remove chore"
                                 aria-label="Remove chore"
@@ -128,7 +134,7 @@ export default function ChoresPage() {
                                 disabled={Boolean(removingChoreId)}
                                 onClick={() => onRemoveChore(chore.id)}>
                                 {removingChoreId === chore.id ? "…" : "×"}
-                              </button>
+                              </Button>
                             </td>
                           </tr>
                         ))}
@@ -136,7 +142,10 @@ export default function ChoresPage() {
                     </table>
                   </div>
                   <div className="chores-empty-cta chores-add-more-cta">
-                    <AddChoresDialog triggerLabel="Add more chores" onCreated={loadChores} />
+                    <AddEditChoresDialog
+                      triggerLabel="Add more chores"
+                      onSaved={() => loadChores({ silent: true })}
+                    />
                   </div>
                 </>
               )}

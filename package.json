@@ -11,6 +11,9 @@
 		"dev:ws": "npm run dev -w @apps/ws",
 		"build": "npm run build --workspaces --if-present"
 	},
+	"overrides": {
+		"minimatch": "^10.2.1"
+	},
 	"dependencies": {
 		"firebase": "^12.9.0"
 	}

@@ -24,8 +24,10 @@ export type FamilySnapshotChore = {
   id: string;
   title: string;
   status: "Open" | "Submitted" | "Approved" | "Rejected" | "Unknown";
+  assigneeId?: string;
   assigneeName: string;
   dueDate: string;
+  details?: string;
   coinValue: number;
 };
 

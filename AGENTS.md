@@ -129,6 +129,30 @@ Build a family chore game where:
   - Child sign-in and family summary recovery now read `inviteLookup/{email}` first, then fall back to member queries.
 - Pending invite UX: invited users see only inviter context + an accept action until they accept; full family members and chores are shown only after acceptance.
   - Member-management permissions tightened: only `admin` members can re-invite or remove family members; `player` users cannot perform these actions in UI or API.
+- Chore panel and dialog updates (2026-02-21):
+  - Home "Today's Chores" section is split into dedicated components (`TodayChoresPanel` + per-chore card component).
+  - Chore row actions now use a three-dot menu with `Edit` and `Delete` options.
+  - Chore create/edit uses one shared component: `AddEditChoresDialog`.
+  - Added `PATCH /api/chores/{choreId}` for:
+    - `action: "edit"` to update chore details (title, assignee, due date, details).
+    - `action: "complete"` to mark chore as `Submitted`.
+  - Chore cards now include a prominent `Mark as Complete` action; completed chores leave the "Today's Chores" list.
+  - Modal/popup interactions now use a shared animated shell for quick slide-up on open and slide-down on dismiss.
+  - Home "Today's Chores" now includes a right-side animated completion chart by family member.
+  - Chart timeframe dropdown defaults to `Today` and supports `This week` (last 7 days) and `This year` (last 365 days).
+  - Added `GET /api/chores/completion-stats?window=today|week|year` to return completed chore counts (`Submitted`/`Approved`) per active family member.
+- Family management and landing updates (2026-02-21):
+  - Logged-in homepage is chores-first; "Today's Chores" is the primary default content.
+  - Home no longer renders the members management card.
+  - Home member count line links to `/family`.
+  - `/family` is now the dedicated family management page (list, add, re-invite, remove members).
+  - Home chores view removes extra heading/member-count wrapper for a cleaner surface.
+  - Profile dropdown now includes a `Manage Family` link above `Logout`.
+  - Profile dropdown is now a controlled popover that closes on outside click/tap and includes a visual divider between `Manage Family` and `Logout`.
+  - Home chores panel now supports a persistent `My Chores` toggle that filters to the signed-in user and shows `My Chores (x) out of (y)` counts.
+  - Introduced reusable menu-action link styling/component used by profile dropdown actions and home `All Chores` action.
+  - `My Chores` preference is now persisted in Firestore on `users/{uid}.preferencesMyChoresOnly` via `GET/PATCH /api/preferences`, with localStorage fallback.
+  - Added reusable `Button` component and migrated app UI button usage to it for consistency.
 
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.

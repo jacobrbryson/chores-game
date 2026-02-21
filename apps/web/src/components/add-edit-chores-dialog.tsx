@@ -1,11 +1,8 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from "react";
-
-type AddChoresDialogProps = {
-  onCreated?: () => Promise<void> | void;
-  triggerLabel?: string;
-};
+import { FormEvent, KeyboardEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/button";
+import { ModalShell } from "@/components/modal-shell";
 
 type Suggestion = {
   description: string;
@@ -18,6 +15,25 @@ type FamilyMemberOption = {
   uid?: string;
   name: string;
   role: "admin" | "player";
+};
+
+type EditableChore = {
+  id: string;
+  title: string;
+  assigneeId?: string;
+  dueDate?: string;
+  details?: string;
+};
+
+type AddEditChoresDialogProps = {
+  onSaved?: () => Promise<void> | void;
+  triggerLabel?: string;
+  triggerClassName?: string;
+  chore?: EditableChore;
+  renderTrigger?: (openDialog: () => void) => ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 };
 
 const LAST_ASSIGNEE_STORAGE_KEY = "chores_last_assignee_id";
@@ -53,11 +69,20 @@ function writeLastAssigneeId(value: string) {
   }
 }
 
-export function AddChoresDialog({
-  onCreated,
+export function AddEditChoresDialog({
+  onSaved,
   triggerLabel = "Let's add some!",
-}: AddChoresDialogProps) {
-  const [open, setOpen] = useState(false);
+  triggerClassName = "btn btn-primary",
+  chore,
+  renderTrigger,
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger = false,
+}: AddEditChoresDialogProps) {
+  const isEditMode = Boolean(chore);
+  const editingChoreId = chore?.id ?? "";
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
   const [description, setDescription] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [dueDate, setDueDate] = useState(todayIsoDate());
@@ -70,6 +95,14 @@ export function AddChoresDialog({
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [members, setMembers] = useState<FamilyMemberOption[]>([]);
   const [assigneeHydrated, setAssigneeHydrated] = useState(false);
+  const effectiveDueDate = showAdditionalOptions ? dueDate : todayIsoDate();
+
+  function setDialogOpen(next: boolean) {
+    if (controlledOpen === undefined) {
+      setInternalOpen(next);
+    }
+    onOpenChange?.(next);
+  }
 
   const assigneeOptions = useMemo(
     () =>
@@ -91,9 +124,19 @@ export function AddChoresDialog({
   }, [description, suggestions]);
 
   async function loadSuggestions(query = "") {
-    const url = query
-      ? `/api/chores/suggestions?q=${encodeURIComponent(query)}`
-      : "/api/chores/suggestions";
+    const params = new URLSearchParams();
+    if (query) {
+      params.set("q", query);
+    }
+    if (assigneeId) {
+      params.set("assigneeId", assigneeId);
+      params.set("dueDate", effectiveDueDate);
+    }
+    if (editingChoreId) {
+      params.set("excludeChoreId", editingChoreId);
+    }
+    const qs = params.toString();
+    const url = qs ? `/api/chores/suggestions?${qs}` : "/api/chores/suggestions";
     const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) {
       const body = (await response.json()) as { error?: string };
@@ -115,6 +158,11 @@ export function AddChoresDialog({
     };
     const allMembers = payload.members ?? [];
     setMembers(allMembers);
+    if (chore) {
+      setAssigneeId(chore.assigneeId ?? "");
+      setAssigneeHydrated(true);
+      return;
+    }
     const stickyAssigneeId = readLastAssigneeId();
     const stickyMember = allMembers.find((member) => member.id === stickyAssigneeId);
     const viewer = allMembers.find(
@@ -124,11 +172,21 @@ export function AddChoresDialog({
     setAssigneeHydrated(true);
   }
 
+  function hydrateFromChore() {
+    setDescription(chore?.title ?? "");
+    setAssigneeId(chore?.assigneeId ?? "");
+    setDueDate(chore?.dueDate || todayIsoDate());
+    setDetails(chore?.details ?? "");
+    setShowAdditionalOptions(Boolean(chore?.dueDate || chore?.details));
+  }
+
   useEffect(() => {
     if (!open) {
       return;
     }
+    setError("");
     setAssigneeHydrated(false);
+    hydrateFromChore();
     void Promise.all([loadSuggestions(), loadMembers()]).catch((loadError) => {
       setError(normalizeError(loadError));
     });
@@ -145,14 +203,14 @@ export function AddChoresDialog({
       });
     }, 250);
     return () => clearTimeout(timer);
-  }, [description, open]);
+  }, [description, assigneeId, effectiveDueDate, open]);
 
   useEffect(() => {
-    if (!open || !assigneeHydrated || !assigneeId) {
+    if (!open || !assigneeHydrated || !assigneeId || isEditMode) {
       return;
     }
     writeLastAssigneeId(assigneeId);
-  }, [assigneeId, assigneeHydrated, open]);
+  }, [assigneeId, assigneeHydrated, isEditMode, open]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -169,22 +227,40 @@ export function AddChoresDialog({
     setSaving(true);
     setError("");
     try {
-      const response = await fetch("/api/chores", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description: normalizedDescription,
-          assigneeId,
-          dueDate: showAdditionalOptions ? dueDate : undefined,
-          details: showAdditionalOptions ? details : "",
-        }),
-      });
+      const response = await fetch(
+        isEditMode ? `/api/chores/${editingChoreId}` : "/api/chores",
+        {
+          method: isEditMode ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            isEditMode
+              ? {
+                  action: "edit",
+                  description: normalizedDescription,
+                  assigneeId,
+                  dueDate: showAdditionalOptions ? dueDate : todayIsoDate(),
+                  details: showAdditionalOptions ? details : "",
+                }
+              : {
+                  description: normalizedDescription,
+                  assigneeId,
+                  dueDate: showAdditionalOptions ? dueDate : undefined,
+                  details: showAdditionalOptions ? details : "",
+                },
+          ),
+        },
+      );
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
-        throw new Error(body.error ?? `CREATE_CHORES_HTTP_${response.status}`);
+        throw new Error(
+          body.error ??
+            (isEditMode
+              ? `UPDATE_CHORE_HTTP_${response.status}`
+              : `CREATE_CHORES_HTTP_${response.status}`),
+        );
       }
 
-      setOpen(false);
+      setDialogOpen(false);
       setDescription("");
       setShowSuggestionMenu(false);
       setActiveSuggestionIndex(-1);
@@ -192,8 +268,8 @@ export function AddChoresDialog({
       setDueDate(todayIsoDate());
       setDetails("");
       setShowAdditionalOptions(false);
-      if (onCreated) {
-        await onCreated();
+      if (onSaved) {
+        await onSaved();
       }
     } catch (submitError) {
       setError(normalizeError(submitError));
@@ -242,13 +318,21 @@ export function AddChoresDialog({
 
   return (
     <>
-      <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
-        {triggerLabel}
-      </button>
-      {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
-            <h3 className="mb-3 text-lg font-bold text-slate-800">Add Chores</h3>
+      {renderTrigger ? (
+        renderTrigger(() => setDialogOpen(true))
+      ) : hideTrigger ? null : (
+        <Button
+          type="button"
+          className={triggerClassName}
+          onClick={() => setDialogOpen(true)}>
+          {triggerLabel}
+        </Button>
+      )}
+      <ModalShell open={open}>
+        <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <h3 className="mb-3 text-lg font-bold text-slate-800">
+              {isEditMode ? "Edit Chore" : "Add Chores"}
+            </h3>
             <form className="flex w-full flex-col gap-3" onSubmit={onSubmit}>
               <label className="flex w-full flex-col gap-1.5">
                 <span className="text-sm font-medium text-slate-700">Description</span>
@@ -270,7 +354,7 @@ export function AddChoresDialog({
                     <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
                       {filteredSuggestions.map((suggestion, index) => (
                         <li key={suggestion.description}>
-                          <button
+                          <Button
                             type="button"
                             className={`w-full px-3 py-2 text-left text-sm ${
                               index === activeSuggestionIndex
@@ -282,7 +366,7 @@ export function AddChoresDialog({
                               applySuggestion(suggestion.description);
                             }}>
                             {suggestion.description}
-                          </button>
+                          </Button>
                         </li>
                       ))}
                     </ul>
@@ -305,12 +389,12 @@ export function AddChoresDialog({
                 </select>
               </label>
 
-              <button
+              <Button
                 type="button"
                 className="self-start text-sm font-semibold text-[#1f69b7] hover:underline"
                 onClick={() => setShowAdditionalOptions((openState) => !openState)}>
                 Additional Options
-              </button>
+              </Button>
 
               {showAdditionalOptions ? (
                 <>
@@ -340,24 +424,27 @@ export function AddChoresDialog({
               {error ? <p className="text-sm text-red-700">{error}</p> : null}
 
               <div className="mt-1 flex justify-end gap-2">
-                <button
+                <Button
                   type="button"
                   className="h-10 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700"
                   disabled={saving}
-                  onClick={() => setOpen(false)}>
+                  onClick={() => setDialogOpen(false)}>
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
                   className="h-10 rounded-md border border-blue-300 bg-blue-50 px-3 text-sm font-semibold text-blue-700"
                   disabled={saving}>
-                  {saving ? "Saving..." : "Add Chore"}
-                </button>
+                  {saving
+                    ? "Saving..."
+                    : isEditMode
+                      ? "Save Changes"
+                      : "Add Chore"}
+                </Button>
               </div>
             </form>
-          </div>
         </div>
-      ) : null}
+      </ModalShell>
     </>
   );
 }

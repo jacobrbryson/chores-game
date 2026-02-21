@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import Script from "next/script";
 import { parseSessionToken } from "@/lib/auth/session";
 import { FamilyCard } from "@/components/family-card";
+import { ProfileMenu } from "@/components/profile-menu";
 
 export const dynamic = "force-dynamic";
 
@@ -26,39 +27,15 @@ export default async function Home() {
 			) : null}
 			<div className="container">
 				<nav className="top-nav panel">
-					<p className="brand">Chore Quest</p>
+					<p className="brand">Family Chores</p>
 					<div className="nav-links">
 						{sessionUser ? (
-							<details className="profile-menu">
-								<summary>
-									{sessionUser.picture ? (
-										// eslint-disable-next-line @next/next/no-img-element
-										<img
-											className="profile-avatar"
-											src={sessionUser.picture}
-											alt={sessionUser.name || "User profile"}
-											referrerPolicy="no-referrer"
-										/>
-									) : (
-										<span className="profile-avatar profile-fallback">
-											{profileInitial}
-										</span>
-									)}
-								</summary>
-								<div className="profile-dropdown">
-									<p className="profile-name">
-										{sessionUser.name || "Signed In"}
-									</p>
-									<p className="profile-email">{sessionUser.email}</p>
-									<form action="/api/auth/logout" method="post">
-										<button
-											type="submit"
-											className="btn btn-secondary profile-logout">
-											Logout
-										</button>
-									</form>
-								</div>
-							</details>
+							<ProfileMenu
+								name={sessionUser.name || ""}
+								email={sessionUser.email}
+								picture={sessionUser.picture}
+								initial={profileInitial}
+							/>
 						) : googleClientId && gsiLoginUri ? (
 							<>
 								<div

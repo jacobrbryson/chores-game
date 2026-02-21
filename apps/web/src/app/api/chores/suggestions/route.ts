@@ -48,6 +48,10 @@ function normalizeQuery(value: string) {
   return value.trim().toLowerCase();
 }
 
+function isIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 async function getPrimaryFamilyId(uid: string, idToken: string) {
   const userDoc = await getDocument(`users/${uid}`, idToken);
   return readStringArray(userDoc.fields, "familyIds")[0] ?? "";
@@ -119,6 +123,10 @@ export async function GET(request: NextRequest) {
 
   const query = normalizeQuery(request.nextUrl.searchParams.get("q") ?? "");
   const useQuery = query.length >= 3 ? query : "";
+  const assigneeId = (request.nextUrl.searchParams.get("assigneeId") ?? "").trim();
+  const dueDateRaw = (request.nextUrl.searchParams.get("dueDate") ?? "").trim();
+  const dueDate = isIsoDate(dueDateRaw) ? dueDateRaw : new Date().toISOString().slice(0, 10);
+  const excludeChoreId = (request.nextUrl.searchParams.get("excludeChoreId") ?? "").trim();
 
   try {
     const { data, session: refreshedSession, refreshed } =
@@ -181,6 +189,29 @@ export async function GET(request: NextRequest) {
           : [];
 
         const suggestionsMap = new Map<string, Suggestion>();
+        const excludedDescriptions = new Set<string>();
+
+        if (assigneeId) {
+          for (const doc of familyChoreDocs) {
+            const title = readString(doc.fields, "title");
+            if (!title) {
+              continue;
+            }
+            if (readBoolean(doc.fields, "deleted")) {
+              continue;
+            }
+            const choreId = doc.name.split("/").pop() ?? "";
+            if (excludeChoreId && choreId === excludeChoreId) {
+              continue;
+            }
+            const choreAssigneeId = readString(doc.fields, "assigneeId");
+            const choreDueDate = readString(doc.fields, "dueDate");
+            if (choreAssigneeId !== assigneeId || choreDueDate !== dueDate) {
+              continue;
+            }
+            excludedDescriptions.add(title.toLowerCase());
+          }
+        }
 
         for (const doc of familyUsageDocs) {
           const description = readString(doc.fields, "description");
@@ -241,7 +272,13 @@ export async function GET(request: NextRequest) {
           });
         }
 
-        return { suggestions: rankSuggestions([...suggestionsMap.values()]) };
+        return {
+          suggestions: rankSuggestions(
+            [...suggestionsMap.values()].filter(
+              (entry) => !excludedDescriptions.has(entry.description.toLowerCase()),
+            ),
+          ),
+        };
       });
 
     const response = NextResponse.json(data);

@@ -330,17 +330,24 @@ export async function GET(request: NextRequest) {
               id: documentIdFromName(doc.name),
               title: readString(doc.fields, "title") || "Untitled chore",
               status: readString(doc.fields, "status"),
+              assigneeId: readString(doc.fields, "assigneeId") || undefined,
               assigneeName: readString(doc.fields, "assigneeName") || "Unassigned",
               dueDate: readString(doc.fields, "dueDate"),
+              details: readString(doc.fields, "details") || undefined,
               deleted: readBoolean(doc.fields, "deleted"),
               coinValue: readInteger(doc.fields, "coinValue") || 10,
             }))
-            .filter((chore) => chore.dueDate === today && !chore.deleted)
+            .filter(
+              (chore) =>
+                chore.dueDate === today && !chore.deleted && chore.status === "Open",
+            )
             .map((chore) => ({
               id: chore.id,
               title: chore.title,
+              assigneeId: chore.assigneeId,
               assigneeName: chore.assigneeName,
               dueDate: chore.dueDate,
+              details: chore.details,
               coinValue: chore.coinValue,
               status:
                 chore.status === "Open" ||

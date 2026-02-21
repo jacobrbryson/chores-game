@@ -77,13 +77,11 @@ body {
   position: relative;
 }
 
-.profile-menu summary {
-  list-style: none;
+.profile-menu-trigger {
+  border: 0;
+  padding: 0;
+  background: transparent;
   cursor: pointer;
-}
-
-.profile-menu summary::-webkit-details-marker {
-  display: none;
 }
 
 .profile-avatar {
@@ -133,6 +131,37 @@ body {
 
 .profile-logout {
   width: 100%;
+}
+
+.menu-action-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #b7eedd;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: #0f6f5e;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.menu-action-link:hover {
+  background: #d9fbf7;
+}
+
+.menu-action-link-full {
+  width: 100%;
+}
+
+.profile-divider {
+  height: 1px;
+  margin: 8px 0;
+  background: #d5e3f6;
 }
 
 .hero {
@@ -367,7 +396,8 @@ body {
   right: 0;
 }
 
-.family-settings summary {
+.family-settings summary,
+.family-settings-trigger {
   list-style: none;
   cursor: pointer;
   border: 1px solid #c4d8f5;
@@ -462,6 +492,94 @@ body {
 .family-panel h3 {
   margin: 0 0 8px;
   color: #1c4e84;
+}
+
+.today-chores-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.9fr);
+  gap: 12px;
+}
+
+.today-chores-main {
+  min-width: 0;
+}
+
+.completion-chart {
+  border: 1px solid #d0e3fc;
+  border-radius: 12px;
+  padding: 12px;
+  background:
+    radial-gradient(160px 80px at 100% 0%, #9eceff40, transparent 70%),
+    linear-gradient(180deg, #ffffff, #edf6ff);
+}
+
+.completion-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.completion-chart-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.completion-window-picker select {
+  border: 1px solid #c4d8f5;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1b3f6b;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 6px 28px 6px 10px;
+}
+
+.completion-chart-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.completion-chart-row {
+  display: grid;
+  gap: 5px;
+}
+
+.completion-chart-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #2b5384;
+  font-size: 0.85rem;
+}
+
+.completion-chart-meta strong {
+  color: #17416f;
+}
+
+.completion-chart-track {
+  position: relative;
+  overflow: hidden;
+  height: 10px;
+  border-radius: 999px;
+  background: #dcecff;
+}
+
+.completion-chart-bar {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #66c9f4, #2499db);
+  box-shadow: 0 4px 12px rgba(36, 153, 219, 0.28);
+  animation: completion-chart-grow 440ms cubic-bezier(0.2, 0.95, 0.26, 1) both;
+  animation-delay: var(--bar-delay, 0ms);
 }
 
 .family-list {
@@ -650,6 +768,81 @@ body {
   border-bottom: 0;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(15 23 42 / 0.45);
+  animation: modal-backdrop-in 140ms ease-out both;
+}
+
+.modal-backdrop.is-closing {
+  animation: modal-backdrop-out 140ms ease-in both;
+}
+
+.modal-panel {
+  animation: modal-panel-in 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.modal-panel.is-closing {
+  animation: modal-panel-out 140ms ease-in both;
+}
+
+@keyframes modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modal-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+}
+
+@keyframes completion-chart-grow {
+  from {
+    width: 0;
+    opacity: 0.7;
+  }
+  to {
+    width: var(--bar-width, 0%);
+    opacity: 1;
+  }
+}
+
 @media (max-width: 900px) {
   .top-nav {
     flex-direction: column;
@@ -661,6 +854,10 @@ body {
   }
 
   .family-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .today-chores-layout {
     grid-template-columns: 1fr;
   }
 
@@ -681,6 +878,10 @@ body {
 
   .grid {
     grid-template-columns: 1fr;
+  }
+
+  .completion-chart {
+    padding: 10px;
   }
 
 }
