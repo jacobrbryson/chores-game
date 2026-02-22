@@ -1,35 +1,167 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
 import { Button } from "@/components/button";
+import { ModalShell } from "@/components/modal-shell";
 
 type ChoreRow = {
   id: string;
   title: string;
   status: string;
+  assigneeId?: string;
   assigneeName: string;
+  details?: string;
   dueDate: string;
+  completedAt?: string;
   coinValue: number;
 };
 
 type ChoresResponse = {
   chores: ChoreRow[];
+  viewerRole?: "admin" | "player";
 };
+
+function getStatusLabel(status: string) {
+  if (status === "Submitted") {
+    return "Completed";
+  }
+  return status;
+}
+
+function formatCompletedDate(value?: string) {
+  if (!value) {
+    return "-";
+  }
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    return "-";
+  }
+  return new Date(parsed).toLocaleDateString();
+}
+
+type RowActionState = {
+  choreId: string;
+  action: "delete" | "undo_complete";
+};
+
+type ChoreActionsMenuProps = {
+  chore: ChoreRow;
+  canManageActions: boolean;
+  busyAction: "" | "delete" | "undo_complete";
+  disabled: boolean;
+  onEdit: (chore: ChoreRow) => void;
+  onDeleteRequested: (chore: ChoreRow) => void;
+  onUndoCompletion: (choreId: string) => Promise<void> | void;
+};
+
+function ChoreActionsMenu({
+  chore,
+  canManageActions,
+  busyAction,
+  disabled,
+  onEdit,
+  onDeleteRequested,
+  onUndoCompletion,
+}: ChoreActionsMenuProps) {
+  if (!canManageActions) {
+    return null;
+  }
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const canUndoCompletion = chore.status === "Submitted" || chore.status === "Approved";
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    function onPointerDown(event: MouseEvent | TouchEvent) {
+      const target = event.target as Node | null;
+      if (!target) {
+        return;
+      }
+      if (menuRef.current?.contains(target)) {
+        return;
+      }
+      setMenuOpen(false);
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [menuOpen]);
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <Button
+        type="button"
+        aria-label="Chore options"
+        aria-expanded={menuOpen}
+        className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={disabled}
+        onClick={() => setMenuOpen((current) => !current)}>
+        <span className="text-lg leading-none">...</span>
+      </Button>
+      {menuOpen ? (
+        <div className="absolute right-0 z-20 mt-1 w-40 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
+          <Button
+            type="button"
+            className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+            onClick={() => {
+              setMenuOpen(false);
+              onEdit(chore);
+            }}>
+            Edit
+          </Button>
+          <Button
+            type="button"
+            className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!canUndoCompletion || disabled}
+            onClick={() => {
+              setMenuOpen(false);
+              void onUndoCompletion(chore.id);
+            }}>
+            {busyAction === "undo_complete" ? "Undoing..." : "Undo completion"}
+          </Button>
+          <Button
+            type="button"
+            className="block w-full rounded px-2 py-2 text-left text-sm text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={disabled}
+            onClick={() => {
+              setMenuOpen(false);
+              onDeleteRequested(chore);
+            }}>
+            {busyAction === "delete" ? "Deleting..." : "Delete"}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function ChoresPage() {
   const [chores, setChores] = useState<ChoreRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [removingChoreId, setRemovingChoreId] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [rowActionState, setRowActionState] = useState<RowActionState | null>(null);
+  const [editingChore, setEditingChore] = useState<ChoreRow | null>(null);
+  const [pendingDeleteChore, setPendingDeleteChore] = useState<ChoreRow | null>(null);
+  const [viewerRole, setViewerRole] = useState<"admin" | "player">("player");
+  const canCreateChores = viewerRole === "admin";
 
   async function loadChores(options?: { silent?: boolean }) {
     const silent = options?.silent ?? false;
     if (!silent) {
       setIsLoading(true);
     }
-    setError("");
+    setLoadError("");
     try {
       const response = await fetch("/api/chores", { cache: "no-store" });
       if (!response.ok) {
@@ -38,9 +170,11 @@ export default function ChoresPage() {
       }
       const payload = (await response.json()) as ChoresResponse;
       setChores(payload.chores ?? []);
-    } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : "chores_unavailable";
-      setError(message);
+      setViewerRole(payload.viewerRole === "admin" ? "admin" : "player");
+    } catch (loadErrorValue) {
+      const message =
+        loadErrorValue instanceof Error ? loadErrorValue.message : "chores_unavailable";
+      setLoadError(message);
     } finally {
       if (!silent) {
         setIsLoading(false);
@@ -53,11 +187,11 @@ export default function ChoresPage() {
   }, []);
 
   async function onRemoveChore(choreId: string) {
-    if (removingChoreId) {
-      return;
+    if (rowActionState) {
+      return false;
     }
-    setRemovingChoreId(choreId);
-    setError("");
+    setRowActionState({ choreId, action: "delete" });
+    setActionError("");
     try {
       const response = await fetch(`/api/chores/${choreId}`, { method: "DELETE" });
       if (!response.ok) {
@@ -65,12 +199,40 @@ export default function ChoresPage() {
         throw new Error(body.error ?? `REMOVE_CHORE_HTTP_${response.status}`);
       }
       await loadChores({ silent: true });
+      return true;
     } catch (removeError) {
       const message =
         removeError instanceof Error ? removeError.message : "remove_chore_failed";
-      setError(message);
+      setActionError(message);
+      return false;
     } finally {
-      setRemovingChoreId("");
+      setRowActionState(null);
+    }
+  }
+
+  async function onUndoCompletion(choreId: string) {
+    if (rowActionState) {
+      return;
+    }
+    setRowActionState({ choreId, action: "undo_complete" });
+    setActionError("");
+    try {
+      const response = await fetch(`/api/chores/${choreId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "undo_complete" }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `UNDO_COMPLETE_HTTP_${response.status}`);
+      }
+      await loadChores({ silent: true });
+    } catch (undoError) {
+      const message =
+        undoError instanceof Error ? undoError.message : "undo_complete_failed";
+      setActionError(message);
+    } finally {
+      setRowActionState(null);
     }
   }
 
@@ -78,22 +240,48 @@ export default function ChoresPage() {
     <div className="shell">
       <div className="container">
         <main className="panel family-page">
+          <AddEditChoresDialog
+            chore={
+              editingChore
+                ? {
+                    id: editingChore.id,
+                    title: editingChore.title,
+                    assigneeId: editingChore.assigneeId,
+                    dueDate: editingChore.dueDate,
+                    details: editingChore.details,
+                  }
+                : undefined
+            }
+            onSaved={() => loadChores({ silent: true })}
+            open={Boolean(editingChore)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setEditingChore(null);
+              }
+            }}
+            hideTrigger
+          />
           <Link href="/" className="family-back-link">
             Back
           </Link>
           <h1>All Chores</h1>
           {isLoading ? <p className="small">Loading chores...</p> : null}
-          {!isLoading && error ? (
-            <p className="small family-error">Could not load chores: {error}</p>
+          {!isLoading && loadError ? (
+            <p className="small family-error">Could not load chores: {loadError}</p>
           ) : null}
-          {!isLoading && !error ? (
+          {!isLoading && !loadError ? (
             <>
+              {actionError ? (
+                <p className="small family-error mb-3">Chore update failed: {actionError}</p>
+              ) : null}
               {chores.length === 0 ? (
                 <div className="flex flex-col gap-3">
                   <p className="small">No chores found.</p>
-                  <div className="chores-empty-cta">
-                    <AddEditChoresDialog onSaved={() => loadChores({ silent: true })} />
-                  </div>
+                  {canCreateChores ? (
+                    <div className="chores-empty-cta">
+                      <AddEditChoresDialog onSaved={() => loadChores({ silent: true })} />
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <>
@@ -108,6 +296,7 @@ export default function ChoresPage() {
                           <th>Status</th>
                           <th>Assignee</th>
                           <th>Due Date</th>
+                          <th>Completed Date</th>
                           <th>Coins</th>
                           <th />
                         </tr>
@@ -116,44 +305,86 @@ export default function ChoresPage() {
                         {chores.map((chore) => (
                           <tr key={chore.id}>
                             <td>{chore.title}</td>
-                            <td>{chore.status}</td>
+                            <td>{getStatusLabel(chore.status)}</td>
                             <td>{chore.assigneeName || "-"}</td>
                             <td>{chore.dueDate || "-"}</td>
+                            <td>{formatCompletedDate(chore.completedAt)}</td>
                             <td>
                               <span className="inline-flex items-center gap-1 text-sm font-semibold text-amber-600">
-                                <span aria-hidden="true">🪙</span>
+                                <span aria-hidden="true">&#x1FA99;</span>
                                 {chore.coinValue}
                               </span>
                             </td>
                             <td>
-                              <Button
-                                type="button"
-                                title="Remove chore"
-                                aria-label="Remove chore"
-                                className="chore-remove-btn"
-                                disabled={Boolean(removingChoreId)}
-                                onClick={() => onRemoveChore(chore.id)}>
-                                {removingChoreId === chore.id ? "…" : "×"}
-                              </Button>
+                              <ChoreActionsMenu
+                                chore={chore}
+                                canManageActions={viewerRole === "admin"}
+                                busyAction={
+                                  rowActionState?.choreId === chore.id ? rowActionState.action : ""
+                                }
+                                disabled={Boolean(rowActionState)}
+                                onEdit={(selectedChore) => setEditingChore(selectedChore)}
+                                onDeleteRequested={(selectedChore) => setPendingDeleteChore(selectedChore)}
+                                onUndoCompletion={onUndoCompletion}
+                              />
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <div className="chores-empty-cta chores-add-more-cta">
-                    <AddEditChoresDialog
-                      triggerLabel="Add more chores"
-                      onSaved={() => loadChores({ silent: true })}
-                    />
-                  </div>
+                  {canCreateChores ? (
+                    <div className="chores-empty-cta chores-add-more-cta">
+                      <AddEditChoresDialog
+                        triggerLabel="Add more chores"
+                        onSaved={() => loadChores({ silent: true })}
+                      />
+                    </div>
+                  ) : null}
                 </>
               )}
             </>
           ) : null}
         </main>
       </div>
+      <ModalShell
+        open={Boolean(pendingDeleteChore)}
+        onRequestClose={() => setPendingDeleteChore(null)}>
+        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+          {pendingDeleteChore ? (
+            <>
+              <h3 className="mb-2 text-lg font-bold text-slate-800">Delete Chore</h3>
+              <p className="mb-4 text-sm text-slate-600">
+                Delete <strong>{pendingDeleteChore.title}</strong>?
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+                  disabled={Boolean(rowActionState)}
+                  onClick={() => setPendingDeleteChore(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700"
+                  disabled={Boolean(rowActionState)}
+                  onClick={async () => {
+                    const removed = await onRemoveChore(pendingDeleteChore.id);
+                    if (removed) {
+                      setPendingDeleteChore(null);
+                    }
+                  }}>
+                  {rowActionState?.choreId === pendingDeleteChore.id &&
+                  rowActionState.action === "delete"
+                    ? "Deleting..."
+                    : "Delete"}
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </ModalShell>
     </div>
   );
 }
-

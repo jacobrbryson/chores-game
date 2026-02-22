@@ -12,19 +12,26 @@ import {
   readTimestamp,
 } from "@/lib/firestore/rest";
 
-type CompletionWindow = "today" | "week" | "year";
+type CompletionWindow = "today" | "week" | "month" | "year";
 type CompletionCount = {
   memberId: string;
   name: string;
   count: number;
 };
 
-type MemberRow = {
-  id: string;
-  uid: string | undefined;
-  email: string;
+type CompletionTrendInterval = "hour" | "day" | "week";
+
+type CompletionTrendSeriesMember = {
+  memberId: string;
   name: string;
-  deleted: boolean;
+  points: number[];
+};
+
+type CompletionTrendSeries = {
+  interval: CompletionTrendInterval;
+  labels: string[];
+  maxCount: number;
+  series: CompletionTrendSeriesMember[];
 };
 
 function jsonUnauthorized() {
@@ -53,22 +60,10 @@ function jsonFirestoreForbidden() {
 }
 
 function parseWindow(value: string | null): CompletionWindow {
-  if (value === "week" || value === "year") {
+  if (value === "week" || value === "month" || value === "year") {
     return value;
   }
   return "today";
-}
-
-function windowStartIso(window: CompletionWindow) {
-  const now = new Date();
-  if (window === "today") {
-    const start = new Date(now);
-    start.setUTCHours(0, 0, 0, 0);
-    return start.toISOString();
-  }
-  const days = window === "week" ? 7 : 365;
-  const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-  return start.toISOString();
 }
 
 function dueDateToIso(value: string) {
@@ -85,6 +80,158 @@ function toUnixMillis(value: string) {
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
+}
+
+const DAY_MILLIS = 24 * 60 * 60 * 1000;
+const HOUR_MILLIS = 60 * 60 * 1000;
+const WEEK_MILLIS = 7 * DAY_MILLIS;
+const MINUTE_MILLIS = 60 * 1000;
+const MAX_TIMEZONE_OFFSET_MINUTES = 14 * 60;
+
+function startOfUtcDayMillis(value: number) {
+  const date = new Date(value);
+  date.setUTCHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function startOfUtcWeekMillis(value: number) {
+  const date = new Date(startOfUtcDayMillis(value));
+  const dayOffset = date.getUTCDay();
+  date.setUTCDate(date.getUTCDate() - dayOffset);
+  return date.getTime();
+}
+
+function startOfUtcMonthMillis(value: number) {
+  const date = new Date(value);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0);
+}
+
+function startOfUtcYearMillis(value: number) {
+  const date = new Date(value);
+  return Date.UTC(date.getUTCFullYear(), 0, 1, 0, 0, 0, 0);
+}
+
+function parseTimezoneOffsetMinutes(value: string | null) {
+  if (value === null) {
+    return 0;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+  const rounded = Math.trunc(parsed);
+  if (Math.abs(rounded) > MAX_TIMEZONE_OFFSET_MINUTES) {
+    return 0;
+  }
+  return rounded;
+}
+
+function toShiftedUtcMillis(value: number, timezoneOffsetMinutes: number) {
+  return value - timezoneOffsetMinutes * MINUTE_MILLIS;
+}
+
+function fromShiftedUtcMillis(value: number, timezoneOffsetMinutes: number) {
+  return value + timezoneOffsetMinutes * MINUTE_MILLIS;
+}
+
+function startOfOffsetDayMillis(value: number, timezoneOffsetMinutes: number) {
+  return fromShiftedUtcMillis(
+    startOfUtcDayMillis(toShiftedUtcMillis(value, timezoneOffsetMinutes)),
+    timezoneOffsetMinutes,
+  );
+}
+
+function startOfOffsetWeekMillis(value: number, timezoneOffsetMinutes: number) {
+  return fromShiftedUtcMillis(
+    startOfUtcWeekMillis(toShiftedUtcMillis(value, timezoneOffsetMinutes)),
+    timezoneOffsetMinutes,
+  );
+}
+
+function startOfOffsetMonthMillis(value: number, timezoneOffsetMinutes: number) {
+  return fromShiftedUtcMillis(
+    startOfUtcMonthMillis(toShiftedUtcMillis(value, timezoneOffsetMinutes)),
+    timezoneOffsetMinutes,
+  );
+}
+
+function startOfOffsetYearMillis(value: number, timezoneOffsetMinutes: number) {
+  return fromShiftedUtcMillis(
+    startOfUtcYearMillis(toShiftedUtcMillis(value, timezoneOffsetMinutes)),
+    timezoneOffsetMinutes,
+  );
+}
+
+type CompletionWindowRange = {
+  startMillis: number;
+  endMillis: number;
+  interval: CompletionTrendInterval;
+};
+
+function intervalMillis(interval: CompletionTrendInterval) {
+  if (interval === "hour") {
+    return HOUR_MILLIS;
+  }
+  if (interval === "day") {
+    return DAY_MILLIS;
+  }
+  return WEEK_MILLIS;
+}
+
+function getWindowRange(
+  window: CompletionWindow,
+  timezoneOffsetMinutes: number,
+): CompletionWindowRange {
+  const nowMillis = Date.now();
+  if (window === "today") {
+    return {
+      startMillis: startOfOffsetDayMillis(nowMillis, timezoneOffsetMinutes),
+      endMillis: nowMillis,
+      interval: "hour",
+    };
+  }
+  if (window === "week") {
+    return {
+      startMillis: startOfOffsetWeekMillis(nowMillis, timezoneOffsetMinutes),
+      endMillis: nowMillis,
+      interval: "day",
+    };
+  }
+  if (window === "month") {
+    return {
+      startMillis: startOfOffsetMonthMillis(nowMillis, timezoneOffsetMinutes),
+      endMillis: nowMillis,
+      interval: "day",
+    };
+  }
+  return {
+    startMillis: startOfOffsetYearMillis(nowMillis, timezoneOffsetMinutes),
+    endMillis: nowMillis,
+    interval: "week",
+  };
+}
+
+function buildWindowBucketLabels(
+  startMillis: number,
+  endMillis: number,
+  interval: CompletionTrendInterval,
+) {
+  const stepMillis = intervalMillis(interval);
+  const labels: string[] = [];
+  const bucketCount = Math.max(1, Math.floor((endMillis - startMillis) / stepMillis) + 1);
+  for (let index = 0; index < bucketCount; index += 1) {
+    labels.push(new Date(startMillis + index * stepMillis).toISOString());
+  }
+  return labels;
+}
+
+function emptyTrend(interval: CompletionTrendInterval): CompletionTrendSeries {
+  return {
+    interval,
+    labels: [],
+    maxCount: 0,
+    series: [],
+  };
 }
 
 async function getPrimaryFamilyId(uid: string, idToken: string) {
@@ -112,10 +259,17 @@ export async function GET(request: NextRequest) {
   }
 
   const window = parseWindow(request.nextUrl.searchParams.get("window"));
+  const timezoneOffsetMinutes = parseTimezoneOffsetMinutes(
+    request.nextUrl.searchParams.get("tzOffsetMinutes"),
+  );
 
   try {
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
+        const { startMillis, endMillis, interval } = getWindowRange(
+          window,
+          timezoneOffsetMinutes,
+        );
         let familyId = "";
         try {
           familyId = await getPrimaryFamilyId(session.uid, idToken);
@@ -126,12 +280,20 @@ export async function GET(request: NextRequest) {
             reason.toLowerCase().includes("document") &&
             reason.toLowerCase().includes("not found")
           ) {
-            return { window, counts: [] as CompletionCount[] };
+            return {
+              window,
+              counts: [] as CompletionCount[],
+              trend: emptyTrend(interval),
+            };
           }
           throw error;
         }
         if (!familyId) {
-          return { window, counts: [] as CompletionCount[] };
+          return {
+            window,
+            counts: [] as CompletionCount[],
+            trend: emptyTrend(interval),
+          };
         }
 
         const [memberDocs, choreDocs] = await Promise.all([
@@ -167,7 +329,19 @@ export async function GET(request: NextRequest) {
           return !normalizedEmailWithUid.has(normalizedEmail);
         });
 
-        const countsMap = new Map(members.map((member) => [member.id, 0]));
+        const labels = buildWindowBucketLabels(startMillis, endMillis, interval);
+        const bucketStepMillis = intervalMillis(interval);
+        const countsMap = new Map(
+          members.map((member): [string, number] => [member.id, 0]),
+        );
+        const trendPointsByMember = new Map<string, number[]>(
+          members.map(
+            (member): [string, number[]] => [
+              member.id,
+              Array.from({ length: labels.length }, () => 0),
+            ],
+          ),
+        );
         const canonicalByEmail = new Map(
           members
             .map((member) => [normalizeEmail(member.email), member.id] as const)
@@ -191,8 +365,6 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        const startMillis = toUnixMillis(windowStartIso(window));
-
         for (const doc of choreDocs) {
           if (readBoolean(doc.fields, "deleted")) {
             continue;
@@ -213,11 +385,21 @@ export async function GET(request: NextRequest) {
           const updatedAt = readTimestamp(doc.fields, "updatedAt");
           const dueDate = readString(doc.fields, "dueDate");
           const completedAt = submittedAt || updatedAt || dueDateToIso(dueDate);
-          if (!completedAt || toUnixMillis(completedAt) < startMillis) {
+          const completionMillis = completedAt ? toUnixMillis(completedAt) : 0;
+          if (!completedAt || completionMillis === 0) {
+            continue;
+          }
+          if (completionMillis < startMillis || completionMillis > endMillis) {
             continue;
           }
 
           countsMap.set(countedMemberId, (countsMap.get(countedMemberId) ?? 0) + 1);
+          const bucketIndex = Math.floor((completionMillis - startMillis) / bucketStepMillis);
+          const points = trendPointsByMember.get(countedMemberId);
+          if (!points || bucketIndex < 0 || bucketIndex >= points.length) {
+            continue;
+          }
+          points[bucketIndex] += 1;
         }
 
         const counts = members
@@ -233,7 +415,28 @@ export async function GET(request: NextRequest) {
             return a.name.localeCompare(b.name);
           });
 
-        return { window, counts };
+        const trendSeries = counts.map((member) => ({
+          memberId: member.memberId,
+          name: member.name,
+          points:
+            trendPointsByMember.get(member.memberId) ??
+            Array.from({ length: labels.length }, () => 0),
+        }));
+        const maxCount = trendSeries.reduce((max, member) => {
+          const memberMax = member.points.reduce(
+            (pointMax, point) => (point > pointMax ? point : pointMax),
+            0,
+          );
+          return memberMax > max ? memberMax : max;
+        }, 0);
+        const trend: CompletionTrendSeries = {
+          interval,
+          labels,
+          maxCount,
+          series: trendSeries,
+        };
+
+        return { window, counts, trend };
       });
 
     const response = NextResponse.json(data);

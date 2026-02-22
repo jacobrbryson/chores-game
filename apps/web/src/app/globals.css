@@ -513,30 +513,6 @@ body {
     linear-gradient(180deg, #ffffff, #edf6ff);
 }
 
-.completion-chart-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.completion-chart-head h3 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.completion-window-picker select {
-  border: 1px solid #c4d8f5;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #1b3f6b;
-  font: inherit;
-  font-size: 0.84rem;
-  font-weight: 700;
-  padding: 6px 28px 6px 10px;
-}
-
 .completion-chart-list {
   list-style: none;
   margin: 0;
@@ -580,6 +556,99 @@ body {
   box-shadow: 0 4px 12px rgba(36, 153, 219, 0.28);
   animation: completion-chart-grow 440ms cubic-bezier(0.2, 0.95, 0.26, 1) both;
   animation-delay: var(--bar-delay, 0ms);
+}
+
+.lifetime-chart-section {
+  margin-top: 16px;
+  border-top: 1px solid #d7e6fa;
+  padding-top: 12px;
+}
+
+.lifetime-chart-section h4 {
+  margin: 0 0 10px;
+  color: #1d4a7a;
+  font-size: 0.95rem;
+}
+
+.lifetime-chart-shell {
+  border: 1px solid #d3e4fa;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fcfdff, #f2f8ff);
+  overflow: hidden;
+}
+
+.lifetime-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.lifetime-grid-line {
+  stroke: #dce9fa;
+  stroke-width: 1;
+}
+
+.lifetime-axis-line {
+  stroke: #aec8eb;
+  stroke-width: 1.1;
+}
+
+.lifetime-y-label {
+  fill: #5a78a1;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.lifetime-x-labels {
+  position: relative;
+  height: 18px;
+  margin-top: 4px;
+}
+
+.lifetime-x-labels span {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  color: #5977a1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.lifetime-legend {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.lifetime-legend li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  color: #2c5484;
+  font-size: 0.82rem;
+}
+
+.lifetime-legend strong {
+  color: #17416f;
+}
+
+.lifetime-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--line-color, #1f78d1);
+  box-shadow: 0 0 0 2px #e8f1ff;
+}
+
+.lifetime-legend-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .family-list {
@@ -702,8 +771,7 @@ body {
   font-size: 0.9rem;
 }
 
-.family-form input,
-.family-form select {
+.family-form input {
   border: 1px solid #c4d8f5;
   border-radius: 10px;
   padding: 9px 10px;
@@ -787,6 +855,9 @@ body {
 }
 
 .modal-panel {
+  width: 100%;
+  display: flex;
+  justify-content: center;
   animation: modal-panel-in 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 

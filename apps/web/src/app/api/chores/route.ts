@@ -36,10 +36,15 @@ type ChoreRow = {
   assigneeName: string;
   details?: string;
   dueDate: string;
+  completedAt?: string;
   coinValue: number;
   deleted: boolean;
   createdAt?: string;
+  submittedAt?: string;
+  updatedAt?: string;
 };
+
+type ViewerRole = "admin" | "player";
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -117,6 +122,37 @@ async function getFamilyMemberName(
   }
 }
 
+async function getViewerRole(
+  familyId: string,
+  uid: string,
+  idToken: string,
+): Promise<ViewerRole> {
+  try {
+    const memberDoc = await getDocument(`families/${familyId}/members/${uid}`, idToken);
+    if (readBoolean(memberDoc.fields, "deleted")) {
+      return "player";
+    }
+    return readString(memberDoc.fields, "role") === "admin" ? "admin" : "player";
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
+
+  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 200);
+  const memberByUid = memberDocs.find((doc) => {
+    if (readBoolean(doc.fields, "deleted")) {
+      return false;
+    }
+    return readString(doc.fields, "uid") === uid;
+  });
+  if (!memberByUid) {
+    return "player";
+  }
+  return readString(memberByUid.fields, "role") === "admin" ? "admin" : "player";
+}
+
 async function incrementUsageCount(
   path: string,
   description: string,
@@ -159,6 +195,8 @@ function normalizeChoreDoc(doc: {
     assigneeName: readString(doc.fields, "assigneeName") || "Unassigned",
     details: readString(doc.fields, "details") || undefined,
     dueDate: readString(doc.fields, "dueDate"),
+    submittedAt: readTimestamp(doc.fields, "submittedAt") || undefined,
+    updatedAt: readTimestamp(doc.fields, "updatedAt") || undefined,
     coinValue: readInteger(doc.fields, "coinValue") || 10,
     deleted: readBoolean(doc.fields, "deleted"),
     createdAt: readTimestamp(doc.fields, "createdAt") || undefined,
@@ -200,14 +238,15 @@ export async function GET(request: NextRequest) {
             reason.toLowerCase().includes("document") &&
             reason.toLowerCase().includes("not found")
           ) {
-            return { chores: [] as ChoreRow[] };
+            return { chores: [] as ChoreRow[], viewerRole: "player" as ViewerRole };
           }
           throw error;
         }
 
         if (!familyId) {
-          return { chores: [] as ChoreRow[] };
+          return { chores: [] as ChoreRow[], viewerRole: "player" as ViewerRole };
         }
+        const viewerRole = await getViewerRole(familyId, session.uid, idToken);
 
         const docs = await listDocuments(`families/${familyId}/chores`, idToken, 500);
         const chores = docs
@@ -228,11 +267,15 @@ export async function GET(request: NextRequest) {
             assigneeName: doc.assigneeName,
             details: doc.details,
             dueDate: doc.dueDate,
+            completedAt:
+              doc.status === "Submitted" || doc.status === "Approved"
+                ? doc.submittedAt || doc.updatedAt || undefined
+                : undefined,
             coinValue: doc.coinValue,
             createdAt: doc.createdAt,
           }));
 
-        return { chores };
+        return { chores, viewerRole };
       });
 
     const response = NextResponse.json(data);
@@ -302,6 +345,10 @@ export async function POST(request: NextRequest) {
         if (!familyId) {
           return { kind: "family_not_found" as const };
         }
+        const viewerRole = await getViewerRole(familyId, session.uid, idToken);
+        if (viewerRole !== "admin") {
+          return { kind: "forbidden_action" as const };
+        }
 
         const resolvedAssigneeName = assigneeId
           ? await getFamilyMemberName(familyId, assigneeId, idToken)
@@ -352,6 +399,9 @@ export async function POST(request: NextRequest) {
 
     if (data.kind === "family_not_found") {
       return NextResponse.json({ error: "family_not_found" }, { status: 404 });
+    }
+    if (data.kind === "forbidden_action") {
+      return NextResponse.json({ error: "forbidden_action" }, { status: 403 });
     }
 
     const response = NextResponse.json({ success: true, created: data.created }, { status: 201 });

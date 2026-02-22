@@ -328,8 +328,8 @@ export default function FamilyPage() {
         </main>
       </div>
 
-      <ModalShell open={showAddMemberForm}>
-        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+      <ModalShell open={showAddMemberForm} onRequestClose={() => setShowAddMemberForm(false)}>
+        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
           <h3 className="mb-3 text-lg font-bold text-slate-800">Add Family Member</h3>
           <form className="flex w-full flex-col gap-3" onSubmit={onSubmit}>
             <AddMemberFields form={form} setForm={setForm} />
@@ -352,8 +352,10 @@ export default function FamilyPage() {
         </div>
       </ModalShell>
 
-      <ModalShell open={Boolean(pendingRemoveMember)}>
-        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+      <ModalShell
+        open={Boolean(pendingRemoveMember)}
+        onRequestClose={() => setPendingRemoveMember(null)}>
+        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
           {pendingRemoveMember ? (
             <>
               <h3 className="mb-2 text-lg font-bold text-slate-800">Remove Family Member</h3>

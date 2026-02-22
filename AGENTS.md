@@ -96,8 +96,8 @@ Build a family chore game where:
   - `/chores` shows all chores in a table and an empty-state CTA.
   - Shared CTA button text is `Let's add some!` and opens the same add-chores dialog.
 - New chores API:
-  - `GET /api/chores` returns all chores for the signed-in user's primary family.
-  - `POST /api/chores` creates one or more chores from a list of titles.
+  - `GET /api/chores` returns all chores for the signed-in user's primary family plus `viewerRole` for permission-aware UI actions.
+  - `POST /api/chores` creates one or more chores from a list of titles (admin-only).
   - `GET /api/chores/suggestions` returns up to 100 chore description suggestions ranked by family usage then global usage; with `q` (3+ chars), suggestions are filtered by character match.
   - `DELETE /api/chores/{choreId}` performs a soft delete (`deleted=true`, timestamped).
 - Add Chores dialog UX:
@@ -107,6 +107,9 @@ Build a family chore game where:
 - Chore list UX:
   - Non-empty chore lists include an `Add more chores` CTA at the bottom.
   - Chore rows include coin display and a remove (`X`) action with tooltip.
+  - `/chores` table row actions now use a three-dot options menu with `Edit`, `Delete` (confirmation), and `Undo completion`.
+  - `/chores` table status displays `Completed` for chores in `Submitted` state and includes a `Completed Date` column.
+  - Chore creation UI controls (including `+` and add-chores CTAs) are shown only to users allowed to create chores.
 - If a logged-in user has no family, homepage dashboard shows a "Get Started" add-member flow.
 - Firebase ID token handling:
   - Session stores Firebase refresh token in signed HTTP-only `session_user` cookie payload.
@@ -115,7 +118,7 @@ Build a family chore game where:
   - `users/{uid}` only accessible by that user.
   - `families/{familyId}` readable by family members, writable by family admins.
   - `families/{familyId}/members` readable by family members; create/update/delete by family admins, with bootstrap exception for family creator's first admin membership doc.
-  - `families/{familyId}/chores` readable by family members, writable by family admins.
+  - `families/{familyId}/chores` readable by family members; create/delete by family admins; update by family admins, plus a restricted player self-submit path (`Open` -> `Submitted` with only `status`, `submittedAt`, `updatedAt` changed).
 - Invite/member resolution updates (2026-02-16):
   - New invites use the normalized invitee email as `members/{memberId}` when email is provided.
   - Family summary recovery now falls back to member-email lookup when `familyIds` and UID-based membership lookup are missing.
@@ -138,11 +141,26 @@ Build a family chore game where:
   - Added `PATCH /api/chores/{choreId}` for:
     - `action: "edit"` to update chore details (title, assignee, due date, details).
     - `action: "complete"` to mark chore as `Submitted`.
+    - `action: "undo_complete"` to move completed chores (`Submitted`/`Approved`) back to `Open`.
+  - Chore action permissions are role-aware:
+    - `player` users cannot create chores.
+    - `player` users cannot edit chores.
+    - `player` users cannot delete chores.
+    - `player` users cannot undo completion.
+    - `player` users can only mark chores as complete when assigned to themselves.
+    - `admin` users retain full chore action access.
   - Chore cards now include a prominent `Mark as Complete` action; completed chores leave the "Today's Chores" list.
   - Modal/popup interactions now use a shared animated shell for quick slide-up on open and slide-down on dismiss.
   - Home "Today's Chores" now includes a right-side animated completion chart by family member.
-  - Chart timeframe dropdown defaults to `Today` and supports `This week` (last 7 days) and `This year` (last 365 days).
-  - Added `GET /api/chores/completion-stats?window=today|week|year` to return completed chore counts (`Submitted`/`Approved`) per active family member.
+  - Chart timeframe dropdown defaults to `Today` and supports `This Week`, `This Month`, and `This Year`.
+  - Added `GET /api/chores/completion-stats?window=today|week|month|year` to return completed chore counts (`Submitted`/`Approved`) per active family member.
+  - Added optional `tzOffsetMinutes` query support on `GET /api/chores/completion-stats` so timeframe bucketing aligns with the viewer's local timezone.
+  - Completion chart includes a second line graph under the bars that follows the selected timeframe filter.
+  - `GET /api/chores/completion-stats` now returns `trend` series data for the selected window with bucket granularity:
+    - `today`: hourly points
+    - `week`: daily points
+    - `month`: daily points
+    - `year`: weekly points
 - Family management and landing updates (2026-02-21):
   - Logged-in homepage is chores-first; "Today's Chores" is the primary default content.
   - Home no longer renders the members management card.

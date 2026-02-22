@@ -71,6 +71,18 @@ service cloud.firestore {
       return hasUidMemberDoc(familyId) || hasEmailMemberDoc(familyId);
     }
 
+    function isRequesterAssigneeId(assigneeId) {
+      return isSignedIn()
+        && (
+          assigneeId == request.auth.uid
+          || (
+            request.auth.token.email != null
+            && request.auth.token.email != ""
+            && assigneeId == request.auth.token.email.lower()
+          )
+        );
+    }
+
     function isFamilyAdmin(familyId) {
       return hasUidMemberDoc(familyId)
         && get(memberDocPathByUid(familyId)).data.role == "admin";
@@ -145,7 +157,17 @@ service cloud.firestore {
 
       match /chores/{choreId} {
         allow read: if isFamilyMember(familyId);
-        allow create, update, delete: if isFamilyAdmin(familyId);
+        allow create, delete: if isFamilyAdmin(familyId);
+        allow update: if isFamilyAdmin(familyId)
+          || (
+            isFamilyMember(familyId)
+            && isRequesterAssigneeId(resource.data.assigneeId)
+            && resource.data.status == "Open"
+            && request.resource.data.status == "Submitted"
+            && request.resource.data.submittedAt is timestamp
+            && request.resource.data.updatedAt is timestamp
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status", "submittedAt", "updatedAt"])
+          );
       }
 
       match /choreUsage/{usageId} {

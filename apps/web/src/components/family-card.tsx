@@ -19,6 +19,9 @@ export function FamilyCard() {
   const firestoreNotConfigured = error === "firestore_not_configured";
   const firestoreForbidden = error === "firestore_forbidden";
   const viewerUid = summary?.viewerUid ?? "";
+  const viewerRole =
+    summary?.members.find((member) => member.uid === viewerUid || member.id === viewerUid)
+      ?.role ?? "player";
   const viewerAssigneeIds =
     summary?.members
       .filter((member) => member.uid === viewerUid || member.id === viewerUid)
@@ -142,6 +145,7 @@ export function FamilyCard() {
             <TodayChoresPanel
               chores={summary.choresToday}
               viewerAssigneeIds={viewerAssigneeIds}
+              viewerRole={viewerRole}
               onReload={() => loadSummary({ silent: true })}
             />
           )}

@@ -3,6 +3,7 @@
 import { FormEvent, KeyboardEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
+import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 
 type Suggestion = {
   description: string;
@@ -111,6 +112,10 @@ export function AddEditChoresDialog({
         label: `${member.name}${member.role === "admin" ? " (Parent)" : " (Child)"}`,
       })),
     [members],
+  );
+  const assigneeSelectOptions = useMemo<TailwindSelectOption[]>(
+    () => [{ value: "", label: "Unassigned" }, ...assigneeOptions],
+    [assigneeOptions],
   );
 
   const filteredSuggestions = useMemo(() => {
@@ -328,8 +333,8 @@ export function AddEditChoresDialog({
           {triggerLabel}
         </Button>
       )}
-      <ModalShell open={open}>
-        <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+      <ModalShell open={open} onRequestClose={() => setDialogOpen(false)}>
+        <div className="w-full max-w-4xl rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
             <h3 className="mb-3 text-lg font-bold text-slate-800">
               {isEditMode ? "Edit Chore" : "Add Chores"}
             </h3>
@@ -376,17 +381,15 @@ export function AddEditChoresDialog({
 
               <label className="flex w-full flex-col gap-1.5">
                 <span className="text-sm font-medium text-slate-700">Assignee</span>
-                <select
+                <TailwindSelect
+                  ariaLabel="Assignee"
                   value={assigneeId}
-                  onChange={(event) => setAssigneeId(event.target.value)}
-                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-800">
-                  <option value="">Unassigned</option>
-                  {assigneeOptions.map((member) => (
-                    <option key={member.value} value={member.value}>
-                      {member.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setAssigneeId}
+                  options={assigneeSelectOptions}
+                  className="w-full"
+                  buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                  menuClassName="border-slate-300"
+                />
               </label>
 
               <Button
