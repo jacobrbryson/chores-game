@@ -17,6 +17,7 @@ type CompletionCount = {
   memberId: string;
   name: string;
   count: number;
+  color?: string;
 };
 
 type CompletionTrendInterval = "hour" | "day" | "week";
@@ -25,6 +26,7 @@ type CompletionTrendSeriesMember = {
   memberId: string;
   name: string;
   points: number[];
+  color?: string;
 };
 
 type CompletionTrendSeries = {
@@ -307,6 +309,7 @@ export async function GET(request: NextRequest) {
             uid: readString(doc.fields, "uid") || undefined,
             email: readString(doc.fields, "email"),
             name: readString(doc.fields, "name") || "Unnamed member",
+            dashboardPrimaryColor: readString(doc.fields, "dashboardPrimaryColor") || undefined,
             deleted: readBoolean(doc.fields, "deleted"),
           }))
           .filter((member) => !member.deleted);
@@ -407,6 +410,7 @@ export async function GET(request: NextRequest) {
             memberId: member.id,
             name: member.name,
             count: countsMap.get(member.id) ?? 0,
+            color: member.dashboardPrimaryColor,
           }))
           .sort((a, b) => {
             if (b.count !== a.count) {
@@ -418,6 +422,7 @@ export async function GET(request: NextRequest) {
         const trendSeries = counts.map((member) => ({
           memberId: member.memberId,
           name: member.name,
+          color: member.color,
           points:
             trendPointsByMember.get(member.memberId) ??
             Array.from({ length: labels.length }, () => 0),

@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { Dispatch, FormEvent, SetStateAction, useEffect, useMemo, useState } from "react";
+import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
+import { EnumChip, humanizeEnum } from "@/components/enum-chip";
 import { ModalShell } from "@/components/modal-shell";
 import type { FamilySummaryResponse } from "@/lib/family/types";
 
@@ -103,6 +104,14 @@ const initialMemberState: AddMemberState = {
   email: "",
   role: "player",
 };
+
+function memberRoleTone(role: string) {
+  return role === "admin" ? "indigo" : "teal";
+}
+
+function memberStatusTone(status: string) {
+  return status === "active" ? "green" : "amber";
+}
 
 export default function FamilyPage() {
   const [summary, setSummary] = useState<FamilySummaryResponse | null>(null);
@@ -212,14 +221,11 @@ export default function FamilyPage() {
   const canManageMembers = viewerMember?.role === "admin";
 
   return (
-    <div className="shell">
-      <div className="container">
-        <main className="panel family-page">
+    <>
+      <main className="panel family-page">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <Link href="/" className="family-back-link">
-                Back to Today&apos;s Chores
-              </Link>
+              <BackLink>Back to Today&apos;s Chores</BackLink>
               <h1>Family Members</h1>
             </div>
             {canManageMembers ? (
@@ -272,8 +278,18 @@ export default function FamilyPage() {
                             <tr key={member.id}>
                               <td>{member.name}</td>
                               <td>{member.email || "-"}</td>
-                              <td>{member.role}</td>
-                              <td>{member.status}</td>
+                              <td>
+                                <EnumChip
+                                  label={humanizeEnum(member.role)}
+                                  tone={memberRoleTone(member.role)}
+                                />
+                              </td>
+                              <td>
+                                <EnumChip
+                                  label={humanizeEnum(member.status)}
+                                  tone={memberStatusTone(member.status)}
+                                />
+                              </td>
                               <td>
                                 {member.id === summary?.viewerUid ||
                                 member.uid === summary?.viewerUid
@@ -325,8 +341,7 @@ export default function FamilyPage() {
               )}
             </>
           ) : null}
-        </main>
-      </div>
+      </main>
 
       <ModalShell open={showAddMemberForm} onRequestClose={() => setShowAddMemberForm(false)}>
         <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
@@ -385,6 +400,6 @@ export default function FamilyPage() {
           ) : null}
         </div>
       </ModalShell>
-    </div>
+    </>
   );
 }

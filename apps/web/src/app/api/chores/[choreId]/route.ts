@@ -11,9 +11,14 @@ import {
   readBoolean,
   readString,
   readStringArray,
+  readInteger,
+  readTimestamp,
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
+import { emitFamilyActivity } from "@/lib/notifications/events";
+import { applyWalletDelta } from "@/lib/economy/wallet";
+import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 
 type UpdateChoreBody = {
   action?: unknown;
@@ -22,6 +27,7 @@ type UpdateChoreBody = {
   dueDate?: unknown;
   details?: unknown;
 };
+const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -81,6 +87,53 @@ async function getFamilyMemberName(
   }
 }
 
+async function resolveAssigneeUid(
+  familyId: string,
+  assigneeId: string,
+  idToken: string,
+) {
+  if (!assigneeId) {
+    return "";
+  }
+  try {
+    const memberDoc = await getDocument(`families/${familyId}/members/${assigneeId}`, idToken);
+    const memberUid = readString(memberDoc.fields, "uid");
+    return memberUid || assigneeId;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (reason.includes("FIRESTORE_HTTP_404")) {
+      return assigneeId;
+    }
+    throw error;
+  }
+}
+
+async function countActiveChoresForAssignee(
+  familyId: string,
+  assigneeId: string,
+  idToken: string,
+  excludeChoreId?: string,
+) {
+  if (!assigneeId) {
+    return 0;
+  }
+  const docs = await listDocuments(`families/${familyId}/chores`, idToken, 1000);
+  return docs.filter((doc) => {
+    const id = documentIdFromName(doc.name);
+    if (excludeChoreId && id === excludeChoreId) {
+      return false;
+    }
+    if (readBoolean(doc.fields, "deleted")) {
+      return false;
+    }
+    const status = readString(doc.fields, "status");
+    if (status === "Deleted") {
+      return false;
+    }
+    return readString(doc.fields, "assigneeId") === assigneeId;
+  }).length;
+}
+
 function mapCommonFirestoreErrors(reason: string, fallbackError: string) {
   if (reason.includes("FIRESTORE_HTTP_401") || reason.includes("FIREBASE_REFRESH_FAILED")) {
     return jsonReauthRequired();
@@ -96,6 +149,84 @@ function mapCommonFirestoreErrors(reason: string, fallbackError: string) {
     return NextResponse.json({ error: "chore_not_found" }, { status: 404 });
   }
   return NextResponse.json({ error: fallbackError }, { status: 500 });
+}
+
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ choreId: string }> },
+) {
+  const session = getSessionFromRequest(request);
+  if (!session?.uid) {
+    return jsonUnauthorized();
+  }
+  if (!session.firebaseIdToken && !session.firebaseRefreshToken) {
+    return jsonReauthRequired();
+  }
+
+  const { choreId } = await context.params;
+  if (!choreId) {
+    return NextResponse.json({ error: "chore_id_required" }, { status: 400 });
+  }
+
+  try {
+    const { data, session: refreshedSession, refreshed } =
+      await runWithRefreshedFirebaseToken(session, async (idToken) => {
+        const familyId = await getPrimaryFamilyId(session.uid, idToken);
+        if (!familyId) {
+          return { kind: "family_not_found" as const };
+        }
+        const requester = await getRequesterContext(
+          familyId,
+          session.uid,
+          session.email,
+          idToken,
+        );
+        const choreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
+        if (readBoolean(choreDoc.fields, "deleted")) {
+          return { kind: "chore_not_found" as const };
+        }
+        return {
+          kind: "ok" as const,
+          chore: {
+            id: choreId,
+            title: readString(choreDoc.fields, "title") || "Untitled chore",
+            status: readString(choreDoc.fields, "status") || "Open",
+            assigneeId: readString(choreDoc.fields, "assigneeId") || undefined,
+            assigneeName: readString(choreDoc.fields, "assigneeName") || "Unassigned",
+            details: readString(choreDoc.fields, "details") || undefined,
+            dueDate: readString(choreDoc.fields, "dueDate"),
+            completedAt:
+              readString(choreDoc.fields, "status") === "Submitted" ||
+              readString(choreDoc.fields, "status") === "Approved"
+                ? readTimestamp(choreDoc.fields, "submittedAt") ||
+                  readTimestamp(choreDoc.fields, "updatedAt") ||
+                  undefined
+                : undefined,
+            coinValue: readInteger(choreDoc.fields, "coinValue") || 10,
+            createdAt: readTimestamp(choreDoc.fields, "createdAt") || undefined,
+          },
+          viewerRole: requester.role,
+        };
+      });
+
+    if (data.kind === "family_not_found") {
+      return NextResponse.json({ error: "family_not_found" }, { status: 404 });
+    }
+    if (data.kind === "chore_not_found") {
+      return NextResponse.json({ error: "chore_not_found" }, { status: 404 });
+    }
+
+    const response = NextResponse.json({ chore: data.chore, viewerRole: data.viewerRole });
+    if (refreshed) {
+      setSessionUserCookie(response, refreshedSession);
+    }
+    return response;
+  } catch (error) {
+    const reason =
+      error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
+    console.error("[CHORE_GET_ERROR]", reason);
+    return mapCommonFirestoreErrors(reason, "chore_unavailable");
+  }
 }
 
 type RequesterContext = {
@@ -266,10 +397,17 @@ export async function PATCH(
         }
 
         const now = new Date().toISOString();
+        const actorName = session.name || session.email;
         if (action === "complete") {
           debugStep = "complete_load_chore";
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
+          const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
           const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const choreCoinValue = Math.max(0, readInteger(existingChoreDoc.fields, "coinValue") || 0);
+          const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
+          if (currentStatus !== "Open") {
+            return { kind: "invalid_transition" as const };
+          }
           const requesterOwnsChore = isRequesterAssignee(
             choreAssigneeId,
             session.uid,
@@ -320,6 +458,42 @@ export async function PATCH(
             idToken,
             ["status", "submittedAt", "updatedAt"],
           );
+          const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
+          if (assigneeUid && choreCoinValue > 0) {
+            try {
+              await applyWalletDelta({
+                uid: assigneeUid,
+                idToken,
+                delta: choreCoinValue,
+                reason: "chore_complete",
+                choreId,
+              });
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (!reason.includes("FIRESTORE_HTTP_404")) {
+                throw error;
+              }
+            }
+          }
+          await emitFamilyActivity({
+            familyId,
+            idToken,
+            kind: "chore_completed",
+            actorUid: session.uid,
+            actorEmail: session.email,
+            actorName,
+            title: "Chore completed",
+            message: `${actorName} marked "${choreTitle}" complete.`,
+            choreId,
+            choreTitle,
+            relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
+          });
+          await publishFamilyActivity({
+            type: "chore_completed",
+            familyId,
+            choreId,
+            occurredAt: now,
+          });
         } else if (action === "undo_complete") {
           debugStep = "undo_role_lookup";
           const requester = await getRequesterContext(
@@ -335,6 +509,9 @@ export async function PATCH(
           debugStep = "undo_load_chore";
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
+          const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
+          const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const choreCoinValue = Math.max(0, readInteger(existingChoreDoc.fields, "coinValue") || 0);
           if (currentStatus !== "Submitted" && currentStatus !== "Approved") {
             return { kind: "invalid_transition" as const };
           }
@@ -349,6 +526,45 @@ export async function PATCH(
             idToken,
             ["status", "updatedAt"],
           );
+          const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
+          if (assigneeUid && choreCoinValue > 0) {
+            try {
+              await applyWalletDelta({
+                uid: assigneeUid,
+                idToken,
+                delta: -choreCoinValue,
+                reason: "chore_undo_complete",
+                choreId,
+              });
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (reason.includes("WALLET_NEGATIVE_BLOCKED")) {
+                return { kind: "wallet_negative_blocked" as const };
+              }
+              if (!reason.includes("FIRESTORE_HTTP_404")) {
+                throw error;
+              }
+            }
+          }
+          await emitFamilyActivity({
+            familyId,
+            idToken,
+            kind: "chore_undo_completed",
+            actorUid: session.uid,
+            actorEmail: session.email,
+            actorName,
+            title: "Completion undone",
+            message: `${actorName} moved "${choreTitle}" back to open.`,
+            choreId,
+            choreTitle,
+            relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
+          });
+          await publishFamilyActivity({
+            type: "chore_updated",
+            familyId,
+            choreId,
+            occurredAt: now,
+          });
         } else {
           debugStep = "edit_role_lookup";
           const requester = await getRequesterContext(
@@ -362,6 +578,20 @@ export async function PATCH(
           }
 
           debugStep = "edit_patch";
+          const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
+          const previousAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const previousTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
+          if (assigneeId) {
+            const activeChoreCount = await countActiveChoresForAssignee(
+              familyId,
+              assigneeId,
+              idToken,
+              choreId,
+            );
+            if (activeChoreCount >= MAX_ACTIVE_CHORES_PER_ASSIGNEE) {
+              return { kind: "active_chore_limit_reached" as const };
+            }
+          }
           const resolvedAssigneeName = assigneeId
             ? await getFamilyMemberName(familyId, assigneeId, idToken)
             : "Unassigned";
@@ -378,6 +608,25 @@ export async function PATCH(
             idToken,
             ["title", "assigneeId", "assigneeName", "dueDate", "details", "updatedAt"],
           );
+          await emitFamilyActivity({
+            familyId,
+            idToken,
+            kind: "chore_edited",
+            actorUid: session.uid,
+            actorEmail: session.email,
+            actorName,
+            title: "Chore updated",
+            message: `${actorName} updated "${normalizedDescription || previousTitle}".`,
+            choreId,
+            choreTitle: normalizedDescription || previousTitle,
+            relatedIds: [assigneeId, previousAssigneeId].filter(Boolean),
+          });
+          await publishFamilyActivity({
+            type: "chore_updated",
+            familyId,
+            choreId,
+            occurredAt: now,
+          });
         }
 
         return { kind: "ok" as const };
@@ -391,6 +640,18 @@ export async function PATCH(
     }
     if (data.kind === "invalid_transition") {
       return NextResponse.json({ error: "invalid_status_transition" }, { status: 400 });
+    }
+    if (data.kind === "wallet_negative_blocked") {
+      return NextResponse.json(
+        { error: "wallet_negative_blocked", message: "Cannot undo completion after coins were spent." },
+        { status: 409 },
+      );
+    }
+    if (data.kind === "active_chore_limit_reached") {
+      return NextResponse.json(
+        { error: "active_chore_limit_reached", maxActiveChores: MAX_ACTIVE_CHORES_PER_ASSIGNEE },
+        { status: 409 },
+      );
     }
 
     const response = NextResponse.json({ success: true });
@@ -450,6 +711,9 @@ export async function DELETE(
           return { kind: "forbidden_action" as const };
         }
 
+        const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
+        const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
+        const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
         const now = new Date().toISOString();
         await patchDocument(
           `families/${familyId}/chores/${choreId}`,
@@ -461,6 +725,25 @@ export async function DELETE(
           idToken,
           ["deleted", "deletedAt", "status"],
         );
+        await emitFamilyActivity({
+          familyId,
+          idToken,
+          kind: "chore_deleted",
+          actorUid: session.uid,
+          actorEmail: session.email,
+          actorName: session.name || session.email,
+          title: "Chore deleted",
+          message: `${session.name || "Someone"} deleted "${choreTitle}".`,
+          choreId,
+          choreTitle,
+          relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
+        });
+        await publishFamilyActivity({
+          type: "chore_deleted",
+          familyId,
+          choreId,
+          occurredAt: now,
+        });
 
         return { kind: "ok" as const };
       });

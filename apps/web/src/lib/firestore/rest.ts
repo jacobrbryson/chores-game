@@ -349,6 +349,10 @@ export function integerField(value: number): FirestoreValue {
   return { integerValue: String(Math.max(0, Math.floor(value))) };
 }
 
+export function signedIntegerField(value: number): FirestoreValue {
+  return { integerValue: String(Math.floor(value)) };
+}
+
 export function stringArrayField(values: string[]): FirestoreValue {
   return {
     arrayValue: {

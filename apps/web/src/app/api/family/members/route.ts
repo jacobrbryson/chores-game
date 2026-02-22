@@ -8,7 +8,9 @@ import {
   createOrReplaceDocument,
   findFirstFamilyIdByMemberUid,
   getDocument,
+  listDocuments,
   patchDocument,
+  readBoolean,
   readStringArray,
   stringArrayField,
   stringField,
@@ -20,6 +22,7 @@ type AddMemberBody = {
   email?: string;
   role?: string;
 };
+const MAX_FAMILY_MEMBERS = 100;
 
 function maskEmail(email: string) {
   const normalized = email.trim().toLowerCase();
@@ -202,6 +205,15 @@ export async function POST(request: NextRequest) {
         }
 
         const memberId = email || randomUUID();
+        const existingMembers = await listDocuments(`families/${familyId}/members`, idToken, 300);
+        const activeMemberCount = existingMembers.filter(
+          (doc) => !readBoolean(doc.fields, "deleted"),
+        ).length;
+        const targetExists = existingMembers.some((doc) => doc.name.endsWith(`/${memberId}`));
+        if (!targetExists && activeMemberCount >= MAX_FAMILY_MEMBERS) {
+          return { kind: "family_member_limit_reached" as const };
+        }
+
         const now = new Date().toISOString();
         await createOrReplaceDocument(
           `families/${familyId}/members/${memberId}`,
@@ -238,12 +250,23 @@ export async function POST(request: NextRequest) {
         });
 
         return {
+          kind: "ok" as const,
           familyId,
           member: { id: memberId, name, email, role, status: "invited" },
         };
       });
 
-    const response = NextResponse.json(data, { status: 201 });
+    if (data.kind === "family_member_limit_reached") {
+      return NextResponse.json(
+        { error: "family_member_limit_reached", maxFamilyMembers: MAX_FAMILY_MEMBERS },
+        { status: 409 },
+      );
+    }
+
+    const response = NextResponse.json(
+      { familyId: data.familyId, member: data.member },
+      { status: 201 },
+    );
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);
     }

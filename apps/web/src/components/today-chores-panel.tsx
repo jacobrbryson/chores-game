@@ -40,12 +40,14 @@ type CompletionCount = {
   memberId: string;
   name: string;
   count: number;
+  color?: string;
 };
 
 type CompletionSeriesMember = {
   memberId: string;
   name: string;
   points: number[];
+  color?: string;
 };
 
 type CompletionSeries = {
@@ -254,8 +256,10 @@ export function TodayChoresPanel({
       datasets: completionSeries.series.map((member, index) => ({
         label: member.name,
         data: member.points,
-        borderColor: COMPLETION_LINE_COLORS[index % COMPLETION_LINE_COLORS.length],
-        backgroundColor: COMPLETION_LINE_COLORS[index % COMPLETION_LINE_COLORS.length],
+        borderColor:
+          member.color || COMPLETION_LINE_COLORS[index % COMPLETION_LINE_COLORS.length],
+        backgroundColor:
+          member.color || COMPLETION_LINE_COLORS[index % COMPLETION_LINE_COLORS.length],
         pointRadius: 3,
         pointHoverRadius: 4,
         pointBorderColor: "#ffffff",
@@ -386,6 +390,9 @@ export function TodayChoresPanel({
         throw new Error(body.error ?? `COMPLETE_CHORE_HTTP_${response.status}`);
       }
       await onReload();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("wallet:refresh"));
+      }
     } catch (completeError) {
       setChoreActionError(normalizeError(completeError, "complete_chore_failed"));
     } finally {
@@ -502,6 +509,7 @@ export function TodayChoresPanel({
                   const style = {
                     "--bar-width": `${widthPercent}%`,
                     "--bar-delay": `${index * 60}ms`,
+                    "--bar-color": entry.color || COMPLETION_LINE_COLORS[index % COMPLETION_LINE_COLORS.length],
                   } as CSSProperties;
                   return (
                     <li key={entry.memberId} className="completion-chart-row">

@@ -176,6 +176,52 @@ Build a family chore game where:
 - Invite acceptance rules update (2026-02-22):
   - Firestore `members/{memberId}` claim checks no longer depend on `request.auth.token.email` being present for UID-based invites.
   - UID invite claim is now allowed on both create and update paths when the signed-in user is claiming their own UID member doc with role/email-consistent data and `status == "active"`.
+- Notifications and audit activity updates (2026-02-22):
+  - Added `GET/PATCH /api/notifications`.
+    - `GET /api/notifications` returns family activity notifications visible to the signed-in user (`admins`: all family activity, `players`: only related activity).
+    - `GET /api/notifications?summary=count` returns unseen activity count for badge UI.
+    - `GET /api/notifications?unseen=true` filters to unseen activity.
+    - `PATCH /api/notifications` marks a list of notification IDs as seen for the signed-in user.
+  - Added `/notifications` page with filter controls (`Unseen`, `All`).
+  - Profile avatar/menu now displays red unseen-count badges and links to `/notifications?unseen=true`.
+  - Chore API activity now writes immutable family activity docs at `families/{familyId}/notifications/{notificationId}` for create/edit/delete/complete/undo-complete actions.
+  - Per-user seen state is stored in `families/{familyId}/notificationSeen/{uid_notificationId}`.
+- Realtime websocket activity updates (2026-02-22):
+  - Websocket server now supports authenticated internal publishing endpoint: `POST /events/family-activity`.
+  - Internal publish calls are authenticated with `WS_INTERNAL_SECRET`.
+  - Chore API now publishes realtime `family:activity` events for create/update/delete/complete actions.
+  - Home dashboard (`FamilyCard`) subscribes to family activity and refreshes chores, chart data, and notification badge state.
+  - `/chores` page subscribes to family activity and refreshes the table rows in realtime.
+  - New env vars for realtime publish path:
+    - `WS_SERVER_URL` (server-to-server websocket base URL, e.g. `http://localhost:3001`)
+    - `WS_INTERNAL_SECRET` (shared secret configured in both web and ws apps)
+- Layout shell/header updates (2026-02-22):
+  - Top navigation (`Family Chores` brand + auth/profile menu container) moved into app layout and now persists across all pages.
+  - Shared header rendering uses `session_user` cookie in layout to show either Google sign-in or profile menu consistently on all routes.
+  - Profile menu now includes a `Profile` link that routes to `/profile`.
+  - Added `/profile` page showing avatar (stored avatar, Google photo, or default user icon fallback), name, email, role, and theme (`gray + white` default when unset).
+- Store/economy updates (2026-02-22):
+  - Added `/store` page and `GET/POST /api/store`.
+  - Header now shows a coins + `Store` chip to the left of profile menu.
+  - Chore completion (`action: "complete"`) now credits the assignee wallet by `coinValue`.
+  - Undo completion (`action: "undo_complete"`) now debits the assignee wallet by `coinValue` and blocks transitions that would push wallet below zero.
+  - Wallet ledger entries are written at `users/{uid}/walletLedger/{entryId}` for payout, undo, and store purchases.
+  - Store starts with three items:
+    - `Customize colors` (30 coins)
+    - `Customize avatar` (50 coins)
+    - `Victory confetti` (20 coins)
+  - Color customization writes `dashboardPrimaryColor` on `families/{familyId}/members/{uid}` and blocks selecting colors already used by other family members.
+  - Completion chart colors now use member `dashboardPrimaryColor` when present.
+  - Avatar customization supports a default pack placeholder at `public/avatars/default/` with expected filenames `avatar-01.png` through `avatar-20.png`.
+- Limits and pagination updates (2026-02-22):
+  - Family member cap is enforced in backend: max 100 non-deleted members per family.
+  - Active chores cap is enforced in backend: max 100 non-deleted chores per assignee.
+    - Enforced on chore create and chore edit/reassignment paths.
+  - `GET /api/chores` now supports paging with `page` and `limit` query params (`limit` max 100) and returns pagination metadata.
+  - `GET /api/notifications` now supports paging with `page` and `limit` query params (`limit` max 100) and returns pagination metadata.
+  - `/chores` and `/notifications` UI now include pager controls (previous/next) backed by the paged API responses.
+  - `/chores` and `/notifications` now support server-backed table search (`q`) with 3+ character threshold and column sorting (`sortBy`, `sortDir`).
+  - Table UIs debounce search input and guard against out-of-order HTTP responses using request cancellation and request-sequence checks.
 
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.

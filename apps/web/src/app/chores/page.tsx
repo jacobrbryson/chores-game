@@ -1,10 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
+import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
+import { EnumChip } from "@/components/enum-chip";
 import { ModalShell } from "@/components/modal-shell";
+import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
 
 type ChoreRow = {
   id: string;
@@ -16,18 +18,68 @@ type ChoreRow = {
   dueDate: string;
   completedAt?: string;
   coinValue: number;
+  createdAt?: string;
 };
 
 type ChoresResponse = {
   chores: ChoreRow[];
   viewerRole?: "admin" | "player";
+  pagination?: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 };
+
+type ChoreResponse = {
+  chore?: ChoreRow;
+  viewerRole?: "admin" | "player";
+};
+type ChoreSortBy =
+  | "title"
+  | "status"
+  | "assigneeName"
+  | "dueDate"
+  | "completedAt"
+  | "coinValue";
+
+function toUnixMillis(value?: string) {
+  if (!value) {
+    return 0;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function sortChoreRows(rows: ChoreRow[]) {
+  return [...rows].sort((a, b) => {
+    const dueSort = (a.dueDate || "").localeCompare(b.dueDate || "");
+    if (dueSort !== 0) {
+      return dueSort;
+    }
+    return toUnixMillis(b.createdAt) - toUnixMillis(a.createdAt);
+  });
+}
 
 function getStatusLabel(status: string) {
   if (status === "Submitted") {
     return "Completed";
   }
   return status;
+}
+
+function statusTone(status: string) {
+  if (status === "Open") {
+    return "blue";
+  }
+  if (status === "Submitted" || status === "Approved") {
+    return "green";
+  }
+  if (status === "Rejected") {
+    return "rose";
+  }
+  return "slate";
 }
 
 function formatCompletedDate(value?: string) {
@@ -154,24 +206,63 @@ export default function ChoresPage() {
   const [editingChore, setEditingChore] = useState<ChoreRow | null>(null);
   const [pendingDeleteChore, setPendingDeleteChore] = useState<ChoreRow | null>(null);
   const [viewerRole, setViewerRole] = useState<"admin" | "player">("player");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(50);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState<ChoreSortBy>("dueDate");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [realtimeContext, setRealtimeContext] = useState<{ uid: string; familyId: string } | null>(null);
   const canCreateChores = viewerRole === "admin";
+  const requestSeqRef = useRef(0);
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const shouldApplySearch = query.trim().length >= 3;
+  const hasShortSearch = searchInput.trim().length > 0 && searchInput.trim().length < 3;
 
-  async function loadChores(options?: { silent?: boolean }) {
+  const loadChores = useCallback(async (options?: { silent?: boolean; pageOverride?: number }) => {
     const silent = options?.silent ?? false;
+    const targetPage = options?.pageOverride ?? page;
     if (!silent) {
       setIsLoading(true);
     }
     setLoadError("");
+    requestSeqRef.current += 1;
+    const requestSeq = requestSeqRef.current;
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
     try {
-      const response = await fetch("/api/chores", { cache: "no-store" });
+      const params = new URLSearchParams();
+      params.set("page", String(targetPage));
+      params.set("limit", String(pageSize));
+      params.set("sortBy", sortBy);
+      params.set("sortDir", sortDir);
+      if (shouldApplySearch) {
+        params.set("q", query.trim());
+      }
+      const response = await fetch(`/api/chores?${params.toString()}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? `CHORES_HTTP_${response.status}`);
       }
+      if (requestSeq !== requestSeqRef.current) {
+        return;
+      }
       const payload = (await response.json()) as ChoresResponse;
-      setChores(payload.chores ?? []);
+      setChores(sortChoreRows(payload.chores ?? []));
       setViewerRole(payload.viewerRole === "admin" ? "admin" : "player");
+      setPage(payload.pagination?.page ?? targetPage);
+      setTotal(payload.pagination?.total ?? payload.chores.length ?? 0);
+      setTotalPages(payload.pagination?.totalPages ?? 1);
     } catch (loadErrorValue) {
+      if (controller.signal.aborted) {
+        return;
+      }
       const message =
         loadErrorValue instanceof Error ? loadErrorValue.message : "chores_unavailable";
       setLoadError(message);
@@ -180,11 +271,134 @@ export default function ChoresPage() {
         setIsLoading(false);
       }
     }
-  }
+  }, [page, pageSize, query, shouldApplySearch, sortBy, sortDir]);
+
+  const applyChoreRow = useCallback((row: ChoreRow | null, choreId: string) => {
+    setChores((current) => {
+      const next = current.filter((entry) => entry.id !== choreId);
+      if (!row) {
+        return next;
+      }
+      return sortChoreRows([...next, row]);
+    });
+  }, []);
+
+  const refreshChoreRowFromApi = useCallback(async (choreId: string) => {
+    try {
+      const response = await fetch(`/api/chores/${choreId}`, { cache: "no-store" });
+      if (!response.ok) {
+        applyChoreRow(null, choreId);
+        return;
+      }
+      const payload = (await response.json()) as ChoreResponse;
+      if (!payload.chore) {
+        applyChoreRow(null, choreId);
+        return;
+      }
+      applyChoreRow(payload.chore, choreId);
+    } catch {
+      // Keep current row state on transient realtime sync failure.
+    }
+  }, [applyChoreRow]);
+
+  const loadRealtimeContext = useCallback(async () => {
+    try {
+      const response = await fetch("/api/family/summary", { cache: "no-store" });
+      if (!response.ok) {
+        return;
+      }
+      const payload = (await response.json()) as {
+        viewerUid?: string;
+        family?: { id?: string } | null;
+      };
+      const viewerUid = payload.viewerUid ?? "";
+      const familyId = payload.family?.id ?? "";
+      if (!viewerUid || !familyId) {
+        return;
+      }
+      setRealtimeContext({ uid: viewerUid, familyId });
+    } catch {
+      // Realtime enhancements are best-effort.
+    }
+  }, []);
 
   useEffect(() => {
-    void loadChores();
-  }, []);
+    void loadRealtimeContext();
+  }, [loadRealtimeContext]);
+
+  useEffect(() => {
+    void loadChores({ pageOverride: page });
+  }, [loadChores, page]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      setQuery(searchInput.trim());
+    }, 220);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (!realtimeContext) {
+      return;
+    }
+    const socket = connectFamilySocket({
+      uid: realtimeContext.uid,
+      familyIds: [realtimeContext.familyId],
+    });
+    if (!socket) {
+      return;
+    }
+
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const onFamilyActivity = (event: FamilyActivityEvent) => {
+      if (event.familyId !== realtimeContext.familyId) {
+        return;
+      }
+      if (event.type === "chore_deleted") {
+        if (event.choreId) {
+          applyChoreRow(null, event.choreId);
+        }
+      } else if (event.choreId) {
+        if (shouldApplySearch) {
+          void loadChores({ silent: true });
+        } else {
+          void refreshChoreRowFromApi(event.choreId);
+        }
+      }
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+      refreshTimer = setTimeout(() => {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("notifications:refresh"));
+          window.dispatchEvent(new Event("wallet:refresh"));
+        }
+      }, 80);
+    };
+
+    socket.on("family:activity", onFamilyActivity);
+    return () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+      socket.off("family:activity", onFamilyActivity);
+    };
+  }, [applyChoreRow, loadChores, realtimeContext, refreshChoreRowFromApi, shouldApplySearch]);
+
+  const sortLabel = useMemo(
+    () => (column: ChoreSortBy, label: string) =>
+      sortBy === column ? `${label} ${sortDir === "asc" ? "↑" : "↓"}` : label,
+    [sortBy, sortDir],
+  );
+
+  function onSort(column: ChoreSortBy) {
+    setPage(1);
+    setSortDir((currentDir) =>
+      sortBy === column ? (currentDir === "asc" ? "desc" : "asc") : "asc",
+    );
+    setSortBy(column);
+  }
 
   async function onRemoveChore(choreId: string) {
     if (rowActionState) {
@@ -227,6 +441,9 @@ export default function ChoresPage() {
         throw new Error(body.error ?? `UNDO_COMPLETE_HTTP_${response.status}`);
       }
       await loadChores({ silent: true });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("wallet:refresh"));
+      }
     } catch (undoError) {
       const message =
         undoError instanceof Error ? undoError.message : "undo_complete_failed";
@@ -237,9 +454,8 @@ export default function ChoresPage() {
   }
 
   return (
-    <div className="shell">
-      <div className="container">
-        <main className="panel family-page">
+    <>
+      <main className="panel family-page">
           <AddEditChoresDialog
             chore={
               editingChore
@@ -261,10 +477,17 @@ export default function ChoresPage() {
             }}
             hideTrigger
           />
-          <Link href="/" className="family-back-link">
-            Back
-          </Link>
+          <BackLink />
           <h1>All Chores</h1>
+          <div className="table-controls">
+            <input
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search chores (3+ chars)"
+              className="table-search-input"
+            />
+            {hasShortSearch ? <p className="small">Type at least 3 characters to filter.</p> : null}
+          </div>
           {isLoading ? <p className="small">Loading chores...</p> : null}
           {!isLoading && loadError ? (
             <p className="small family-error">Could not load chores: {loadError}</p>
@@ -286,18 +509,42 @@ export default function ChoresPage() {
               ) : (
                 <>
                   <p className="small family-page-subhead">
-                    {chores.length} chore{chores.length === 1 ? "" : "s"}
+                    {total} chore{total === 1 ? "" : "s"}
                   </p>
                   <div className="family-table-wrap">
                     <table className="family-table">
                       <thead>
                         <tr>
-                          <th>Title</th>
-                          <th>Status</th>
-                          <th>Assignee</th>
-                          <th>Due Date</th>
-                          <th>Completed Date</th>
-                          <th>Coins</th>
+                          <th>
+                            <button type="button" className="table-sort-btn" onClick={() => onSort("title")}>
+                              {sortLabel("title", "Title")}
+                            </button>
+                          </th>
+                          <th>
+                            <button type="button" className="table-sort-btn" onClick={() => onSort("status")}>
+                              {sortLabel("status", "Status")}
+                            </button>
+                          </th>
+                          <th>
+                            <button type="button" className="table-sort-btn" onClick={() => onSort("assigneeName")}>
+                              {sortLabel("assigneeName", "Assignee")}
+                            </button>
+                          </th>
+                          <th>
+                            <button type="button" className="table-sort-btn" onClick={() => onSort("dueDate")}>
+                              {sortLabel("dueDate", "Due Date")}
+                            </button>
+                          </th>
+                          <th>
+                            <button type="button" className="table-sort-btn" onClick={() => onSort("completedAt")}>
+                              {sortLabel("completedAt", "Completed Date")}
+                            </button>
+                          </th>
+                          <th>
+                            <button type="button" className="table-sort-btn" onClick={() => onSort("coinValue")}>
+                              {sortLabel("coinValue", "Coins")}
+                            </button>
+                          </th>
                           <th />
                         </tr>
                       </thead>
@@ -305,7 +552,12 @@ export default function ChoresPage() {
                         {chores.map((chore) => (
                           <tr key={chore.id}>
                             <td>{chore.title}</td>
-                            <td>{getStatusLabel(chore.status)}</td>
+                            <td>
+                              <EnumChip
+                                label={getStatusLabel(chore.status)}
+                                tone={statusTone(chore.status)}
+                              />
+                            </td>
                             <td>{chore.assigneeName || "-"}</td>
                             <td>{chore.dueDate || "-"}</td>
                             <td>{formatCompletedDate(chore.completedAt)}</td>
@@ -341,12 +593,30 @@ export default function ChoresPage() {
                       />
                     </div>
                   ) : null}
+                  <div className="table-pager">
+                    <Button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={page <= 1}
+                      onClick={() => setPage((current) => Math.max(1, current - 1))}>
+                      Previous
+                    </Button>
+                    <span className="small">
+                      Page {page} of {totalPages}
+                    </span>
+                    <Button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
+                      Next
+                    </Button>
+                  </div>
                 </>
               )}
             </>
           ) : null}
-        </main>
-      </div>
+      </main>
       <ModalShell
         open={Boolean(pendingDeleteChore)}
         onRequestClose={() => setPendingDeleteChore(null)}>
@@ -385,6 +655,6 @@ export default function ChoresPage() {
           ) : null}
         </div>
       </ModalShell>
-    </div>
+    </>
   );
 }

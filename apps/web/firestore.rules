@@ -9,6 +9,18 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function primaryFamilyIdForUser(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.familyIds[0];
+    }
+
+    function canAdminManageUser(uid) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(uid))
+        && primaryFamilyIdForUser(uid) is string
+        && primaryFamilyIdForUser(uid) != ""
+        && isFamilyAdmin(primaryFamilyIdForUser(uid));
+    }
+
     function memberDocPathByUid(familyId) {
       return /databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid);
     }
@@ -96,7 +108,13 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isSelf(uid);
       allow create: if isSelf(uid) && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isSelf(uid);
+      allow update: if isSelf(uid) || canAdminManageUser(uid);
+      allow delete: if isSelf(uid);
+
+      match /walletLedger/{entryId} {
+        allow read, create: if isSelf(uid);
+        allow update, delete: if false;
+      }
     }
 
     match /families/{familyId} {
@@ -150,6 +168,12 @@ service cloud.firestore {
             && uidInviteEmailAllowsClaim(familyId)
             && uidInviteRoleAllowsClaim(familyId)
             && request.resource.data.status == "active"
+          )
+          || (
+            isSelf(memberId)
+            && hasUidMemberDoc(familyId)
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["dashboardPrimaryColor", "avatarId", "updatedAt"])
           );
 
         allow delete: if isFamilyAdmin(familyId);
@@ -168,6 +192,30 @@ service cloud.firestore {
             && request.resource.data.updatedAt is timestamp
             && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status", "submittedAt", "updatedAt"])
           );
+      }
+
+      match /notifications/{notificationId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.familyId == familyId
+          && request.resource.data.actorUid == request.auth.uid
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.relatedIds is list;
+        allow update, delete: if false;
+      }
+
+      match /notificationSeen/{seenId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.notificationId is string
+          && request.resource.data.seenAt is timestamp;
+        allow update: if isFamilyMember(familyId)
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.notificationId == resource.data.notificationId
+          && request.resource.data.seenAt is timestamp;
+        allow delete: if isFamilyMember(familyId) && resource.data.uid == request.auth.uid;
       }
 
       match /choreUsage/{usageId} {

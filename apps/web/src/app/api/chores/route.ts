@@ -19,6 +19,8 @@ import {
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
+import { emitFamilyActivity } from "@/lib/notifications/events";
+import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 
 type CreateChoresBody = {
   description?: unknown;
@@ -45,6 +47,16 @@ type ChoreRow = {
 };
 
 type ViewerRole = "admin" | "player";
+const MAX_PAGE_SIZE = 100;
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
+type ChoreSortBy =
+  | "title"
+  | "status"
+  | "assigneeName"
+  | "dueDate"
+  | "completedAt"
+  | "coinValue";
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -216,6 +228,143 @@ function mapCommonFirestoreErrors(reason: string) {
   return null;
 }
 
+function parsePositiveInt(value: string | null, fallback: number) {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  const normalized = Math.trunc(parsed);
+  if (normalized <= 0) {
+    return fallback;
+  }
+  return normalized;
+}
+
+function paginate<T>(rows: T[], page: number, pageSize: number) {
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.max(1, Math.min(page, totalPages));
+  const offset = (safePage - 1) * pageSize;
+  return {
+    rows: rows.slice(offset, offset + pageSize),
+    total,
+    totalPages,
+    page: safePage,
+    pageSize,
+  };
+}
+
+async function countActiveChoresForAssignee(
+  familyId: string,
+  assigneeId: string,
+  idToken: string,
+) {
+  if (!assigneeId) {
+    return 0;
+  }
+  const docs = await listDocuments(`families/${familyId}/chores`, idToken, 1000);
+  return docs.filter((doc) => {
+    if (readBoolean(doc.fields, "deleted")) {
+      return false;
+    }
+    const status = readString(doc.fields, "status");
+    if (status === "Deleted") {
+      return false;
+    }
+    return readString(doc.fields, "assigneeId") === assigneeId;
+  }).length;
+}
+
+function parseSortBy(value: string | null): ChoreSortBy {
+  if (
+    value === "title" ||
+    value === "status" ||
+    value === "assigneeName" ||
+    value === "dueDate" ||
+    value === "completedAt" ||
+    value === "coinValue"
+  ) {
+    return value;
+  }
+  return "dueDate";
+}
+
+function parseSortDir(value: string | null) {
+  return value === "desc" ? "desc" : "asc";
+}
+
+function normalizeSearch(value: string | null) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function choreCompletedAt(doc: ChoreRow) {
+  if (doc.status === "Submitted" || doc.status === "Approved") {
+    return doc.submittedAt || doc.updatedAt || "";
+  }
+  return "";
+}
+
+function choreMatchesQuery(doc: ChoreRow, query: string) {
+  if (query.length < 3) {
+    return true;
+  }
+  const haystack = [
+    doc.title,
+    doc.status,
+    doc.assigneeName,
+    doc.details ?? "",
+    doc.dueDate,
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(query);
+}
+
+function compareValues(a: string | number, b: string | number) {
+  if (typeof a === "number" && typeof b === "number") {
+    return a - b;
+  }
+  return String(a).localeCompare(String(b));
+}
+
+function sortChores(rows: ChoreRow[], sortBy: ChoreSortBy, sortDir: "asc" | "desc") {
+  const direction = sortDir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const valueA =
+      sortBy === "title"
+        ? a.title
+        : sortBy === "status"
+          ? a.status
+          : sortBy === "assigneeName"
+            ? a.assigneeName
+            : sortBy === "dueDate"
+              ? a.dueDate
+              : sortBy === "completedAt"
+                ? choreCompletedAt(a)
+                : a.coinValue;
+    const valueB =
+      sortBy === "title"
+        ? b.title
+        : sortBy === "status"
+          ? b.status
+          : sortBy === "assigneeName"
+            ? b.assigneeName
+            : sortBy === "dueDate"
+              ? b.dueDate
+              : sortBy === "completedAt"
+                ? choreCompletedAt(b)
+                : b.coinValue;
+    const compared = compareValues(valueA, valueB);
+    if (compared !== 0) {
+      return compared * direction;
+    }
+    return (toUnixMillis(b.createdAt) - toUnixMillis(a.createdAt)) * direction;
+  });
+}
+
 export async function GET(request: NextRequest) {
   const session = getSessionFromRequest(request);
   if (!session?.uid) {
@@ -224,6 +373,13 @@ export async function GET(request: NextRequest) {
   if (!session.firebaseIdToken && !session.firebaseRefreshToken) {
     return jsonReauthRequired();
   }
+
+  const requestedPage = parsePositiveInt(request.nextUrl.searchParams.get("page"), 1);
+  const requestedLimit = parsePositiveInt(request.nextUrl.searchParams.get("limit"), DEFAULT_PAGE_SIZE);
+  const pageSize = Math.min(MAX_PAGE_SIZE, requestedLimit);
+  const sortBy = parseSortBy(request.nextUrl.searchParams.get("sortBy"));
+  const sortDir = parseSortDir(request.nextUrl.searchParams.get("sortDir"));
+  const query = normalizeSearch(request.nextUrl.searchParams.get("q"));
 
   try {
     const { data, session: refreshedSession, refreshed } =
@@ -249,16 +405,11 @@ export async function GET(request: NextRequest) {
         const viewerRole = await getViewerRole(familyId, session.uid, idToken);
 
         const docs = await listDocuments(`families/${familyId}/chores`, idToken, 500);
-        const chores = docs
+        const filteredChores = docs
           .map((doc) => normalizeChoreDoc(doc))
           .filter((doc) => !doc.deleted)
-          .sort((a, b) => {
-            const dueSort = (a.dueDate || "").localeCompare(b.dueDate || "");
-            if (dueSort !== 0) {
-              return dueSort;
-            }
-            return toUnixMillis(b.createdAt) - toUnixMillis(a.createdAt);
-          })
+          .filter((doc) => choreMatchesQuery(doc, query));
+        const chores = sortChores(filteredChores, sortBy, sortDir)
           .map((doc) => ({
             id: doc.id,
             title: doc.title,
@@ -275,7 +426,17 @@ export async function GET(request: NextRequest) {
             createdAt: doc.createdAt,
           }));
 
-        return { chores, viewerRole };
+        const pagination = paginate(chores, requestedPage, pageSize);
+        return {
+          chores: pagination.rows,
+          viewerRole,
+          pagination: {
+            page: pagination.page,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            totalPages: pagination.totalPages,
+          },
+        };
       });
 
     const response = NextResponse.json(data);
@@ -353,14 +514,28 @@ export async function POST(request: NextRequest) {
         const resolvedAssigneeName = assigneeId
           ? await getFamilyMemberName(familyId, assigneeId, idToken)
           : "Unassigned";
+        if (assigneeId) {
+          const activeChoreCount = await countActiveChoresForAssignee(
+            familyId,
+            assigneeId,
+            idToken,
+          );
+          if (activeChoreCount + titles.length > MAX_ACTIVE_CHORES_PER_ASSIGNEE) {
+            return { kind: "active_chore_limit_reached" as const };
+          }
+        }
 
         const now = new Date().toISOString();
+        const createdChores = titles.map((title) => ({
+          id: randomUUID(),
+          title,
+        }));
         await Promise.all(
-          titles.map((title) =>
+          createdChores.map((chore) =>
             createOrReplaceDocument(
-              `families/${familyId}/chores/${randomUUID()}`,
+              `families/${familyId}/chores/${chore.id}`,
               {
-                title: stringField(title),
+                title: stringField(chore.title),
                 status: stringField("Open"),
                 assigneeId: stringField(assigneeId),
                 assigneeName: stringField(resolvedAssigneeName),
@@ -373,6 +548,33 @@ export async function POST(request: NextRequest) {
               },
               idToken,
             ),
+          ),
+        );
+        await Promise.all(
+          createdChores.map((chore) =>
+            emitFamilyActivity({
+              familyId,
+              idToken,
+              kind: "chore_created",
+              actorUid: session.uid,
+              actorEmail: session.email,
+              actorName: session.name || session.email,
+              title: "Chore added",
+              message: `${session.name || "Someone"} added "${chore.title}".`,
+              choreId: chore.id,
+              choreTitle: chore.title,
+              relatedIds: assigneeId ? [assigneeId] : [],
+            }),
+          ),
+        );
+        await Promise.all(
+          createdChores.map((chore) =>
+            publishFamilyActivity({
+              type: "chore_created",
+              familyId,
+              choreId: chore.id,
+              occurredAt: now,
+            }),
           ),
         );
 
@@ -402,6 +604,12 @@ export async function POST(request: NextRequest) {
     }
     if (data.kind === "forbidden_action") {
       return NextResponse.json({ error: "forbidden_action" }, { status: 403 });
+    }
+    if (data.kind === "active_chore_limit_reached") {
+      return NextResponse.json(
+        { error: "active_chore_limit_reached", maxActiveChores: MAX_ACTIVE_CHORES_PER_ASSIGNEE },
+        { status: 409 },
+      );
     }
 
     const response = NextResponse.json({ success: true, created: data.created }, { status: 201 });

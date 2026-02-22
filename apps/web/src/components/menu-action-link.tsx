@@ -9,6 +9,7 @@ type MenuActionLinkProps = {
   className?: string;
   fullWidth?: boolean;
   onClick?: () => void;
+  badgeCount?: number;
 };
 
 export function MenuActionLink({
@@ -17,7 +18,10 @@ export function MenuActionLink({
   className = "",
   fullWidth = false,
   onClick,
+  badgeCount,
 }: MenuActionLinkProps) {
+  const showBadge = typeof badgeCount === "number" && badgeCount > 0;
+
   return (
     <Link
       href={href}
@@ -25,8 +29,8 @@ export function MenuActionLink({
       className={`menu-action-link${fullWidth ? " menu-action-link-full" : ""}${
         className ? ` ${className}` : ""
       }`}>
-      {children}
+      <span className="menu-action-link-label">{children}</span>
+      {showBadge ? <span className="menu-link-count">{badgeCount}</span> : null}
     </Link>
   );
 }
-

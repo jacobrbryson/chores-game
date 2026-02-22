@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
 import { TodayChoresPanel } from "@/components/today-chores-panel";
-import type { FamilySummaryResponse } from "@/lib/family/types";
+import type { FamilySnapshotChore, FamilySummaryResponse } from "@/lib/family/types";
+import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
 
 export function FamilyCard() {
   const [summary, setSummary] = useState<FamilySummaryResponse | null>(null);
@@ -27,8 +28,99 @@ export function FamilyCard() {
       .filter((member) => member.uid === viewerUid || member.id === viewerUid)
       .flatMap((member) => [member.id, member.uid ?? ""])
       .filter((value) => value.length > 0) ?? [viewerUid].filter(Boolean);
+  const familyId = summary?.family?.id ?? "";
 
-  async function loadSummary(options?: { silent?: boolean }) {
+  function toFamilySnapshotStatus(value: string): FamilySnapshotChore["status"] {
+    if (value === "Open" || value === "Submitted" || value === "Approved" || value === "Rejected") {
+      return value;
+    }
+    return "Unknown";
+  }
+
+  function sortTodayChores(items: FamilySnapshotChore[]) {
+    return [...items].sort((a, b) => {
+      const dueSort = (a.dueDate || "").localeCompare(b.dueDate || "");
+      if (dueSort !== 0) {
+        return dueSort;
+      }
+      return a.title.localeCompare(b.title);
+    });
+  }
+
+  const upsertTodayChore = useCallback((nextChore: FamilySnapshotChore | null) => {
+    setSummary((current) => {
+      if (!current) {
+        return current;
+      }
+      const withoutCurrent = current.choresToday.filter((entry) => entry.id !== nextChore?.id);
+      if (!nextChore) {
+        return { ...current, choresToday: withoutCurrent };
+      }
+      return {
+        ...current,
+        choresToday: sortTodayChores([...withoutCurrent, nextChore]),
+      };
+    });
+  }, []);
+
+  const removeTodayChore = useCallback((choreId: string) => {
+    setSummary((current) => {
+      if (!current) {
+        return current;
+      }
+      return {
+        ...current,
+        choresToday: current.choresToday.filter((entry) => entry.id !== choreId),
+      };
+    });
+  }, []);
+
+  const refreshTodayChoreFromApi = useCallback(async (choreId: string) => {
+    try {
+      const response = await fetch(`/api/chores/${choreId}`, { cache: "no-store" });
+      if (!response.ok) {
+        removeTodayChore(choreId);
+        return;
+      }
+      const payload = (await response.json()) as {
+        chore?: {
+          id: string;
+          title: string;
+          status: string;
+          assigneeId?: string;
+          assigneeName: string;
+          dueDate: string;
+          details?: string;
+          coinValue: number;
+        };
+      };
+      const chore = payload.chore;
+      if (!chore) {
+        removeTodayChore(choreId);
+        return;
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      const normalized = {
+        id: chore.id,
+        title: chore.title,
+        assigneeId: chore.assigneeId,
+        assigneeName: chore.assigneeName || "Unassigned",
+        dueDate: chore.dueDate,
+        details: chore.details,
+        coinValue: chore.coinValue || 10,
+        status: toFamilySnapshotStatus(chore.status),
+      } satisfies FamilySnapshotChore;
+      if (normalized.status !== "Open" || normalized.dueDate !== today) {
+        removeTodayChore(choreId);
+        return;
+      }
+      upsertTodayChore(normalized);
+    } catch {
+      // Keep current local state on transient realtime sync failure.
+    }
+  }, [removeTodayChore, upsertTodayChore]);
+
+  const loadSummary = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
     if (!silent) {
       setIsLoading(true);
@@ -51,11 +143,46 @@ export function FamilyCard() {
         setIsLoading(false);
       }
     }
-  }
+  }, []);
 
   useEffect(() => {
     void loadSummary();
-  }, []);
+  }, [loadSummary]);
+
+  useEffect(() => {
+    if (!familyId || !summary?.viewerUid) {
+      return;
+    }
+    const socket = connectFamilySocket({
+      uid: summary.viewerUid,
+      familyIds: [familyId],
+    });
+    if (!socket) {
+      return;
+    }
+
+    const onFamilyActivity = (event: FamilyActivityEvent) => {
+      if (event.familyId !== familyId) {
+        return;
+      }
+      if (event.type === "chore_completed" || event.type === "chore_deleted") {
+        if (event.choreId) {
+          removeTodayChore(event.choreId);
+        }
+      } else if (event.choreId) {
+        void refreshTodayChoreFromApi(event.choreId);
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("notifications:refresh"));
+        window.dispatchEvent(new Event("wallet:refresh"));
+      }
+    };
+
+    socket.on("family:activity", onFamilyActivity);
+    return () => {
+      socket.off("family:activity", onFamilyActivity);
+    };
+  }, [familyId, refreshTodayChoreFromApi, removeTodayChore, summary?.viewerUid]);
 
   async function onAcceptInvite() {
     if (acceptingInvite) {
