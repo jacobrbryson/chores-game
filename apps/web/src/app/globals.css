@@ -587,6 +587,7 @@ body {
   margin: 0;
   padding: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -596,6 +597,7 @@ body {
   padding: 8px;
   background: #f9fcff;
   display: grid;
+  width: 100%;
   gap: 2px;
 }
 

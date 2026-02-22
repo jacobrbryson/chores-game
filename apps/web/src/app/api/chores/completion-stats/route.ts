@@ -19,6 +19,14 @@ type CompletionCount = {
   count: number;
 };
 
+type MemberRow = {
+  id: string;
+  uid: string | undefined;
+  email: string;
+  name: string;
+  deleted: boolean;
+};
+
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 }
@@ -75,6 +83,10 @@ function toUnixMillis(value: string) {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
 async function getPrimaryFamilyId(uid: string, idToken: string) {
   const userDoc = await getDocument(`users/${uid}`, idToken);
   return readStringArray(userDoc.fields, "familyIds")[0] ?? "";
@@ -127,16 +139,58 @@ export async function GET(request: NextRequest) {
           listDocuments(`families/${familyId}/chores`, idToken, 500),
         ]);
 
-        const activeMembers = memberDocs
+        const rawMembers = memberDocs
           .map((doc) => ({
             id: documentIdFromName(doc.name),
+            uid: readString(doc.fields, "uid") || undefined,
+            email: readString(doc.fields, "email"),
             name: readString(doc.fields, "name") || "Unnamed member",
-            status: readString(doc.fields, "status"),
             deleted: readBoolean(doc.fields, "deleted"),
           }))
-          .filter((member) => !member.deleted && member.status === "active");
-        const memberIdSet = new Set(activeMembers.map((member) => member.id));
-        const countsMap = new Map(activeMembers.map((member) => [member.id, 0]));
+          .filter((member) => !member.deleted);
+
+        const normalizedEmailWithUid = new Set(
+          rawMembers
+            .filter((member) => Boolean(member.uid))
+            .map((member) => normalizeEmail(member.email))
+            .filter(Boolean),
+        );
+
+        const members = rawMembers.filter((member) => {
+          if (member.uid) {
+            return true;
+          }
+          const normalizedEmail = normalizeEmail(member.email);
+          if (!normalizedEmail) {
+            return true;
+          }
+          return !normalizedEmailWithUid.has(normalizedEmail);
+        });
+
+        const countsMap = new Map(members.map((member) => [member.id, 0]));
+        const canonicalByEmail = new Map(
+          members
+            .map((member) => [normalizeEmail(member.email), member.id] as const)
+            .filter(([email]) => Boolean(email)),
+        );
+        const assigneeAliasToMemberId = new Map<string, string>();
+        for (const member of members) {
+          assigneeAliasToMemberId.set(member.id, member.id);
+          if (member.uid) {
+            assigneeAliasToMemberId.set(member.uid, member.id);
+          }
+        }
+        for (const member of rawMembers) {
+          const normalizedEmail = normalizeEmail(member.email);
+          if (!normalizedEmail || assigneeAliasToMemberId.has(member.id)) {
+            continue;
+          }
+          const canonicalId = canonicalByEmail.get(normalizedEmail);
+          if (canonicalId) {
+            assigneeAliasToMemberId.set(member.id, canonicalId);
+          }
+        }
+
         const startMillis = toUnixMillis(windowStartIso(window));
 
         for (const doc of choreDocs) {
@@ -148,7 +202,10 @@ export async function GET(request: NextRequest) {
             continue;
           }
           const assigneeId = readString(doc.fields, "assigneeId");
-          if (!assigneeId || !memberIdSet.has(assigneeId)) {
+          const countedMemberId = assigneeId
+            ? assigneeAliasToMemberId.get(assigneeId) ?? assigneeId
+            : "";
+          if (!countedMemberId || !countsMap.has(countedMemberId)) {
             continue;
           }
 
@@ -160,10 +217,10 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
-          countsMap.set(assigneeId, (countsMap.get(assigneeId) ?? 0) + 1);
+          countsMap.set(countedMemberId, (countsMap.get(countedMemberId) ?? 0) + 1);
         }
 
-        const counts = activeMembers
+        const counts = members
           .map((member) => ({
             memberId: member.id,
             name: member.name,

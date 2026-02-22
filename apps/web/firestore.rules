@@ -33,7 +33,38 @@ service cloud.firestore {
 
     function hasClaimableEmailInvite(familyId) {
       return hasEmailMemberDoc(familyId)
-        && get(memberDocPathByEmail(familyId)).data.status == "invited";
+        && (
+          get(memberDocPathByEmail(familyId)).data.status == "invited"
+          || get(memberDocPathByEmail(familyId)).data.status == "claimed"
+        );
+    }
+
+    function hasClaimableUidInvite(familyId) {
+      return hasUidMemberDoc(familyId)
+        && (
+          get(memberDocPathByUid(familyId)).data.status == "invited"
+          || get(memberDocPathByUid(familyId)).data.status == "claimed"
+        );
+    }
+
+    function inviteRoleAllowsClaim(familyId) {
+      return get(memberDocPathByEmail(familyId)).data.role == null
+        ? request.resource.data.role == "player"
+        : request.resource.data.role == get(memberDocPathByEmail(familyId)).data.role;
+    }
+
+    function uidInviteRoleAllowsClaim(familyId) {
+      return get(memberDocPathByUid(familyId)).data.role == null
+        ? request.resource.data.role == "player"
+        : request.resource.data.role == get(memberDocPathByUid(familyId)).data.role;
+    }
+
+    function uidInviteEmailAllowsClaim(familyId) {
+      return get(memberDocPathByUid(familyId)).data.email == null
+        || (
+          request.resource.data.email is string
+          && request.resource.data.email.lower() == get(memberDocPathByUid(familyId)).data.email.lower()
+        );
     }
 
     function isFamilyMember(familyId) {
@@ -79,11 +110,37 @@ service cloud.firestore {
             && hasClaimableEmailInvite(familyId)
             && request.resource.data.uid == request.auth.uid
             && request.resource.data.email.lower() == request.auth.token.email.lower()
-            && request.resource.data.role == get(memberDocPathByEmail(familyId)).data.role
+            && inviteRoleAllowsClaim(familyId)
+            && request.resource.data.status == "active"
+          )
+          || (
+            isSelf(memberId)
+            && hasClaimableUidInvite(familyId)
+            && request.resource.data.uid == request.auth.uid
+            && uidInviteEmailAllowsClaim(familyId)
+            && uidInviteRoleAllowsClaim(familyId)
             && request.resource.data.status == "active"
           );
 
-        allow update, delete: if isFamilyAdmin(familyId);
+        allow update: if isFamilyAdmin(familyId)
+          || (
+            isSelf(memberId)
+            && hasClaimableEmailInvite(familyId)
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.email.lower() == request.auth.token.email.lower()
+            && inviteRoleAllowsClaim(familyId)
+            && request.resource.data.status == "active"
+          )
+          || (
+            isSelf(memberId)
+            && hasClaimableUidInvite(familyId)
+            && request.resource.data.uid == request.auth.uid
+            && uidInviteEmailAllowsClaim(familyId)
+            && uidInviteRoleAllowsClaim(familyId)
+            && request.resource.data.status == "active"
+          );
+
+        allow delete: if isFamilyAdmin(familyId);
       }
 
       match /chores/{choreId} {

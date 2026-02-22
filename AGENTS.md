@@ -129,6 +129,8 @@ Build a family chore game where:
   - Child sign-in and family summary recovery now read `inviteLookup/{email}` first, then fall back to member queries.
 - Pending invite UX: invited users see only inviter context + an accept action until they accept; full family members and chores are shown only after acceptance.
   - Member-management permissions tightened: only `admin` members can re-invite or remove family members; `player` users cannot perform these actions in UI or API.
+  - Invite acceptance now supports legacy invites where `members/{email}.role` is missing (defaults claim role to `player`) and allows invited users to activate an existing `members/{uid}` doc from `invited` -> `active`.
+  - Accept-invite now falls back to a claimable `members/{uid}` invite doc when `members/{email}` is missing and emits structured `[ACCEPT_INVITE_DEBUG]` logs per step (family resolution, invite lookup, member upsert/relink).
 - Chore panel and dialog updates (2026-02-21):
   - Home "Today's Chores" section is split into dedicated components (`TodayChoresPanel` + per-chore card component).
   - Chore row actions now use a three-dot menu with `Edit` and `Delete` options.
@@ -153,6 +155,9 @@ Build a family chore game where:
   - Introduced reusable menu-action link styling/component used by profile dropdown actions and home `All Chores` action.
   - `My Chores` preference is now persisted in Firestore on `users/{uid}.preferencesMyChoresOnly` via `GET/PATCH /api/preferences`, with localStorage fallback.
   - Added reusable `Button` component and migrated app UI button usage to it for consistency.
+- Invite acceptance rules update (2026-02-22):
+  - Firestore `members/{memberId}` claim checks no longer depend on `request.auth.token.email` being present for UID-based invites.
+  - UID invite claim is now allowed on both create and update paths when the signed-in user is claiming their own UID member doc with role/email-consistent data and `status == "active"`.
 
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.

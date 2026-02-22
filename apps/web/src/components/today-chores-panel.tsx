@@ -262,7 +262,7 @@ export function TodayChoresPanel({
               </div>
             </div>
           ) : (
-            <div className="grid gap-3">
+            <div className="flex flex-col gap-3">
               <ul className="family-list">
                 {visibleChores.map((chore) => (
                   <TodayChoreCard
