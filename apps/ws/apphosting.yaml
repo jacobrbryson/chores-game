@@ -1,0 +1,17 @@
+# Settings for Backend (on Cloud Run).
+# See https://firebase.google.com/docs/app-hosting/configure#cloud-run
+runConfig:
+  minInstances: 0
+
+# Environment variables sourced from Secret Manager.
+# Create one secret per variable name below.
+env:
+  - variable: WS_ORIGIN
+    secret: WS_ORIGIN
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: WS_INTERNAL_SECRET
+    secret: WS_INTERNAL_SECRET
+    availability:
+      - RUNTIME

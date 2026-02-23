@@ -195,6 +195,11 @@ Build a family chore game where:
   - New env vars for realtime publish path:
     - `WS_SERVER_URL` (server-to-server websocket base URL, e.g. `http://localhost:3001`)
     - `WS_INTERNAL_SECRET` (shared secret configured in both web and ws apps)
+  - Firebase App Hosting now runs as two separate backends:
+    - `api-chores-game` for `apps/web` (Next.js app + API routes)
+    - `ws-chores-game` for `apps/ws` (socket.io server + `/events/family-activity`)
+  - `apps/web/apphosting.yaml` now expects runtime secrets for `WS_SERVER_URL` and `WS_INTERNAL_SECRET`.
+  - `apps/ws/apphosting.yaml` now expects `WS_ORIGIN` and `WS_INTERNAL_SECRET`; `WS_ORIGIN` must match the deployed web app origin.
 - Layout shell/header updates (2026-02-22):
   - Top navigation (`Family Chores` brand + auth/profile menu container) moved into app layout and now persists across all pages.
   - Shared header rendering uses `session_user` cookie in layout to show either Google sign-in or profile menu consistently on all routes.
