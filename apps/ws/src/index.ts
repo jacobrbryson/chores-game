@@ -3,11 +3,23 @@ import { Server } from "socket.io";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const isProduction = process.env.NODE_ENV === "production";
-const ORIGIN = process.env.WS_ORIGIN ?? "http://localhost:3000";
+const rawOrigins = process.env.WS_ORIGIN ?? "http://localhost:3000";
 const INTERNAL_SECRET =
 	process.env.WS_INTERNAL_SECRET ?? (isProduction ? "" : "dev-ws-internal-secret");
 
-if (isProduction && !process.env.WS_ORIGIN) {
+function normalizeOrigin(value: string) {
+	return value.trim().replace(/\/+$/, "");
+}
+
+const allowedOrigins = new Set(
+	rawOrigins
+		.split(",")
+		.map((entry) => normalizeOrigin(entry))
+		.filter((entry) => entry.length > 0),
+);
+const WS_DEBUG = process.env.WS_DEBUG === "1";
+
+if (isProduction && allowedOrigins.size === 0) {
 	throw new Error("WS_ORIGIN env var is required for websocket CORS in production.");
 }
 if (!INTERNAL_SECRET) {
@@ -15,9 +27,26 @@ if (!INTERNAL_SECRET) {
 }
 
 const httpServer = createServer();
-
 const io = new Server(httpServer, {
-	cors: { origin: ORIGIN, methods: ["GET", "POST"], credentials: true },
+	cors: {
+		origin: (origin, callback) => {
+			if (!origin) {
+				if (WS_DEBUG) {
+					console.log("[WS_DEBUG] cors check with empty origin", { allow: !isProduction });
+				}
+				callback(null, !isProduction);
+				return;
+			}
+			const normalizedOrigin = normalizeOrigin(origin);
+			const allowed = allowedOrigins.has(normalizedOrigin);
+			if (WS_DEBUG) {
+				console.log("[WS_DEBUG] cors origin check", { origin, normalizedOrigin, allowed });
+			}
+			callback(null, allowed);
+		},
+		methods: ["GET", "POST"],
+		credentials: true,
+	},
 	transports: ["websocket"],
 });
 
@@ -50,6 +79,13 @@ httpServer.on("request", (req, res) => {
 
 	const authHeader = req.headers.authorization ?? "";
 	if (authHeader !== `Bearer ${INTERNAL_SECRET}`) {
+		if (WS_DEBUG) {
+			console.warn("[WS_DEBUG] publish unauthorized", {
+				path: req.url,
+				method: req.method,
+				hasAuthHeader: Boolean(authHeader),
+			});
+		}
 		sendJson(res, 401, { error: "unauthorized" });
 		return;
 	}
@@ -75,21 +111,37 @@ httpServer.on("request", (req, res) => {
 				choreId: parsed.choreId ?? "",
 				occurredAt: parsed.occurredAt ?? new Date().toISOString(),
 			};
+			if (WS_DEBUG) {
+				console.log("[WS_DEBUG] publishing family activity", payload);
+			}
 			io.to(`family:${payload.familyId}`).emit("family:activity", payload);
 			sendJson(res, 200, { ok: true });
 		} catch {
+			if (WS_DEBUG) {
+				console.warn("[WS_DEBUG] invalid publish payload json");
+			}
 			sendJson(res, 400, { error: "invalid_json" });
 		}
 	});
 });
 
 io.on("connection", (socket) => {
-	console.log("client connected");
+	console.log("[ws] client connected", {
+		socketId: socket.id,
+		origin: socket.handshake.headers.origin ?? null,
+	});
 
 	socket.on(
 		"auth:identify",
 		(payload: { uid: string; familyIds: string[] }) => {
 			const { uid, familyIds } = payload;
+			if (WS_DEBUG) {
+				console.log("[WS_DEBUG] auth identify", {
+					socketId: socket.id,
+					uid,
+					familyIds,
+				});
+			}
 
 			socket.data.uid = uid;
 
@@ -104,10 +156,11 @@ io.on("connection", (socket) => {
 	);
 
 	socket.on("disconnect", () => {
-		console.log("client disconnected");
+		console.log("[ws] client disconnected", { socketId: socket.id });
 	});
 });
 
 httpServer.listen(PORT, () => {
 	console.log(`[ws] listening on :${PORT}`);
+	console.log("[ws] allowed origins", Array.from(allowedOrigins));
 });

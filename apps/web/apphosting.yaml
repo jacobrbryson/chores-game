@@ -20,10 +20,6 @@ env:
     availability:
       - BUILD
       - RUNTIME
-  - variable: WS_SERVER_URL
-    secret: WS_SERVER_URL
-    availability:
-      - RUNTIME
   - variable: WS_INTERNAL_SECRET
     secret: WS_INTERNAL_SECRET
     availability:

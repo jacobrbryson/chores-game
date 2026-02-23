@@ -7,16 +7,20 @@ type FamilyActivityEvent = {
 
 export async function publishFamilyActivity(event: FamilyActivityEvent) {
   const isProduction = process.env.NODE_ENV === "production";
-  const wsServerUrl = (process.env.WS_SERVER_URL ?? process.env.NEXT_PUBLIC_WS_URL ?? "").trim();
+  const wsServerUrl = (process.env.NEXT_PUBLIC_WS_URL ?? "").trim();
   const secret = (
     process.env.WS_INTERNAL_SECRET ?? (isProduction ? "" : "dev-ws-internal-secret")
   ).trim();
   if (!wsServerUrl || !secret) {
+    console.warn("[WS_DEBUG] publish skipped due to missing ws config", {
+      hasWsServerUrl: Boolean(wsServerUrl),
+      hasInternalSecret: Boolean(secret),
+    });
     return;
   }
 
   try {
-    await fetch(`${wsServerUrl.replace(/\/$/, "")}/events/family-activity`, {
+    const response = await fetch(`${wsServerUrl.replace(/\/$/, "")}/events/family-activity`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -28,7 +32,15 @@ export async function publishFamilyActivity(event: FamilyActivityEvent) {
       }),
       cache: "no-store",
     });
+    if (!response.ok) {
+      const body = await response.text();
+      console.warn("[WS_DEBUG] publish failed", {
+        status: response.status,
+        body,
+      });
+    }
   } catch {
     // Notification is best-effort and must not break chore workflows.
+    console.warn("[WS_DEBUG] publish request threw before response");
   }
 }
