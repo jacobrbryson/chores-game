@@ -1,28 +1,33 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
-import type { StoreItem } from "@/lib/store/catalog";
+import { ModalShell } from "@/components/modal-shell";
+import {
+  normalizeColor,
+  type StoreCategory,
+  type StoreCategoryId,
+  type StoreOption,
+} from "@/lib/store/catalog";
 
 type StoreSummaryResponse = {
   balance: number;
-  ownedItemIds: string[];
+  ownedOptionIds: string[];
   dashboardPrimaryColor: string;
   avatarId: string;
-  unavailableColors: string[];
-  catalog: StoreItem[];
-  avatarOptions: string[];
+  selectedConfettiOptionId: string;
+  categories: StoreCategory[];
 };
 
 export function StorePageClient() {
   const [summary, setSummary] = useState<StoreSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [pendingItemId, setPendingItemId] = useState("");
-  const [selectedColor, setSelectedColor] = useState("#1f78d1");
-  const [selectedAvatarId, setSelectedAvatarId] = useState("");
   const [actionError, setActionError] = useState("");
+  const [activeCategoryId, setActiveCategoryId] = useState<StoreCategoryId | null>(null);
+  const [pendingOptionId, setPendingOptionId] = useState("");
 
   async function loadSummary() {
     setIsLoading(true);
@@ -35,8 +40,6 @@ export function StorePageClient() {
       }
       const payload = (await response.json()) as StoreSummaryResponse;
       setSummary(payload);
-      setSelectedColor(payload.dashboardPrimaryColor || "#1f78d1");
-      setSelectedAvatarId(payload.avatarId || payload.avatarOptions?.[0] || "");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "store_unavailable");
     } finally {
@@ -48,66 +51,87 @@ export function StorePageClient() {
     void loadSummary();
   }, []);
 
-  const ownedSet = useMemo(() => new Set(summary?.ownedItemIds ?? []), [summary?.ownedItemIds]);
+  const ownedSet = useMemo(() => new Set(summary?.ownedOptionIds ?? []), [summary?.ownedOptionIds]);
+  const activeCategory = useMemo(() => {
+    if (!summary || !activeCategoryId) {
+      return null;
+    }
+    return summary.categories.find((entry) => entry.id === activeCategoryId) ?? null;
+  }, [activeCategoryId, summary]);
 
-  async function onPurchase(itemId: string) {
-    if (pendingItemId) {
+  function isOptionApplied(category: StoreCategory, option: StoreOption) {
+    if (!summary) {
+      return false;
+    }
+    if (category.kind === "color") {
+      return normalizeColor(summary.dashboardPrimaryColor) === normalizeColor(option.value);
+    }
+    if (category.kind === "avatar") {
+      return summary.avatarId === option.value;
+    }
+    return summary.selectedConfettiOptionId === option.id;
+  }
+
+  async function onPurchaseOption(categoryId: StoreCategoryId, optionId: string) {
+    if (!summary || pendingOptionId) {
       return;
     }
-    setPendingItemId(itemId);
+    const category = summary.categories.find((entry) => entry.id === categoryId);
+    if (!category) {
+      return;
+    }
+    if (summary.balance < category.price) {
+      setActionError("insufficient_funds");
+      return;
+    }
+    setPendingOptionId(optionId);
     setActionError("");
     try {
       const response = await fetch("/api/store", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "purchase", itemId }),
+        body: JSON.stringify({ action: "purchase_option", categoryId, optionId }),
       });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
-        throw new Error(body.error ?? `PURCHASE_HTTP_${response.status}`);
+        throw new Error(body.error ?? `PURCHASE_OPTION_HTTP_${response.status}`);
       }
       await loadSummary();
       window.dispatchEvent(new Event("wallet:refresh"));
     } catch (purchaseError) {
       setActionError(purchaseError instanceof Error ? purchaseError.message : "purchase_failed");
     } finally {
-      setPendingItemId("");
+      setPendingOptionId("");
     }
   }
 
-  async function onSaveColor() {
-    setActionError("");
-    try {
-      const response = await fetch("/api/store", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "set_color", color: selectedColor }),
-      });
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        throw new Error(body.error ?? `SET_COLOR_HTTP_${response.status}`);
-      }
-      await loadSummary();
-    } catch (saveError) {
-      setActionError(saveError instanceof Error ? saveError.message : "set_color_failed");
+  async function onApplyOption(category: StoreCategory, option: StoreOption) {
+    if (pendingOptionId) {
+      return;
     }
-  }
-
-  async function onSaveAvatar() {
+    setPendingOptionId(option.id);
     setActionError("");
     try {
+      const body =
+        category.kind === "color"
+          ? { action: "set_color", color: option.value }
+          : category.kind === "avatar"
+            ? { action: "set_avatar", avatarId: option.value }
+            : { action: "set_confetti", optionId: option.id };
       const response = await fetch("/api/store", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "set_avatar", avatarId: selectedAvatarId }),
+        body: JSON.stringify(body),
       });
       if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        throw new Error(body.error ?? `SET_AVATAR_HTTP_${response.status}`);
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? `APPLY_OPTION_HTTP_${response.status}`);
       }
       await loadSummary();
-    } catch (saveError) {
-      setActionError(saveError instanceof Error ? saveError.message : "set_avatar_failed");
+    } catch (applyError) {
+      setActionError(applyError instanceof Error ? applyError.message : "apply_failed");
+    } finally {
+      setPendingOptionId("");
     }
   }
 
@@ -119,74 +143,123 @@ export function StorePageClient() {
       {!isLoading && error ? <p className="small family-error">Could not load store: {error}</p> : null}
       {!isLoading && !error && summary ? (
         <>
-          <p className="small family-page-subhead">
-            Balance: <strong>{summary.balance}</strong> coins
-          </p>
           {actionError ? <p className="small family-error mb-3">Store update failed: {actionError}</p> : null}
           <div className="store-grid">
-            {summary.catalog.map((item) => {
-              const owned = ownedSet.has(item.id);
-              return (
-                <article key={item.id} className="store-card">
-                  <h3>{item.name}</h3>
-                  <p>{item.description}</p>
-                  <p className="store-price">{item.price} coins</p>
+            {summary.categories.map((category) => (
+              <article key={category.id} className="store-card">
+                <Image
+                  src={category.imagePath}
+                  alt=""
+                  width={640}
+                  height={320}
+                  className="store-card-image"
+                />
+                <h3>{category.name}</h3>
+                <p>{category.description}</p>
+                <Button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setActionError("");
+                    setActiveCategoryId(category.id);
+                  }}>
+                  View options
+                </Button>
+              </article>
+            ))}
+          </div>
+
+          <ModalShell
+            open={Boolean(activeCategory)}
+            onRequestClose={() => {
+              if (!pendingOptionId) {
+                setActiveCategoryId(null);
+              }
+            }}>
+            {activeCategory ? (
+              <section className="store-options-modal">
+                <header className="store-options-modal-header">
+                  <h3>{activeCategory.name}</h3>
+                  <p className="small">
+                    {activeCategory.options.length} options · {activeCategory.price} coins each
+                  </p>
+                  <p className="small">Balance: {summary.balance} coins</p>
+                </header>
+                <div className="store-options-grid">
+                  {activeCategory.options.map((option) => {
+                    const owned = ownedSet.has(option.id);
+                    const applied = isOptionApplied(activeCategory, option);
+                    const canAfford = summary.balance >= activeCategory.price;
+                    const disabled = pendingOptionId.length > 0 || (!owned && !canAfford);
+                    const isPending = pendingOptionId === option.id;
+                    return (
+                      <article key={option.id} className="store-option-card">
+                        <div className="store-option-preview">
+                          {activeCategory.kind === "color" ? (
+                            <span
+                              className="store-option-color"
+                              style={{ backgroundColor: option.value }}
+                              aria-hidden
+                            />
+                          ) : null}
+                          {activeCategory.kind === "avatar" ? (
+                            <Image
+                              src={`/avatars/default/${option.value}`}
+                              alt={option.label}
+                              width={72}
+                              height={72}
+                              className="store-option-avatar"
+                            />
+                          ) : null}
+                          {activeCategory.kind === "confetti" ? (
+                            <Image
+                              src="/store/theme.png"
+                              alt=""
+                              width={96}
+                              height={56}
+                              className="store-option-confetti"
+                            />
+                          ) : null}
+                        </div>
+                        <h4>{option.label}</h4>
+                        <p className="small">{owned ? "Owned" : `${activeCategory.price} coins`}</p>
+                        <Button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={disabled}
+                          onClick={() => {
+                            if (owned) {
+                              void onApplyOption(activeCategory, option);
+                              return;
+                            }
+                            void onPurchaseOption(activeCategory.id, option.id);
+                          }}>
+                          {isPending
+                            ? "Saving..."
+                            : owned
+                              ? applied
+                                ? "Applied"
+                                : "Apply"
+                              : canAfford
+                                ? "Buy"
+                                : "Not enough coins"}
+                        </Button>
+                      </article>
+                    );
+                  })}
+                </div>
+                <div className="store-options-actions">
                   <Button
                     type="button"
                     className="btn btn-secondary"
-                    disabled={owned || Boolean(pendingItemId) || summary.balance < item.price}
-                    onClick={() => onPurchase(item.id)}>
-                    {owned ? "Owned" : pendingItemId === item.id ? "Buying..." : "Buy"}
+                    disabled={pendingOptionId.length > 0}
+                    onClick={() => setActiveCategoryId(null)}>
+                    Close
                   </Button>
-                </article>
-              );
-            })}
-          </div>
-          {ownedSet.has("customize_colors") ? (
-            <section className="store-section">
-              <h3>Dashboard Color</h3>
-              <p className="small">
-                Choose your dashboard color. Colors already used by family members are blocked.
-              </p>
-              <div className="store-color-row">
-                <input
-                  type="color"
-                  value={selectedColor}
-                  onChange={(event) => setSelectedColor(event.target.value)}
-                  className="store-color-input"
-                />
-                <Button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={(summary.unavailableColors ?? []).includes(selectedColor.toLowerCase())}
-                  onClick={onSaveColor}>
-                  Save color
-                </Button>
-              </div>
-            </section>
-          ) : null}
-          {ownedSet.has("customize_avatar") ? (
-            <section className="store-section">
-              <h3>Avatar</h3>
-              <p className="small">Default avatar files should be uploaded to `public/avatars/default`.</p>
-              <div className="store-avatar-grid">
-                {summary.avatarOptions.map((avatarOption) => (
-                  <label key={avatarOption} className="store-avatar-option">
-                    <input
-                      type="radio"
-                      name="avatarId"
-                      checked={selectedAvatarId === avatarOption}
-                      onChange={() => setSelectedAvatarId(avatarOption)}
-                    />
-                    <span>{avatarOption}</span>
-                  </label>
-                ))}
-              </div>
-              <Button type="button" className="btn btn-primary mt-3" onClick={onSaveAvatar}>
-                Save avatar
-              </Button>
-            </section>
-          ) : null}
+                </div>
+              </section>
+            ) : null}
+          </ModalShell>
         </>
       ) : null}
     </main>

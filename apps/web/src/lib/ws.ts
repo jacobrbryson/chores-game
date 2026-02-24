@@ -5,6 +5,7 @@ let identifiedUid = "";
 let identifiedFamilyKey = "";
 let pendingIdentity: { uid: string; familyIds: string[] } | null = null;
 let connectHandlerBound = false;
+let cachedWsUrl = "";
 
 export type FamilyActivityEvent = {
 	type: "chore_completed" | "chore_created" | "chore_updated" | "chore_deleted";
@@ -16,12 +17,39 @@ export type FamilyActivityEvent = {
 export function getSocket() {
 	if (socket) return socket;
 
-	const wsUrl = process.env.NEXT_PUBLIC_WS_URL ?? "http://localhost:3001";
+	const wsUrl = (process.env.NEXT_PUBLIC_WS_URL ?? "http://localhost:3001").trim();
+	cachedWsUrl = wsUrl;
 	console.log("[WS_DEBUG] creating socket client", { wsUrl });
 	socket = io(wsUrl, {
 		transports: ["websocket"],
 		autoConnect: false,
+		timeout: 5000,
+		reconnectionAttempts: 4,
 	});
+
+	function normalizeConnectError(error: unknown) {
+		const maybeError = error as Error & {
+			description?: unknown;
+			context?: unknown;
+			type?: string;
+			code?: string | number;
+		};
+		const description = maybeError.description as
+			| undefined
+			| { message?: string; type?: string; target?: { url?: string; readyState?: number } };
+		return {
+			name: maybeError?.name || null,
+			message: maybeError?.message || null,
+			type: maybeError?.type || description?.type || null,
+			code: maybeError?.code ?? null,
+			descriptionMessage: description?.message ?? null,
+			descriptionType: description?.type ?? null,
+			descriptionUrl: description?.target?.url ?? null,
+			descriptionReadyState: description?.target?.readyState ?? null,
+			context: maybeError?.context ?? null,
+			wsUrl: cachedWsUrl || null,
+		};
+	}
 
 	if (!connectHandlerBound) {
 		connectHandlerBound = true;
@@ -38,11 +66,7 @@ export function getSocket() {
 			console.log("[WS_DEBUG] auth acknowledged by server");
 		});
 		socket.on("connect_error", (error) => {
-			console.error("[WS_DEBUG] socket connect_error", {
-				message: error.message,
-				description: (error as Error & { description?: unknown }).description ?? null,
-				context: (error as Error & { context?: unknown }).context ?? null,
-			});
+			console.error("[WS_DEBUG] socket connect_error", normalizeConnectError(error));
 		});
 		socket.on("disconnect", (reason) => {
 			console.warn("[WS_DEBUG] socket disconnected", { reason });

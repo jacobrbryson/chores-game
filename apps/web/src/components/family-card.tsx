@@ -99,7 +99,6 @@ export function FamilyCard() {
         removeTodayChore(choreId);
         return;
       }
-      const today = new Date().toISOString().slice(0, 10);
       const normalized = {
         id: chore.id,
         title: chore.title,
@@ -110,7 +109,7 @@ export function FamilyCard() {
         coinValue: chore.coinValue || 10,
         status: toFamilySnapshotStatus(chore.status),
       } satisfies FamilySnapshotChore;
-      if (normalized.status !== "Open" || normalized.dueDate !== today) {
+      if (normalized.status !== "Open") {
         removeTodayChore(choreId);
         return;
       }

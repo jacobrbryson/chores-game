@@ -17,6 +17,7 @@ const allowedOrigins = new Set(
 		.map((entry) => normalizeOrigin(entry))
 		.filter((entry) => entry.length > 0),
 );
+const allowAllOrigins = allowedOrigins.has("*");
 const WS_DEBUG = process.env.WS_DEBUG === "1";
 
 if (isProduction && allowedOrigins.size === 0) {
@@ -38,9 +39,14 @@ const io = new Server(httpServer, {
 				return;
 			}
 			const normalizedOrigin = normalizeOrigin(origin);
-			const allowed = allowedOrigins.has(normalizedOrigin);
+			const allowed = allowAllOrigins || allowedOrigins.has(normalizedOrigin);
 			if (WS_DEBUG) {
-				console.log("[WS_DEBUG] cors origin check", { origin, normalizedOrigin, allowed });
+				console.log("[WS_DEBUG] cors origin check", {
+					origin,
+					normalizedOrigin,
+					allowed,
+					allowAllOrigins,
+				});
 			}
 			callback(null, allowed);
 		},
@@ -163,4 +169,5 @@ io.on("connection", (socket) => {
 httpServer.listen(PORT, () => {
 	console.log(`[ws] listening on :${PORT}`);
 	console.log("[ws] allowed origins", Array.from(allowedOrigins));
+	console.log("[ws] allow all origins", allowAllOrigins);
 });

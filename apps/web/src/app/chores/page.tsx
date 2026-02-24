@@ -52,13 +52,52 @@ function toUnixMillis(value?: string) {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-function sortChoreRows(rows: ChoreRow[]) {
+function compareValues(a: string | number, b: string | number) {
+  if (typeof a === "number" && typeof b === "number") {
+    return a - b;
+  }
+  return String(a).localeCompare(String(b));
+}
+
+function choreCompletedAt(chore: ChoreRow) {
+  if (chore.status === "Submitted" || chore.status === "Approved") {
+    return chore.completedAt || "";
+  }
+  return "";
+}
+
+function sortChoreRows(rows: ChoreRow[], sortBy: ChoreSortBy, sortDir: "asc" | "desc") {
+  const direction = sortDir === "asc" ? 1 : -1;
   return [...rows].sort((a, b) => {
-    const dueSort = (a.dueDate || "").localeCompare(b.dueDate || "");
-    if (dueSort !== 0) {
-      return dueSort;
+    const valueA =
+      sortBy === "title"
+        ? a.title
+        : sortBy === "status"
+          ? a.status
+          : sortBy === "assigneeName"
+            ? a.assigneeName
+            : sortBy === "dueDate"
+              ? a.dueDate
+              : sortBy === "completedAt"
+                ? choreCompletedAt(a)
+                : a.coinValue;
+    const valueB =
+      sortBy === "title"
+        ? b.title
+        : sortBy === "status"
+          ? b.status
+          : sortBy === "assigneeName"
+            ? b.assigneeName
+            : sortBy === "dueDate"
+              ? b.dueDate
+              : sortBy === "completedAt"
+                ? choreCompletedAt(b)
+                : b.coinValue;
+    const compared = compareValues(valueA, valueB);
+    if (compared !== 0) {
+      return compared * direction;
     }
-    return toUnixMillis(b.createdAt) - toUnixMillis(a.createdAt);
+    return (toUnixMillis(b.createdAt) - toUnixMillis(a.createdAt)) * direction;
   });
 }
 
@@ -254,7 +293,7 @@ export default function ChoresPage() {
         return;
       }
       const payload = (await response.json()) as ChoresResponse;
-      setChores(sortChoreRows(payload.chores ?? []));
+      setChores(sortChoreRows(payload.chores ?? [], sortBy, sortDir));
       setViewerRole(payload.viewerRole === "admin" ? "admin" : "player");
       setPage(payload.pagination?.page ?? targetPage);
       setTotal(payload.pagination?.total ?? payload.chores.length ?? 0);
@@ -279,9 +318,9 @@ export default function ChoresPage() {
       if (!row) {
         return next;
       }
-      return sortChoreRows([...next, row]);
+      return sortChoreRows([...next, row], sortBy, sortDir);
     });
-  }, []);
+  }, [sortBy, sortDir]);
 
   const refreshChoreRowFromApi = useCallback(async (choreId: string) => {
     try {

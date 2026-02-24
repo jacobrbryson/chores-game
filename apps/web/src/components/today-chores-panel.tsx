@@ -451,7 +451,7 @@ export function TodayChoresPanel({
           {visibleChores.length === 0 ? (
             <div className="flex flex-col gap-3 pt-1">
               <p className="small">
-                {myChoresOnly ? "No chores assigned to you today." : "No chores due today."}
+                {myChoresOnly ? "No chores assigned to you right now." : "No open chores right now."}
               </p>
               {canCreateChores ? (
                 <div className="chores-empty-cta">
@@ -487,7 +487,7 @@ export function TodayChoresPanel({
         <aside className="completion-chart">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="m-0 text-[0.88rem] leading-none font-normal text-[#456389]">
-              Completed by Member
+              Completed Chores
             </h3>
             <TailwindSelect
               ariaLabel="Completion range"

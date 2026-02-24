@@ -86,7 +86,7 @@ Build a family chore game where:
   - Logged out users see the marketing hero + "How it works".
   - Logged in users see a "My Family" dashboard card instead of the hero.
 - New authenticated family APIs:
-  - `GET /api/family/summary` returns family snapshot (members + chores due today).
+  - `GET /api/family/summary` returns family snapshot (members + open chores).
   - `POST /api/family/members` creates a family automatically if needed, then adds a member.
   - `DELETE /api/family/members/{memberId}` removes a non-self family member.
   - `POST /api/family/members/{memberId}/reinvite` marks a non-self member as re-invited.
@@ -227,6 +227,21 @@ Build a family chore game where:
   - `/chores` and `/notifications` UI now include pager controls (previous/next) backed by the paged API responses.
   - `/chores` and `/notifications` now support server-backed table search (`q`) with 3+ character threshold and column sorting (`sortBy`, `sortDir`).
   - Table UIs debounce search input and guard against out-of-order HTTP responses using request cancellation and request-sequence checks.
+- Home chores scope update (2026-02-24):
+  - Home chores list now includes all open (not completed) chores for the family, not only chores due today.
+- Store purchase and card updates (2026-02-24):
+  - Store purchase API now treats wallet-negative race protection (`WALLET_NEGATIVE_BLOCKED`) as `insufficient_funds`.
+  - Store buy actions are disabled for unaffordable items and show `Not enough coins`.
+  - Store cards now render a shared top image from `public/store/theme.png`.
+- Store options modal and pricing update (2026-02-24):
+  - Store page no longer repeats wallet balance at top; balance remains in header store chip.
+  - Store categories are now driven by a shared category/options array (`9` options per category) to simplify moving catalog data to DB later.
+  - Store cards now use a `View options` action that opens a modal with option cards.
+  - Option purchases are now per-option (not one-time category unlocks):
+    - color option: `30` coins each
+    - avatar option: `50` coins each
+    - confetti option: `20` coins each
+  - Custom color selection is no longer blocked when another family member uses the same color.
 
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.

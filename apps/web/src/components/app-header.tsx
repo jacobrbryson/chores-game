@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
+import Image from "next/image";
 import Script from "next/script";
 import { HeaderStoreLink } from "@/components/header-store-link";
 import { ProfileMenu } from "@/components/profile-menu";
@@ -24,6 +25,14 @@ export async function AppHeader() {
       ) : null}
       <nav className="top-nav panel">
         <Link href="/" className="brand brand-link">
+          <Image
+            src="/icons/web-app-manifest-192x192.png"
+            alt=""
+            width={36}
+            height={36}
+            className="brand-icon"
+            priority
+          />
           Family Chores
         </Link>
         <div className="nav-links">

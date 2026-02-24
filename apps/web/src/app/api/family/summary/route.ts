@@ -205,7 +205,6 @@ export async function GET(request: NextRequest) {
           listDocuments(`families/${familyId}/chores`, idToken, 100),
         ]);
 
-        const today = new Date().toISOString().slice(0, 10);
         const rawMemberCount = memberDocs.length;
         const familyName = readString(familyDoc.fields, "name") || "My Family";
 
@@ -339,7 +338,7 @@ export async function GET(request: NextRequest) {
             }))
             .filter(
               (chore) =>
-                chore.dueDate === today && !chore.deleted && chore.status === "Open",
+                !chore.deleted && chore.status === "Open",
             )
             .map((chore) => ({
               id: chore.id,
