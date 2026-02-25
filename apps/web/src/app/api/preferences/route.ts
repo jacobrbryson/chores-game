@@ -2,10 +2,36 @@ import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
-import { boolField, getDocument, patchDocument, readBoolean, timestampField } from "@/lib/firestore/rest";
+import {
+  type FirestoreValue,
+  boolField,
+  getDocument,
+  patchDocument,
+  readBoolean,
+  readString,
+  stringField,
+  timestampField,
+} from "@/lib/firestore/rest";
+import {
+  findColorThemeOptionById,
+  normalizeThemePalette,
+} from "@/lib/store/catalog";
+import {
+  isThemePreference,
+  type ThemePreference,
+} from "@/lib/theme/preferences";
+import {
+  COMPLETION_WINDOW_VALUES,
+  parseCompletionWindow,
+} from "@/lib/preferences/completion-window";
 
 type UpdatePreferencesBody = {
   myChoresOnly?: unknown;
+  completionWindow?: unknown;
+  themeOptionId?: unknown;
+  themePrimaryColor?: unknown;
+  themeSecondaryColor?: unknown;
+  themeTertiaryColor?: unknown;
 };
 
 function jsonUnauthorized() {
@@ -43,6 +69,51 @@ function mapCommonFirestoreErrors(reason: string, fallbackError: string) {
   return NextResponse.json({ error: fallbackError }, { status: 500 });
 }
 
+function parseThemePreference(body: UpdatePreferencesBody) {
+  const hasThemeField =
+    body.themeOptionId !== undefined ||
+    body.themePrimaryColor !== undefined ||
+    body.themeSecondaryColor !== undefined ||
+    body.themeTertiaryColor !== undefined;
+  if (!hasThemeField) {
+    return { hasThemeField, preference: null as ThemePreference | null, error: "" };
+  }
+
+  if (
+    typeof body.themeOptionId !== "string" ||
+    typeof body.themePrimaryColor !== "string" ||
+    typeof body.themeSecondaryColor !== "string" ||
+    typeof body.themeTertiaryColor !== "string"
+  ) {
+    return { hasThemeField, preference: null as ThemePreference | null, error: "invalid_theme_payload" };
+  }
+
+  const preference = {
+    optionId: body.themeOptionId.trim(),
+    primary: body.themePrimaryColor.trim().toLowerCase(),
+    secondary: body.themeSecondaryColor.trim().toLowerCase(),
+    tertiary: body.themeTertiaryColor.trim().toLowerCase(),
+  };
+  if (!isThemePreference(preference)) {
+    return { hasThemeField, preference: null as ThemePreference | null, error: "invalid_theme_payload" };
+  }
+
+  const themeOption = findColorThemeOptionById(preference.optionId);
+  if (!themeOption) {
+    return { hasThemeField, preference: null as ThemePreference | null, error: "invalid_theme_option" };
+  }
+  const expected = normalizeThemePalette(themeOption.theme);
+  if (
+    preference.primary !== expected.primary ||
+    preference.secondary !== expected.secondary ||
+    preference.tertiary !== expected.tertiary
+  ) {
+    return { hasThemeField, preference: null as ThemePreference | null, error: "invalid_theme_payload" };
+  }
+
+  return { hasThemeField, preference, error: "" };
+}
+
 export async function GET(request: NextRequest) {
   const session = getSessionFromRequest(request);
   if (!session?.uid) {
@@ -58,6 +129,13 @@ export async function GET(request: NextRequest) {
         const userDoc = await getDocument(`users/${session.uid}`, idToken);
         return {
           myChoresOnly: readBoolean(userDoc.fields, "preferencesMyChoresOnly"),
+          completionWindow: parseCompletionWindow(
+            readString(userDoc.fields, "preferencesCompletionWindow"),
+          ),
+          themeOptionId: readString(userDoc.fields, "preferencesThemeOptionId"),
+          themePrimaryColor: readString(userDoc.fields, "preferencesThemePrimaryColor"),
+          themeSecondaryColor: readString(userDoc.fields, "preferencesThemeSecondaryColor"),
+          themeTertiaryColor: readString(userDoc.fields, "preferencesThemeTertiaryColor"),
         };
       });
 
@@ -90,22 +168,62 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  if (typeof body.myChoresOnly !== "boolean") {
+  const hasMyChoresOnly = body.myChoresOnly !== undefined;
+  if (hasMyChoresOnly && typeof body.myChoresOnly !== "boolean") {
     return NextResponse.json({ error: "invalid_my_chores_only" }, { status: 400 });
+  }
+  const hasCompletionWindow = body.completionWindow !== undefined;
+  const parsedCompletionWindow = parseCompletionWindow(body.completionWindow);
+  if (hasCompletionWindow && !parsedCompletionWindow) {
+    return NextResponse.json(
+      {
+        error: "invalid_completion_window",
+        allowed: COMPLETION_WINDOW_VALUES,
+      },
+      { status: 400 },
+    );
+  }
+  const themeParse = parseThemePreference(body);
+  if (themeParse.error) {
+    return NextResponse.json({ error: themeParse.error }, { status: 400 });
+  }
+  if (!hasMyChoresOnly && !hasCompletionWindow && !themeParse.hasThemeField) {
+    return NextResponse.json({ error: "no_preference_updates" }, { status: 400 });
   }
 
   try {
     const { session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
+        const fields: Record<string, FirestoreValue> = {
+          preferencesUpdatedAt: timestampField(new Date().toISOString()),
+        };
+        const updateMask = ["preferencesUpdatedAt"];
+        if (hasMyChoresOnly) {
+          fields.preferencesMyChoresOnly = boolField(body.myChoresOnly as boolean);
+          updateMask.push("preferencesMyChoresOnly");
+        }
+        if (hasCompletionWindow && parsedCompletionWindow) {
+          fields.preferencesCompletionWindow = stringField(parsedCompletionWindow);
+          updateMask.push("preferencesCompletionWindow");
+        }
+        if (themeParse.preference) {
+          fields.preferencesThemeOptionId = stringField(themeParse.preference.optionId);
+          fields.preferencesThemePrimaryColor = stringField(themeParse.preference.primary);
+          fields.preferencesThemeSecondaryColor = stringField(themeParse.preference.secondary);
+          fields.preferencesThemeTertiaryColor = stringField(themeParse.preference.tertiary);
+          updateMask.push(
+            "preferencesThemeOptionId",
+            "preferencesThemePrimaryColor",
+            "preferencesThemeSecondaryColor",
+            "preferencesThemeTertiaryColor",
+          );
+        }
         await patchDocument(
           `users/${session.uid}`,
-          {
-            preferencesMyChoresOnly: boolField(body.myChoresOnly as boolean),
-            preferencesUpdatedAt: timestampField(new Date().toISOString()),
-          },
+          fields,
           idToken,
-          ["preferencesMyChoresOnly", "preferencesUpdatedAt"],
+          updateMask,
         );
         return null;
       },
@@ -123,4 +241,3 @@ export async function PATCH(request: NextRequest) {
     return mapCommonFirestoreErrors(reason, "preferences_update_failed");
   }
 }
-

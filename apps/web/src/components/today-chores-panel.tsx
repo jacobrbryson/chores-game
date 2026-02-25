@@ -20,6 +20,10 @@ import { TodayChoreCard } from "@/components/today-chore-card";
 import { CSSProperties, useEffect, useMemo, useState } from "react";
 import { Line } from "react-chartjs-2";
 import type { FamilySnapshotChore } from "@/lib/family/types";
+import {
+  parseCompletionWindow,
+  type CompletionWindow,
+} from "@/lib/preferences/completion-window";
 
 type TodayChoresPanelProps = {
   chores: FamilySnapshotChore[];
@@ -33,7 +37,6 @@ type ChoreActionState = {
   action: "delete" | "complete";
 };
 
-type CompletionWindow = "today" | "week" | "month" | "year";
 type CompletionTrendInterval = "hour" | "day" | "week";
 
 type CompletionCount = {
@@ -71,6 +74,7 @@ function normalizeError(error: unknown, fallback: string) {
 }
 
 const MY_CHORES_ONLY_STORAGE_KEY = "today_chores_my_only";
+const COMPLETION_WINDOW_STORAGE_KEY = "today_chores_completion_window";
 const EMPTY_COMPLETION_SERIES: CompletionSeries = {
   interval: "day",
   labels: [],
@@ -78,12 +82,15 @@ const EMPTY_COMPLETION_SERIES: CompletionSeries = {
   series: [],
 };
 const COMPLETION_LINE_COLORS = [
-  "#1f78d1",
-  "#20a987",
-  "#de6b48",
-  "#6a64cf",
-  "#cc4f7a",
-  "#9c7f1f",
+  "#0072b2",
+  "#e69f00",
+  "#009e73",
+  "#332288",
+  "#aa4499",
+  "#d55e00",
+  "#cc6677",
+  "#117733",
+  "#999933",
 ];
 const COMPLETION_WINDOW_OPTIONS: TailwindSelectOption<CompletionWindow>[] = [
   { value: "today", label: "Today" },
@@ -113,6 +120,26 @@ function readMyChoresOnly() {
 function writeMyChoresOnly(next: boolean) {
   try {
     window.localStorage.setItem(MY_CHORES_ONLY_STORAGE_KEY, next ? "1" : "0");
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+function readCompletionWindow(): CompletionWindow {
+  try {
+    const value = parseCompletionWindow(window.localStorage.getItem(COMPLETION_WINDOW_STORAGE_KEY));
+    if (value) {
+      return value;
+    }
+  } catch {
+    // Ignore storage errors.
+  }
+  return "today";
+}
+
+function writeCompletionWindow(next: CompletionWindow) {
+  try {
+    window.localStorage.setItem(COMPLETION_WINDOW_STORAGE_KEY, next);
   } catch {
     // Ignore storage errors.
   }
@@ -153,7 +180,7 @@ export function TodayChoresPanel({
   );
   const [choreActionError, setChoreActionError] = useState("");
   const [myChoresOnly, setMyChoresOnly] = useState(readMyChoresOnly);
-  const [completionWindow, setCompletionWindow] = useState<CompletionWindow>("today");
+  const [completionWindow, setCompletionWindow] = useState<CompletionWindow>(readCompletionWindow);
   const [completionCounts, setCompletionCounts] = useState<CompletionCount[]>([]);
   const [completionSeries, setCompletionSeries] =
     useState<CompletionSeries>(EMPTY_COMPLETION_SERIES);
@@ -168,12 +195,21 @@ export function TodayChoresPanel({
         if (!response.ok) {
           return;
         }
-        const payload = (await response.json()) as { myChoresOnly?: boolean };
-        if (typeof payload.myChoresOnly !== "boolean" || cancelled) {
+        const payload = (await response.json()) as {
+          myChoresOnly?: boolean;
+          completionWindow?: CompletionWindow | null;
+        };
+        if (cancelled) {
           return;
         }
-        setMyChoresOnly(payload.myChoresOnly);
-        writeMyChoresOnly(payload.myChoresOnly);
+        if (typeof payload.myChoresOnly === "boolean") {
+          setMyChoresOnly(payload.myChoresOnly);
+          writeMyChoresOnly(payload.myChoresOnly);
+        }
+        if (payload.completionWindow) {
+          setCompletionWindow(payload.completionWindow);
+          writeCompletionWindow(payload.completionWindow);
+        }
       } catch {
         // Keep local fallback value.
       }
@@ -353,6 +389,18 @@ export function TodayChoresPanel({
     });
   }
 
+  function updateCompletionWindow(next: CompletionWindow) {
+    setCompletionWindow(next);
+    writeCompletionWindow(next);
+    void fetch("/api/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completionWindow: next }),
+    }).catch(() => {
+      // Keep local value; retry will happen on next selection.
+    });
+  }
+
   async function onDeleteChore(choreId: string) {
     if (choreActionLoading) {
       return;
@@ -414,17 +462,17 @@ export function TodayChoresPanel({
               />
               <span
                 aria-hidden="true"
-                className="relative h-6 w-11 rounded-full border border-[#b9cde9] bg-[#cfdff4] transition-colors duration-150 peer-checked:border-[#49c6a6] peer-checked:bg-[#72d8bf] before:absolute before:left-[2px] before:top-[2px] before:h-[18px] before:w-[18px] before:rounded-full before:bg-white before:shadow-[0_2px_8px_rgba(30,57,94,0.2)] before:transition-transform before:duration-150 before:content-[''] peer-checked:before:translate-x-[18px]"
+                className="my-chores-toggle-track"
               />
               <span className="small leading-none">
                 My Chores ({myChoreCount}) out of ({chores.length})
               </span>
             </label>
-            <div className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="today-chores-actions-shell">
               <Link
                 href="/chores"
-                className={`inline-flex h-10 items-center bg-[#e7fef8] px-3 text-sm font-semibold text-[#0f6f5e] transition-colors hover:bg-[#d9fbf7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
-                  canCreateChores ? "border-r border-[#b7eedd]" : ""
+                className={`today-chores-action-link ${
+                  canCreateChores ? "today-chores-action-link-divider" : ""
                 }`}>
                 View all chores
               </Link>
@@ -435,7 +483,7 @@ export function TodayChoresPanel({
                       type="button"
                       title="Add more chores"
                       aria-label="Add more chores"
-                      className="inline-flex h-10 min-w-[44px] items-center justify-center bg-[#e7fef8] px-3 text-lg font-semibold leading-none text-[#0f6f5e] transition-colors hover:bg-[#d9fbf7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                      className="today-chores-action-add"
                       onClick={openDialog}>
                       +
                     </Button>
@@ -486,13 +534,13 @@ export function TodayChoresPanel({
         </div>
         <aside className="completion-chart">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="m-0 text-[0.88rem] leading-none font-normal text-[#456389]">
+            <h3 className="m-0 text-[0.88rem] leading-none font-normal text-[var(--muted)]">
               Completed Chores
             </h3>
             <TailwindSelect
               ariaLabel="Completion range"
               value={completionWindow}
-              onChange={(next) => setCompletionWindow(next)}
+              onChange={updateCompletionWindow}
               options={COMPLETION_WINDOW_OPTIONS}
               className="w-[140px]"
             />

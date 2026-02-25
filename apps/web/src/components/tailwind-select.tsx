@@ -154,7 +154,7 @@ export function TailwindSelect<T extends string = string>({
         aria-controls={open ? listboxId : undefined}
         disabled={disabled}
         className={joinClasses(
-          "inline-flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-[#e7fef8] px-3 text-sm font-semibold text-[#0f6f5e] shadow-sm transition-colors hover:bg-[#d9fbf7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-60",
+          "theme-select-trigger",
           buttonClassName,
         )}
         onKeyDown={onButtonKeyDown}
@@ -197,9 +197,9 @@ export function TailwindSelect<T extends string = string>({
                   aria-selected={selected}
                   disabled={option.disabled}
                   className={joinClasses(
-                    "w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
-                    active && !option.disabled && "bg-slate-100",
-                    selected && !option.disabled && "bg-[#e7fef8] font-semibold text-[#0f6f5e]",
+                    "theme-select-option",
+                    active && !option.disabled && "theme-select-option-active",
+                    selected && !option.disabled && "theme-select-option-selected",
                     option.disabled && "cursor-not-allowed opacity-60",
                   )}
                   onMouseEnter={() => setHighlightedIndex(index)}

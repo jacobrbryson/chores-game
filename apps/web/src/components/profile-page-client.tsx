@@ -3,6 +3,8 @@
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { BackLink } from "@/components/back-link";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
+import { isAllowedDashboardColor } from "@/lib/store/catalog";
+import { DEFAULT_THEME_PREFERENCE } from "@/lib/theme/preferences";
 
 type ProfilePageClientProps = {
   name: string;
@@ -13,6 +15,10 @@ type ProfilePageClientProps = {
 
 type StoreProfileSummary = {
   dashboardPrimaryColor?: string;
+  themeOptionId?: string;
+  themePrimaryColor?: string;
+  themeSecondaryColor?: string;
+  themeTertiaryColor?: string;
   avatarId?: string;
 };
 
@@ -67,11 +73,37 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     };
   }, []);
 
-  const dashboardPrimaryColor = useMemo(() => {
-    const raw = storeSummary?.dashboardPrimaryColor?.trim().toLowerCase() ?? "";
-    return raw || "#6b7280";
-  }, [storeSummary?.dashboardPrimaryColor]);
-  const hasCustomTheme = Boolean(storeSummary?.dashboardPrimaryColor?.trim());
+  const themePalette = useMemo(() => {
+    const primary = storeSummary?.themePrimaryColor?.trim().toLowerCase() ?? "";
+    const secondary = storeSummary?.themeSecondaryColor?.trim().toLowerCase() ?? "";
+    const tertiary = storeSummary?.themeTertiaryColor?.trim().toLowerCase() ?? "";
+    if (
+      isAllowedDashboardColor(primary) &&
+      isAllowedDashboardColor(secondary) &&
+      isAllowedDashboardColor(tertiary)
+    ) {
+      return { primary, secondary, tertiary };
+    }
+    const fallback = storeSummary?.dashboardPrimaryColor?.trim().toLowerCase() ?? "";
+    if (isAllowedDashboardColor(fallback)) {
+      return {
+        primary: fallback,
+        secondary: DEFAULT_THEME_PREFERENCE.secondary,
+        tertiary: DEFAULT_THEME_PREFERENCE.tertiary,
+      };
+    }
+    return {
+      primary: DEFAULT_THEME_PREFERENCE.primary,
+      secondary: DEFAULT_THEME_PREFERENCE.secondary,
+      tertiary: DEFAULT_THEME_PREFERENCE.tertiary,
+    };
+  }, [
+    storeSummary?.dashboardPrimaryColor,
+    storeSummary?.themePrimaryColor,
+    storeSummary?.themeSecondaryColor,
+    storeSummary?.themeTertiaryColor,
+  ]);
+  const hasCustomTheme = Boolean(storeSummary?.themeOptionId?.trim());
 
   const avatarUrl = useMemo(() => {
     const avatarId = storeSummary?.avatarId?.trim();
@@ -98,7 +130,7 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
       <section className="profile-page-grid">
         <article className="profile-page-avatar-card">
           <h2>Avatar</h2>
-          <div className="profile-page-avatar-frame" style={{ "--profile-theme": dashboardPrimaryColor } as CSSProperties}>
+          <div className="profile-page-avatar-frame" style={{ "--profile-theme": themePalette.primary } as CSSProperties}>
             {avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -136,10 +168,13 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
             <div>
               <dt>Theme</dt>
               <dd className="profile-page-theme-line">
-                <span className="profile-theme-swatch" style={{ backgroundColor: dashboardPrimaryColor }} />
-                <span className="profile-theme-swatch profile-theme-swatch-white" />
+                <span className="profile-theme-swatch" style={{ backgroundColor: themePalette.primary }} />
+                <span className="profile-theme-swatch" style={{ backgroundColor: themePalette.secondary }} />
+                <span className="profile-theme-swatch" style={{ backgroundColor: themePalette.tertiary }} />
                 <span>
-                  {hasCustomTheme ? `${dashboardPrimaryColor} + white` : "gray + white (default)"}
+                  {hasCustomTheme
+                    ? `${themePalette.primary} · ${themePalette.secondary} · ${themePalette.tertiary}`
+                    : "Original Sky theme"}
                 </span>
               </dd>
             </div>

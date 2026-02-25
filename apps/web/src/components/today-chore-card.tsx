@@ -17,6 +17,17 @@ type TodayChoreCardProps = {
   onEdited: () => Promise<void> | void;
 };
 
+function getSafeHexColor(value: string | undefined) {
+  if (!value) {
+    return "";
+  }
+  const normalized = value.trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(normalized)) {
+    return normalized;
+  }
+  return "";
+}
+
 export function TodayChoreCard({
   chore,
   canManageActions,
@@ -31,6 +42,7 @@ export function TodayChoreCard({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const assigneePrimaryColor = getSafeHexColor(chore.assigneePrimaryColor);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -71,11 +83,27 @@ export function TodayChoreCard({
         onOpenChange={setEditDialogOpen}
         hideTrigger
       />
-      <div className="flex flex-col gap-3">
+      <div
+        className="flex flex-col gap-3 rounded-lg border-l-4 pl-3"
+        style={{
+          borderLeftColor: assigneePrimaryColor || "#cbd5e1",
+        }}>
         <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-col items-start gap-1">
-            <strong className="block">{chore.title}</strong>
-            <span className="block">{chore.assigneeName}</span>
+          <div className="flex min-w-0 items-center gap-3">
+            <span
+              aria-label={`${chore.assigneeName} avatar`}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-semibold"
+              style={{
+                borderColor: assigneePrimaryColor || "#e2e8f0",
+                backgroundColor: assigneePrimaryColor || "#f1f5f9",
+                color: assigneePrimaryColor ? "#ffffff" : "#334155",
+              }}>
+              {chore.assigneeName?.trim().charAt(0).toUpperCase() || "?"}
+            </span>
+            <div className="flex min-w-0 flex-col items-start gap-1">
+              <strong className="block">{chore.title}</strong>
+              <span className="block">{chore.assigneeName}</span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1 text-lg font-bold leading-none text-amber-600">

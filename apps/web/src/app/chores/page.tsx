@@ -24,6 +24,9 @@ type ChoreRow = {
 type ChoresResponse = {
   chores: ChoreRow[];
   viewerRole?: "admin" | "player";
+  viewerUid?: string;
+  familyId?: string;
+  wsAuthToken?: string;
   pagination?: {
     page: number;
     pageSize: number;
@@ -253,7 +256,7 @@ export default function ChoresPage() {
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState<ChoreSortBy>("dueDate");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [realtimeContext, setRealtimeContext] = useState<{ uid: string; familyId: string } | null>(null);
+  const [realtimeContext, setRealtimeContext] = useState<{ familyId: string; authToken: string } | null>(null);
   const canCreateChores = viewerRole === "admin";
   const requestSeqRef = useRef(0);
   const loadAbortRef = useRef<AbortController | null>(null);
@@ -298,6 +301,13 @@ export default function ChoresPage() {
       setPage(payload.pagination?.page ?? targetPage);
       setTotal(payload.pagination?.total ?? payload.chores.length ?? 0);
       setTotalPages(payload.pagination?.totalPages ?? 1);
+      const familyId = payload.familyId?.trim() ?? "";
+      const authToken = payload.wsAuthToken?.trim() ?? "";
+      if (familyId && authToken) {
+        setRealtimeContext({ familyId, authToken });
+      } else {
+        setRealtimeContext(null);
+      }
     } catch (loadErrorValue) {
       if (controller.signal.aborted) {
         return;
@@ -340,31 +350,6 @@ export default function ChoresPage() {
     }
   }, [applyChoreRow]);
 
-  const loadRealtimeContext = useCallback(async () => {
-    try {
-      const response = await fetch("/api/family/summary", { cache: "no-store" });
-      if (!response.ok) {
-        return;
-      }
-      const payload = (await response.json()) as {
-        viewerUid?: string;
-        family?: { id?: string } | null;
-      };
-      const viewerUid = payload.viewerUid ?? "";
-      const familyId = payload.family?.id ?? "";
-      if (!viewerUid || !familyId) {
-        return;
-      }
-      setRealtimeContext({ uid: viewerUid, familyId });
-    } catch {
-      // Realtime enhancements are best-effort.
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadRealtimeContext();
-  }, [loadRealtimeContext]);
-
   useEffect(() => {
     void loadChores({ pageOverride: page });
   }, [loadChores, page]);
@@ -382,8 +367,7 @@ export default function ChoresPage() {
       return;
     }
     const socket = connectFamilySocket({
-      uid: realtimeContext.uid,
-      familyIds: [realtimeContext.familyId],
+      authToken: realtimeContext.authToken,
     });
     if (!socket) {
       return;

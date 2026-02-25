@@ -18,6 +18,8 @@ import {
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
+import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
+import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
 import type { FamilySnapshotMember, FamilySummaryResponse } from "@/lib/family/types";
 
 export const dynamic = "force-dynamic";
@@ -52,9 +54,14 @@ function toMemberStatus(value: string | undefined): FamilySnapshotMember["status
   return value === "active" ? "active" : "invited";
 }
 
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
 function emptySummary(viewerUid: string): FamilySummaryResponse {
   return {
     viewerUid,
+    wsAuthToken: "",
     noFamily: true,
     family: null,
     members: [],
@@ -214,6 +221,7 @@ export async function GET(request: NextRequest) {
             uid: readString(doc.fields, "uid") || undefined,
             name: readString(doc.fields, "name") || "Unnamed member",
             email: readString(doc.fields, "email"),
+            dashboardPrimaryColor: readString(doc.fields, "dashboardPrimaryColor") || undefined,
             role: toMemberRole(readString(doc.fields, "role")),
             status: toMemberStatus(readString(doc.fields, "status")),
             lastSignInAt: readTimestamp(doc.fields, "lastSignInAt") || undefined,
@@ -222,6 +230,18 @@ export async function GET(request: NextRequest) {
             deleted: readBoolean(doc.fields, "deleted"),
           }))
           .filter((member) => !member.deleted);
+
+        const assigneeColorByAlias = new Map<string, string>();
+        for (const member of rawMembers) {
+          const resolvedColor = resolveMemberPrimaryColor(member.dashboardPrimaryColor);
+          assigneeColorByAlias.set(member.id, resolvedColor);
+          if (member.uid) {
+            assigneeColorByAlias.set(member.uid, resolvedColor);
+          }
+          if (member.email) {
+            assigneeColorByAlias.set(normalizeEmail(member.email), resolvedColor);
+          }
+        }
 
         const normalizedSessionEmail = session.email.trim().toLowerCase();
         const viewerMember =
@@ -236,6 +256,10 @@ export async function GET(request: NextRequest) {
             ) ?? null;
           const pendingSummary: FamilySummaryResponse = {
             viewerUid: session.uid,
+            wsAuthToken: createFamilySocketAuthToken({
+              uid: session.uid,
+              familyIds: [familyId],
+            }),
             noFamily: false,
             family: {
               id: familyId,
@@ -318,6 +342,10 @@ export async function GET(request: NextRequest) {
 
         return {
           viewerUid: session.uid,
+          wsAuthToken: createFamilySocketAuthToken({
+            uid: session.uid,
+            familyIds: [familyId],
+          }),
           noFamily: false,
           family: {
             id: familyId,
@@ -331,6 +359,12 @@ export async function GET(request: NextRequest) {
               status: readString(doc.fields, "status"),
               assigneeId: readString(doc.fields, "assigneeId") || undefined,
               assigneeName: readString(doc.fields, "assigneeName") || "Unassigned",
+              assigneePrimaryColor:
+                assigneeColorByAlias.get(readString(doc.fields, "assigneeId")) ||
+                assigneeColorByAlias.get(
+                  normalizeEmail(readString(doc.fields, "assigneeId")),
+                ) ||
+                undefined,
               dueDate: readString(doc.fields, "dueDate"),
               details: readString(doc.fields, "details") || undefined,
               deleted: readBoolean(doc.fields, "deleted"),
@@ -345,6 +379,7 @@ export async function GET(request: NextRequest) {
               title: chore.title,
               assigneeId: chore.assigneeId,
               assigneeName: chore.assigneeName,
+              assigneePrimaryColor: chore.assigneePrimaryColor,
               dueDate: chore.dueDate,
               details: chore.details,
               coinValue: chore.coinValue,

@@ -1,18 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #eef7ff;
-  --background-soft: #dceefe;
+  --background: #ebf4fb;
+  --background-soft: #d4e7f6;
   --surface: #ffffff;
-  --foreground: #183356;
-  --muted: #456389;
-  --line: #c7dcf6;
-  --brand: #2f8cff;
-  --brand-strong: #1e6fd2;
-  --brand-ink: #061a35;
-  --accent: #19b995;
-  --accent-soft: #e7fef8;
-  --shadow: 0 16px 44px rgba(24, 51, 86, 0.14);
+  --foreground: #1b2a41;
+  --muted: #6d7f93;
+  --line: #bed7ea;
+  --brand: #0072b2;
+  --brand-strong: #005e92;
+  --brand-ink: #152133;
+  --accent: #56b4e9;
+  --accent-soft: #eaf6fc;
+  --shadow: 0 16px 44px rgba(27, 42, 65, 0.14);
 }
 
 @theme inline {
@@ -182,10 +182,10 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  border: 1px solid #b7eedd;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, #ffffff);
   border-radius: 12px;
-  background: var(--accent-soft);
-  color: #0f6f5e;
+  background: color-mix(in srgb, var(--accent) 16%, #ffffff);
+  color: color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 82%, var(--accent) 18%);
   padding: 10px 14px;
   font-size: 0.95rem;
   font-weight: 700;
@@ -195,7 +195,7 @@ body {
 }
 
 .menu-action-link:hover {
-  background: #d9fbf7;
+  background: color-mix(in srgb, var(--accent) 24%, #ffffff);
 }
 
 .menu-action-link-full {
@@ -437,23 +437,61 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #57a8ff, var(--brand));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--brand) 76%, #ffffff),
+    var(--brand)
+  );
   color: #f7fbff;
-  box-shadow: 0 7px 18px #2f8cff5e;
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--brand) 60%, transparent);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #3f99ff, var(--brand-strong));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--brand) 68%, #ffffff),
+    var(--brand-strong)
+  );
 }
 
 .btn-secondary {
-  border-color: #b7eedd;
-  background: var(--accent-soft);
-  color: #0f6f5e;
+  border-color: color-mix(in srgb, var(--accent) 35%, #ffffff);
+  background: color-mix(in srgb, var(--accent) 16%, #ffffff);
+  color: color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 82%, var(--accent) 18%);
 }
 
 .btn-secondary:hover {
-  background: #d9fbf7;
+  background: color-mix(in srgb, var(--accent) 24%, #ffffff);
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
+.btn:disabled,
+.btn[disabled] {
+  border-color: #d3d8e0 !important;
+  background: #e6eaf0 !important;
+  color: #8e98a6 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: saturate(0.15);
+  transform: none !important;
+  pointer-events: none;
+}
+
+.btn:disabled:hover,
+.btn[disabled]:hover,
+.btn:disabled:focus-visible,
+.btn[disabled]:focus-visible {
+  border-color: #d3d8e0 !important;
+  background: #e6eaf0 !important;
+  color: #8e98a6 !important;
+  box-shadow: none !important;
+  outline: none;
 }
 
 .small {
@@ -1084,6 +1122,18 @@ body {
   margin: 0;
 }
 
+.store-options-modal-title-row {
+  display: inline-flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.store-options-modal-title-row .small {
+  text-align: right;
+}
+
 .store-options-grid {
   margin-top: 12px;
   display: grid;
@@ -1098,6 +1148,36 @@ body {
   padding: 10px;
   display: grid;
   gap: 8px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 180ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.store-option-card.is-active {
+  border-color: color-mix(in srgb, var(--brand) 68%, #ffffff);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--brand) 9%, #ffffff),
+    color-mix(in srgb, var(--accent) 8%, #ffffff)
+  );
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--brand) 35%, transparent),
+    0 10px 24px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+
+.store-option-card.is-previewing {
+  border-color: color-mix(in srgb, var(--accent) 72%, #ffffff);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 14%, #ffffff),
+    color-mix(in srgb, var(--brand) 8%, #ffffff)
+  );
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 42%, transparent),
+    0 12px 24px color-mix(in srgb, var(--accent) 18%, transparent);
+  transform: translateY(-1px);
 }
 
 .store-option-card h4 {
@@ -1111,6 +1191,8 @@ body {
 }
 
 .store-option-preview {
+  position: relative;
+  overflow: hidden;
   border: 1px solid #dbe9fa;
   border-radius: 8px;
   min-height: 74px;
@@ -1121,11 +1203,36 @@ body {
 }
 
 .store-option-color {
-  width: 56px;
-  height: 56px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   border: 2px solid #ffffff;
   box-shadow: 0 6px 14px rgba(22, 52, 90, 0.2);
+}
+
+.store-option-theme-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.store-option-color-secondary,
+.store-option-color-tertiary {
+  width: 26px;
+  height: 26px;
+}
+
+.store-preview-btn {
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
+.store-preview-btn-floating {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 1;
 }
 
 .store-option-avatar {
@@ -1162,19 +1269,168 @@ body {
 }
 
 .notifications-filter-btn {
-  border: 1px solid #bfd7f7;
+  border: 1px solid color-mix(in srgb, var(--brand) 32%, #ffffff);
   border-radius: 999px;
-  background: #f2f7ff;
-  color: #2a568d;
+  background: color-mix(in srgb, var(--brand) 12%, #ffffff);
+  color: color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 86%, var(--brand) 14%);
   font-size: 0.82rem;
   font-weight: 700;
   padding: 6px 12px;
 }
 
 .notifications-filter-btn.is-active {
-  border-color: #2f8cff;
-  background: #e6f1ff;
-  color: #1d4c81;
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 22%, #ffffff);
+  color: color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 80%, var(--brand) 20%);
+}
+
+.theme-select-trigger {
+  display: inline-flex;
+  height: 2.5rem;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, #ffffff);
+  background: color-mix(in srgb, var(--accent) 16%, #ffffff);
+  color: color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 82%, var(--accent) 18%);
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 14%, transparent);
+  transition: background-color 150ms ease, border-color 150ms ease;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.theme-select-trigger:hover {
+  background: color-mix(in srgb, var(--accent) 24%, #ffffff);
+}
+
+.theme-select-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 42%, transparent);
+}
+
+.theme-select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.theme-select-option {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-size: 0.875rem;
+  color: color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 84%, #ffffff 16%);
+  transition: background-color 150ms ease, color 150ms ease;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.theme-select-option:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 42%, transparent);
+}
+
+.theme-select-option-active {
+  background: color-mix(in srgb, var(--brand) 10%, #ffffff);
+}
+
+.theme-select-option-selected {
+  background: color-mix(in srgb, var(--accent) 18%, #ffffff);
+  color: color-mix(in srgb, var(--tertiary, var(--foreground)) 82%, var(--accent) 18%);
+  font-weight: 700;
+}
+
+.my-chores-toggle-track {
+  position: relative;
+  height: 1.5rem;
+  width: 2.75rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line) 75%, #ffffff);
+  background: color-mix(in srgb, var(--line) 86%, #ffffff);
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.my-chores-toggle-track::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  height: 18px;
+  width: 18px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(30, 57, 94, 0.2);
+  transition: transform 150ms ease;
+}
+
+.peer:checked + .my-chores-toggle-track {
+  border-color: color-mix(in srgb, var(--accent) 56%, #ffffff);
+  background: color-mix(in srgb, var(--accent) 42%, #ffffff);
+}
+
+.peer:checked + .my-chores-toggle-track::before {
+  transform: translateX(18px);
+}
+
+.today-chores-actions-shell {
+  display: inline-flex;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, #ffffff);
+  background: #ffffff;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 14%, transparent);
+}
+
+.today-chores-action-link,
+.today-chores-action-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: color-mix(in srgb, var(--accent) 16%, #ffffff);
+  color: color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 82%, var(--accent) 18%);
+  transition: background-color 150ms ease;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.today-chores-action-link:hover,
+.today-chores-action-add:hover {
+  background: color-mix(in srgb, var(--accent) 24%, #ffffff);
+}
+
+.today-chores-action-link:focus-visible,
+.today-chores-action-add:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand) 42%, transparent);
+}
+
+.today-chores-action-link {
+  height: 2.5rem;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.today-chores-action-link-divider {
+  border-right: 1px solid color-mix(in srgb, var(--accent) 35%, #ffffff);
+}
+
+.today-chores-action-add {
+  min-width: 44px;
+  height: 2.5rem;
+  padding: 0 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .notifications-list {

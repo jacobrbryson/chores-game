@@ -1,18 +1,20 @@
-type FamilyActivityEvent = {
-  type: "chore_completed" | "chore_created" | "chore_updated" | "chore_deleted";
+import type { FamilyActivityType } from "@/lib/ws/family-activity-event";
+
+type FamilyActivityPublishEvent = {
+  type: FamilyActivityType;
   familyId: string;
   choreId?: string;
   occurredAt?: string;
 };
 
-export async function publishFamilyActivity(event: FamilyActivityEvent) {
+export async function publishFamilyActivity(event: FamilyActivityPublishEvent) {
   const isProduction = process.env.NODE_ENV === "production";
   const wsServerUrl = (process.env.NEXT_PUBLIC_WS_URL ?? "").trim();
   const secret = (
     process.env.WS_INTERNAL_SECRET ?? (isProduction ? "" : "dev-ws-internal-secret")
   ).trim();
   if (!wsServerUrl || !secret) {
-    console.warn("[WS_DEBUG] publish skipped due to missing ws config", {
+    console.warn("publish skipped due to missing ws config", {
       hasWsServerUrl: Boolean(wsServerUrl),
       hasInternalSecret: Boolean(secret),
     });
@@ -34,13 +36,13 @@ export async function publishFamilyActivity(event: FamilyActivityEvent) {
     });
     if (!response.ok) {
       const body = await response.text();
-      console.warn("[WS_DEBUG] publish failed", {
+      console.warn("publish failed", {
         status: response.status,
         body,
       });
     }
   } catch {
     // Notification is best-effort and must not break chore workflows.
-    console.warn("[WS_DEBUG] publish request threw before response");
+    console.warn("publish request threw before response");
   }
 }

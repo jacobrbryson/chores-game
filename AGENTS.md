@@ -242,6 +242,27 @@ Build a family chore game where:
     - avatar option: `50` coins each
     - confetti option: `20` coins each
   - Custom color selection is no longer blocked when another family member uses the same color.
+- Websocket transport resilience update (2026-02-24):
+  - Browser socket client now allows both `websocket` and `polling` transports (with upgrade enabled) instead of websocket-only.
+  - WS server now allows default Socket.IO transports, enabling polling fallback in managed/proxied production environments.
+  - Client reconnect policy increased to tolerate cold starts and transient deploy/network errors.
+- Theme customization update (2026-02-25):
+  - App personalization now uses a three-color theme palette (`primary`, `secondary`, `tertiary`).
+  - Store color options are now theme packs (9 options) where each option defines all three colors.
+  - The first color theme option is the default starter theme and is automatically owned by all players.
+  - Color theme catalog enforces unique `primary` colors across theme options.
+  - Theme palette options were updated to a colorblind-safe set so each option remains distinguishable for common color-vision deficiencies.
+  - Customize colors modal now includes a per-option `Preview` action that applies the palette temporarily.
+  - Theme previews are non-persistent and revert when the options modal closes, on page change, and on refresh.
+  - Buying a color theme now prompts to set it immediately; owned themes show `Set theme` instead of `Buy`.
+  - Applying a theme persists selection to user preferences and localStorage; runtime loads local preference first, then reconciles from `GET /api/preferences`.
+  - Applying a theme also updates member `dashboardPrimaryColor` to the theme `primary` color for existing chart/profile usage.
+  - Completion chart bars/lines now resolve to each member's primary theme color (with default-theme primary fallback when missing/invalid).
+  - Home "Completed Chores" timeframe filter now persists in user preferences (`preferencesCompletionWindow`) with localStorage fallback and restores on reload.
+  - Theme apply actions now publish realtime family activity (`theme_changed`), and home clients refresh family summary on receipt so Completed Chores card colors update across the family without manual reload.
+  - Home chores list cards now inherit assignee theme color accents (avatar + left rail) via `assigneePrimaryColor` on chore payloads.
+  - Realtime socket identity now uses a server-signed auth token (`wsAuthToken`) instead of trusting client-provided UID/family IDs; ws server verifies token before joining family rooms.
+  - Shared helpers were added for completion-window parsing and member primary color resolution to reduce duplicated logic across API routes and UI.
 
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.

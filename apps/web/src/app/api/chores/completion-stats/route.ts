@@ -11,8 +11,12 @@ import {
   readStringArray,
   readTimestamp,
 } from "@/lib/firestore/rest";
+import { parseCompletionWindow, type CompletionWindow } from "@/lib/preferences/completion-window";
+import {
+  DEFAULT_MEMBER_PRIMARY_COLOR,
+  resolveMemberPrimaryColor,
+} from "@/lib/theme/member-primary-color";
 
-type CompletionWindow = "today" | "week" | "month" | "year";
 type CompletionCount = {
   memberId: string;
   name: string;
@@ -62,10 +66,7 @@ function jsonFirestoreForbidden() {
 }
 
 function parseWindow(value: string | null): CompletionWindow {
-  if (value === "week" || value === "month" || value === "year") {
-    return value;
-  }
-  return "today";
+  return parseCompletionWindow(value) ?? "today";
 }
 
 function dueDateToIso(value: string) {
@@ -314,6 +315,23 @@ export async function GET(request: NextRequest) {
           }))
           .filter((member) => !member.deleted);
 
+        const colorByEmail = new Map<string, string>();
+        for (const member of rawMembers) {
+          const normalizedEmail = normalizeEmail(member.email);
+          if (!normalizedEmail) {
+            continue;
+          }
+          if (!member.dashboardPrimaryColor) {
+            continue;
+          }
+          const nextColor = resolveMemberPrimaryColor(member.dashboardPrimaryColor);
+          const currentColor = colorByEmail.get(normalizedEmail);
+          // Prefer uid-linked member docs when both uid + email invite docs exist.
+          if (!currentColor || Boolean(member.uid)) {
+            colorByEmail.set(normalizedEmail, nextColor);
+          }
+        }
+
         const normalizedEmailWithUid = new Set(
           rawMembers
             .filter((member) => Boolean(member.uid))
@@ -321,16 +339,29 @@ export async function GET(request: NextRequest) {
             .filter(Boolean),
         );
 
-        const members = rawMembers.filter((member) => {
-          if (member.uid) {
-            return true;
-          }
-          const normalizedEmail = normalizeEmail(member.email);
-          if (!normalizedEmail) {
-            return true;
-          }
-          return !normalizedEmailWithUid.has(normalizedEmail);
-        });
+        const members = rawMembers
+          .filter((member) => {
+            if (member.uid) {
+              return true;
+            }
+            const normalizedEmail = normalizeEmail(member.email);
+            if (!normalizedEmail) {
+              return true;
+            }
+            return !normalizedEmailWithUid.has(normalizedEmail);
+          })
+          .map((member) => {
+            const normalizedEmail = normalizeEmail(member.email);
+            const resolvedColor = member.dashboardPrimaryColor
+              ? resolveMemberPrimaryColor(member.dashboardPrimaryColor)
+              : normalizedEmail
+                ? colorByEmail.get(normalizedEmail) ?? DEFAULT_MEMBER_PRIMARY_COLOR
+                : DEFAULT_MEMBER_PRIMARY_COLOR;
+            return {
+              ...member,
+              dashboardPrimaryColor: resolvedColor,
+            };
+          });
 
         const labels = buildWindowBucketLabels(startMillis, endMillis, interval);
         const bucketStepMillis = intervalMillis(interval);

@@ -19,6 +19,7 @@ import {
 import { emitFamilyActivity } from "@/lib/notifications/events";
 import { applyWalletDelta } from "@/lib/economy/wallet";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
+import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
 
 type UpdateChoreBody = {
   action?: unknown;
@@ -85,6 +86,54 @@ async function getFamilyMemberName(
     }
     throw error;
   }
+}
+
+async function resolveAssigneePrimaryColor(
+  familyId: string,
+  assigneeId: string,
+  idToken: string,
+) {
+  if (!assigneeId) {
+    return undefined;
+  }
+  try {
+    const memberDoc = await getDocument(`families/${familyId}/members/${assigneeId}`, idToken);
+    if (readBoolean(memberDoc.fields, "deleted")) {
+      return undefined;
+    }
+    return resolveMemberPrimaryColor(
+      readString(memberDoc.fields, "dashboardPrimaryColor") || undefined,
+    );
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
+
+  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 100);
+  const normalizedAssignee = normalizeEmail(assigneeId);
+  const matchedMember = memberDocs.find((doc) => {
+    if (readBoolean(doc.fields, "deleted")) {
+      return false;
+    }
+    const memberId = documentIdFromName(doc.name);
+    if (memberId === assigneeId) {
+      return true;
+    }
+    const memberUid = readString(doc.fields, "uid");
+    if (memberUid && memberUid === assigneeId) {
+      return true;
+    }
+    const memberEmail = normalizeEmail(readString(doc.fields, "email"));
+    return Boolean(memberEmail) && memberEmail === normalizedAssignee;
+  });
+  if (!matchedMember) {
+    return undefined;
+  }
+  return resolveMemberPrimaryColor(
+    readString(matchedMember.fields, "dashboardPrimaryColor") || undefined,
+  );
 }
 
 async function resolveAssigneeUid(
@@ -193,6 +242,11 @@ export async function GET(
             status: readString(choreDoc.fields, "status") || "Open",
             assigneeId: readString(choreDoc.fields, "assigneeId") || undefined,
             assigneeName: readString(choreDoc.fields, "assigneeName") || "Unassigned",
+            assigneePrimaryColor: await resolveAssigneePrimaryColor(
+              familyId,
+              readString(choreDoc.fields, "assigneeId"),
+              idToken,
+            ),
             details: readString(choreDoc.fields, "details") || undefined,
             dueDate: readString(choreDoc.fields, "dueDate"),
             completedAt:

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppHeader } from "@/components/app-header";
+import { ThemePreferenceSync } from "@/components/theme-preference-sync";
 
 export const metadata: Metadata = {
   title: "Family Chores",
@@ -28,6 +29,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
+        <ThemePreferenceSync />
         <div className="shell">
           <div className="container">
             <AppHeader />

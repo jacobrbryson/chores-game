@@ -26,6 +26,7 @@ export type FamilySnapshotChore = {
   status: "Open" | "Submitted" | "Approved" | "Rejected" | "Unknown";
   assigneeId?: string;
   assigneeName: string;
+  assigneePrimaryColor?: string;
   dueDate: string;
   details?: string;
   coinValue: number;
@@ -33,6 +34,7 @@ export type FamilySnapshotChore = {
 
 export type FamilySummaryResponse = {
   viewerUid: string;
+  wsAuthToken?: string;
   noFamily: boolean;
   family: null | {
     id: string;

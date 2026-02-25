@@ -21,6 +21,7 @@ import {
 } from "@/lib/firestore/rest";
 import { emitFamilyActivity } from "@/lib/notifications/events";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
+import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
 
 type CreateChoresBody = {
   description?: unknown;
@@ -394,13 +395,25 @@ export async function GET(request: NextRequest) {
             reason.toLowerCase().includes("document") &&
             reason.toLowerCase().includes("not found")
           ) {
-            return { chores: [] as ChoreRow[], viewerRole: "player" as ViewerRole };
+            return {
+              chores: [] as ChoreRow[],
+              viewerRole: "player" as ViewerRole,
+              viewerUid: session.uid,
+              familyId: "",
+              wsAuthToken: "",
+            };
           }
           throw error;
         }
 
         if (!familyId) {
-          return { chores: [] as ChoreRow[], viewerRole: "player" as ViewerRole };
+          return {
+            chores: [] as ChoreRow[],
+            viewerRole: "player" as ViewerRole,
+            viewerUid: session.uid,
+            familyId: "",
+            wsAuthToken: "",
+          };
         }
         const viewerRole = await getViewerRole(familyId, session.uid, idToken);
 
@@ -430,6 +443,12 @@ export async function GET(request: NextRequest) {
         return {
           chores: pagination.rows,
           viewerRole,
+          viewerUid: session.uid,
+          familyId,
+          wsAuthToken: createFamilySocketAuthToken({
+            uid: session.uid,
+            familyIds: [familyId],
+          }),
           pagination: {
             page: pagination.page,
             pageSize: pagination.pageSize,

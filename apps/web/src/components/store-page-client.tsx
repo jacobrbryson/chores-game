@@ -1,25 +1,50 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
 import {
+  isAllowedDashboardColor,
   normalizeColor,
   type StoreCategory,
   type StoreCategoryId,
   type StoreOption,
 } from "@/lib/store/catalog";
+import {
+  DEFAULT_THEME_PREFERENCE,
+  applyThemePreference,
+  dispatchThemeChanged,
+  isThemePreference,
+  type ThemePreference,
+} from "@/lib/theme/preferences";
 
 type StoreSummaryResponse = {
   balance: number;
   ownedOptionIds: string[];
   dashboardPrimaryColor: string;
+  themeOptionId: string;
+  themePrimaryColor: string;
+  themeSecondaryColor: string;
+  themeTertiaryColor: string;
   avatarId: string;
   selectedConfettiOptionId: string;
   categories: StoreCategory[];
 };
+
+function toThemePreference(option: StoreOption) {
+  if (!option.theme) {
+    return null;
+  }
+  const preference = {
+    optionId: option.id,
+    primary: option.theme.primary,
+    secondary: option.theme.secondary,
+    tertiary: option.theme.tertiary,
+  };
+  return isThemePreference(preference) ? preference : null;
+}
 
 export function StorePageClient() {
   const [summary, setSummary] = useState<StoreSummaryResponse | null>(null);
@@ -28,6 +53,9 @@ export function StorePageClient() {
   const [actionError, setActionError] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<StoreCategoryId | null>(null);
   const [pendingOptionId, setPendingOptionId] = useState("");
+  const [previewOptionId, setPreviewOptionId] = useState("");
+  const previewActiveRef = useRef(false);
+  const persistedThemeRef = useRef<ThemePreference>(DEFAULT_THEME_PREFERENCE);
 
   async function loadSummary() {
     setIsLoading(true);
@@ -59,11 +87,70 @@ export function StorePageClient() {
     return summary.categories.find((entry) => entry.id === activeCategoryId) ?? null;
   }, [activeCategoryId, summary]);
 
+  const persistedThemePreference = useMemo(() => {
+    if (!summary) {
+      return DEFAULT_THEME_PREFERENCE;
+    }
+    const fromSummary = {
+      optionId: summary.themeOptionId?.trim(),
+      primary: summary.themePrimaryColor?.trim().toLowerCase(),
+      secondary: summary.themeSecondaryColor?.trim().toLowerCase(),
+      tertiary: summary.themeTertiaryColor?.trim().toLowerCase(),
+    };
+    if (isThemePreference(fromSummary)) {
+      return fromSummary;
+    }
+    if (isAllowedDashboardColor(summary.dashboardPrimaryColor)) {
+      const colorCategory = summary.categories.find((entry) => entry.id === "customize_colors");
+      const matched =
+        colorCategory?.options.find(
+          (entry) => normalizeColor(entry.value) === normalizeColor(summary.dashboardPrimaryColor),
+        ) ?? null;
+      const fromOption = matched ? toThemePreference(matched) : null;
+      if (fromOption) {
+        return fromOption;
+      }
+    }
+    return DEFAULT_THEME_PREFERENCE;
+  }, [summary]);
+
+  useEffect(() => {
+    persistedThemeRef.current = persistedThemePreference;
+  }, [persistedThemePreference]);
+
+  const clearPreview = useCallback((nextPreference?: ThemePreference) => {
+    if (!previewActiveRef.current) {
+      return;
+    }
+    previewActiveRef.current = false;
+    setPreviewOptionId("");
+    applyThemePreference(nextPreference ?? persistedThemeRef.current);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearPreview();
+    };
+  }, [clearPreview]);
+
+  function previewThemeOption(option: StoreOption) {
+    const preference = toThemePreference(option);
+    if (!preference) {
+      return;
+    }
+    previewActiveRef.current = true;
+    setPreviewOptionId(option.id);
+    applyThemePreference(preference);
+  }
+
   function isOptionApplied(category: StoreCategory, option: StoreOption) {
     if (!summary) {
       return false;
     }
     if (category.kind === "color") {
+      if (summary.themeOptionId) {
+        return summary.themeOptionId === option.id;
+      }
       return normalizeColor(summary.dashboardPrimaryColor) === normalizeColor(option.value);
     }
     if (category.kind === "avatar") {
@@ -72,41 +159,8 @@ export function StorePageClient() {
     return summary.selectedConfettiOptionId === option.id;
   }
 
-  async function onPurchaseOption(categoryId: StoreCategoryId, optionId: string) {
-    if (!summary || pendingOptionId) {
-      return;
-    }
-    const category = summary.categories.find((entry) => entry.id === categoryId);
-    if (!category) {
-      return;
-    }
-    if (summary.balance < category.price) {
-      setActionError("insufficient_funds");
-      return;
-    }
-    setPendingOptionId(optionId);
-    setActionError("");
-    try {
-      const response = await fetch("/api/store", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "purchase_option", categoryId, optionId }),
-      });
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        throw new Error(body.error ?? `PURCHASE_OPTION_HTTP_${response.status}`);
-      }
-      await loadSummary();
-      window.dispatchEvent(new Event("wallet:refresh"));
-    } catch (purchaseError) {
-      setActionError(purchaseError instanceof Error ? purchaseError.message : "purchase_failed");
-    } finally {
-      setPendingOptionId("");
-    }
-  }
-
-  async function onApplyOption(category: StoreCategory, option: StoreOption) {
-    if (pendingOptionId) {
+  async function applyOption(category: StoreCategory, option: StoreOption, bypassPending = false) {
+    if (pendingOptionId && !bypassPending) {
       return;
     }
     setPendingOptionId(option.id);
@@ -114,7 +168,7 @@ export function StorePageClient() {
     try {
       const body =
         category.kind === "color"
-          ? { action: "set_color", color: option.value }
+          ? { action: "set_theme", optionId: option.id }
           : category.kind === "avatar"
             ? { action: "set_avatar", avatarId: option.value }
             : { action: "set_confetti", optionId: option.id };
@@ -127,9 +181,59 @@ export function StorePageClient() {
         const payload = (await response.json()) as { error?: string };
         throw new Error(payload.error ?? `APPLY_OPTION_HTTP_${response.status}`);
       }
+      if (category.kind === "color") {
+        const themePreference = toThemePreference(option);
+        if (themePreference) {
+          dispatchThemeChanged(themePreference);
+          clearPreview(themePreference);
+        } else {
+          clearPreview();
+        }
+      }
       await loadSummary();
     } catch (applyError) {
       setActionError(applyError instanceof Error ? applyError.message : "apply_failed");
+    } finally {
+      setPendingOptionId("");
+    }
+  }
+
+  async function onPurchaseOption(category: StoreCategory, option: StoreOption) {
+    if (!summary || pendingOptionId) {
+      return;
+    }
+    if (summary.balance < category.price) {
+      setActionError("insufficient_funds");
+      return;
+    }
+    setPendingOptionId(option.id);
+    setActionError("");
+    try {
+      const response = await fetch("/api/store", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "purchase_option",
+          categoryId: category.id,
+          optionId: option.id,
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `PURCHASE_OPTION_HTTP_${response.status}`);
+      }
+      await loadSummary();
+      window.dispatchEvent(new Event("wallet:refresh"));
+      if (
+        category.kind === "color" &&
+        option.theme &&
+        typeof window !== "undefined" &&
+        window.confirm("Purchase complete. Set this theme now?")
+      ) {
+        await applyOption(category, option, true);
+      }
+    } catch (purchaseError) {
+      setActionError(purchaseError instanceof Error ? purchaseError.message : "purchase_failed");
     } finally {
       setPendingOptionId("");
     }
@@ -173,17 +277,17 @@ export function StorePageClient() {
             open={Boolean(activeCategory)}
             onRequestClose={() => {
               if (!pendingOptionId) {
+                clearPreview();
                 setActiveCategoryId(null);
               }
             }}>
             {activeCategory ? (
               <section className="store-options-modal">
                 <header className="store-options-modal-header">
-                  <h3>{activeCategory.name}</h3>
-                  <p className="small">
-                    {activeCategory.options.length} options · {activeCategory.price} coins each
-                  </p>
-                  <p className="small">Balance: {summary.balance} coins</p>
+                  <div className="store-options-modal-title-row">
+                    <h3>{activeCategory.name}</h3>
+                    <p className="small">Balance: {summary.balance} coins</p>
+                  </div>
                 </header>
                 <div className="store-options-grid">
                   {activeCategory.options.map((option) => {
@@ -192,15 +296,45 @@ export function StorePageClient() {
                     const canAfford = summary.balance >= activeCategory.price;
                     const disabled = pendingOptionId.length > 0 || (!owned && !canAfford);
                     const isPending = pendingOptionId === option.id;
+                    const canPreview = activeCategory.kind === "color" && Boolean(option.theme);
+                    const previewing = previewOptionId === option.id;
+                    const isActiveThemeCard =
+                      activeCategory.kind === "color" && applied && !previewing;
+                    const isPreviewThemeCard = activeCategory.kind === "color" && previewing;
+                    const primaryColor = option.theme?.primary ?? option.value;
+                    const secondaryColor = option.theme?.secondary ?? primaryColor;
+                    const tertiaryColor = option.theme?.tertiary ?? primaryColor;
+                    const primaryTooltip = `Primary: ${primaryColor.toUpperCase()}`;
+                    const secondaryTooltip = `Secondary: ${secondaryColor.toUpperCase()}`;
+                    const tertiaryTooltip = `Tertiary (Tiernary): ${tertiaryColor.toUpperCase()}`;
                     return (
-                      <article key={option.id} className="store-option-card">
+                      <article
+                        key={option.id}
+                        className={`store-option-card${
+                          isActiveThemeCard ? " is-active" : ""
+                        }${isPreviewThemeCard ? " is-previewing" : ""}`}>
                         <div className="store-option-preview">
                           {activeCategory.kind === "color" ? (
-                            <span
-                              className="store-option-color"
-                              style={{ backgroundColor: option.value }}
-                              aria-hidden
-                            />
+                            <div className="store-option-theme-preview">
+                              <span
+                                className="store-option-color"
+                                style={{ backgroundColor: primaryColor }}
+                                title={primaryTooltip}
+                                aria-label={primaryTooltip}
+                              />
+                              <span
+                                className="store-option-color store-option-color-secondary"
+                                style={{ backgroundColor: secondaryColor }}
+                                title={secondaryTooltip}
+                                aria-label={secondaryTooltip}
+                              />
+                              <span
+                                className="store-option-color store-option-color-tertiary"
+                                style={{ backgroundColor: tertiaryColor }}
+                                title={tertiaryTooltip}
+                                aria-label={tertiaryTooltip}
+                              />
+                            </div>
                           ) : null}
                           {activeCategory.kind === "avatar" ? (
                             <Image
@@ -220,26 +354,48 @@ export function StorePageClient() {
                               className="store-option-confetti"
                             />
                           ) : null}
+                          {canPreview ? (
+                            <Button
+                              type="button"
+                              className="btn btn-secondary store-preview-btn store-preview-btn-floating"
+                              disabled={pendingOptionId.length > 0}
+                              onClick={() => previewThemeOption(option)}>
+                              {previewing ? "Previewing" : "Preview"}
+                            </Button>
+                          ) : null}
                         </div>
                         <h4>{option.label}</h4>
-                        <p className="small">{owned ? "Owned" : `${activeCategory.price} coins`}</p>
+                        <p className="small">
+                          {owned ? (
+                            "Owned"
+                          ) : (
+                            <>
+                              <span aria-hidden="true">&#x1FA99; </span>
+                              {activeCategory.price} coins
+                            </>
+                          )}
+                        </p>
                         <Button
                           type="button"
                           className="btn btn-primary"
                           disabled={disabled}
                           onClick={() => {
                             if (owned) {
-                              void onApplyOption(activeCategory, option);
+                              void applyOption(activeCategory, option);
                               return;
                             }
-                            void onPurchaseOption(activeCategory.id, option.id);
+                            void onPurchaseOption(activeCategory, option);
                           }}>
                           {isPending
                             ? "Saving..."
                             : owned
                               ? applied
-                                ? "Applied"
-                                : "Apply"
+                                ? activeCategory.kind === "color"
+                                  ? "Theme active"
+                                  : "Applied"
+                                : activeCategory.kind === "color"
+                                  ? "Set theme"
+                                  : "Apply"
                               : canAfford
                                 ? "Buy"
                                 : "Not enough coins"}
@@ -253,7 +409,10 @@ export function StorePageClient() {
                     type="button"
                     className="btn btn-secondary"
                     disabled={pendingOptionId.length > 0}
-                    onClick={() => setActiveCategoryId(null)}>
+                    onClick={() => {
+                      clearPreview();
+                      setActiveCategoryId(null);
+                    }}>
                     Close
                   </Button>
                 </div>

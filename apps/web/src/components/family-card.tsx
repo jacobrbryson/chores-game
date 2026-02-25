@@ -89,6 +89,7 @@ export function FamilyCard() {
           status: string;
           assigneeId?: string;
           assigneeName: string;
+          assigneePrimaryColor?: string;
           dueDate: string;
           details?: string;
           coinValue: number;
@@ -104,6 +105,7 @@ export function FamilyCard() {
         title: chore.title,
         assigneeId: chore.assigneeId,
         assigneeName: chore.assigneeName || "Unassigned",
+        assigneePrimaryColor: chore.assigneePrimaryColor,
         dueDate: chore.dueDate,
         details: chore.details,
         coinValue: chore.coinValue || 10,
@@ -149,12 +151,11 @@ export function FamilyCard() {
   }, [loadSummary]);
 
   useEffect(() => {
-    if (!familyId || !summary?.viewerUid) {
+    if (!familyId || !summary?.wsAuthToken) {
       return;
     }
     const socket = connectFamilySocket({
-      uid: summary.viewerUid,
-      familyIds: [familyId],
+      authToken: summary.wsAuthToken,
     });
     if (!socket) {
       return;
@@ -162,6 +163,10 @@ export function FamilyCard() {
 
     const onFamilyActivity = (event: FamilyActivityEvent) => {
       if (event.familyId !== familyId) {
+        return;
+      }
+      if (event.type === "theme_changed") {
+        void loadSummary({ silent: true });
         return;
       }
       if (event.type === "chore_completed" || event.type === "chore_deleted") {
@@ -181,7 +186,7 @@ export function FamilyCard() {
     return () => {
       socket.off("family:activity", onFamilyActivity);
     };
-  }, [familyId, refreshTodayChoreFromApi, removeTodayChore, summary?.viewerUid]);
+  }, [familyId, loadSummary, refreshTodayChoreFromApi, removeTodayChore, summary?.wsAuthToken]);
 
   async function onAcceptInvite() {
     if (acceptingInvite) {

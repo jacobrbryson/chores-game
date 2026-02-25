@@ -11,10 +11,6 @@ env:
     availability:
       - BUILD
       - RUNTIME
-  - variable: WS_DEBUG
-    secret: WS_DEBUG
-    availability:
-      - RUNTIME
   - variable: WS_INTERNAL_SECRET
     secret: WS_INTERNAL_SECRET
     availability:
