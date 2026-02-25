@@ -14,6 +14,8 @@ type ChoreRow = {
   status: string;
   assigneeId?: string;
   assigneeName: string;
+  assigneeAvatarId?: string;
+  assigneeAvatarPhotoUrl?: string;
   details?: string;
   dueDate: string;
   completedAt?: string;
@@ -378,6 +380,10 @@ export default function ChoresPage() {
       if (event.familyId !== realtimeContext.familyId) {
         return;
       }
+      if (event.type === "theme_changed" || event.type === "avatar_changed") {
+        void loadChores({ silent: true });
+        return;
+      }
       if (event.type === "chore_deleted") {
         if (event.choreId) {
           applyChoreRow(null, event.choreId);
@@ -581,7 +587,31 @@ export default function ChoresPage() {
                                 tone={statusTone(chore.status)}
                               />
                             </td>
-                            <td>{chore.assigneeName || "-"}</td>
+                            <td>
+                              <span className="table-assignee-cell">
+                                <span className="table-assignee-avatar" aria-hidden="true">
+                                  {chore.assigneeAvatarPhotoUrl ? (
+                                    <img
+                                      src={chore.assigneeAvatarPhotoUrl}
+                                      alt=""
+                                      loading="lazy"
+                                      decoding="async"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : chore.assigneeAvatarId ? (
+                                    <img
+                                      src={`/avatars/default/${encodeURIComponent(chore.assigneeAvatarId)}`}
+                                      alt=""
+                                      loading="lazy"
+                                      decoding="async"
+                                    />
+                                  ) : (
+                                    (chore.assigneeName || "?").trim().charAt(0).toUpperCase()
+                                  )}
+                                </span>
+                                <span>{chore.assigneeName || "-"}</span>
+                              </span>
+                            </td>
                             <td>{chore.dueDate || "-"}</td>
                             <td>{formatCompletedDate(chore.completedAt)}</td>
                             <td>

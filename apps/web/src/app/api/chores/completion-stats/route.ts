@@ -22,6 +22,8 @@ type CompletionCount = {
   name: string;
   count: number;
   color?: string;
+  avatarId?: string;
+  avatarPhotoUrl?: string;
 };
 
 type CompletionTrendInterval = "hour" | "day" | "week";
@@ -311,6 +313,8 @@ export async function GET(request: NextRequest) {
             email: readString(doc.fields, "email"),
             name: readString(doc.fields, "name") || "Unnamed member",
             dashboardPrimaryColor: readString(doc.fields, "dashboardPrimaryColor") || undefined,
+            avatarId: readString(doc.fields, "avatarId") || undefined,
+            avatarPhotoUrl: readString(doc.fields, "avatarPhotoUrl") || undefined,
             deleted: readBoolean(doc.fields, "deleted"),
           }))
           .filter((member) => !member.deleted);
@@ -442,6 +446,8 @@ export async function GET(request: NextRequest) {
             name: member.name,
             count: countsMap.get(member.id) ?? 0,
             color: member.dashboardPrimaryColor,
+            avatarId: member.avatarId,
+            avatarPhotoUrl: member.avatarPhotoUrl,
           }))
           .sort((a, b) => {
             if (b.count !== a.count) {

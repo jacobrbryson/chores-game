@@ -4,6 +4,7 @@ export const FAMILY_ACTIVITY_TYPES = [
   "chore_updated",
   "chore_deleted",
   "theme_changed",
+  "avatar_changed",
 ] as const;
 
 export type FamilyActivityType = (typeof FAMILY_ACTIVITY_TYPES)[number];
@@ -14,4 +15,3 @@ export type FamilyActivityEvent = {
   choreId?: string;
   occurredAt: string;
 };
-

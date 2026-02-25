@@ -43,6 +43,8 @@ export function TodayChoreCard({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const assigneePrimaryColor = getSafeHexColor(chore.assigneePrimaryColor);
+  const assigneeAvatarId = chore.assigneeAvatarId?.trim() || "";
+  const assigneeAvatarPhotoUrl = chore.assigneeAvatarPhotoUrl?.trim() || "";
 
   useEffect(() => {
     if (!menuOpen) {
@@ -98,7 +100,26 @@ export function TodayChoreCard({
                 backgroundColor: assigneePrimaryColor || "#f1f5f9",
                 color: assigneePrimaryColor ? "#ffffff" : "#334155",
               }}>
-              {chore.assigneeName?.trim().charAt(0).toUpperCase() || "?"}
+              {assigneeAvatarPhotoUrl ? (
+                <img
+                  src={assigneeAvatarPhotoUrl}
+                  alt={`${chore.assigneeName} avatar`}
+                  className="h-full w-full rounded-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                />
+              ) : assigneeAvatarId ? (
+                <img
+                  src={`/avatars/default/${encodeURIComponent(assigneeAvatarId)}`}
+                  alt={`${chore.assigneeName} avatar`}
+                  className="h-full w-full rounded-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                chore.assigneeName?.trim().charAt(0).toUpperCase() || "?"
+              )}
             </span>
             <div className="flex min-w-0 flex-col items-start gap-1">
               <strong className="block">{chore.title}</strong>

@@ -82,19 +82,21 @@ export function FamilyCard() {
         removeTodayChore(choreId);
         return;
       }
-      const payload = (await response.json()) as {
-        chore?: {
-          id: string;
-          title: string;
-          status: string;
-          assigneeId?: string;
-          assigneeName: string;
-          assigneePrimaryColor?: string;
-          dueDate: string;
-          details?: string;
-          coinValue: number;
+        const payload = (await response.json()) as {
+          chore?: {
+            id: string;
+            title: string;
+            status: string;
+            assigneeId?: string;
+            assigneeName: string;
+            assigneePrimaryColor?: string;
+            assigneeAvatarId?: string;
+            assigneeAvatarPhotoUrl?: string;
+            dueDate: string;
+            details?: string;
+            coinValue: number;
+          };
         };
-      };
       const chore = payload.chore;
       if (!chore) {
         removeTodayChore(choreId);
@@ -106,6 +108,8 @@ export function FamilyCard() {
         assigneeId: chore.assigneeId,
         assigneeName: chore.assigneeName || "Unassigned",
         assigneePrimaryColor: chore.assigneePrimaryColor,
+        assigneeAvatarId: chore.assigneeAvatarId,
+        assigneeAvatarPhotoUrl: chore.assigneeAvatarPhotoUrl,
         dueDate: chore.dueDate,
         details: chore.details,
         coinValue: chore.coinValue || 10,
@@ -165,7 +169,7 @@ export function FamilyCard() {
       if (event.familyId !== familyId) {
         return;
       }
-      if (event.type === "theme_changed") {
+      if (event.type === "theme_changed" || event.type === "avatar_changed") {
         void loadSummary({ silent: true });
         return;
       }

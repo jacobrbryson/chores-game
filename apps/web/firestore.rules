@@ -173,7 +173,7 @@ service cloud.firestore {
             isSelf(memberId)
             && hasUidMemberDoc(familyId)
             && request.resource.data.uid == request.auth.uid
-            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["dashboardPrimaryColor", "avatarId", "updatedAt"])
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["dashboardPrimaryColor", "avatarId", "avatarPhotoUrl", "updatedAt"])
           );
 
         allow delete: if isFamilyAdmin(familyId);

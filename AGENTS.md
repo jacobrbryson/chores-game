@@ -263,6 +263,23 @@ Build a family chore game where:
   - Home chores list cards now inherit assignee theme color accents (avatar + left rail) via `assigneePrimaryColor` on chore payloads.
   - Realtime socket identity now uses a server-signed auth token (`wsAuthToken`) instead of trusting client-provided UID/family IDs; ws server verifies token before joining family rooms.
   - Shared helpers were added for completion-window parsing and member primary color resolution to reduce duplicated logic across API routes and UI.
+- Avatar realtime sync update (2026-02-25):
+  - Store avatar apply flow now reuses shared server-side owned-option validation logic (parallel to theme apply logic) and publishes realtime `avatar_changed` family activity events.
+  - Avatar purchases in `customize_avatar` now auto-apply the purchased avatar to the buyer after ownership is written, while still persisting the unlock in `users/{uid}.ownedStoreOptionIds`.
+  - Chore payloads now include assignee avatar metadata (`assigneeAvatarId`) in family summary and chores APIs so avatar changes render in open chore lists and chores table rows.
+  - Home and chores realtime subscribers now refresh on both `theme_changed` and `avatar_changed`, so avatar updates propagate to all active family clients without manual reload.
+- Google avatar fallback update (2026-02-25):
+  - Google profile photo continues to persist on `users/{uid}.photoUrl` at sign-in and is now surfaced by `GET /api/store` for avatar selection UX.
+  - Store supports `POST /api/store` action `set_google_avatar` that applies the saved Google photo as the active avatar by writing `families/{familyId}/members/{uid}.avatarPhotoUrl` and clearing `avatarId`.
+  - Applying a catalog avatar clears `avatarPhotoUrl` and sets `avatarId`; switching between Google/custom avatars is persistent and reversible.
+  - Chore and completion payloads now include avatar photo URL metadata so Google avatars render in family-visible surfaces (home chores cards, chores table, completed chores chart).
+  - Header profile menu avatar now resolves active avatar from store summary (`avatarId` or `avatarPhotoUrl`) instead of session picture-only fallback.
+- Profile avatar management modal update (2026-02-25):
+  - `/profile` avatar card now includes a `Change` action that opens a modal listing selectable avatars.
+  - Avatar picker modal always shows the user's Google login picture first with `(default)` label, followed by unlocked avatar options from `ownedStoreOptionIds`.
+  - Users can apply either Google avatar (`set_google_avatar`) or any unlocked avatar (`set_avatar`) directly from profile.
+  - Avatar picker includes `Unlock more in shop` deep link to `/store?category=customize_avatar`.
+  - Store page now supports query-driven modal open for categories; `category=customize_avatar` opens the avatar options modal on load.
 
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.

@@ -136,6 +136,98 @@ async function resolveAssigneePrimaryColor(
   );
 }
 
+async function resolveAssigneeAvatarId(
+  familyId: string,
+  assigneeId: string,
+  idToken: string,
+) {
+  if (!assigneeId) {
+    return undefined;
+  }
+  try {
+    const memberDoc = await getDocument(`families/${familyId}/members/${assigneeId}`, idToken);
+    if (readBoolean(memberDoc.fields, "deleted")) {
+      return undefined;
+    }
+    const avatarId = readString(memberDoc.fields, "avatarId");
+    return avatarId || undefined;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
+
+  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 100);
+  const normalizedAssignee = normalizeEmail(assigneeId);
+  const matchedMember = memberDocs.find((doc) => {
+    if (readBoolean(doc.fields, "deleted")) {
+      return false;
+    }
+    const memberId = documentIdFromName(doc.name);
+    if (memberId === assigneeId) {
+      return true;
+    }
+    const memberUid = readString(doc.fields, "uid");
+    if (memberUid && memberUid === assigneeId) {
+      return true;
+    }
+    const memberEmail = normalizeEmail(readString(doc.fields, "email"));
+    return Boolean(memberEmail) && memberEmail === normalizedAssignee;
+  });
+  if (!matchedMember) {
+    return undefined;
+  }
+  const avatarId = readString(matchedMember.fields, "avatarId");
+  return avatarId || undefined;
+}
+
+async function resolveAssigneeAvatarPhotoUrl(
+  familyId: string,
+  assigneeId: string,
+  idToken: string,
+) {
+  if (!assigneeId) {
+    return undefined;
+  }
+  try {
+    const memberDoc = await getDocument(`families/${familyId}/members/${assigneeId}`, idToken);
+    if (readBoolean(memberDoc.fields, "deleted")) {
+      return undefined;
+    }
+    const avatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
+    return avatarPhotoUrl || undefined;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
+
+  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 100);
+  const normalizedAssignee = normalizeEmail(assigneeId);
+  const matchedMember = memberDocs.find((doc) => {
+    if (readBoolean(doc.fields, "deleted")) {
+      return false;
+    }
+    const memberId = documentIdFromName(doc.name);
+    if (memberId === assigneeId) {
+      return true;
+    }
+    const memberUid = readString(doc.fields, "uid");
+    if (memberUid && memberUid === assigneeId) {
+      return true;
+    }
+    const memberEmail = normalizeEmail(readString(doc.fields, "email"));
+    return Boolean(memberEmail) && memberEmail === normalizedAssignee;
+  });
+  if (!matchedMember) {
+    return undefined;
+  }
+  const avatarPhotoUrl = readString(matchedMember.fields, "avatarPhotoUrl");
+  return avatarPhotoUrl || undefined;
+}
+
 async function resolveAssigneeUid(
   familyId: string,
   assigneeId: string,
@@ -243,6 +335,16 @@ export async function GET(
             assigneeId: readString(choreDoc.fields, "assigneeId") || undefined,
             assigneeName: readString(choreDoc.fields, "assigneeName") || "Unassigned",
             assigneePrimaryColor: await resolveAssigneePrimaryColor(
+              familyId,
+              readString(choreDoc.fields, "assigneeId"),
+              idToken,
+            ),
+            assigneeAvatarId: await resolveAssigneeAvatarId(
+              familyId,
+              readString(choreDoc.fields, "assigneeId"),
+              idToken,
+            ),
+            assigneeAvatarPhotoUrl: await resolveAssigneeAvatarPhotoUrl(
               familyId,
               readString(choreDoc.fields, "assigneeId"),
               idToken,

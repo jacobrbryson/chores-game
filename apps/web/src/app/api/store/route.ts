@@ -4,8 +4,10 @@ import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { applyWalletDelta, getPrimaryFamilyId, getWalletBalance } from "@/lib/economy/wallet";
 import {
+  listDocuments,
   getDocument,
   patchDocument,
+  readTimestamp,
   readInteger,
   readString,
   readStringArray,
@@ -91,6 +93,11 @@ function resolveOwnedOptionIds(
   return ownedOptionIds;
 }
 
+function toUnixMillis(value: string) {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
 async function getStoreSummary(uid: string, idToken: string) {
   const userDoc = await getDocument(`users/${uid}`, idToken);
   const familyId = readStringArray(userDoc.fields, "familyIds")[0] ?? "";
@@ -99,6 +106,8 @@ async function getStoreSummary(uid: string, idToken: string) {
 
   let dashboardPrimaryColor = "";
   let avatarId = "";
+  let avatarPhotoUrl = "";
+  const googlePhotoUrl = readString(userDoc.fields, "photoUrl");
   const selectedConfettiOptionId = readString(userDoc.fields, "selectedConfettiOptionId");
   let themeOptionId = readString(userDoc.fields, "preferencesThemeOptionId").trim();
   let themePrimaryColor = normalizeColor(readString(userDoc.fields, "preferencesThemePrimaryColor"));
@@ -110,6 +119,7 @@ async function getStoreSummary(uid: string, idToken: string) {
       const memberDoc = await getDocument(`families/${familyId}/members/${uid}`, idToken);
       dashboardPrimaryColor = normalizeColor(readString(memberDoc.fields, "dashboardPrimaryColor"));
       avatarId = readString(memberDoc.fields, "avatarId");
+      avatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
     } catch (error) {
       const reason = error instanceof Error ? error.message : "";
       if (!reason.includes("FIRESTORE_HTTP_404")) {
@@ -141,6 +151,33 @@ async function getStoreSummary(uid: string, idToken: string) {
     }
   }
 
+  const unlockedOptionDates: Record<string, string> = {};
+  try {
+    const ledgerDocs = await listDocuments(`users/${uid}/walletLedger`, idToken, 500);
+    for (const doc of ledgerDocs) {
+      if (readString(doc.fields, "reason") !== "store_purchase") {
+        continue;
+      }
+      const optionId = readString(doc.fields, "itemId");
+      if (!optionId || !ownedOptionIds.has(optionId)) {
+        continue;
+      }
+      const createdAt = readTimestamp(doc.fields, "createdAt");
+      if (!createdAt) {
+        continue;
+      }
+      const existing = unlockedOptionDates[optionId];
+      if (!existing || toUnixMillis(createdAt) < toUnixMillis(existing)) {
+        unlockedOptionDates[optionId] = createdAt;
+      }
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
+
   return {
     balance,
     familyId,
@@ -151,6 +188,9 @@ async function getStoreSummary(uid: string, idToken: string) {
     themeSecondaryColor,
     themeTertiaryColor,
     avatarId,
+    avatarPhotoUrl,
+    googlePhotoUrl,
+    unlockedOptionDates,
     selectedConfettiOptionId,
     categories: STORE_CATEGORIES,
     avatarOptions: DEFAULT_AVATAR_IDS,
@@ -268,6 +308,84 @@ export async function POST(request: NextRequest) {
           return { kind: "ok" as const };
         }
 
+        async function applyOwnedAvatarOption(avatarId: string, ownedOptionIds: Set<string>) {
+          if (!DEFAULT_AVATAR_IDS.includes(avatarId)) {
+            return { kind: "invalid_avatar" as const };
+          }
+          const avatarOption = findStoreOptionByValue("customize_avatar", avatarId);
+          if (!avatarOption) {
+            return { kind: "invalid_avatar" as const };
+          }
+          if (!ownedOptionIds.has(avatarOption.id)) {
+            return { kind: "missing_unlock" as const };
+          }
+          const familyId = await getPrimaryFamilyId(uid, idToken);
+          if (!familyId) {
+            return { kind: "family_not_found" as const };
+          }
+          const now = new Date().toISOString();
+          await patchDocument(
+            `families/${familyId}/members/${uid}`,
+            {
+              avatarId: stringField(avatarId),
+              avatarPhotoUrl: stringField(""),
+              updatedAt: timestampField(now),
+            },
+            idToken,
+            ["avatarId", "avatarPhotoUrl", "updatedAt"],
+          );
+          await patchDocument(
+            `users/${uid}`,
+            {
+              storeUpdatedAt: timestampField(now),
+            },
+            idToken,
+            ["storeUpdatedAt"],
+          );
+          await publishFamilyActivity({
+            type: "avatar_changed",
+            familyId,
+            occurredAt: now,
+          });
+          return { kind: "ok" as const };
+        }
+
+        async function applyGoogleAvatar(googleAvatarUrl: string) {
+          const normalizedUrl = googleAvatarUrl.trim();
+          if (!normalizedUrl) {
+            return { kind: "google_avatar_unavailable" as const };
+          }
+          const familyId = await getPrimaryFamilyId(uid, idToken);
+          if (!familyId) {
+            return { kind: "family_not_found" as const };
+          }
+          const now = new Date().toISOString();
+          await patchDocument(
+            `families/${familyId}/members/${uid}`,
+            {
+              avatarId: stringField(""),
+              avatarPhotoUrl: stringField(normalizedUrl),
+              updatedAt: timestampField(now),
+            },
+            idToken,
+            ["avatarId", "avatarPhotoUrl", "updatedAt"],
+          );
+          await patchDocument(
+            `users/${uid}`,
+            {
+              storeUpdatedAt: timestampField(now),
+            },
+            idToken,
+            ["storeUpdatedAt"],
+          );
+          await publishFamilyActivity({
+            type: "avatar_changed",
+            familyId,
+            occurredAt: now,
+          });
+          return { kind: "ok" as const };
+        }
+
         if (action === "purchase_option") {
           const categoryId = typeof body.categoryId === "string" ? body.categoryId : "";
           const optionId = typeof body.optionId === "string" ? body.optionId : "";
@@ -315,6 +433,9 @@ export async function POST(request: NextRequest) {
             idToken,
             ["ownedStoreOptionIds", "storeUpdatedAt"],
           );
+          if (category.kind === "avatar") {
+            return applyOwnedAvatarOption(option.value, ownedOptionIds);
+          }
           return { kind: "ok" as const };
         }
 
@@ -349,32 +470,15 @@ export async function POST(request: NextRequest) {
 
         if (action === "set_avatar") {
           const avatarId = typeof body.avatarId === "string" ? body.avatarId.trim() : "";
-          if (!DEFAULT_AVATAR_IDS.includes(avatarId)) {
-            return { kind: "invalid_avatar" as const };
-          }
-          const avatarOption = findStoreOptionByValue("customize_avatar", avatarId);
-          if (!avatarOption) {
-            return { kind: "invalid_avatar" as const };
-          }
           const userDoc = await getDocument(`users/${uid}`, idToken);
           const ownedOptionIds = resolveOwnedOptionIds(userDoc.fields);
-          if (!ownedOptionIds.has(avatarOption.id)) {
-            return { kind: "missing_unlock" as const };
-          }
-          const familyId = await getPrimaryFamilyId(uid, idToken);
-          if (!familyId) {
-            return { kind: "family_not_found" as const };
-          }
-          await patchDocument(
-            `families/${familyId}/members/${uid}`,
-            {
-              avatarId: stringField(avatarId),
-              updatedAt: timestampField(new Date().toISOString()),
-            },
-            idToken,
-            ["avatarId", "updatedAt"],
-          );
-          return { kind: "ok" as const };
+          return applyOwnedAvatarOption(avatarId, ownedOptionIds);
+        }
+
+        if (action === "set_google_avatar") {
+          const userDoc = await getDocument(`users/${uid}`, idToken);
+          const googleAvatarUrl = readString(userDoc.fields, "photoUrl");
+          return applyGoogleAvatar(googleAvatarUrl);
         }
 
         if (action === "set_confetti") {
@@ -431,6 +535,9 @@ export async function POST(request: NextRequest) {
     }
     if (data.kind === "missing_unlock") {
       return NextResponse.json({ error: "missing_unlock" }, { status: 403 });
+    }
+    if (data.kind === "google_avatar_unavailable") {
+      return NextResponse.json({ error: "google_avatar_unavailable" }, { status: 404 });
     }
     if (data.kind === "family_not_found") {
       return NextResponse.json({ error: "family_not_found" }, { status: 404 });

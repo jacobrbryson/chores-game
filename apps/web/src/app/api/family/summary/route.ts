@@ -222,6 +222,8 @@ export async function GET(request: NextRequest) {
             name: readString(doc.fields, "name") || "Unnamed member",
             email: readString(doc.fields, "email"),
             dashboardPrimaryColor: readString(doc.fields, "dashboardPrimaryColor") || undefined,
+            avatarId: readString(doc.fields, "avatarId") || undefined,
+            avatarPhotoUrl: readString(doc.fields, "avatarPhotoUrl") || undefined,
             role: toMemberRole(readString(doc.fields, "role")),
             status: toMemberStatus(readString(doc.fields, "status")),
             lastSignInAt: readTimestamp(doc.fields, "lastSignInAt") || undefined,
@@ -232,14 +234,35 @@ export async function GET(request: NextRequest) {
           .filter((member) => !member.deleted);
 
         const assigneeColorByAlias = new Map<string, string>();
+        const assigneeAvatarByAlias = new Map<string, string>();
+        const assigneeAvatarPhotoByAlias = new Map<string, string>();
         for (const member of rawMembers) {
           const resolvedColor = resolveMemberPrimaryColor(member.dashboardPrimaryColor);
           assigneeColorByAlias.set(member.id, resolvedColor);
+          if (member.avatarId) {
+            assigneeAvatarByAlias.set(member.id, member.avatarId);
+          }
+          if (member.avatarPhotoUrl) {
+            assigneeAvatarPhotoByAlias.set(member.id, member.avatarPhotoUrl);
+          }
           if (member.uid) {
             assigneeColorByAlias.set(member.uid, resolvedColor);
+            if (member.avatarId) {
+              assigneeAvatarByAlias.set(member.uid, member.avatarId);
+            }
+            if (member.avatarPhotoUrl) {
+              assigneeAvatarPhotoByAlias.set(member.uid, member.avatarPhotoUrl);
+            }
           }
           if (member.email) {
-            assigneeColorByAlias.set(normalizeEmail(member.email), resolvedColor);
+            const normalizedEmail = normalizeEmail(member.email);
+            assigneeColorByAlias.set(normalizedEmail, resolvedColor);
+            if (member.avatarId) {
+              assigneeAvatarByAlias.set(normalizedEmail, member.avatarId);
+            }
+            if (member.avatarPhotoUrl) {
+              assigneeAvatarPhotoByAlias.set(normalizedEmail, member.avatarPhotoUrl);
+            }
           }
         }
 
@@ -365,6 +388,18 @@ export async function GET(request: NextRequest) {
                   normalizeEmail(readString(doc.fields, "assigneeId")),
                 ) ||
                 undefined,
+              assigneeAvatarId:
+                assigneeAvatarByAlias.get(readString(doc.fields, "assigneeId")) ||
+                assigneeAvatarByAlias.get(
+                  normalizeEmail(readString(doc.fields, "assigneeId")),
+                ) ||
+                undefined,
+              assigneeAvatarPhotoUrl:
+                assigneeAvatarPhotoByAlias.get(readString(doc.fields, "assigneeId")) ||
+                assigneeAvatarPhotoByAlias.get(
+                  normalizeEmail(readString(doc.fields, "assigneeId")),
+                ) ||
+                undefined,
               dueDate: readString(doc.fields, "dueDate"),
               details: readString(doc.fields, "details") || undefined,
               deleted: readBoolean(doc.fields, "deleted"),
@@ -380,6 +415,8 @@ export async function GET(request: NextRequest) {
               assigneeId: chore.assigneeId,
               assigneeName: chore.assigneeName,
               assigneePrimaryColor: chore.assigneePrimaryColor,
+              assigneeAvatarId: chore.assigneeAvatarId,
+              assigneeAvatarPhotoUrl: chore.assigneeAvatarPhotoUrl,
               dueDate: chore.dueDate,
               details: chore.details,
               coinValue: chore.coinValue,

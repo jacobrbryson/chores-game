@@ -27,6 +27,8 @@ export type FamilySnapshotChore = {
   assigneeId?: string;
   assigneeName: string;
   assigneePrimaryColor?: string;
+  assigneeAvatarId?: string;
+  assigneeAvatarPhotoUrl?: string;
   dueDate: string;
   details?: string;
   coinValue: number;

@@ -14,7 +14,14 @@ type ProfileMenuProps = {
 export function ProfileMenu({ name, email, picture, initial }: ProfileMenuProps) {
   const [open, setOpen] = useState(false);
   const [unseenCount, setUnseenCount] = useState(0);
+  const [selectedAvatarId, setSelectedAvatarId] = useState("");
+  const [selectedAvatarPhotoUrl, setSelectedAvatarPhotoUrl] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
+
+  const profileAvatarUrl =
+    selectedAvatarId.trim()
+      ? `/avatars/default/${encodeURIComponent(selectedAvatarId.trim())}`
+      : selectedAvatarPhotoUrl.trim() || picture || "";
 
   async function loadUnseenCount() {
     try {
@@ -31,8 +38,25 @@ export function ProfileMenu({ name, email, picture, initial }: ProfileMenuProps)
     }
   }
 
+  async function loadProfileAvatar() {
+    try {
+      const response = await fetch("/api/store", { cache: "no-store" });
+      if (!response.ok) {
+        return;
+      }
+      const payload = (await response.json()) as { avatarId?: string; avatarPhotoUrl?: string };
+      setSelectedAvatarId(typeof payload.avatarId === "string" ? payload.avatarId : "");
+      setSelectedAvatarPhotoUrl(
+        typeof payload.avatarPhotoUrl === "string" ? payload.avatarPhotoUrl : "",
+      );
+    } catch {
+      // Ignore avatar refresh errors in menu UI.
+    }
+  }
+
   useEffect(() => {
     void loadUnseenCount();
+    void loadProfileAvatar();
   }, []);
 
   useEffect(() => {
@@ -42,6 +66,16 @@ export function ProfileMenu({ name, email, picture, initial }: ProfileMenuProps)
     window.addEventListener("notifications:refresh", onNotificationsRefresh);
     return () => {
       window.removeEventListener("notifications:refresh", onNotificationsRefresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    function onProfileAvatarRefresh() {
+      void loadProfileAvatar();
+    }
+    window.addEventListener("profile-avatar:refresh", onProfileAvatarRefresh);
+    return () => {
+      window.removeEventListener("profile-avatar:refresh", onProfileAvatarRefresh);
     };
   }, []);
 
@@ -72,11 +106,11 @@ export function ProfileMenu({ name, email, picture, initial }: ProfileMenuProps)
     <div className="profile-menu" ref={rootRef}>
       <Button type="button" className="profile-menu-trigger" onClick={() => setOpen((v) => !v)}>
         <span className="profile-avatar-wrap">
-          {picture ? (
+          {profileAvatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               className="profile-avatar"
-              src={picture}
+              src={profileAvatarUrl}
               alt={name || "User profile"}
               referrerPolicy="no-referrer"
             />

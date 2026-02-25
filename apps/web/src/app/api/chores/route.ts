@@ -37,6 +37,8 @@ type ChoreRow = {
   status: string;
   assigneeId?: string;
   assigneeName: string;
+  assigneeAvatarId?: string;
+  assigneeAvatarPhotoUrl?: string;
   details?: string;
   dueDate: string;
   completedAt?: string;
@@ -101,6 +103,10 @@ function asDateOrToday(value: unknown) {
 
 function normalizeDescription(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
 }
 
 function usageKey(value: string) {
@@ -417,7 +423,44 @@ export async function GET(request: NextRequest) {
         }
         const viewerRole = await getViewerRole(familyId, session.uid, idToken);
 
-        const docs = await listDocuments(`families/${familyId}/chores`, idToken, 500);
+        const [memberDocs, docs] = await Promise.all([
+          listDocuments(`families/${familyId}/members`, idToken, 200),
+          listDocuments(`families/${familyId}/chores`, idToken, 500),
+        ]);
+        const assigneeAvatarByAlias = new Map<string, string>();
+        const assigneeAvatarPhotoByAlias = new Map<string, string>();
+        for (const memberDoc of memberDocs) {
+          if (readBoolean(memberDoc.fields, "deleted")) {
+            continue;
+          }
+          const memberId = documentIdFromName(memberDoc.name);
+          const avatarId = readString(memberDoc.fields, "avatarId");
+          const avatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
+          if (avatarId) {
+            assigneeAvatarByAlias.set(memberId, avatarId);
+          }
+          if (avatarPhotoUrl) {
+            assigneeAvatarPhotoByAlias.set(memberId, avatarPhotoUrl);
+          }
+          const memberUid = readString(memberDoc.fields, "uid");
+          if (memberUid) {
+            if (avatarId) {
+              assigneeAvatarByAlias.set(memberUid, avatarId);
+            }
+            if (avatarPhotoUrl) {
+              assigneeAvatarPhotoByAlias.set(memberUid, avatarPhotoUrl);
+            }
+          }
+          const normalizedEmail = normalizeEmail(readString(memberDoc.fields, "email"));
+          if (normalizedEmail) {
+            if (avatarId) {
+              assigneeAvatarByAlias.set(normalizedEmail, avatarId);
+            }
+            if (avatarPhotoUrl) {
+              assigneeAvatarPhotoByAlias.set(normalizedEmail, avatarPhotoUrl);
+            }
+          }
+        }
         const filteredChores = docs
           .map((doc) => normalizeChoreDoc(doc))
           .filter((doc) => !doc.deleted)
@@ -429,6 +472,14 @@ export async function GET(request: NextRequest) {
             status: doc.status,
             assigneeId: doc.assigneeId,
             assigneeName: doc.assigneeName,
+            assigneeAvatarId: doc.assigneeId
+              ? assigneeAvatarByAlias.get(doc.assigneeId) ??
+                assigneeAvatarByAlias.get(normalizeEmail(doc.assigneeId))
+              : undefined,
+            assigneeAvatarPhotoUrl: doc.assigneeId
+              ? assigneeAvatarPhotoByAlias.get(doc.assigneeId) ??
+                assigneeAvatarPhotoByAlias.get(normalizeEmail(doc.assigneeId))
+              : undefined,
             details: doc.details,
             dueDate: doc.dueDate,
             completedAt:

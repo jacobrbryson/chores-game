@@ -44,6 +44,8 @@ type CompletionCount = {
   name: string;
   count: number;
   color?: string;
+  avatarId?: string;
+  avatarPhotoUrl?: string;
 };
 
 type CompletionSeriesMember = {
@@ -533,8 +535,8 @@ export function TodayChoresPanel({
           )}
         </div>
         <aside className="completion-chart">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="m-0 text-[0.88rem] leading-none font-normal text-[var(--muted)]">
+          <div className="mb-3 flex min-h-10 items-center justify-between gap-3">
+            <h3 className="m-0 inline-flex h-10 items-center text-[0.88rem] leading-none font-semibold text-[var(--muted)]">
               Completed Chores
             </h3>
             <TailwindSelect
@@ -542,7 +544,7 @@ export function TodayChoresPanel({
               value={completionWindow}
               onChange={updateCompletionWindow}
               options={COMPLETION_WINDOW_OPTIONS}
-              className="w-[140px]"
+              className="w-[140px] shrink-0"
             />
           </div>
           {completionLoading ? <p className="small">Loading chart...</p> : null}
@@ -559,14 +561,37 @@ export function TodayChoresPanel({
                     "--bar-delay": `${index * 60}ms`,
                     "--bar-color": entry.color || COMPLETION_LINE_COLORS[index % COMPLETION_LINE_COLORS.length],
                   } as CSSProperties;
+                  const avatarInitial = entry.name.trim().charAt(0).toUpperCase() || "?";
                   return (
                     <li key={entry.memberId} className="completion-chart-row">
-                      <div className="completion-chart-meta">
-                        <span>{entry.name}</span>
-                        <strong>{entry.count}</strong>
-                      </div>
-                      <div className="completion-chart-track">
-                        <span className="completion-chart-bar" style={style} />
+                      <span className="completion-chart-avatar" aria-label={`${entry.name} avatar`}>
+                        {entry.avatarPhotoUrl ? (
+                          <img
+                            src={entry.avatarPhotoUrl}
+                            alt={`${entry.name} avatar`}
+                            loading="lazy"
+                            decoding="async"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : entry.avatarId ? (
+                          <img
+                            src={`/avatars/default/${encodeURIComponent(entry.avatarId)}`}
+                            alt={`${entry.name} avatar`}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ) : (
+                          avatarInitial
+                        )}
+                      </span>
+                      <div className="completion-chart-content">
+                        <div className="completion-chart-meta">
+                          <span>{entry.name}</span>
+                          <strong>{entry.count}</strong>
+                        </div>
+                        <div className="completion-chart-track">
+                          <span className="completion-chart-bar" style={style} />
+                        </div>
                       </div>
                     </li>
                   );

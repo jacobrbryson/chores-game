@@ -29,6 +29,8 @@ type StoreSummaryResponse = {
   themeSecondaryColor: string;
   themeTertiaryColor: string;
   avatarId: string;
+  avatarPhotoUrl?: string;
+  googlePhotoUrl?: string;
   selectedConfettiOptionId: string;
   categories: StoreCategory[];
 };
@@ -56,6 +58,7 @@ export function StorePageClient() {
   const [previewOptionId, setPreviewOptionId] = useState("");
   const previewActiveRef = useRef(false);
   const persistedThemeRef = useRef<ThemePreference>(DEFAULT_THEME_PREFERENCE);
+  const deepLinkHandledRef = useRef(false);
 
   async function loadSummary() {
     setIsLoading(true);
@@ -117,6 +120,27 @@ export function StorePageClient() {
   useEffect(() => {
     persistedThemeRef.current = persistedThemePreference;
   }, [persistedThemePreference]);
+
+  useEffect(() => {
+    if (!summary || deepLinkHandledRef.current) {
+      return;
+    }
+    const categoryParam =
+      typeof window === "undefined"
+        ? ""
+        : new URLSearchParams(window.location.search).get("category")?.trim() ?? "";
+    if (!categoryParam) {
+      deepLinkHandledRef.current = true;
+      return;
+    }
+    const category = summary.categories.find((entry) => entry.id === categoryParam);
+    if (!category) {
+      deepLinkHandledRef.current = true;
+      return;
+    }
+    setActiveCategoryId(category.id);
+    deepLinkHandledRef.current = true;
+  }, [summary]);
 
   const clearPreview = useCallback((nextPreference?: ThemePreference) => {
     if (!previewActiveRef.current) {
@@ -191,6 +215,9 @@ export function StorePageClient() {
         }
       }
       await loadSummary();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("profile-avatar:refresh"));
+      }
     } catch (applyError) {
       setActionError(applyError instanceof Error ? applyError.message : "apply_failed");
     } finally {
@@ -224,6 +251,7 @@ export function StorePageClient() {
       }
       await loadSummary();
       window.dispatchEvent(new Event("wallet:refresh"));
+      window.dispatchEvent(new Event("profile-avatar:refresh"));
       if (
         category.kind === "color" &&
         option.theme &&
@@ -234,6 +262,33 @@ export function StorePageClient() {
       }
     } catch (purchaseError) {
       setActionError(purchaseError instanceof Error ? purchaseError.message : "purchase_failed");
+    } finally {
+      setPendingOptionId("");
+    }
+  }
+
+  async function onApplyGoogleAvatar() {
+    if (!summary || pendingOptionId) {
+      return;
+    }
+    setPendingOptionId("google-avatar");
+    setActionError("");
+    try {
+      const response = await fetch("/api/store", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_google_avatar" }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? `SET_GOOGLE_AVATAR_HTTP_${response.status}`);
+      }
+      await loadSummary();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("profile-avatar:refresh"));
+      }
+    } catch (applyError) {
+      setActionError(applyError instanceof Error ? applyError.message : "apply_failed");
     } finally {
       setPendingOptionId("");
     }
@@ -290,6 +345,35 @@ export function StorePageClient() {
                   </div>
                 </header>
                 <div className="store-options-grid">
+                  {activeCategory.kind === "avatar" && summary.googlePhotoUrl ? (
+                    <article className="store-option-card">
+                      <div className="store-option-preview">
+                        <img
+                          src={summary.googlePhotoUrl}
+                          alt="Google avatar"
+                          className="store-option-avatar"
+                          loading="lazy"
+                          decoding="async"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                      <h4>Google Avatar</h4>
+                      <p className="small">Always available</p>
+                      <Button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={pendingOptionId.length > 0}
+                        onClick={() => void onApplyGoogleAvatar()}>
+                        {pendingOptionId === "google-avatar"
+                          ? "Saving..."
+                          : summary.avatarId
+                            ? "Use Google avatar"
+                            : summary.avatarPhotoUrl
+                              ? "Applied"
+                              : "Use Google avatar"}
+                      </Button>
+                    </article>
+                  ) : null}
                   {activeCategory.options.map((option) => {
                     const owned = ownedSet.has(option.id);
                     const applied = isOptionApplied(activeCategory, option);
