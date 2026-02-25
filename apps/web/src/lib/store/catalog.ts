@@ -5,6 +5,16 @@ export type StoreCategoryId =
 
 export type StoreOptionKind = "color" | "avatar" | "confetti";
 
+export type ConfettiShape = "rect" | "circle" | "streamer";
+
+export type ConfettiPreset = {
+	colors: string[];
+	shapes: ConfettiShape[];
+	density: number;
+	verticalDrift: number;
+	spread: number;
+};
+
 export type ThemePalette = {
 	primary: string;
 	secondary: string;
@@ -16,6 +26,8 @@ export type StoreOption = {
 	label: string;
 	value: string;
 	theme?: ThemePalette;
+	confetti?: ConfettiPreset;
+	isDefault?: boolean;
 };
 
 export type StoreCategory = {
@@ -158,17 +170,112 @@ const AVATAR_OPTIONS: StoreOption[] = DEFAULT_AVATAR_IDS.slice(0, 9).map(
 	}),
 );
 
-const CONFETTI_OPTIONS: StoreOption[] = Array.from(
-	{ length: 9 },
-	(_value, index) => {
-		const order = String(index + 1).padStart(2, "0");
-		return {
-			id: `confetti_option_${order}`,
-			label: `Confetti ${order}`,
-			value: `confetti-${order}`,
-		};
+const CONFETTI_OPTIONS: StoreOption[] = [
+	{
+		id: "confetti_option_01",
+		label: "No confetti",
+		value: "confetti-off",
+		isDefault: true,
 	},
-);
+	{
+		id: "confetti_option_02",
+		label: "Starlight Burst",
+		value: "confetti-starlight",
+		confetti: {
+			colors: ["#facc15", "#38bdf8", "#f472b6", "#a78bfa"],
+			shapes: ["rect", "circle"],
+			density: 86,
+			verticalDrift: 108,
+			spread: 36,
+		},
+	},
+	{
+		id: "confetti_option_03",
+		label: "Ocean Pop",
+		value: "confetti-ocean",
+		confetti: {
+			colors: ["#0ea5e9", "#22d3ee", "#2dd4bf", "#93c5fd"],
+			shapes: ["rect", "streamer"],
+			density: 82,
+			verticalDrift: 112,
+			spread: 42,
+		},
+	},
+	{
+		id: "confetti_option_04",
+		label: "Sunset Spark",
+		value: "confetti-sunset",
+		confetti: {
+			colors: ["#f97316", "#fb7185", "#f59e0b", "#f43f5e"],
+			shapes: ["rect", "circle", "streamer"],
+			density: 90,
+			verticalDrift: 110,
+			spread: 44,
+		},
+	},
+	{
+		id: "confetti_option_05",
+		label: "Mint Flash",
+		value: "confetti-mint",
+		confetti: {
+			colors: ["#10b981", "#5eead4", "#84cc16", "#14b8a6"],
+			shapes: ["circle", "streamer"],
+			density: 80,
+			verticalDrift: 106,
+			spread: 34,
+		},
+	},
+	{
+		id: "confetti_option_06",
+		label: "Royal Parade",
+		value: "confetti-royal",
+		confetti: {
+			colors: ["#4f46e5", "#7c3aed", "#ec4899", "#fde047"],
+			shapes: ["rect", "streamer"],
+			density: 92,
+			verticalDrift: 118,
+			spread: 48,
+		},
+	},
+	{
+		id: "confetti_option_07",
+		label: "Cotton Party",
+		value: "confetti-cotton",
+		confetti: {
+			colors: ["#f9a8d4", "#fdba74", "#fde68a", "#c4b5fd"],
+			shapes: ["circle", "rect"],
+			density: 78,
+			verticalDrift: 104,
+			spread: 30,
+		},
+	},
+	{
+		id: "confetti_option_08",
+		label: "Neon Pulse",
+		value: "confetti-neon",
+		confetti: {
+			colors: ["#22c55e", "#eab308", "#06b6d4", "#f43f5e"],
+			shapes: ["rect", "streamer", "circle"],
+			density: 96,
+			verticalDrift: 122,
+			spread: 52,
+		},
+	},
+	{
+		id: "confetti_option_09",
+		label: "Midnight Nova",
+		value: "confetti-midnight",
+		confetti: {
+			colors: ["#60a5fa", "#818cf8", "#a78bfa", "#f472b6"],
+			shapes: ["rect", "circle"],
+			density: 88,
+			verticalDrift: 116,
+			spread: 40,
+		},
+	},
+];
+
+export const DEFAULT_CONFETTI_OPTION_ID = "confetti_option_01";
 
 export const STORE_CATEGORIES: StoreCategory[] = [
 	{
@@ -247,6 +354,14 @@ export function findColorThemeOptionById(
 		return null;
 	}
 	return { ...option, theme: option.theme };
+}
+
+export function findConfettiOptionById(optionId: string) {
+	const category = findStoreCategoryById("victory_confetti");
+	if (!category) {
+		return null;
+	}
+	return category.options.find((entry) => entry.id === optionId) ?? null;
 }
 
 export function isAllowedDashboardColor(value: string) {

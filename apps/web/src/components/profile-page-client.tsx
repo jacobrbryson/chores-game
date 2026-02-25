@@ -180,8 +180,12 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
 
   return (
     <main className="panel family-page profile-page">
-      <BackLink />
-      <h1>Profile</h1>
+      <div className="page-header-row">
+        <div className="page-header-inline">
+          <BackLink className="page-back-link">{"<- Back"}</BackLink>
+          <h1>Profile</h1>
+        </div>
+      </div>
       <p className="small family-page-subhead">Your account details and personalization settings.</p>
 
       {error ? <p className="small family-error">Could not load profile settings: {error}</p> : null}

@@ -17,24 +17,20 @@ import {
 } from "chart.js";
 import Link from "next/link";
 import { TodayChoreCard } from "@/components/today-chore-card";
-import { CSSProperties, useEffect, useMemo, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { Line } from "react-chartjs-2";
 import type { FamilySnapshotChore } from "@/lib/family/types";
 import {
   parseCompletionWindow,
   type CompletionWindow,
 } from "@/lib/preferences/completion-window";
+import { triggerPartyConfetti } from "@/lib/confetti/party";
 
 type TodayChoresPanelProps = {
   chores: FamilySnapshotChore[];
   viewerAssigneeIds: string[];
   viewerRole: "admin" | "player";
   onReload: () => Promise<void> | void;
-};
-
-type ChoreActionState = {
-  id: string;
-  action: "delete" | "complete";
 };
 
 type CompletionTrendInterval = "hour" | "day" | "week";
@@ -100,6 +96,7 @@ const COMPLETION_WINDOW_OPTIONS: TailwindSelectOption<CompletionWindow>[] = [
   { value: "month", label: "This Month" },
   { value: "year", label: "This Year" },
 ];
+const CHORE_EXIT_ANIMATION_MS = 160;
 
 ChartJS.register(
   CategoryScale,
@@ -177,9 +174,9 @@ export function TodayChoresPanel({
   onReload,
 }: TodayChoresPanelProps) {
   const canCreateChores = viewerRole === "admin";
-  const [choreActionLoading, setChoreActionLoading] = useState<ChoreActionState | null>(
-    null,
-  );
+  const [busyActionsById, setBusyActionsById] = useState<Record<string, "delete" | "complete">>({});
+  const [exitingChoreIds, setExitingChoreIds] = useState<Record<string, true>>({});
+  const [optimisticallyCompletedIds, setOptimisticallyCompletedIds] = useState<Record<string, true>>({});
   const [choreActionError, setChoreActionError] = useState("");
   const [myChoresOnly, setMyChoresOnly] = useState(readMyChoresOnly);
   const [completionWindow, setCompletionWindow] = useState<CompletionWindow>(readCompletionWindow);
@@ -188,6 +185,8 @@ export function TodayChoresPanel({
     useState<CompletionSeries>(EMPTY_COMPLETION_SERIES);
   const [completionLoading, setCompletionLoading] = useState(true);
   const [completionError, setCompletionError] = useState("");
+  const [completionStatsRefreshTick, setCompletionStatsRefreshTick] = useState(0);
+  const completionHideTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -259,24 +258,69 @@ export function TodayChoresPanel({
     return () => {
       cancelled = true;
     };
-  }, [completionWindow, chores]);
+  }, [completionWindow, chores, completionStatsRefreshTick]);
+
+  useEffect(() => {
+    setOptimisticallyCompletedIds((current) => {
+      const openChoreIds = new Set(chores.map((chore) => chore.id));
+      let changed = false;
+      const next: Record<string, true> = {};
+      for (const choreId of Object.keys(current)) {
+        if (openChoreIds.has(choreId)) {
+          next[choreId] = true;
+        } else {
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [chores]);
+
+  useEffect(() => {
+    setExitingChoreIds((current) => {
+      const openChoreIds = new Set(chores.map((chore) => chore.id));
+      let changed = false;
+      const next: Record<string, true> = {};
+      for (const choreId of Object.keys(current)) {
+        if (openChoreIds.has(choreId)) {
+          next[choreId] = true;
+        } else {
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [chores]);
+
+  useEffect(() => {
+    return () => {
+      for (const timer of Object.values(completionHideTimersRef.current)) {
+        clearTimeout(timer);
+      }
+      completionHideTimersRef.current = {};
+    };
+  }, []);
 
   const viewerAssigneeIdSet = useMemo(() => new Set(viewerAssigneeIds), [viewerAssigneeIds]);
+  const openChores = useMemo(
+    () => chores.filter((chore) => !optimisticallyCompletedIds[chore.id]),
+    [chores, optimisticallyCompletedIds],
+  );
   const myChoreCount = useMemo(
     () =>
-      chores.filter(
+      openChores.filter(
         (chore) => chore.assigneeId && viewerAssigneeIdSet.has(chore.assigneeId),
       ).length,
-    [chores, viewerAssigneeIdSet],
+    [openChores, viewerAssigneeIdSet],
   );
   const visibleChores = useMemo(() => {
     if (!myChoresOnly) {
-      return chores;
+      return openChores;
     }
-    return chores.filter(
+    return openChores.filter(
       (chore) => chore.assigneeId && viewerAssigneeIdSet.has(chore.assigneeId),
     );
-  }, [chores, myChoresOnly, viewerAssigneeIdSet]);
+  }, [openChores, myChoresOnly, viewerAssigneeIdSet]);
   const completionMax = useMemo(
     () => Math.max(1, ...completionCounts.map((entry) => entry.count)),
     [completionCounts],
@@ -404,11 +448,11 @@ export function TodayChoresPanel({
   }
 
   async function onDeleteChore(choreId: string) {
-    if (choreActionLoading) {
+    if (busyActionsById[choreId]) {
       return;
     }
     setChoreActionError("");
-    setChoreActionLoading({ id: choreId, action: "delete" });
+    setBusyActionsById((current) => ({ ...current, [choreId]: "delete" }));
     try {
       const response = await fetch(`/api/chores/${choreId}`, { method: "DELETE" });
       if (!response.ok) {
@@ -419,16 +463,42 @@ export function TodayChoresPanel({
     } catch (removeError) {
       setChoreActionError(normalizeError(removeError, "remove_chore_failed"));
     } finally {
-      setChoreActionLoading(null);
+      setBusyActionsById((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
     }
   }
 
-  async function onCompleteChore(choreId: string) {
-    if (choreActionLoading) {
+  async function onCompleteChore(
+    choreId: string,
+    source?: { clientX: number; clientY: number },
+  ) {
+    if (busyActionsById[choreId]) {
       return;
     }
     setChoreActionError("");
-    setChoreActionLoading({ id: choreId, action: "complete" });
+    setBusyActionsById((current) => ({ ...current, [choreId]: "complete" }));
+    setExitingChoreIds((current) => ({ ...current, [choreId]: true }));
+    const existingTimer = completionHideTimersRef.current[choreId];
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+    completionHideTimersRef.current[choreId] = setTimeout(() => {
+      setOptimisticallyCompletedIds((current) => ({ ...current, [choreId]: true }));
+      setExitingChoreIds((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
+      delete completionHideTimersRef.current[choreId];
+    }, CHORE_EXIT_ANIMATION_MS);
+    triggerPartyConfetti({
+      intensity: 1.3,
+      sourceClientX: source?.clientX,
+      sourceClientY: source?.clientY,
+    });
     try {
       const response = await fetch(`/api/chores/${choreId}`, {
         method: "PATCH",
@@ -439,14 +509,34 @@ export function TodayChoresPanel({
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? `COMPLETE_CHORE_HTTP_${response.status}`);
       }
-      await onReload();
+      setCompletionStatsRefreshTick((current) => current + 1);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("wallet:refresh"));
+        window.dispatchEvent(new Event("notifications:refresh"));
       }
     } catch (completeError) {
       setChoreActionError(normalizeError(completeError, "complete_chore_failed"));
+      const pendingTimer = completionHideTimersRef.current[choreId];
+      if (pendingTimer) {
+        clearTimeout(pendingTimer);
+        delete completionHideTimersRef.current[choreId];
+      }
+      setExitingChoreIds((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
+      setOptimisticallyCompletedIds((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
     } finally {
-      setChoreActionLoading(null);
+      setBusyActionsById((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
     }
   }
 
@@ -467,7 +557,7 @@ export function TodayChoresPanel({
                 className="my-chores-toggle-track"
               />
               <span className="small leading-none">
-                My Chores ({myChoreCount}) out of ({chores.length})
+                My Chores ({myChoreCount}) out of ({openChores.length})
               </span>
             </label>
             <div className="today-chores-actions-shell">
@@ -522,9 +612,10 @@ export function TodayChoresPanel({
                       Boolean(chore.assigneeId && viewerAssigneeIdSet.has(chore.assigneeId))
                     }
                     busyAction={
-                      choreActionLoading?.id === chore.id ? choreActionLoading.action : ""
+                      busyActionsById[chore.id] ?? ""
                     }
-                    disabled={Boolean(choreActionLoading)}
+                    disabled={Boolean(busyActionsById[chore.id])}
+                    isExiting={Boolean(exitingChoreIds[chore.id])}
                     onDelete={onDeleteChore}
                     onComplete={onCompleteChore}
                     onEdited={onReload}

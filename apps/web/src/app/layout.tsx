@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppHeader } from "@/components/app-header";
+import { PartyConfettiOverlay } from "@/components/party-confetti-overlay";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
 
 export const metadata: Metadata = {
@@ -30,6 +31,7 @@ export default async function RootLayout({
     <html lang="en">
       <body className="antialiased">
         <ThemePreferenceSync />
+        <PartyConfettiOverlay />
         <div className="shell">
           <div className="container">
             <AppHeader />

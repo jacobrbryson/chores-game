@@ -17,8 +17,10 @@ import {
 } from "@/lib/firestore/rest";
 import {
   DEFAULT_COLOR_THEME_OPTION_ID,
+  DEFAULT_CONFETTI_OPTION_ID,
   DEFAULT_AVATAR_IDS,
   STORE_CATEGORIES,
+  findConfettiOptionById,
   findColorThemeOptionById,
   findStoreCategoryById,
   findStoreOptionByValue,
@@ -81,6 +83,8 @@ function resolveOwnedOptionIds(
   const ownedOptionIds = new Set(readStringArray(fields, "ownedStoreOptionIds"));
   // All players start with the first color theme unlocked by default.
   ownedOptionIds.add(DEFAULT_COLOR_THEME_OPTION_ID);
+  // All players start with the no-confetti option unlocked.
+  ownedOptionIds.add(DEFAULT_CONFETTI_OPTION_ID);
   for (const categoryId of legacyOwnedCategoryIds) {
     const legacyCategory = findStoreCategoryById(categoryId);
     if (!legacyCategory) {
@@ -108,7 +112,7 @@ async function getStoreSummary(uid: string, idToken: string) {
   let avatarId = "";
   let avatarPhotoUrl = "";
   const googlePhotoUrl = readString(userDoc.fields, "photoUrl");
-  const selectedConfettiOptionId = readString(userDoc.fields, "selectedConfettiOptionId");
+  let selectedConfettiOptionId = readString(userDoc.fields, "selectedConfettiOptionId").trim();
   let themeOptionId = readString(userDoc.fields, "preferencesThemeOptionId").trim();
   let themePrimaryColor = normalizeColor(readString(userDoc.fields, "preferencesThemePrimaryColor"));
   let themeSecondaryColor = normalizeColor(readString(userDoc.fields, "preferencesThemeSecondaryColor"));
@@ -149,6 +153,13 @@ async function getStoreSummary(uid: string, idToken: string) {
       themeSecondaryColor = normalizedPalette.secondary;
       themeTertiaryColor = normalizedPalette.tertiary;
     }
+  }
+
+  const selectedConfettiOption = selectedConfettiOptionId
+    ? findConfettiOptionById(selectedConfettiOptionId)
+    : null;
+  if (!selectedConfettiOption || !ownedOptionIds.has(selectedConfettiOption.id)) {
+    selectedConfettiOptionId = DEFAULT_CONFETTI_OPTION_ID;
   }
 
   const unlockedOptionDates: Record<string, string> = {};
@@ -215,7 +226,10 @@ export async function GET(request: NextRequest) {
       async (idToken) => {
         const summary = await getStoreSummary(uid, idToken);
         if (brief) {
-          return { balance: summary.balance };
+          return {
+            balance: summary.balance,
+            selectedConfettiOptionId: summary.selectedConfettiOptionId,
+          };
         }
         return summary;
       },

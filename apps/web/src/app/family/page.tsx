@@ -223,9 +223,9 @@ export default function FamilyPage() {
   return (
     <>
       <main className="panel family-page">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <BackLink>Back to Today&apos;s Chores</BackLink>
+          <div className="page-header-row">
+            <div className="page-header-inline">
+              <BackLink className="page-back-link">{"<- Back"}</BackLink>
               <h1>Family Members</h1>
             </div>
             {canManageMembers ? (

@@ -280,6 +280,17 @@ Build a family chore game where:
   - Users can apply either Google avatar (`set_google_avatar`) or any unlocked avatar (`set_avatar`) directly from profile.
   - Avatar picker includes `Unlock more in shop` deep link to `/store?category=customize_avatar`.
   - Store page now supports query-driven modal open for categories; `category=customize_avatar` opens the avatar options modal on load.
+- Victory confetti celebration update (2026-02-25):
+  - Added a global full-screen `PartyConfettiOverlay` effect in app layout that can be triggered by event with configurable parameters (`optionId`, `particleCount`, `durationMs`, `intensity`, `spread`).
+  - Chore `Mark as Complete` now triggers the overlay celebration effect without blocking pointer interactions (`pointer-events: none`) and with animation duration capped at 1 second.
+  - Home chore completion UX is optimistic: clicking `Mark as Complete` plays confetti immediately and quickly animates the chore card sliding left out of the list before removal while API completion runs in the background; failures restore the chore card and show an error.
+  - Successful home chore completion no longer forces a full family-summary reload; chart data refreshes locally and wallet/notifications are refreshed by lightweight events.
+  - Standardized page headers on `/notifications`, `/profile`, `/family`, and `/chores` to a single-line back-navigation pattern: `[<- Back] Title`.
+  - `/chores` now defaults table sorting to `Completed Date` descending on initial load.
+  - Store `Victory confetti` options now reserve the first option as free `No confetti` (default unlocked/usable) and keep 8 purchasable, unique confetti styles.
+  - Confetti option cards now include `Preview` actions that trigger the same full-screen animation and support rapid repeat clicks.
+  - Applying a confetti option now broadcasts a client-side selection update event so the global celebration effect uses the latest selected style immediately.
+  - Celebration bursts now blend multiple launch origins in each run: upward from bottom, from corners, at click location, and spontaneous random origins.
 
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.

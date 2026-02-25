@@ -12,8 +12,12 @@ type TodayChoreCardProps = {
   canComplete: boolean;
   busyAction: "" | "delete" | "complete";
   disabled: boolean;
+  isExiting?: boolean;
   onDelete: (choreId: string) => Promise<void> | void;
-  onComplete: (choreId: string) => Promise<void> | void;
+  onComplete: (
+    choreId: string,
+    source?: { clientX: number; clientY: number },
+  ) => Promise<void> | void;
   onEdited: () => Promise<void> | void;
 };
 
@@ -34,6 +38,7 @@ export function TodayChoreCard({
   canComplete,
   busyAction,
   disabled,
+  isExiting = false,
   onDelete,
   onComplete,
   onEdited,
@@ -71,7 +76,7 @@ export function TodayChoreCard({
   }, [menuOpen]);
 
   return (
-    <li>
+    <li className={`today-chore-item${isExiting ? " today-chore-item-exiting" : ""}`}>
       <AddEditChoresDialog
         chore={{
           id: chore.id,
@@ -203,7 +208,12 @@ export function TodayChoreCard({
           type="button"
           className="btn btn-secondary h-10 w-full disabled:cursor-not-allowed disabled:opacity-60"
           disabled={disabled || !canComplete}
-          onClick={() => void onComplete(chore.id)}>
+          onClick={(event) =>
+            void onComplete(chore.id, {
+              clientX: event.clientX,
+              clientY: event.clientY,
+            })
+          }>
           <span aria-hidden="true" className="text-lg leading-none">
             &#x2713;
           </span>

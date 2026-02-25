@@ -175,9 +175,11 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
 
   return (
     <main className="panel family-page">
-          <BackLink />
           <div className="notifications-header">
-            <h1>Notifications</h1>
+            <div className="page-header-inline">
+              <BackLink className="page-back-link">{"<- Back"}</BackLink>
+              <h1>Notifications</h1>
+            </div>
             <div className="notifications-filters">
               <Button
                 type="button"

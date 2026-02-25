@@ -1,10 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Image from "next/image";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
+import {
+  dispatchConfettiSelectionChanged,
+  triggerPartyConfetti,
+} from "@/lib/confetti/party";
 import {
   isAllowedDashboardColor,
   normalizeColor,
@@ -56,7 +68,9 @@ export function StorePageClient() {
   const [activeCategoryId, setActiveCategoryId] = useState<StoreCategoryId | null>(null);
   const [pendingOptionId, setPendingOptionId] = useState("");
   const [previewOptionId, setPreviewOptionId] = useState("");
+  const [previewConfettiOptionId, setPreviewConfettiOptionId] = useState("");
   const previewActiveRef = useRef(false);
+  const confettiPreviewResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistedThemeRef = useRef<ThemePreference>(DEFAULT_THEME_PREFERENCE);
   const deepLinkHandledRef = useRef(false);
 
@@ -154,6 +168,9 @@ export function StorePageClient() {
   useEffect(() => {
     return () => {
       clearPreview();
+      if (confettiPreviewResetRef.current) {
+        clearTimeout(confettiPreviewResetRef.current);
+      }
     };
   }, [clearPreview]);
 
@@ -165,6 +182,26 @@ export function StorePageClient() {
     previewActiveRef.current = true;
     setPreviewOptionId(option.id);
     applyThemePreference(preference);
+  }
+
+  function previewConfettiOption(
+    option: StoreOption,
+    event?: MouseEvent<HTMLElement>,
+  ) {
+    setPreviewConfettiOptionId(option.id);
+    triggerPartyConfetti({
+      optionId: option.id,
+      intensity: 1.4,
+      durationMs: 960,
+      sourceClientX: event?.clientX,
+      sourceClientY: event?.clientY,
+    });
+    if (confettiPreviewResetRef.current) {
+      clearTimeout(confettiPreviewResetRef.current);
+    }
+    confettiPreviewResetRef.current = setTimeout(() => {
+      setPreviewConfettiOptionId("");
+    }, 980);
   }
 
   function isOptionApplied(category: StoreCategory, option: StoreOption) {
@@ -213,6 +250,8 @@ export function StorePageClient() {
         } else {
           clearPreview();
         }
+      } else if (category.kind === "confetti") {
+        dispatchConfettiSelectionChanged(option.id);
       }
       await loadSummary();
       if (typeof window !== "undefined") {
@@ -333,6 +372,7 @@ export function StorePageClient() {
             onRequestClose={() => {
               if (!pendingOptionId) {
                 clearPreview();
+                setPreviewConfettiOptionId("");
                 setActiveCategoryId(null);
               }
             }}>
@@ -378,16 +418,23 @@ export function StorePageClient() {
                     const owned = ownedSet.has(option.id);
                     const applied = isOptionApplied(activeCategory, option);
                     const canAfford = summary.balance >= activeCategory.price;
-                    const disabled = pendingOptionId.length > 0 || (!owned && !canAfford);
+                    const isDefaultConfettiOption =
+                      activeCategory.kind === "confetti" && option.isDefault === true;
+                    const requiresPurchase = !owned && !isDefaultConfettiOption;
+                    const disabled = pendingOptionId.length > 0 || (requiresPurchase && !canAfford);
                     const isPending = pendingOptionId === option.id;
-                    const canPreview = activeCategory.kind === "color" && Boolean(option.theme);
+                    const canThemePreview = activeCategory.kind === "color" && Boolean(option.theme);
+                    const canConfettiPreview = activeCategory.kind === "confetti";
                     const previewing = previewOptionId === option.id;
+                    const previewingConfetti = previewConfettiOptionId === option.id;
                     const isActiveThemeCard =
                       activeCategory.kind === "color" && applied && !previewing;
                     const isPreviewThemeCard = activeCategory.kind === "color" && previewing;
                     const primaryColor = option.theme?.primary ?? option.value;
                     const secondaryColor = option.theme?.secondary ?? primaryColor;
                     const tertiaryColor = option.theme?.tertiary ?? primaryColor;
+                    const confettiColors = option.confetti?.colors ?? ["#94a3b8", "#64748b", "#cbd5e1"];
+                    const confettiShapes = option.confetti?.shapes ?? ["rect", "circle", "streamer"];
                     const primaryTooltip = `Primary: ${primaryColor.toUpperCase()}`;
                     const secondaryTooltip = `Secondary: ${secondaryColor.toUpperCase()}`;
                     const tertiaryTooltip = `Tertiary (Tiernary): ${tertiaryColor.toUpperCase()}`;
@@ -396,7 +443,7 @@ export function StorePageClient() {
                         key={option.id}
                         className={`store-option-card${
                           isActiveThemeCard ? " is-active" : ""
-                        }${isPreviewThemeCard ? " is-previewing" : ""}`}>
+                        }${isPreviewThemeCard || previewingConfetti ? " is-previewing" : ""}`}>
                         <div className="store-option-preview">
                           {activeCategory.kind === "color" ? (
                             <div className="store-option-theme-preview">
@@ -430,15 +477,49 @@ export function StorePageClient() {
                             />
                           ) : null}
                           {activeCategory.kind === "confetti" ? (
-                            <Image
-                              src="/store/theme.png"
-                              alt=""
-                              width={96}
-                              height={56}
-                              className="store-option-confetti"
-                            />
+                            <div
+                              className={`store-option-confetti-preview${
+                                isDefaultConfettiOption ? " is-disabled" : ""
+                              }`}
+                              style={
+                                {
+                                  "--confetti-color-a": confettiColors[0] ?? "#60a5fa",
+                                  "--confetti-color-b": confettiColors[1] ?? "#f97316",
+                                } as CSSProperties
+                              }>
+                              {isDefaultConfettiOption ? (
+                                <span className="store-option-confetti-disabled-label">
+                                  Disabled
+                                </span>
+                              ) : (
+                                Array.from({ length: 10 }, (_unused, chipIndex) => {
+                                  const chipShape = confettiShapes[chipIndex % confettiShapes.length] ?? "rect";
+                                  const chipColor = confettiColors[chipIndex % confettiColors.length] ?? "#60a5fa";
+                                  return (
+                                    <span
+                                      key={`${option.id}-chip-${chipIndex}`}
+                                      className={`store-option-confetti-chip ${
+                                        chipShape === "circle"
+                                          ? "store-option-confetti-chip-circle"
+                                          : chipShape === "streamer"
+                                            ? "store-option-confetti-chip-streamer"
+                                            : ""
+                                      }`}
+                                      style={
+                                        {
+                                          left: `${10 + ((chipIndex * 9) % 80)}%`,
+                                          top: `${14 + ((chipIndex * 17) % 64)}%`,
+                                          "--chip-color": chipColor,
+                                          animationDelay: `${(chipIndex % 5) * 70}ms`,
+                                        } as CSSProperties
+                                      }
+                                    />
+                                  );
+                                })
+                              )}
+                            </div>
                           ) : null}
-                          {canPreview ? (
+                          {canThemePreview ? (
                             <Button
                               type="button"
                               className="btn btn-secondary store-preview-btn store-preview-btn-floating"
@@ -447,10 +528,18 @@ export function StorePageClient() {
                               {previewing ? "Previewing" : "Preview"}
                             </Button>
                           ) : null}
+                          {canConfettiPreview ? (
+                            <Button
+                              type="button"
+                              className="btn btn-secondary store-preview-btn store-preview-btn-floating"
+                              onClick={(event) => previewConfettiOption(option, event)}>
+                              {previewingConfetti ? "Previewing" : "Preview"}
+                            </Button>
+                          ) : null}
                         </div>
                         <h4>{option.label}</h4>
                         <p className="small">
-                          {owned ? (
+                          {owned || isDefaultConfettiOption ? (
                             "Owned"
                           ) : (
                             <>
@@ -464,7 +553,7 @@ export function StorePageClient() {
                           className="btn btn-primary"
                           disabled={disabled}
                           onClick={() => {
-                            if (owned) {
+                            if (owned || isDefaultConfettiOption) {
                               void applyOption(activeCategory, option);
                               return;
                             }
@@ -476,9 +565,13 @@ export function StorePageClient() {
                               ? applied
                                 ? activeCategory.kind === "color"
                                   ? "Theme active"
+                                  : activeCategory.kind === "confetti" && isDefaultConfettiOption
+                                    ? "Confetti off"
                                   : "Applied"
                                 : activeCategory.kind === "color"
                                   ? "Set theme"
+                                  : activeCategory.kind === "confetti" && isDefaultConfettiOption
+                                    ? "Disable confetti"
                                   : "Apply"
                               : canAfford
                                 ? "Buy"
@@ -495,6 +588,7 @@ export function StorePageClient() {
                     disabled={pendingOptionId.length > 0}
                     onClick={() => {
                       clearPreview();
+                      setPreviewConfettiOptionId("");
                       setActiveCategoryId(null);
                     }}>
                     Close

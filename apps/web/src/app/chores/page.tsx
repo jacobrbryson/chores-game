@@ -256,8 +256,8 @@ export default function ChoresPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
-  const [sortBy, setSortBy] = useState<ChoreSortBy>("dueDate");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [sortBy, setSortBy] = useState<ChoreSortBy>("completedAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [realtimeContext, setRealtimeContext] = useState<{ familyId: string; authToken: string } | null>(null);
   const canCreateChores = viewerRole === "admin";
   const requestSeqRef = useRef(0);
@@ -506,8 +506,12 @@ export default function ChoresPage() {
             }}
             hideTrigger
           />
-          <BackLink />
-          <h1>All Chores</h1>
+          <div className="page-header-row">
+            <div className="page-header-inline">
+              <BackLink className="page-back-link">{"<- Back"}</BackLink>
+              <h1>All Chores</h1>
+            </div>
+          </div>
           <div className="table-controls">
             <input
               value={searchInput}
