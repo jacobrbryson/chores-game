@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { FormEvent, KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
@@ -80,6 +81,11 @@ export function AddEditChoresDialog({
   onOpenChange,
   hideTrigger = false,
 }: AddEditChoresDialogProps) {
+  const SUGGESTION_GAP_PX = 6;
+  const SUGGESTION_VIEWPORT_MARGIN_PX = 8;
+  const SUGGESTION_MIN_HEIGHT_PX = 120;
+  const SUGGESTION_MAX_HEIGHT_PX = 224;
+
   const isEditMode = Boolean(chore);
   const editingChoreId = chore?.id ?? "";
   const [internalOpen, setInternalOpen] = useState(false);
@@ -94,6 +100,13 @@ export function AddEditChoresDialog({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestionMenu, setShowSuggestionMenu] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const descriptionFieldRef = useRef<HTMLDivElement | null>(null);
+  const [suggestionMenuPosition, setSuggestionMenuPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
   const [members, setMembers] = useState<FamilyMemberOption[]>([]);
   const [assigneeHydrated, setAssigneeHydrated] = useState(false);
   const effectiveDueDate = showAdditionalOptions ? dueDate : todayIsoDate();
@@ -210,6 +223,57 @@ export function AddEditChoresDialog({
     return () => clearTimeout(timer);
   }, [description, assigneeId, effectiveDueDate, open]);
 
+  const updateSuggestionMenuPosition = useCallback(() => {
+    if (!descriptionFieldRef.current || typeof window === "undefined") {
+      return;
+    }
+    const rect = descriptionFieldRef.current.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom - SUGGESTION_VIEWPORT_MARGIN_PX;
+    const spaceAbove = rect.top - SUGGESTION_VIEWPORT_MARGIN_PX;
+    const openUpward = spaceBelow < 180 && spaceAbove > spaceBelow;
+    const availableHeight = Math.max(
+      0,
+      (openUpward ? spaceAbove : spaceBelow) - SUGGESTION_GAP_PX,
+    );
+    const maxHeight = Math.max(
+      SUGGESTION_MIN_HEIGHT_PX,
+      Math.min(SUGGESTION_MAX_HEIGHT_PX, availableHeight),
+    );
+    const width = Math.min(rect.width, viewportWidth - SUGGESTION_VIEWPORT_MARGIN_PX * 2);
+    let left = rect.left;
+    if (left + width > viewportWidth - SUGGESTION_VIEWPORT_MARGIN_PX) {
+      left = viewportWidth - SUGGESTION_VIEWPORT_MARGIN_PX - width;
+    }
+    left = Math.max(SUGGESTION_VIEWPORT_MARGIN_PX, left);
+    const top = openUpward
+      ? Math.max(
+          SUGGESTION_VIEWPORT_MARGIN_PX,
+          rect.top - maxHeight - SUGGESTION_GAP_PX,
+        )
+      : Math.min(
+          viewportHeight - SUGGESTION_VIEWPORT_MARGIN_PX,
+          rect.bottom + SUGGESTION_GAP_PX,
+        );
+
+    setSuggestionMenuPosition({ top, left, width, maxHeight });
+  }, []);
+
+  useEffect(() => {
+    const shouldShow = open && showSuggestionMenu && filteredSuggestions.length > 0;
+    if (!shouldShow) {
+      return;
+    }
+    updateSuggestionMenuPosition();
+    window.addEventListener("resize", updateSuggestionMenuPosition);
+    window.addEventListener("scroll", updateSuggestionMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateSuggestionMenuPosition);
+      window.removeEventListener("scroll", updateSuggestionMenuPosition, true);
+    };
+  }, [filteredSuggestions.length, open, showSuggestionMenu, updateSuggestionMenuPosition]);
+
   useEffect(() => {
     if (!open || !assigneeHydrated || !assigneeId || isEditMode) {
       return;
@@ -321,6 +385,44 @@ export function AddEditChoresDialog({
     }
   }
 
+  const descriptionSuggestionMenuNode =
+    open &&
+    showSuggestionMenu &&
+    filteredSuggestions.length > 0 &&
+    suggestionMenuPosition &&
+    typeof document !== "undefined"
+      ? createPortal(
+          <ul
+            className="z-[70] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+            style={{
+              position: "fixed",
+              top: suggestionMenuPosition.top,
+              left: suggestionMenuPosition.left,
+              width: suggestionMenuPosition.width,
+              maxHeight: suggestionMenuPosition.maxHeight,
+            }}>
+            {filteredSuggestions.map((suggestion, index) => (
+              <li key={suggestion.description}>
+                <Button
+                  type="button"
+                  className={`w-full px-3 py-2 text-left text-sm ${
+                    index === activeSuggestionIndex
+                      ? "bg-slate-100 text-slate-900"
+                      : "text-slate-700 hover:bg-slate-50"
+                  }`}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    applySuggestion(suggestion.description);
+                  }}>
+                  {suggestion.description}
+                </Button>
+              </li>
+            ))}
+          </ul>,
+          document.body,
+        )
+      : null;
+
   return (
     <>
       {renderTrigger ? (
@@ -334,14 +436,14 @@ export function AddEditChoresDialog({
         </Button>
       )}
       <ModalShell open={open} onRequestClose={() => setDialogOpen(false)}>
-        <div className="w-full max-w-4xl rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="add-chores-modal-card w-full max-w-4xl rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
             <h3 className="mb-3 text-lg font-bold text-slate-800">
               {isEditMode ? "Edit Chore" : "Add Chores"}
             </h3>
             <form className="flex w-full flex-col gap-3" onSubmit={onSubmit}>
               <label className="flex w-full flex-col gap-1.5">
                 <span className="text-sm font-medium text-slate-700">Description</span>
-                <div className="relative">
+                <div ref={descriptionFieldRef} className="relative">
                   <input
                     required
                     value={description}
@@ -355,27 +457,6 @@ export function AddEditChoresDialog({
                     placeholder="Take out trash"
                     className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
                   />
-                  {showSuggestionMenu && filteredSuggestions.length > 0 ? (
-                    <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
-                      {filteredSuggestions.map((suggestion, index) => (
-                        <li key={suggestion.description}>
-                          <Button
-                            type="button"
-                            className={`w-full px-3 py-2 text-left text-sm ${
-                              index === activeSuggestionIndex
-                                ? "bg-slate-100 text-slate-900"
-                                : "text-slate-700 hover:bg-slate-50"
-                            }`}
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              applySuggestion(suggestion.description);
-                            }}>
-                            {suggestion.description}
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
                 </div>
               </label>
 
@@ -394,18 +475,26 @@ export function AddEditChoresDialog({
 
               <Button
                 type="button"
-                className="self-start text-sm font-semibold text-[#1f69b7] hover:underline"
+                className="group inline-flex cursor-pointer items-center gap-2 self-start text-sm font-semibold text-[#1f69b7]"
                 onClick={() => setShowAdditionalOptions((openState) => !openState)}>
-                Additional Options
+                <span aria-hidden="true" className="text-base leading-none font-bold">
+                  {showAdditionalOptions ? "-" : "+"}
+                </span>
+                <span className="group-hover:underline group-focus-visible:underline">
+                  Additional Options
+                </span>
               </Button>
 
-              {showAdditionalOptions ? (
-                <>
+              <div
+                className={`add-chores-advanced${showAdditionalOptions ? " is-open" : ""}`}
+                aria-hidden={!showAdditionalOptions}>
+                <div className="add-chores-advanced-inner">
                   <label className="flex w-full flex-col gap-1.5">
                     <span className="text-sm font-medium text-slate-700">Due Date</span>
                     <input
                       type="date"
                       value={dueDate}
+                      disabled={!showAdditionalOptions}
                       onChange={(event) => setDueDate(event.target.value)}
                       className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800"
                     />
@@ -416,27 +505,28 @@ export function AddEditChoresDialog({
                     <textarea
                       rows={4}
                       value={details}
+                      disabled={!showAdditionalOptions}
                       onChange={(event) => setDetails(event.target.value)}
                       placeholder="Any notes for this chore..."
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
                     />
                   </label>
-                </>
-              ) : null}
+                </div>
+              </div>
 
               {error ? <p className="text-sm text-red-700">{error}</p> : null}
 
               <div className="mt-1 flex justify-end gap-2">
                 <Button
                   type="button"
-                  className="h-10 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700"
+                  className="btn btn-secondary"
                   disabled={saving}
                   onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
                 <Button
                   type="submit"
-                  className="h-10 rounded-md border border-blue-300 bg-blue-50 px-3 text-sm font-semibold text-blue-700"
+                  className="btn btn-primary"
                   disabled={saving}>
                   {saving
                     ? "Saving..."
@@ -448,6 +538,7 @@ export function AddEditChoresDialog({
             </form>
         </div>
       </ModalShell>
+      {descriptionSuggestionMenuNode}
     </>
   );
 }

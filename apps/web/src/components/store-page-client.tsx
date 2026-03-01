@@ -10,8 +10,10 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
+import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
+import { CoinIcon } from "@/components/coin-icon";
 import { ModalShell } from "@/components/modal-shell";
 import {
   dispatchConfettiSelectionChanged,
@@ -335,8 +337,12 @@ export function StorePageClient() {
 
   return (
     <main className="panel family-page">
-      <BackLink />
-      <h1>Store</h1>
+      <div className="page-header-row">
+        <div className="page-header-inline">
+          <BackLink className="page-back-link" />
+          <h1>Store</h1>
+        </div>
+      </div>
       {isLoading ? <p className="small">Loading store...</p> : null}
       {!isLoading && error ? <p className="small family-error">Could not load store: {error}</p> : null}
       {!isLoading && !error && summary ? (
@@ -388,12 +394,13 @@ export function StorePageClient() {
                   {activeCategory.kind === "avatar" && summary.googlePhotoUrl ? (
                     <article className="store-option-card">
                       <div className="store-option-preview">
-                        <img
-                          src={summary.googlePhotoUrl}
-                          alt="Google avatar"
+                        <Avatar
                           className="store-option-avatar"
-                          loading="lazy"
-                          decoding="async"
+                          size={72}
+                          borderWidth={2}
+                          name="Google Avatar"
+                          photoUrl={summary.googlePhotoUrl}
+                          alt="Google avatar"
                           referrerPolicy="no-referrer"
                         />
                       </div>
@@ -468,12 +475,13 @@ export function StorePageClient() {
                             </div>
                           ) : null}
                           {activeCategory.kind === "avatar" ? (
-                            <Image
-                              src={`/avatars/default/${option.value}`}
-                              alt={option.label}
-                              width={72}
-                              height={72}
+                            <Avatar
                               className="store-option-avatar"
+                              size={72}
+                              borderWidth={2}
+                              name={option.label}
+                              avatarId={option.value}
+                              alt={option.label}
                             />
                           ) : null}
                           {activeCategory.kind === "confetti" ? (
@@ -543,7 +551,7 @@ export function StorePageClient() {
                             "Owned"
                           ) : (
                             <>
-                              <span aria-hidden="true">&#x1FA99; </span>
+                              <CoinIcon size={14} />{" "}
                               {activeCategory.price} coins
                             </>
                           )}

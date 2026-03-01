@@ -20,6 +20,7 @@ import {
   timestampField,
 } from "@/lib/firestore/rest";
 import { emitFamilyActivity } from "@/lib/notifications/events";
+import { parseCompletionWindow, type CompletionWindow } from "@/lib/preferences/completion-window";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
 
@@ -60,6 +61,13 @@ type ChoreSortBy =
   | "dueDate"
   | "completedAt"
   | "coinValue";
+type ChoreStatusFilter = "" | "completed";
+type CompletionWindowRange = {
+  startMillis: number;
+  endMillis: number;
+};
+const MINUTE_MILLIS = 60 * 1000;
+const MAX_TIMEZONE_OFFSET_MINUTES = 14 * 60;
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -307,6 +315,194 @@ function normalizeSearch(value: string | null) {
   return (value ?? "").trim().toLowerCase();
 }
 
+function parseStatusFilter(value: string | null): ChoreStatusFilter {
+  return value === "completed" ? "completed" : "";
+}
+
+function parseAssigneeFilter(value: string | null) {
+  return (value ?? "").trim();
+}
+
+function parseTimezoneOffsetMinutes(value: string | null) {
+  if (value === null) {
+    return 0;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+  const rounded = Math.trunc(parsed);
+  if (Math.abs(rounded) > MAX_TIMEZONE_OFFSET_MINUTES) {
+    return 0;
+  }
+  return rounded;
+}
+
+function startOfUtcDayMillis(value: number) {
+  const date = new Date(value);
+  date.setUTCHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function startOfUtcWeekMillis(value: number) {
+  const date = new Date(startOfUtcDayMillis(value));
+  const dayOffset = date.getUTCDay();
+  date.setUTCDate(date.getUTCDate() - dayOffset);
+  return date.getTime();
+}
+
+function startOfUtcMonthMillis(value: number) {
+  const date = new Date(value);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0);
+}
+
+function startOfUtcYearMillis(value: number) {
+  const date = new Date(value);
+  return Date.UTC(date.getUTCFullYear(), 0, 1, 0, 0, 0, 0);
+}
+
+function toShiftedUtcMillis(value: number, timezoneOffsetMinutes: number) {
+  return value - timezoneOffsetMinutes * MINUTE_MILLIS;
+}
+
+function fromShiftedUtcMillis(value: number, timezoneOffsetMinutes: number) {
+  return value + timezoneOffsetMinutes * MINUTE_MILLIS;
+}
+
+function startOfOffsetDayMillis(value: number, timezoneOffsetMinutes: number) {
+  return fromShiftedUtcMillis(
+    startOfUtcDayMillis(toShiftedUtcMillis(value, timezoneOffsetMinutes)),
+    timezoneOffsetMinutes,
+  );
+}
+
+function startOfOffsetWeekMillis(value: number, timezoneOffsetMinutes: number) {
+  return fromShiftedUtcMillis(
+    startOfUtcWeekMillis(toShiftedUtcMillis(value, timezoneOffsetMinutes)),
+    timezoneOffsetMinutes,
+  );
+}
+
+function startOfOffsetMonthMillis(value: number, timezoneOffsetMinutes: number) {
+  return fromShiftedUtcMillis(
+    startOfUtcMonthMillis(toShiftedUtcMillis(value, timezoneOffsetMinutes)),
+    timezoneOffsetMinutes,
+  );
+}
+
+function startOfOffsetYearMillis(value: number, timezoneOffsetMinutes: number) {
+  return fromShiftedUtcMillis(
+    startOfUtcYearMillis(toShiftedUtcMillis(value, timezoneOffsetMinutes)),
+    timezoneOffsetMinutes,
+  );
+}
+
+function getCompletionWindowRange(
+  window: CompletionWindow,
+  timezoneOffsetMinutes: number,
+): CompletionWindowRange {
+  const nowMillis = Date.now();
+  if (window === "today") {
+    return {
+      startMillis: startOfOffsetDayMillis(nowMillis, timezoneOffsetMinutes),
+      endMillis: nowMillis,
+    };
+  }
+  if (window === "week") {
+    return {
+      startMillis: startOfOffsetWeekMillis(nowMillis, timezoneOffsetMinutes),
+      endMillis: nowMillis,
+    };
+  }
+  if (window === "month") {
+    return {
+      startMillis: startOfOffsetMonthMillis(nowMillis, timezoneOffsetMinutes),
+      endMillis: nowMillis,
+    };
+  }
+  return {
+    startMillis: startOfOffsetYearMillis(nowMillis, timezoneOffsetMinutes),
+    endMillis: nowMillis,
+  };
+}
+
+function dueDateToIso(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return "";
+  }
+  return `${value}T00:00:00.000Z`;
+}
+
+function isCompletedStatus(status: string) {
+  return status === "Submitted" || status === "Approved";
+}
+
+function buildAssigneeAliasToMemberId(
+  memberDocs: Array<{ name: string; fields?: Record<string, FirestoreValue> }>,
+) {
+  const rawMembers = memberDocs
+    .map((doc) => ({
+      id: documentIdFromName(doc.name),
+      uid: readString(doc.fields, "uid") || undefined,
+      email: readString(doc.fields, "email"),
+      deleted: readBoolean(doc.fields, "deleted"),
+    }))
+    .filter((member) => !member.deleted);
+
+  const normalizedEmailWithUid = new Set(
+    rawMembers
+      .filter((member) => Boolean(member.uid))
+      .map((member) => normalizeEmail(member.email))
+      .filter(Boolean),
+  );
+  const canonicalMembers = rawMembers.filter((member) => {
+    if (member.uid) {
+      return true;
+    }
+    const normalizedEmail = normalizeEmail(member.email);
+    if (!normalizedEmail) {
+      return true;
+    }
+    return !normalizedEmailWithUid.has(normalizedEmail);
+  });
+
+  const canonicalByEmail = new Map(
+    canonicalMembers
+      .map((member) => [normalizeEmail(member.email), member.id] as const)
+      .filter(([email]) => Boolean(email)),
+  );
+
+  const aliasToMemberId = new Map<string, string>();
+  for (const member of canonicalMembers) {
+    aliasToMemberId.set(member.id, member.id);
+    if (member.uid) {
+      aliasToMemberId.set(member.uid, member.id);
+    }
+    const normalizedEmail = normalizeEmail(member.email);
+    if (normalizedEmail) {
+      aliasToMemberId.set(normalizedEmail, member.id);
+    }
+  }
+
+  for (const member of rawMembers) {
+    const normalizedEmail = normalizeEmail(member.email);
+    if (!normalizedEmail) {
+      continue;
+    }
+    const canonicalId = canonicalByEmail.get(normalizedEmail);
+    if (!canonicalId) {
+      continue;
+    }
+    aliasToMemberId.set(member.id, canonicalId);
+    if (member.uid) {
+      aliasToMemberId.set(member.uid, canonicalId);
+    }
+    aliasToMemberId.set(normalizedEmail, canonicalId);
+  }
+
+  return aliasToMemberId;
+}
+
 function choreCompletedAt(doc: ChoreRow) {
   if (doc.status === "Submitted" || doc.status === "Approved") {
     return doc.submittedAt || doc.updatedAt || "";
@@ -387,6 +583,15 @@ export async function GET(request: NextRequest) {
   const sortBy = parseSortBy(request.nextUrl.searchParams.get("sortBy"));
   const sortDir = parseSortDir(request.nextUrl.searchParams.get("sortDir"));
   const query = normalizeSearch(request.nextUrl.searchParams.get("q"));
+  const assigneeFilter = parseAssigneeFilter(request.nextUrl.searchParams.get("assigneeId"));
+  const statusFilter = parseStatusFilter(request.nextUrl.searchParams.get("status"));
+  const completionWindow = parseCompletionWindow(request.nextUrl.searchParams.get("completedWindow"));
+  const timezoneOffsetMinutes = parseTimezoneOffsetMinutes(
+    request.nextUrl.searchParams.get("tzOffsetMinutes"),
+  );
+  const completionWindowRange = completionWindow
+    ? getCompletionWindowRange(completionWindow, timezoneOffsetMinutes)
+    : null;
 
   try {
     const { data, session: refreshedSession, refreshed } =
@@ -427,6 +632,12 @@ export async function GET(request: NextRequest) {
           listDocuments(`families/${familyId}/members`, idToken, 200),
           listDocuments(`families/${familyId}/chores`, idToken, 500),
         ]);
+        const assigneeAliasToMemberId = buildAssigneeAliasToMemberId(memberDocs);
+        const targetAssigneeId = assigneeFilter
+          ? assigneeAliasToMemberId.get(assigneeFilter) ??
+            assigneeAliasToMemberId.get(normalizeEmail(assigneeFilter)) ??
+            assigneeFilter
+          : "";
         const assigneeAvatarByAlias = new Map<string, string>();
         const assigneeAvatarPhotoByAlias = new Map<string, string>();
         for (const memberDoc of memberDocs) {
@@ -464,6 +675,43 @@ export async function GET(request: NextRequest) {
         const filteredChores = docs
           .map((doc) => normalizeChoreDoc(doc))
           .filter((doc) => !doc.deleted)
+          .filter((doc) => {
+            if (statusFilter !== "completed") {
+              return true;
+            }
+            return isCompletedStatus(doc.status);
+          })
+          .filter((doc) => {
+            if (!targetAssigneeId) {
+              return true;
+            }
+            const assigneeId = doc.assigneeId ?? "";
+            if (!assigneeId) {
+              return false;
+            }
+            const canonicalAssigneeId =
+              assigneeAliasToMemberId.get(assigneeId) ??
+              assigneeAliasToMemberId.get(normalizeEmail(assigneeId)) ??
+              assigneeId;
+            return canonicalAssigneeId === targetAssigneeId;
+          })
+          .filter((doc) => {
+            if (!completionWindowRange) {
+              return true;
+            }
+            if (!isCompletedStatus(doc.status)) {
+              return false;
+            }
+            const completedAt = choreCompletedAt(doc) || dueDateToIso(doc.dueDate);
+            const completedAtMillis = toUnixMillis(completedAt);
+            if (!completedAtMillis) {
+              return false;
+            }
+            return (
+              completedAtMillis >= completionWindowRange.startMillis &&
+              completedAtMillis <= completionWindowRange.endMillis
+            );
+          })
           .filter((doc) => choreMatchesQuery(doc, query));
         const chores = sortChores(filteredChores, sortBy, sortDir)
           .map((doc) => ({

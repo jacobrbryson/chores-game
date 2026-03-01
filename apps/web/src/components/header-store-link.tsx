@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { CoinIcon } from "@/components/coin-icon";
 
 type HeaderStoreLinkProps = {
 	visible: boolean;
@@ -52,7 +53,7 @@ export function HeaderStoreLink({ visible }: HeaderStoreLinkProps) {
 
 	return (
 		<Link href="/store" className="store-link-chip">
-			<span aria-hidden="true">&#x1FA99;</span>
+			<CoinIcon size={18} />
 			<span>{balance}</span>
 		</Link>
 	);

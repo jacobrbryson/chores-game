@@ -291,7 +291,39 @@ Build a family chore game where:
   - Confetti option cards now include `Preview` actions that trigger the same full-screen animation and support rapid repeat clicks.
   - Applying a confetti option now broadcasts a client-side selection update event so the global celebration effect uses the latest selected style immediately.
   - Celebration bursts now blend multiple launch origins in each run: upward from bottom, from corners, at click location, and spontaneous random origins.
+- Mobile-first UI polish update (2026-02-27):
+  - Shared app header (`AppHeader`) now uses a two-line playful brand treatment and responsive wrapping to prevent mobile breakage.
+  - Header controls (Google sign-in, store chip, profile menu) now support tighter mobile layouts with larger tap targets and overflow-safe dropdown sizing.
+  - On mobile, header action controls remain right-aligned in the top-right area instead of dropping to a separate left-aligned row.
+  - `/family` keeps desktop table layout but now renders member cards on small screens for better readability and touch actions.
+  - Shared modal shell now shifts to a mobile bottom-sheet presentation on small screens.
+  - Home chores panel mobile layout now wraps toolbar/filter controls safely and prevents horizontal overflow in chore cards and completed-chore chart sections.
+- Completion chart drill-down update (2026-02-28):
+  - Home Completed Chores rows are now clickable deep links to `/chores`.
+  - Clicking a completion row opens `/chores` pre-filtered by selected member + selected completion timeframe.
+  - `GET /api/chores` now accepts optional filters:
+    - `status=completed` for `Submitted|Approved` chores.
+    - `assigneeId=<memberId>` with alias resolution across member doc id, uid, and email-keyed legacy ids.
+    - `completedWindow=today|week|month|year` with optional `tzOffsetMinutes` for local-time aligned window filtering.
+- Wallet ledger rules update (2026-02-28):
+  - Firestore rules now allow family admins to create `users/{uid}/walletLedger/{entryId}` for managed users.
+  - This unblocks admin chore-complete/undo flows that credit/debit another assignee's wallet while preserving immutable ledger semantics (`update/delete` still denied).
+  - Home chores toolbar on mobile now keeps `My Chores` aligned with actions in a single row and replaces inline action buttons with a three-dot menu (`Add Chore`, `View All Chores`).
+  - Home chore-card assignee color rail now renders on the outer list row edge (`family-list` side) instead of inside each chore card body.
+- Select layering update (2026-02-28):
+  - Shared `TailwindSelect` now renders option menus in a `document.body` portal with fixed, viewport-aware positioning so dropdown options are not clipped by modal/content overflow containers.
+  - Add/Edit Chores `Description` autocomplete suggestions now also render in a `document.body` portal with fixed, viewport-aware positioning to prevent modal overflow clipping.
+  - Shared `ModalShell` outside-click behavior now closes when clicking any empty overlay area, including the full-width panel gutter outside centered modal content.
+  - Add/Edit Chores `Additional Options` section now expands/collapses with a smooth height+opacity transition so modal growth feels fluid.
+  - Add/Edit Chores `Additional Options` toggle now shows `+` (closed) and `-` (open) to make expand/collapse affordance explicit.
 
+- Coin icon update (2026-02-28):
+  - Replaced UI coin emoji glyphs with a shared reusable `CoinIcon` component for consistent rendering.
+  - Coin icon now spins on hover/focus for header `Store` chip and on hover for each home chore row (`today-chore-item`).
+  - Home chore rows now add a subtle hover highlight, and assignee avatars perform a slight scale-up with a warm golden glow on row hover/focus.
+  - Coin icon center mark now uses `$`, and hover spin uses a 3D Y-axis rotation effect.
+  - Coin hover spin now includes stronger depth cues (slight tilt, edge-thinning at quarter turns, and deeper shadow) for a more 3D look.
+  - Completed chores chart rows now have matching hover highlight + avatar glow behavior, and both progress bars and trend lines include a subtle golden glow treatment.
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.
 - Chores module: CRUD, assignment, submission, approval pipeline.
@@ -305,3 +337,4 @@ Build a family chore game where:
 - Error states are handled (unauthorized, invalid transition, insufficient funds).
 - Tests cover critical business rules.
 - Documentation updated in `AGENTS.md` when behavior or rules change.
+

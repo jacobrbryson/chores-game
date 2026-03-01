@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { MenuActionLink } from "@/components/menu-action-link";
 
@@ -17,11 +18,6 @@ export function ProfileMenu({ name, email, picture, initial }: ProfileMenuProps)
   const [selectedAvatarId, setSelectedAvatarId] = useState("");
   const [selectedAvatarPhotoUrl, setSelectedAvatarPhotoUrl] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
-
-  const profileAvatarUrl =
-    selectedAvatarId.trim()
-      ? `/avatars/default/${encodeURIComponent(selectedAvatarId.trim())}`
-      : selectedAvatarPhotoUrl.trim() || picture || "";
 
   async function loadUnseenCount() {
     try {
@@ -106,17 +102,16 @@ export function ProfileMenu({ name, email, picture, initial }: ProfileMenuProps)
     <div className="profile-menu" ref={rootRef}>
       <Button type="button" className="profile-menu-trigger" onClick={() => setOpen((v) => !v)}>
         <span className="profile-avatar-wrap">
-          {profileAvatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              className="profile-avatar"
-              src={profileAvatarUrl}
-              alt={name || "User profile"}
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <span className="profile-avatar profile-fallback">{initial}</span>
-          )}
+          <Avatar
+            className="profile-avatar"
+            name={name || "User profile"}
+            initial={initial}
+            avatarId={selectedAvatarId}
+            photoUrl={selectedAvatarPhotoUrl || picture || ""}
+            referrerPolicy="no-referrer"
+            loading="eager"
+            decoding="async"
+          />
           {unseenCount > 0 ? <span className="notification-badge">{unseenCount}</span> : null}
         </span>
       </Button>

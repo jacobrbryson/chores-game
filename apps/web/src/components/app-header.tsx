@@ -24,17 +24,22 @@ export async function AppHeader() {
         <Script src="https://accounts.google.com/gsi/client" async defer />
       ) : null}
       <nav className="top-nav panel">
-        <Link href="/" className="brand brand-link">
-          <Image
-            src="/icons/web-app-manifest-192x192.png"
-            alt=""
-            width={36}
-            height={36}
-            className="brand-icon"
-            priority
-          />
-          Family Chores
-        </Link>
+        <div className="top-nav-brand-row">
+          <Link href="/" className="brand brand-link">
+            <Image
+              src="/icons/web-app-manifest-192x192.png"
+              alt=""
+              width={36}
+              height={36}
+              className="brand-icon"
+              priority
+            />
+            <span className="brand-copy">
+              <span className="brand-title">Family Chores</span>
+              <span className="brand-tagline">Play. Help. Earn.</span>
+            </span>
+          </Link>
+        </div>
         <div className="nav-links">
           {sessionUser ? (
             <>
@@ -60,18 +65,21 @@ export async function AppHeader() {
                 data-use_fedcm_for_prompt="false"
                 data-use_fedcm_for_button="false"
               />
-              <div
-                className="g_id_signin"
-                data-type="standard"
-                data-shape="rectangular"
-                data-theme="outline"
-                data-text="signin_with"
-                data-size="large"
-                data-logo_alignment="left"
-              />
+              <div className="google-signin-wrap">
+                <div
+                  className="g_id_signin"
+                  data-type="standard"
+                  data-shape="rectangular"
+                  data-theme="outline"
+                  data-text="signin_with"
+                  data-size="large"
+                  data-logo_alignment="left"
+                  data-width="248"
+                />
+              </div>
             </>
           ) : (
-            <p className="small">
+            <p className="small nav-config-note">
               Google sign-in is not configured. Set `NEXT_PUBLIC_APP_URL` and Google client IDs.
             </p>
           )}

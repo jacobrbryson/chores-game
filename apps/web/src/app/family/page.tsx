@@ -18,6 +18,8 @@ type PendingRemoveMember = {
   name: string;
 };
 
+type FamilyMember = FamilySummaryResponse["members"][number];
+
 type AddMemberFieldsProps = {
   form: AddMemberState;
   setForm: Dispatch<SetStateAction<AddMemberState>>;
@@ -111,6 +113,19 @@ function memberRoleTone(role: string) {
 
 function memberStatusTone(status: string) {
   return status === "active" ? "green" : "amber";
+}
+
+function memberLastSignInLabel(member: FamilyMember, viewerUid?: string) {
+  if (!viewerUid) {
+    return "-";
+  }
+  if (member.id === viewerUid || member.uid === viewerUid) {
+    return "-";
+  }
+  if (!member.lastSignInAt) {
+    return "-";
+  }
+  return new Date(member.lastSignInAt).toLocaleString();
 }
 
 export default function FamilyPage() {
@@ -225,7 +240,7 @@ export default function FamilyPage() {
       <main className="panel family-page">
           <div className="page-header-row">
             <div className="page-header-inline">
-              <BackLink className="page-back-link">{"<- Back"}</BackLink>
+              <BackLink className="page-back-link" />
               <h1>Family Members</h1>
             </div>
             {canManageMembers ? (
@@ -256,7 +271,7 @@ export default function FamilyPage() {
                   <p className="small family-page-subhead">
                     {members.length} member{members.length === 1 ? "" : "s"}
                   </p>
-                  <div className="family-table-wrap">
+                  <div className="family-table-wrap family-table-desktop">
                     <table className="family-table">
                       <thead>
                         <tr>
@@ -291,12 +306,7 @@ export default function FamilyPage() {
                                 />
                               </td>
                               <td>
-                                {member.id === summary?.viewerUid ||
-                                member.uid === summary?.viewerUid
-                                  ? "-"
-                                  : member.lastSignInAt
-                                    ? new Date(member.lastSignInAt).toLocaleString()
-                                    : "-"}
+                                {memberLastSignInLabel(member, summary?.viewerUid)}
                               </td>
                               <td>
                                 {canManageMembers &&
@@ -337,6 +347,70 @@ export default function FamilyPage() {
                       </tbody>
                     </table>
                   </div>
+                  <div className="family-member-cards">
+                    {members.length === 0 ? (
+                      <div className="family-member-empty">No family members found.</div>
+                    ) : (
+                      members.map((member) => (
+                        <article key={member.id} className="family-member-card">
+                          <div className="family-member-card-head">
+                            <div>
+                              <h3 className="family-member-name">{member.name}</h3>
+                              <p className="family-member-email">{member.email || "-"}</p>
+                            </div>
+                            <EnumChip
+                              label={humanizeEnum(member.status)}
+                              tone={memberStatusTone(member.status)}
+                            />
+                          </div>
+                          <div className="family-member-meta">
+                            <div className="family-member-meta-item">
+                              <span>Role</span>
+                              <EnumChip
+                                label={humanizeEnum(member.role)}
+                                tone={memberRoleTone(member.role)}
+                              />
+                            </div>
+                            <div className="family-member-meta-item">
+                              <span>Last Sign In</span>
+                              <strong>{memberLastSignInLabel(member, summary?.viewerUid)}</strong>
+                            </div>
+                          </div>
+                          {canManageMembers &&
+                          member.id !== viewerUid &&
+                          member.uid !== viewerUid ? (
+                            <div className="family-member-actions">
+                              <Button
+                                type="button"
+                                className="btn btn-secondary member-action-btn"
+                                disabled={Boolean(memberActionLoading)}
+                                onClick={() => onMemberAction(member.id, "reinvite")}>
+                                {memberActionLoading?.memberId === member.id &&
+                                memberActionLoading.action === "reinvite"
+                                  ? "Working..."
+                                  : "Re-invite"}
+                              </Button>
+                              <Button
+                                type="button"
+                                className="btn member-action-remove"
+                                disabled={Boolean(memberActionLoading)}
+                                onClick={() =>
+                                  setPendingRemoveMember({
+                                    id: member.id,
+                                    name: member.name,
+                                  })
+                                }>
+                                {memberActionLoading?.memberId === member.id &&
+                                memberActionLoading.action === "remove"
+                                  ? "Working..."
+                                  : "Remove"}
+                              </Button>
+                            </div>
+                          ) : null}
+                        </article>
+                      ))
+                    )}
+                  </div>
                 </>
               )}
             </>
@@ -344,21 +418,21 @@ export default function FamilyPage() {
       </main>
 
       <ModalShell open={showAddMemberForm} onRequestClose={() => setShowAddMemberForm(false)}>
-        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
-          <h3 className="mb-3 text-lg font-bold text-slate-800">Add Family Member</h3>
+        <div className="family-modal-card">
+          <h3 className="family-modal-title">Add Family Member</h3>
           <form className="flex w-full flex-col gap-3" onSubmit={onSubmit}>
             <AddMemberFields form={form} setForm={setForm} />
-            <div className="mt-1 flex justify-end gap-2">
+            <div className="family-modal-actions">
               <Button
                 type="button"
-                className="h-10 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700"
+                className="btn btn-secondary"
                 disabled={saving}
                 onClick={() => setShowAddMemberForm(false)}>
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="h-10 rounded-md border border-blue-300 bg-blue-50 px-3 text-sm font-semibold text-blue-700"
+                className="btn btn-primary"
                 disabled={saving}>
                 {saving ? "Saving..." : "Add Member"}
               </Button>
@@ -370,24 +444,24 @@ export default function FamilyPage() {
       <ModalShell
         open={Boolean(pendingRemoveMember)}
         onRequestClose={() => setPendingRemoveMember(null)}>
-        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="family-modal-card">
           {pendingRemoveMember ? (
             <>
-              <h3 className="mb-2 text-lg font-bold text-slate-800">Remove Family Member</h3>
+              <h3 className="family-modal-title">Remove Family Member</h3>
               <p className="mb-4 text-sm text-slate-600">
                 Remove <strong>{pendingRemoveMember.name}</strong> from your family?
               </p>
-              <div className="flex justify-end gap-2">
+              <div className="family-modal-actions">
                 <Button
                   type="button"
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+                  className="btn btn-secondary"
                   disabled={Boolean(memberActionLoading)}
                   onClick={() => setPendingRemoveMember(null)}>
                   Cancel
                 </Button>
                 <Button
                   type="button"
-                  className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700"
+                  className="btn member-action-remove"
                   disabled={Boolean(memberActionLoading)}
                   onClick={() => onMemberAction(pendingRemoveMember.id, "remove")}>
                   {memberActionLoading?.memberId === pendingRemoveMember.id &&

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
@@ -130,19 +131,6 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
   const activeAvatarPhotoUrl = storeSummary?.avatarPhotoUrl?.trim() ?? "";
   const usingGoogleAvatar = !activeAvatarId && Boolean(activeAvatarPhotoUrl);
 
-  const avatarUrl = useMemo(() => {
-    if (activeAvatarId) {
-      return `/avatars/default/${encodeURIComponent(activeAvatarId)}`;
-    }
-    if (activeAvatarPhotoUrl) {
-      return activeAvatarPhotoUrl;
-    }
-    if (picture) {
-      return picture;
-    }
-    return "";
-  }, [activeAvatarId, activeAvatarPhotoUrl, picture]);
-
   async function applyAvatarAction(body: Record<string, unknown>, pendingKey: string) {
     setAvatarActionPending(pendingKey);
     setAvatarActionError("");
@@ -182,7 +170,7 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     <main className="panel family-page profile-page">
       <div className="page-header-row">
         <div className="page-header-inline">
-          <BackLink className="page-back-link">{"<- Back"}</BackLink>
+          <BackLink className="page-back-link" />
           <h1>Profile</h1>
         </div>
       </div>
@@ -193,21 +181,20 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
       <section className="profile-page-grid">
         <article className="profile-page-avatar-card">
           <h2>Avatar</h2>
-          <div className="profile-page-avatar-frame" style={{ "--profile-theme": themePalette.primary } as CSSProperties}>
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                className="profile-page-avatar-image"
-                src={avatarUrl}
-                alt={`${displayName} avatar`}
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <span className="profile-page-avatar-fallback" aria-label="Default user avatar">
-                <ProfileFallbackIcon />
-              </span>
-            )}
-          </div>
+          <Avatar
+            className="profile-page-avatar-frame"
+            size={140}
+            borderWidth={3}
+            name={displayName}
+            avatarId={activeAvatarId}
+            photoUrl={activeAvatarPhotoUrl || picture || ""}
+            primaryColor={themePalette.primary}
+            secondaryColor={themePalette.secondary}
+            referrerPolicy="no-referrer"
+            loading="eager"
+            fallbackClassName="profile-page-avatar-fallback"
+            fallback={<ProfileFallbackIcon />}
+          />
           <div className="profile-avatar-actions">
             <Button
               type="button"
@@ -267,21 +254,16 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
           ) : null}
           <div className="profile-avatar-option-list">
             <article className="profile-avatar-option-card">
-              <div className="profile-avatar-option-preview">
-                {googleAvatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    className="profile-page-avatar-image"
-                    src={googleAvatarUrl}
-                    alt="Google login avatar"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <span className="profile-page-avatar-fallback" aria-label="Default user avatar">
-                    <ProfileFallbackIcon />
-                  </span>
-                )}
-              </div>
+              <Avatar
+                className="profile-avatar-option-preview"
+                size={72}
+                borderWidth={2}
+                name={displayName}
+                photoUrl={googleAvatarUrl}
+                referrerPolicy="no-referrer"
+                fallbackClassName="profile-page-avatar-fallback"
+                fallback={<ProfileFallbackIcon />}
+              />
               <h4>
                 <span className="small">(default)</span>
               </h4>
@@ -301,13 +283,14 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
               const isApplied = activeAvatarId === option.value;
               return (
                 <article key={option.id} className="profile-avatar-option-card">
-                  <div className="profile-avatar-option-preview">
-                    <img
-                      className="profile-page-avatar-image"
-                      src={`/avatars/default/${encodeURIComponent(option.value)}`}
-                      alt={option.label}
-                    />
-                  </div>
+                  <Avatar
+                    className="profile-avatar-option-preview"
+                    size={72}
+                    borderWidth={2}
+                    name={option.label}
+                    avatarId={option.value}
+                    alt={option.label}
+                  />
                   <h4 className="profile-avatar-unlock-meta">
                     <span>Unlocked</span>
                     <strong>{formatUnlockedDate(storeSummary?.unlockedOptionDates?.[option.id])}</strong>

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 type BackLinkProps = {
   className?: string;
-  children?: string;
+  ariaLabel?: string;
 };
 
 function hasSameOriginHistory() {
@@ -27,13 +27,15 @@ function hasSameOriginHistory() {
   }
 }
 
-export function BackLink({ className = "family-back-link", children = "Back" }: BackLinkProps) {
+export function BackLink({ className = "family-back-link", ariaLabel = "Go back" }: BackLinkProps) {
   const router = useRouter();
 
   return (
     <Link
       href="/"
       className={className}
+      aria-label={ariaLabel}
+      title="Back"
       onClick={(event) => {
         event.preventDefault();
         if (hasSameOriginHistory()) {
@@ -42,7 +44,7 @@ export function BackLink({ className = "family-back-link", children = "Back" }: 
         }
         router.push("/");
       }}>
-      {children}
+      <span className="back-link-icon" aria-hidden="true">←</span>
     </Link>
   );
 }

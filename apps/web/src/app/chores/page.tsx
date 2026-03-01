@@ -1,11 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
+import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
+import { CoinIcon } from "@/components/coin-icon";
 import { EnumChip } from "@/components/enum-chip";
 import { ModalShell } from "@/components/modal-shell";
+import { parseCompletionWindow } from "@/lib/preferences/completion-window";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
 
 type ChoreRow = {
@@ -137,6 +141,38 @@ function formatCompletedDate(value?: string) {
   return new Date(parsed).toLocaleDateString();
 }
 
+function parseTimezoneOffsetMinutes(value: string | null) {
+  if (value === null) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  const rounded = Math.trunc(parsed);
+  if (Math.abs(rounded) > 14 * 60) {
+    return null;
+  }
+  return rounded;
+}
+
+type RouteFilterState = {
+  assigneeId: string;
+  status: "" | "completed";
+  completedWindow: ReturnType<typeof parseCompletionWindow>;
+  tzOffsetMinutes: number | null;
+};
+
+function parseRouteFilters(search: string): RouteFilterState {
+  const params = new URLSearchParams(search);
+  return {
+    assigneeId: (params.get("assigneeId") ?? "").trim(),
+    status: params.get("status") === "completed" ? "completed" : "",
+    completedWindow: parseCompletionWindow(params.get("completedWindow")),
+    tzOffsetMinutes: parseTimezoneOffsetMinutes(params.get("tzOffsetMinutes")),
+  };
+}
+
 type RowActionState = {
   choreId: string;
   action: "delete" | "undo_complete";
@@ -166,35 +202,66 @@ function ChoreActionsMenu({
   }
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
   const canUndoCompletion = chore.status === "Submitted" || chore.status === "Approved";
+
+  const updateMenuPosition = useCallback(() => {
+    if (!triggerRef.current || typeof window === "undefined") {
+      return;
+    }
+    const rect = triggerRef.current.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const menuWidth = 160;
+    const margin = 8;
+    const left = Math.max(
+      margin,
+      Math.min(rect.right - menuWidth, viewportWidth - menuWidth - margin),
+    );
+    setMenuPosition({
+      top: rect.bottom + 6,
+      left,
+    });
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) {
       return;
     }
+    updateMenuPosition();
 
     function onPointerDown(event: MouseEvent | TouchEvent) {
       const target = event.target as Node | null;
       if (!target) {
         return;
       }
-      if (menuRef.current?.contains(target)) {
+      if (triggerRef.current?.contains(target) || dropdownRef.current?.contains(target)) {
         return;
       }
       setMenuOpen(false);
     }
+    function onWindowChange() {
+      updateMenuPosition();
+    }
 
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("touchstart", onPointerDown);
+    window.addEventListener("resize", onWindowChange);
+    window.addEventListener("scroll", onWindowChange, true);
     return () => {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("touchstart", onPointerDown);
+      window.removeEventListener("resize", onWindowChange);
+      window.removeEventListener("scroll", onWindowChange, true);
     };
-  }, [menuOpen]);
+  }, [menuOpen, updateMenuPosition]);
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative" ref={triggerRef}>
       <Button
         type="button"
         aria-label="Chore options"
@@ -204,39 +271,45 @@ function ChoreActionsMenu({
         onClick={() => setMenuOpen((current) => !current)}>
         <span className="text-lg leading-none">...</span>
       </Button>
-      {menuOpen ? (
-        <div className="absolute right-0 z-20 mt-1 w-40 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
-          <Button
-            type="button"
-            className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-            onClick={() => {
-              setMenuOpen(false);
-              onEdit(chore);
-            }}>
-            Edit
-          </Button>
-          <Button
-            type="button"
-            className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!canUndoCompletion || disabled}
-            onClick={() => {
-              setMenuOpen(false);
-              void onUndoCompletion(chore.id);
-            }}>
-            {busyAction === "undo_complete" ? "Undoing..." : "Undo completion"}
-          </Button>
-          <Button
-            type="button"
-            className="block w-full rounded px-2 py-2 text-left text-sm text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={disabled}
-            onClick={() => {
-              setMenuOpen(false);
-              onDeleteRequested(chore);
-            }}>
-            {busyAction === "delete" ? "Deleting..." : "Delete"}
-          </Button>
-        </div>
-      ) : null}
+      {menuOpen && menuPosition && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={dropdownRef}
+              className="fixed z-[90] mt-1 w-40 rounded-md border border-slate-200 bg-white p-1 shadow-lg"
+              style={{ top: menuPosition.top, left: menuPosition.left }}>
+              <Button
+                type="button"
+                className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onEdit(chore);
+                }}>
+                Edit
+              </Button>
+              <Button
+                type="button"
+                className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!canUndoCompletion || disabled}
+                onClick={() => {
+                  setMenuOpen(false);
+                  void onUndoCompletion(chore.id);
+                }}>
+                {busyAction === "undo_complete" ? "Undoing..." : "Undo completion"}
+              </Button>
+              <Button
+                type="button"
+                className="block w-full rounded px-2 py-2 text-left text-sm text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={disabled}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDeleteRequested(chore);
+                }}>
+                {busyAction === "delete" ? "Deleting..." : "Delete"}
+              </Button>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -264,6 +337,37 @@ export default function ChoresPage() {
   const loadAbortRef = useRef<AbortController | null>(null);
   const shouldApplySearch = query.trim().length >= 3;
   const hasShortSearch = searchInput.trim().length > 0 && searchInput.trim().length < 3;
+  const [routeFilters, setRouteFilters] = useState<RouteFilterState>(() => {
+    if (typeof window === "undefined") {
+      return {
+        assigneeId: "",
+        status: "",
+        completedWindow: null,
+        tzOffsetMinutes: null,
+      };
+    }
+    return parseRouteFilters(window.location.search);
+  });
+  const assigneeIdFilter = routeFilters.assigneeId;
+  const statusFilter = routeFilters.status;
+  const completedWindowFilter = routeFilters.completedWindow;
+  const completionFilterTimezoneOffset =
+    routeFilters.tzOffsetMinutes ??
+    new Date().getTimezoneOffset();
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const syncRouteFilters = () => {
+      setRouteFilters(parseRouteFilters(window.location.search));
+    };
+    syncRouteFilters();
+    window.addEventListener("popstate", syncRouteFilters);
+    return () => {
+      window.removeEventListener("popstate", syncRouteFilters);
+    };
+  }, []);
 
   const loadChores = useCallback(async (options?: { silent?: boolean; pageOverride?: number }) => {
     const silent = options?.silent ?? false;
@@ -285,6 +389,16 @@ export default function ChoresPage() {
       params.set("sortDir", sortDir);
       if (shouldApplySearch) {
         params.set("q", query.trim());
+      }
+      if (assigneeIdFilter) {
+        params.set("assigneeId", assigneeIdFilter);
+      }
+      if (statusFilter === "completed") {
+        params.set("status", "completed");
+      }
+      if (completedWindowFilter) {
+        params.set("completedWindow", completedWindowFilter);
+        params.set("tzOffsetMinutes", String(completionFilterTimezoneOffset));
       }
       const response = await fetch(`/api/chores?${params.toString()}`, {
         cache: "no-store",
@@ -322,7 +436,18 @@ export default function ChoresPage() {
         setIsLoading(false);
       }
     }
-  }, [page, pageSize, query, shouldApplySearch, sortBy, sortDir]);
+  }, [
+    assigneeIdFilter,
+    completedWindowFilter,
+    completionFilterTimezoneOffset,
+    page,
+    pageSize,
+    query,
+    shouldApplySearch,
+    sortBy,
+    sortDir,
+    statusFilter,
+  ]);
 
   const applyChoreRow = useCallback((row: ChoreRow | null, choreId: string) => {
     setChores((current) => {
@@ -508,7 +633,7 @@ export default function ChoresPage() {
           />
           <div className="page-header-row">
             <div className="page-header-inline">
-              <BackLink className="page-back-link">{"<- Back"}</BackLink>
+              <BackLink className="page-back-link" />
               <h1>All Chores</h1>
             </div>
           </div>
@@ -593,26 +718,16 @@ export default function ChoresPage() {
                             </td>
                             <td>
                               <span className="table-assignee-cell">
-                                <span className="table-assignee-avatar" aria-hidden="true">
-                                  {chore.assigneeAvatarPhotoUrl ? (
-                                    <img
-                                      src={chore.assigneeAvatarPhotoUrl}
-                                      alt=""
-                                      loading="lazy"
-                                      decoding="async"
-                                      referrerPolicy="no-referrer"
-                                    />
-                                  ) : chore.assigneeAvatarId ? (
-                                    <img
-                                      src={`/avatars/default/${encodeURIComponent(chore.assigneeAvatarId)}`}
-                                      alt=""
-                                      loading="lazy"
-                                      decoding="async"
-                                    />
-                                  ) : (
-                                    (chore.assigneeName || "?").trim().charAt(0).toUpperCase()
-                                  )}
-                                </span>
+                                <Avatar
+                                  className="table-assignee-avatar"
+                                  size={28}
+                                  borderWidth={1}
+                                  name={chore.assigneeName || "Assignee"}
+                                  avatarId={chore.assigneeAvatarId}
+                                  photoUrl={chore.assigneeAvatarPhotoUrl}
+                                  ariaHidden
+                                  referrerPolicy="no-referrer"
+                                />
                                 <span>{chore.assigneeName || "-"}</span>
                               </span>
                             </td>
@@ -620,7 +735,7 @@ export default function ChoresPage() {
                             <td>{formatCompletedDate(chore.completedAt)}</td>
                             <td>
                               <span className="inline-flex items-center gap-1 text-sm font-semibold text-amber-600">
-                                <span aria-hidden="true">&#x1FA99;</span>
+                                <CoinIcon size={16} />
                                 {chore.coinValue}
                               </span>
                             </td>

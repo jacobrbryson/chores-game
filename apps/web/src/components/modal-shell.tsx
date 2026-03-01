@@ -1,6 +1,7 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { type MouseEvent, ReactNode, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 type ModalShellProps = {
   open: boolean;
@@ -48,15 +49,25 @@ export function ModalShell({ open, children, onRequestClose }: ModalShellProps) 
     return null;
   }
 
-  return (
+  function onShellPointerDown(event: MouseEvent<HTMLDivElement>) {
+    if (event.target === event.currentTarget) {
+      onRequestClose?.();
+    }
+  }
+
+  const modalNode = (
     <div
       className={`modal-backdrop${closing ? " is-closing" : ""}`}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onRequestClose?.();
-        }
-      }}>
-      <div className={`modal-panel${closing ? " is-closing" : ""}`}>{children}</div>
+      onMouseDown={onShellPointerDown}>
+      <div className={`modal-panel${closing ? " is-closing" : ""}`} onMouseDown={onShellPointerDown}>
+        {children}
+      </div>
     </div>
   );
+
+  if (typeof document === "undefined") {
+    return modalNode;
+  }
+
+  return createPortal(modalNode, document.body);
 }

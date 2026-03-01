@@ -1,6 +1,7 @@
 "use client";
 
 import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
+import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import {
@@ -8,6 +9,7 @@ import {
   Chart as ChartJS,
   type ChartData,
   type ChartOptions,
+  type Plugin,
   Filler,
   Legend,
   LineElement,
@@ -174,6 +176,7 @@ export function TodayChoresPanel({
   onReload,
 }: TodayChoresPanelProps) {
   const canCreateChores = viewerRole === "admin";
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const [busyActionsById, setBusyActionsById] = useState<Record<string, "delete" | "complete">>({});
   const [exitingChoreIds, setExitingChoreIds] = useState<Record<string, true>>({});
   const [optimisticallyCompletedIds, setOptimisticallyCompletedIds] = useState<Record<string, true>>({});
@@ -185,7 +188,10 @@ export function TodayChoresPanel({
     useState<CompletionSeries>(EMPTY_COMPLETION_SERIES);
   const [completionLoading, setCompletionLoading] = useState(true);
   const [completionError, setCompletionError] = useState("");
+  const [hoveredCompletionRowMemberId, setHoveredCompletionRowMemberId] = useState<string | null>(null);
+  const [hoveredCompletionChartMemberId, setHoveredCompletionChartMemberId] = useState<string | null>(null);
   const [completionStatsRefreshTick, setCompletionStatsRefreshTick] = useState(0);
+  const mobileActionsRef = useRef<HTMLDivElement | null>(null);
   const completionHideTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
@@ -293,6 +299,28 @@ export function TodayChoresPanel({
   }, [chores]);
 
   useEffect(() => {
+    if (!mobileActionsOpen) {
+      return;
+    }
+    function onPointerDown(event: MouseEvent | TouchEvent) {
+      const target = event.target as Node | null;
+      if (!target) {
+        return;
+      }
+      if (mobileActionsRef.current?.contains(target)) {
+        return;
+      }
+      setMobileActionsOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [mobileActionsOpen]);
+
+  useEffect(() => {
     return () => {
       for (const timer of Object.values(completionHideTimersRef.current)) {
         clearTimeout(timer);
@@ -300,6 +328,16 @@ export function TodayChoresPanel({
       completionHideTimersRef.current = {};
     };
   }, []);
+
+  useEffect(() => {
+    const memberIds = new Set(completionSeries.series.map((member) => member.memberId));
+    setHoveredCompletionRowMemberId((current) =>
+      current && !memberIds.has(current) ? null : current,
+    );
+    setHoveredCompletionChartMemberId((current) =>
+      current && !memberIds.has(current) ? null : current,
+    );
+  }, [completionSeries.series]);
 
   const viewerAssigneeIdSet = useMemo(() => new Set(viewerAssigneeIds), [viewerAssigneeIds]);
   const openChores = useMemo(
@@ -328,6 +366,38 @@ export function TodayChoresPanel({
   const completionTrendHasData = useMemo(
     () => completionSeries.series.some((member) => member.points.some((point) => point > 0)),
     [completionSeries.series],
+  );
+  const completionSeriesIndexByMemberId = useMemo(() => {
+    return new Map(completionSeries.series.map((member, index) => [member.memberId, index]));
+  }, [completionSeries.series]);
+  const activeCompletionGlowMemberId =
+    hoveredCompletionChartMemberId ?? hoveredCompletionRowMemberId;
+  const activeCompletionGlowDatasetIndex =
+    activeCompletionGlowMemberId
+      ? completionSeriesIndexByMemberId.get(activeCompletionGlowMemberId) ?? null
+      : null;
+  const completionLineGlowPlugin = useMemo<Plugin<"line">>(
+    () => ({
+      id: "completionLineGoldGlow",
+      beforeDatasetDraw(chart, args) {
+        if (activeCompletionGlowDatasetIndex === null || args.index !== activeCompletionGlowDatasetIndex) {
+          return;
+        }
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.shadowColor = "rgba(245, 158, 11, 0.5)";
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      },
+      afterDatasetDraw(chart, args) {
+        if (activeCompletionGlowDatasetIndex === null || args.index !== activeCompletionGlowDatasetIndex) {
+          return;
+        }
+        chart.ctx.restore();
+      },
+    }),
+    [activeCompletionGlowDatasetIndex],
   );
   const completionTrendLineData = useMemo<ChartData<"line">>(() => {
     const labels = completionSeries.labels.map((label) =>
@@ -419,8 +489,29 @@ export function TodayChoresPanel({
           enabled: true,
         },
       },
+      onHover: (event, _elements, chart) => {
+        const nativeEvent = event.native;
+        if (!nativeEvent) {
+          setHoveredCompletionChartMemberId((current) => (current === null ? current : null));
+          return;
+        }
+        const datasetElements = chart.getElementsAtEventForMode(
+          nativeEvent as Event,
+          "dataset",
+          { intersect: true },
+          false,
+        );
+        const hoveredDatasetIndex = datasetElements[0]?.datasetIndex;
+        const nextHoveredMemberId =
+          hoveredDatasetIndex === undefined
+            ? null
+            : completionSeries.series[hoveredDatasetIndex]?.memberId ?? null;
+        setHoveredCompletionChartMemberId((current) =>
+          current === nextHoveredMemberId ? current : nextHoveredMemberId,
+        );
+      },
     }),
-    [completionSeries.maxCount, completionWindow],
+    [completionSeries.maxCount, completionSeries.series, completionWindow],
   );
 
   function updateMyChoresOnly(next: boolean) {
@@ -540,12 +631,20 @@ export function TodayChoresPanel({
     }
   }
 
+  const completionRowBaseParams = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("status", "completed");
+    params.set("completedWindow", completionWindow);
+    params.set("tzOffsetMinutes", String(new Date().getTimezoneOffset()));
+    return params;
+  }, [completionWindow]);
+
   return (
     <article className="family-panel">
       <div className="today-chores-layout">
         <div className="today-chores-main">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <label className="inline-flex items-center gap-3">
+          <div className="today-chores-toolbar">
+            <label className="today-chores-toggle-row">
               <input
                 type="checkbox"
                 className="peer sr-only"
@@ -556,11 +655,15 @@ export function TodayChoresPanel({
                 aria-hidden="true"
                 className="my-chores-toggle-track"
               />
-              <span className="small leading-none">
-                My Chores ({myChoreCount}) out of ({openChores.length})
+              <span className="small today-chores-toggle-copy">
+                <span>My Chores</span>
+                <span className="today-chores-toggle-count">
+                  {" "}
+                  ({myChoreCount}) out of ({openChores.length})
+                </span>
               </span>
             </label>
-            <div className="today-chores-actions-shell">
+            <div className="today-chores-actions-shell today-chores-actions-desktop">
               <Link
                 href="/chores"
                 className={`today-chores-action-link ${
@@ -582,6 +685,46 @@ export function TodayChoresPanel({
                   )}
                   onSaved={onReload}
                 />
+              ) : null}
+            </div>
+            <div className="today-chores-actions-mobile" ref={mobileActionsRef}>
+              <Button
+                type="button"
+                aria-label="Chores actions"
+                aria-expanded={mobileActionsOpen}
+                className="today-chores-actions-mobile-trigger"
+                onClick={() => setMobileActionsOpen((current) => !current)}>
+                <span className="today-chores-kebab" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              </Button>
+              {mobileActionsOpen ? (
+                <div className="today-chores-actions-mobile-menu">
+                  {canCreateChores ? (
+                    <AddEditChoresDialog
+                      renderTrigger={(openDialog) => (
+                        <Button
+                          type="button"
+                          className="today-chores-mobile-menu-item"
+                          onClick={() => {
+                            setMobileActionsOpen(false);
+                            openDialog();
+                          }}>
+                          Add Chore
+                        </Button>
+                      )}
+                      onSaved={onReload}
+                    />
+                  ) : null}
+                  <Link
+                    href="/chores"
+                    className="today-chores-mobile-menu-item"
+                    onClick={() => setMobileActionsOpen(false)}>
+                    View All Chores
+                  </Link>
+                </div>
               ) : null}
             </div>
           </div>
@@ -626,7 +769,7 @@ export function TodayChoresPanel({
           )}
         </div>
         <aside className="completion-chart">
-          <div className="mb-3 flex min-h-10 items-center justify-between gap-3">
+          <div className="completion-chart-header">
             <h3 className="m-0 inline-flex h-10 items-center text-[0.88rem] leading-none font-semibold text-[var(--muted)]">
               Completed Chores
             </h3>
@@ -635,7 +778,7 @@ export function TodayChoresPanel({
               value={completionWindow}
               onChange={updateCompletionWindow}
               options={COMPLETION_WINDOW_OPTIONS}
-              className="w-[140px] shrink-0"
+              className="completion-chart-window-select"
             />
           </div>
           {completionLoading ? <p className="small">Loading chart...</p> : null}
@@ -652,38 +795,54 @@ export function TodayChoresPanel({
                     "--bar-delay": `${index * 60}ms`,
                     "--bar-color": entry.color || COMPLETION_LINE_COLORS[index % COMPLETION_LINE_COLORS.length],
                   } as CSSProperties;
-                  const avatarInitial = entry.name.trim().charAt(0).toUpperCase() || "?";
+                  const rowParams = new URLSearchParams(completionRowBaseParams);
+                  rowParams.set("assigneeId", entry.memberId);
+                  const rowHref = `/chores?${rowParams.toString()}`;
                   return (
-                    <li key={entry.memberId} className="completion-chart-row">
-                      <span className="completion-chart-avatar" aria-label={`${entry.name} avatar`}>
-                        {entry.avatarPhotoUrl ? (
-                          <img
-                            src={entry.avatarPhotoUrl}
-                            alt={`${entry.name} avatar`}
-                            loading="lazy"
-                            decoding="async"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : entry.avatarId ? (
-                          <img
-                            src={`/avatars/default/${encodeURIComponent(entry.avatarId)}`}
-                            alt={`${entry.name} avatar`}
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        ) : (
-                          avatarInitial
-                        )}
-                      </span>
-                      <div className="completion-chart-content">
-                        <div className="completion-chart-meta">
-                          <span>{entry.name}</span>
-                          <strong>{entry.count}</strong>
+                    <li key={entry.memberId}>
+                      <Link
+                        href={rowHref}
+                        className="completion-chart-row completion-chart-row-link"
+                        onMouseEnter={() => {
+                          setHoveredCompletionRowMemberId((current) =>
+                            current === entry.memberId ? current : entry.memberId,
+                          );
+                        }}
+                        onMouseLeave={() => {
+                          setHoveredCompletionRowMemberId((current) =>
+                            current === null ? current : null,
+                          );
+                        }}
+                        onFocus={() => {
+                          setHoveredCompletionRowMemberId((current) =>
+                            current === entry.memberId ? current : entry.memberId,
+                          );
+                        }}
+                        onBlur={() => {
+                          setHoveredCompletionRowMemberId((current) =>
+                            current === null ? current : null,
+                          );
+                        }}
+                        aria-label={`View ${entry.name}'s completed chores in this range`}>
+                        <Avatar
+                          className="completion-chart-avatar"
+                          size={32}
+                          borderWidth={1}
+                          name={entry.name}
+                          avatarId={entry.avatarId}
+                          photoUrl={entry.avatarPhotoUrl}
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="completion-chart-content">
+                          <div className="completion-chart-meta">
+                            <span>{entry.name}</span>
+                            <strong>{entry.count}</strong>
+                          </div>
+                          <div className="completion-chart-track">
+                            <span className="completion-chart-bar" style={style} />
+                          </div>
                         </div>
-                        <div className="completion-chart-track">
-                          <span className="completion-chart-bar" style={style} />
-                        </div>
-                      </div>
+                      </Link>
                     </li>
                   );
                 })}
@@ -698,6 +857,7 @@ export function TodayChoresPanel({
                         <Line
                           data={completionTrendLineData}
                           options={completionTrendLineOptions}
+                          plugins={[completionLineGlowPlugin]}
                           aria-label="Completed chores trend by member for selected range"
                           role="img"
                         />

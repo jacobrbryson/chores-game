@@ -112,7 +112,13 @@ service cloud.firestore {
       allow delete: if isSelf(uid);
 
       match /walletLedger/{entryId} {
-        allow read, create: if isSelf(uid);
+        allow read: if isSelf(uid);
+        allow create: if (isSelf(uid) || canAdminManageUser(uid))
+          && request.resource.data.uid == uid
+          && request.resource.data.reason is string
+          && request.resource.data.delta is int
+          && request.resource.data.balanceAfter is int
+          && request.resource.data.createdAt is timestamp;
         allow update, delete: if false;
       }
     }
