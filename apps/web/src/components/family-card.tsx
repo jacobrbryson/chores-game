@@ -39,11 +39,26 @@ export function FamilyCard() {
 
   function sortTodayChores(items: FamilySnapshotChore[]) {
     return [...items].sort((a, b) => {
-      const dueSort = (a.dueDate || "").localeCompare(b.dueDate || "");
-      if (dueSort !== 0) {
-        return dueSort;
+      const aHasSortOrder = typeof a.sortOrder === "number";
+      const bHasSortOrder = typeof b.sortOrder === "number";
+      const aSortOrder = aHasSortOrder ? (a.sortOrder as number) : -1;
+      const bSortOrder = bHasSortOrder ? (b.sortOrder as number) : -1;
+      if (aHasSortOrder && bHasSortOrder && aSortOrder !== bSortOrder) {
+        return aSortOrder - bSortOrder;
       }
-      return a.title.localeCompare(b.title);
+      if (aHasSortOrder && !bHasSortOrder) {
+        return -1;
+      }
+      if (!aHasSortOrder && bHasSortOrder) {
+        return 1;
+      }
+      const createdDiff =
+        (Number.isNaN(Date.parse(a.createdAt || "")) ? 0 : Date.parse(a.createdAt || "")) -
+        (Number.isNaN(Date.parse(b.createdAt || "")) ? 0 : Date.parse(b.createdAt || ""));
+      if (createdDiff !== 0) {
+        return createdDiff;
+      }
+      return a.id.localeCompare(b.id);
     });
   }
 
@@ -87,6 +102,7 @@ export function FamilyCard() {
             id: string;
             title: string;
             status: string;
+            sortOrder?: number;
             assigneeId?: string;
             assigneeName: string;
             assigneePrimaryColor?: string;
@@ -95,6 +111,7 @@ export function FamilyCard() {
             dueDate: string;
             details?: string;
             coinValue: number;
+            createdAt?: string;
           };
         };
       const chore = payload.chore;
@@ -105,6 +122,7 @@ export function FamilyCard() {
       const normalized = {
         id: chore.id,
         title: chore.title,
+        sortOrder: typeof chore.sortOrder === "number" ? chore.sortOrder : undefined,
         assigneeId: chore.assigneeId,
         assigneeName: chore.assigneeName || "Unassigned",
         assigneePrimaryColor: chore.assigneePrimaryColor,
@@ -113,6 +131,7 @@ export function FamilyCard() {
         dueDate: chore.dueDate,
         details: chore.details,
         coinValue: chore.coinValue || 10,
+        createdAt: chore.createdAt,
         status: toFamilySnapshotStatus(chore.status),
       } satisfies FamilySnapshotChore;
       if (normalized.status !== "Open") {
@@ -169,7 +188,11 @@ export function FamilyCard() {
       if (event.familyId !== familyId) {
         return;
       }
-      if (event.type === "theme_changed" || event.type === "avatar_changed") {
+      if (
+        event.type === "theme_changed" ||
+        event.type === "avatar_changed" ||
+        event.type === "chore_reordered"
+      ) {
         void loadSummary({ silent: true });
         return;
       }

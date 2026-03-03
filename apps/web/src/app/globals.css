@@ -1091,6 +1091,43 @@ textarea:disabled {
   will-change: transform, opacity;
 }
 
+.today-chore-item.is-draggable {
+  cursor: grab;
+}
+
+.today-chore-item.is-dragging {
+  opacity: 0.58;
+  box-shadow: 0 6px 14px rgba(28, 81, 140, 0.16);
+}
+
+.today-chore-item.is-drag-over {
+  border-color: color-mix(in srgb, #f59e0b 58%, #ffffff);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, #f59e0b 32%, #ffffff),
+    0 10px 20px rgba(180, 83, 9, 0.18);
+}
+
+.today-chore-item.is-drop-before::before,
+.today-chore-item.is-drop-after::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #f59e0b 82%, #ffffff);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #b45309 38%, #ffffff);
+  pointer-events: none;
+}
+
+.today-chore-item.is-drop-before::before {
+  top: -3px;
+}
+
+.today-chore-item.is-drop-after::after {
+  bottom: -3px;
+}
+
 .today-chore-item:hover,
 .today-chore-item:focus-within {
   background: color-mix(in srgb, #ffffff 92%, var(--accent) 8%);
@@ -1103,6 +1140,22 @@ textarea:disabled {
     transform 190ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 190ms ease;
   will-change: transform;
+}
+
+.today-chore-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, #ffffff);
+  background: color-mix(in srgb, #ffffff 90%, var(--accent) 10%);
+  color: #5c7392;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  user-select: none;
 }
 
 .today-chore-item:hover .today-chore-avatar,
@@ -1936,12 +1989,41 @@ textarea:disabled {
 
 .my-chores-toggle-track {
   position: relative;
+  overflow: hidden;
+  isolation: isolate;
   height: 1.5rem;
   width: 2.75rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--line) 75%, #ffffff);
   background: color-mix(in srgb, var(--line) 86%, #ffffff);
-  transition: background-color 150ms ease, border-color 150ms ease;
+  box-shadow:
+    inset 0 1px 2px rgba(30, 57, 94, 0.12),
+    0 1px 2px rgba(30, 57, 94, 0.1),
+    0 0 14px color-mix(in srgb, var(--accent) 0%, transparent),
+    0 0 28px color-mix(in srgb, var(--brand) 0%, transparent);
+  transition:
+    background-color 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.my-chores-toggle-track::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(22px 14px at 20% 50%, color-mix(in srgb, #ffffff 66%, var(--accent) 34%), transparent 72%),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent) 78%, #ffffff),
+      color-mix(in srgb, var(--brand) 66%, #ffffff)
+    );
+  opacity: 0;
+  transition: opacity 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .my-chores-toggle-track::before {
@@ -1953,17 +2035,49 @@ textarea:disabled {
   width: 18px;
   border-radius: 999px;
   background: #ffffff;
-  box-shadow: 0 2px 8px rgba(30, 57, 94, 0.2);
-  transition: transform 150ms ease;
+  z-index: 1;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, #ffffff 0%, transparent),
+    0 0 10px color-mix(in srgb, var(--accent) 0%, transparent),
+    0 4px 12px rgba(30, 57, 94, 0.2);
+  transition:
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .peer:checked + .my-chores-toggle-track {
-  border-color: color-mix(in srgb, var(--accent) 56%, #ffffff);
-  background: color-mix(in srgb, var(--accent) 42%, #ffffff);
+  border-color: color-mix(in srgb, var(--brand) 48%, #ffffff);
+  background: color-mix(in srgb, var(--brand) 22%, #ffffff);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #ffffff 28%, transparent),
+    0 0 14px color-mix(in srgb, var(--accent) 52%, transparent),
+    0 0 28px color-mix(in srgb, var(--brand) 20%, transparent);
+  filter: saturate(1.08);
+}
+
+.peer:checked + .my-chores-toggle-track::after {
+  opacity: 1;
 }
 
 .peer:checked + .my-chores-toggle-track::before {
   transform: translateX(18px);
+  background: #ffffff;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, #ffffff 74%, transparent),
+    0 0 10px color-mix(in srgb, var(--accent) 40%, transparent),
+    0 4px 12px rgba(30, 57, 94, 0.24);
+}
+
+.today-chores-toggle-copy {
+  transition:
+    color 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    text-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.peer:checked ~ .today-chores-toggle-copy {
+  color: color-mix(in srgb, var(--brand) 78%, #ffffff);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
 .today-chores-actions-shell {

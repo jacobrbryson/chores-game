@@ -24,6 +24,8 @@ export type FamilySnapshotChore = {
   id: string;
   title: string;
   status: "Open" | "Submitted" | "Approved" | "Rejected" | "Unknown";
+  sortOrder?: number;
+  createdAt?: string;
   assigneeId?: string;
   assigneeName: string;
   assigneePrimaryColor?: string;

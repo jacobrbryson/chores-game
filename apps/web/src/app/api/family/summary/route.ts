@@ -6,6 +6,7 @@ import {
   documentIdFromName,
   findFirstFamilyIdByMemberEmail,
   findFirstFamilyIdByMemberUid,
+  type FirestoreValue,
   getDocument,
   listDocuments,
   patchDocument,
@@ -44,6 +45,54 @@ function toUnixMillis(value: string | undefined) {
   }
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function readOptionalSortOrder(
+  fields: Record<string, FirestoreValue> | undefined,
+) {
+  const value = fields?.sortOrder;
+  if (!value) {
+    return undefined;
+  }
+  const raw =
+    "integerValue" in value
+      ? value.integerValue
+      : "stringValue" in value
+        ? value.stringValue
+        : "";
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+  const normalized = Math.floor(parsed);
+  if (normalized < 0) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function compareBySortOrderOrOldest(
+  a: { sortOrder?: number; createdAt?: string; id: string },
+  b: { sortOrder?: number; createdAt?: string; id: string },
+) {
+  const aHasSortOrder = typeof a.sortOrder === "number";
+  const bHasSortOrder = typeof b.sortOrder === "number";
+  const aSortOrder = aHasSortOrder ? (a.sortOrder as number) : -1;
+  const bSortOrder = bHasSortOrder ? (b.sortOrder as number) : -1;
+  if (aHasSortOrder && bHasSortOrder && aSortOrder !== bSortOrder) {
+    return aSortOrder - bSortOrder;
+  }
+  if (aHasSortOrder && !bHasSortOrder) {
+    return -1;
+  }
+  if (!aHasSortOrder && bHasSortOrder) {
+    return 1;
+  }
+  const createdDiff = toUnixMillis(a.createdAt) - toUnixMillis(b.createdAt);
+  if (createdDiff !== 0) {
+    return createdDiff;
+  }
+  return a.id.localeCompare(b.id);
 }
 
 function toMemberRole(value: string | undefined): FamilySnapshotMember["role"] {
@@ -404,14 +453,19 @@ export async function GET(request: NextRequest) {
               details: readString(doc.fields, "details") || undefined,
               deleted: readBoolean(doc.fields, "deleted"),
               coinValue: readInteger(doc.fields, "coinValue") || 10,
+              sortOrder: readOptionalSortOrder(doc.fields),
+              createdAt: readTimestamp(doc.fields, "createdAt") || undefined,
             }))
             .filter(
               (chore) =>
                 !chore.deleted && chore.status === "Open",
             )
+            .sort(compareBySortOrderOrOldest)
             .map((chore) => ({
               id: chore.id,
               title: chore.title,
+              sortOrder: chore.sortOrder,
+              createdAt: chore.createdAt,
               assigneeId: chore.assigneeId,
               assigneeName: chore.assigneeName,
               assigneePrimaryColor: chore.assigneePrimaryColor,

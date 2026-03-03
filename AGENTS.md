@@ -291,6 +291,11 @@ Build a family chore game where:
   - `/profile` now places avatar preview + avatar `Change` action on the left and basic account fields (`Name`, `Email`, `Role`) on the right within the profile card.
   - `/profile` now uses a single `Details` card (the separate second details card was removed) and keeps `Theme` + `Victory Confetti` rows in that same primary card.
   - In that single `Details` card, `Theme` + `Victory Confetti` now render as a full-width section beneath the top avatar/basic-fields row.
+- Chore dashboard ordering update (2026-03-03):
+  - Home `Today's Chores` now supports admin drag-and-drop reordering of open chores.
+  - Added `PATCH /api/chores` with `action: "reorder"` to persist a full ordered list of open chore IDs.
+  - Chore list payloads now include `sortOrder` and are sorted by `sortOrder` first, with oldest `createdAt` first as fallback when no explicit sort order exists.
+  - Reorder changes publish realtime `chore_reordered` family activity events so connected clients refresh ordering.
 - Victory confetti celebration update (2026-02-25):
   - Added a global full-screen `PartyConfettiOverlay` effect in app layout that can be triggered by event with configurable parameters (`optionId`, `particleCount`, `durationMs`, `intensity`, `spread`).
   - Chore `Mark as Complete` now triggers the overlay celebration effect without blocking pointer interactions (`pointer-events: none`) and with animation duration capped at 1 second.

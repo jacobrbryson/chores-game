@@ -169,6 +169,59 @@ function formatCompletionBucketLabel(value: string, window: CompletionWindow) {
   });
 }
 
+function toUnixMillis(value?: string) {
+  if (!value) {
+    return 0;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function compareChoresBySortOrderOrOldest(a: FamilySnapshotChore, b: FamilySnapshotChore) {
+  const aHasSortOrder = typeof a.sortOrder === "number";
+  const bHasSortOrder = typeof b.sortOrder === "number";
+  const aSortOrder = aHasSortOrder ? (a.sortOrder as number) : -1;
+  const bSortOrder = bHasSortOrder ? (b.sortOrder as number) : -1;
+  if (aHasSortOrder && bHasSortOrder && aSortOrder !== bSortOrder) {
+    return aSortOrder - bSortOrder;
+  }
+  if (aHasSortOrder && !bHasSortOrder) {
+    return -1;
+  }
+  if (!aHasSortOrder && bHasSortOrder) {
+    return 1;
+  }
+  const createdDiff = toUnixMillis(a.createdAt) - toUnixMillis(b.createdAt);
+  if (createdDiff !== 0) {
+    return createdDiff;
+  }
+  return a.id.localeCompare(b.id);
+}
+
+function reorderChoreIds(
+  ids: string[],
+  sourceId: string,
+  targetId: string,
+  position: "before" | "after",
+) {
+  if (sourceId === targetId) {
+    return ids;
+  }
+  const sourceIndex = ids.indexOf(sourceId);
+  if (sourceIndex < 0) {
+    return ids;
+  }
+  const nextIds = [...ids];
+  nextIds.splice(sourceIndex, 1);
+  const targetIndex = nextIds.indexOf(targetId);
+  if (targetIndex < 0) {
+    return ids;
+  }
+  const insertIndex = position === "after" ? targetIndex + 1 : targetIndex;
+  nextIds.splice(insertIndex, 0, sourceId);
+  return nextIds;
+}
+
 export function TodayChoresPanel({
   chores,
   viewerAssigneeIds,
@@ -181,6 +234,14 @@ export function TodayChoresPanel({
   const [busyActionsById, setBusyActionsById] = useState<Record<string, "delete" | "complete">>({});
   const [exitingChoreIds, setExitingChoreIds] = useState<Record<string, true>>({});
   const [optimisticallyCompletedIds, setOptimisticallyCompletedIds] = useState<Record<string, true>>({});
+  const [localOpenOrderIds, setLocalOpenOrderIds] = useState<string[] | null>(null);
+  const [draggingChoreId, setDraggingChoreId] = useState("");
+  const [dragOverChoreId, setDragOverChoreId] = useState("");
+  const [dropIndicator, setDropIndicator] = useState<{
+    choreId: string;
+    position: "before" | "after";
+  } | null>(null);
+  const [reorderBusy, setReorderBusy] = useState(false);
   const [choreActionError, setChoreActionError] = useState("");
   const [myChoresOnly, setMyChoresOnly] = useState(readMyChoresOnly);
   const [completionWindow, setCompletionWindow] = useState<CompletionWindow>(readCompletionWindow);
@@ -300,6 +361,10 @@ export function TodayChoresPanel({
   }, [chores]);
 
   useEffect(() => {
+    setLocalOpenOrderIds(null);
+  }, [chores]);
+
+  useEffect(() => {
     if (!mobileActionsOpen) {
       return;
     }
@@ -341,10 +406,26 @@ export function TodayChoresPanel({
   }, [completionSeries.series]);
 
   const viewerAssigneeIdSet = useMemo(() => new Set(viewerAssigneeIds), [viewerAssigneeIds]);
-  const openChores = useMemo(
-    () => chores.filter((chore) => !optimisticallyCompletedIds[chore.id]),
+  const baseOpenChores = useMemo(
+    () =>
+      chores
+        .filter((chore) => !optimisticallyCompletedIds[chore.id])
+        .sort(compareChoresBySortOrderOrOldest),
     [chores, optimisticallyCompletedIds],
   );
+  const openChores = useMemo(() => {
+    if (!localOpenOrderIds) {
+      return baseOpenChores;
+    }
+    const choresById = new Map(baseOpenChores.map((chore) => [chore.id, chore] as const));
+    const reordered = localOpenOrderIds
+      .map((id) => choresById.get(id))
+      .filter((chore): chore is FamilySnapshotChore => Boolean(chore));
+    if (reordered.length !== baseOpenChores.length) {
+      return baseOpenChores;
+    }
+    return reordered;
+  }, [baseOpenChores, localOpenOrderIds]);
   const myChoreCount = useMemo(
     () =>
       openChores.filter(
@@ -360,6 +441,16 @@ export function TodayChoresPanel({
       (chore) => chore.assigneeId && viewerAssigneeIdSet.has(chore.assigneeId),
     );
   }, [openChores, myChoresOnly, viewerAssigneeIdSet]);
+  const hasBusyChoreAction = Object.keys(busyActionsById).length > 0;
+  const canReorderChores = viewerRole === "admin" && !myChoresOnly && !hasBusyChoreAction;
+  useEffect(() => {
+    if (canReorderChores) {
+      return;
+    }
+    setDraggingChoreId("");
+    setDragOverChoreId("");
+    setDropIndicator(null);
+  }, [canReorderChores]);
   const completionMax = useMemo(
     () => Math.max(1, ...completionCounts.map((entry) => entry.count)),
     [completionCounts],
@@ -632,6 +723,43 @@ export function TodayChoresPanel({
     }
   }
 
+  async function onDropReorder(targetChoreId: string, position: "before" | "after") {
+    if (!canReorderChores || reorderBusy || !draggingChoreId) {
+      return;
+    }
+    const currentIds = openChores.map((chore) => chore.id);
+    const nextIds = reorderChoreIds(currentIds, draggingChoreId, targetChoreId, position);
+    setDragOverChoreId("");
+    setDraggingChoreId("");
+    setDropIndicator(null);
+    if (nextIds.join("|") === currentIds.join("|")) {
+      return;
+    }
+    setLocalOpenOrderIds(nextIds);
+    setReorderBusy(true);
+    setChoreActionError("");
+    try {
+      const response = await fetch("/api/chores", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reorder",
+          orderedChoreIds: nextIds,
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `REORDER_CHORES_HTTP_${response.status}`);
+      }
+      await onReload();
+    } catch (reorderError) {
+      setLocalOpenOrderIds(currentIds);
+      setChoreActionError(normalizeError(reorderError, "reorder_chores_failed"));
+    } finally {
+      setReorderBusy(false);
+    }
+  }
+
   const completionRowBaseParams = useMemo(() => {
     const params = new URLSearchParams();
     params.set("status", "completed");
@@ -735,6 +863,11 @@ export function TodayChoresPanel({
           {choreActionError ? (
             <p className="small family-error mb-3">Chore update failed: {choreActionError}</p>
           ) : null}
+          {viewerRole === "admin" ? (
+            <p className="small mb-3">
+              {myChoresOnly ? "Turn off My Chores to reorder by drag and drop." : "Drag chores to reorder them."}
+            </p>
+          ) : null}
           {visibleChores.length === 0 ? (
             <div className="flex flex-col gap-3 pt-1">
               <p className="small">
@@ -758,13 +891,49 @@ export function TodayChoresPanel({
                       viewerRole === "admin" ||
                       Boolean(chore.assigneeId && viewerAssigneeIdSet.has(chore.assigneeId))
                     }
+                    canReorder={canReorderChores && !reorderBusy}
+                    isDragging={draggingChoreId === chore.id}
+                    isDragOver={dragOverChoreId === chore.id}
+                    dropIndicatorPosition={
+                      dropIndicator?.choreId === chore.id ? dropIndicator.position : null
+                    }
                     busyAction={
                       busyActionsById[chore.id] ?? ""
                     }
-                    disabled={Boolean(busyActionsById[chore.id])}
+                    disabled={Boolean(busyActionsById[chore.id]) || reorderBusy}
                     isExiting={Boolean(exitingChoreIds[chore.id])}
                     onDelete={onDeleteChore}
                     onComplete={onCompleteChore}
+                    onDragStart={(choreId) => {
+                      if (!canReorderChores || reorderBusy) {
+                        return;
+                      }
+                      setDraggingChoreId(choreId);
+                      setDragOverChoreId("");
+                      setDropIndicator(null);
+                    }}
+                    onDragOver={(choreId, position) => {
+                      if (!canReorderChores || reorderBusy || !draggingChoreId) {
+                        return;
+                      }
+                      setDragOverChoreId(choreId);
+                      setDropIndicator((current) => {
+                        if (
+                          current &&
+                          current.choreId === choreId &&
+                          current.position === position
+                        ) {
+                          return current;
+                        }
+                        return { choreId, position };
+                      });
+                    }}
+                    onDrop={onDropReorder}
+                    onDragEnd={() => {
+                      setDragOverChoreId("");
+                      setDraggingChoreId("");
+                      setDropIndicator(null);
+                    }}
                     onEdited={onReload}
                   />
                 ))}

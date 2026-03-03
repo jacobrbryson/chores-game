@@ -11,6 +11,7 @@ import {
   getDocument,
   integerField,
   listDocuments,
+  patchDocument,
   readBoolean,
   readInteger,
   readString,
@@ -32,10 +33,16 @@ type CreateChoresBody = {
   dueDate?: unknown;
 };
 
+type ReorderChoresBody = {
+  action?: unknown;
+  orderedChoreIds?: unknown;
+};
+
 type ChoreRow = {
   id: string;
   title: string;
   status: string;
+  sortOrder?: number;
   assigneeId?: string;
   assigneeName: string;
   assigneeAvatarId?: string;
@@ -55,6 +62,7 @@ const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
 type ChoreSortBy =
+  | "sortOrder"
   | "title"
   | "status"
   | "assigneeName"
@@ -100,6 +108,30 @@ function toUnixMillis(value?: string) {
   }
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function readOptionalSortOrder(
+  fields: Record<string, FirestoreValue> | undefined,
+) {
+  const value = fields?.sortOrder;
+  if (!value) {
+    return undefined;
+  }
+  const raw =
+    "integerValue" in value
+      ? value.integerValue
+      : "stringValue" in value
+        ? value.stringValue
+        : "";
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+  const normalized = Math.floor(parsed);
+  if (normalized < 0) {
+    return undefined;
+  }
+  return normalized;
 }
 
 function asDateOrToday(value: unknown) {
@@ -218,6 +250,7 @@ function normalizeChoreDoc(doc: {
     id: documentIdFromName(doc.name),
     title: readString(doc.fields, "title") || "Untitled chore",
     status: readString(doc.fields, "status") || "Open",
+    sortOrder: readOptionalSortOrder(doc.fields),
     assigneeId: readString(doc.fields, "assigneeId") || undefined,
     assigneeName: readString(doc.fields, "assigneeName") || "Unassigned",
     details: readString(doc.fields, "details") || undefined,
@@ -295,6 +328,7 @@ async function countActiveChoresForAssignee(
 
 function parseSortBy(value: string | null): ChoreSortBy {
   if (
+    value === "sortOrder" ||
     value === "title" ||
     value === "status" ||
     value === "assigneeName" ||
@@ -304,7 +338,7 @@ function parseSortBy(value: string | null): ChoreSortBy {
   ) {
     return value;
   }
-  return "dueDate";
+  return "sortOrder";
 }
 
 function parseSortDir(value: string | null) {
@@ -313,6 +347,26 @@ function parseSortDir(value: string | null) {
 
 function normalizeSearch(value: string | null) {
   return (value ?? "").trim().toLowerCase();
+}
+
+function normalizeOrderedChoreIds(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const orderedIds: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") {
+      continue;
+    }
+    const trimmed = entry.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+    seen.add(trimmed);
+    orderedIds.push(trimmed);
+  }
+  return orderedIds;
 }
 
 function parseStatusFilter(value: string | null): ChoreStatusFilter {
@@ -533,11 +587,37 @@ function compareValues(a: string | number, b: string | number) {
   return String(a).localeCompare(String(b));
 }
 
+function compareBySortOrderOrOldest(
+  a: Pick<ChoreRow, "sortOrder" | "createdAt" | "id">,
+  b: Pick<ChoreRow, "sortOrder" | "createdAt" | "id">,
+) {
+  const aHasSortOrder = typeof a.sortOrder === "number";
+  const bHasSortOrder = typeof b.sortOrder === "number";
+  const aSortOrder = aHasSortOrder ? (a.sortOrder as number) : -1;
+  const bSortOrder = bHasSortOrder ? (b.sortOrder as number) : -1;
+  if (aHasSortOrder && bHasSortOrder && aSortOrder !== bSortOrder) {
+    return aSortOrder - bSortOrder;
+  }
+  if (aHasSortOrder && !bHasSortOrder) {
+    return -1;
+  }
+  if (!aHasSortOrder && bHasSortOrder) {
+    return 1;
+  }
+  const createdDiff = toUnixMillis(a.createdAt) - toUnixMillis(b.createdAt);
+  if (createdDiff !== 0) {
+    return createdDiff;
+  }
+  return a.id.localeCompare(b.id);
+}
+
 function sortChores(rows: ChoreRow[], sortBy: ChoreSortBy, sortDir: "asc" | "desc") {
   const direction = sortDir === "asc" ? 1 : -1;
   return [...rows].sort((a, b) => {
     const valueA =
-      sortBy === "title"
+      sortBy === "sortOrder"
+        ? a.sortOrder ?? Number.MAX_SAFE_INTEGER
+        : sortBy === "title"
         ? a.title
         : sortBy === "status"
           ? a.status
@@ -549,7 +629,9 @@ function sortChores(rows: ChoreRow[], sortBy: ChoreSortBy, sortDir: "asc" | "des
                 ? choreCompletedAt(a)
                 : a.coinValue;
     const valueB =
-      sortBy === "title"
+      sortBy === "sortOrder"
+        ? b.sortOrder ?? Number.MAX_SAFE_INTEGER
+        : sortBy === "title"
         ? b.title
         : sortBy === "status"
           ? b.status
@@ -560,11 +642,18 @@ function sortChores(rows: ChoreRow[], sortBy: ChoreSortBy, sortDir: "asc" | "des
               : sortBy === "completedAt"
                 ? choreCompletedAt(b)
                 : b.coinValue;
-    const compared = compareValues(valueA, valueB);
-    if (compared !== 0) {
-      return compared * direction;
+    if (sortBy === "sortOrder") {
+      const compared = compareBySortOrderOrOldest(a, b);
+      if (compared !== 0) {
+        return compared * direction;
+      }
+      return 0;
     }
-    return (toUnixMillis(b.createdAt) - toUnixMillis(a.createdAt)) * direction;
+    const primaryCompared = compareValues(valueA, valueB);
+    if (primaryCompared !== 0) {
+      return primaryCompared * direction;
+    }
+    return compareBySortOrderOrOldest(a, b);
   });
 }
 
@@ -718,6 +807,7 @@ export async function GET(request: NextRequest) {
             id: doc.id,
             title: doc.title,
             status: doc.status,
+            sortOrder: doc.sortOrder,
             assigneeId: doc.assigneeId,
             assigneeName: doc.assigneeName,
             assigneeAvatarId: doc.assigneeId
@@ -771,6 +861,117 @@ export async function GET(request: NextRequest) {
       return mapped;
     }
     return NextResponse.json({ error: "chores_unavailable" }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  const session = getSessionFromRequest(request);
+  if (!session?.uid) {
+    return jsonUnauthorized();
+  }
+  if (!session.firebaseIdToken && !session.firebaseRefreshToken) {
+    return jsonReauthRequired();
+  }
+
+  let body: ReorderChoresBody;
+  try {
+    body = (await request.json()) as ReorderChoresBody;
+  } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+
+  const action = typeof body.action === "string" ? body.action : "";
+  if (action !== "reorder") {
+    return NextResponse.json({ error: "invalid_action" }, { status: 400 });
+  }
+  const orderedChoreIds = normalizeOrderedChoreIds(body.orderedChoreIds);
+  if (orderedChoreIds.length === 0) {
+    return NextResponse.json({ error: "ordered_chore_ids_required" }, { status: 400 });
+  }
+
+  try {
+    const { data, session: refreshedSession, refreshed } =
+      await runWithRefreshedFirebaseToken(session, async (idToken) => {
+        const familyId = await getPrimaryFamilyId(session.uid, idToken);
+        if (!familyId) {
+          return { kind: "family_not_found" as const };
+        }
+        const viewerRole = await getViewerRole(familyId, session.uid, idToken);
+        if (viewerRole !== "admin") {
+          return { kind: "forbidden_action" as const };
+        }
+
+        const docs = await listDocuments(`families/${familyId}/chores`, idToken, 1000);
+        const openChores = docs
+          .map((doc) => normalizeChoreDoc(doc))
+          .filter((doc) => !doc.deleted && doc.status === "Open")
+          .sort((a, b) => compareBySortOrderOrOldest(a, b));
+        if (openChores.length === 0) {
+          return { kind: "ok" as const, updatedCount: 0 };
+        }
+
+        const openById = new Map(openChores.map((chore) => [chore.id, chore] as const));
+        for (const choreId of orderedChoreIds) {
+          if (!openById.has(choreId)) {
+            return { kind: "invalid_ordered_chore_ids" as const };
+          }
+        }
+        const openIds = new Set(openChores.map((chore) => chore.id));
+        if (orderedChoreIds.length !== openIds.size) {
+          return { kind: "invalid_ordered_chore_ids" as const };
+        }
+
+        const now = new Date().toISOString();
+        const changedOpenChores = orderedChoreIds
+          .map((id, index) => ({ id, sortOrder: index }))
+          .filter((entry) => openById.get(entry.id)?.sortOrder !== entry.sortOrder);
+        await Promise.all(
+          changedOpenChores.map((entry) =>
+            patchDocument(
+              `families/${familyId}/chores/${entry.id}`,
+              {
+                updatedAt: timestampField(now),
+                sortOrder: integerField(entry.sortOrder),
+              },
+              idToken,
+              ["updatedAt", "sortOrder"],
+            ),
+          ),
+        );
+
+        await publishFamilyActivity({
+          type: "chore_reordered",
+          familyId,
+          occurredAt: now,
+        });
+
+        return { kind: "ok" as const, updatedCount: changedOpenChores.length };
+      });
+
+    if (data.kind === "family_not_found") {
+      return NextResponse.json({ error: "family_not_found" }, { status: 404 });
+    }
+    if (data.kind === "forbidden_action") {
+      return NextResponse.json({ error: "forbidden_action" }, { status: 403 });
+    }
+    if (data.kind === "invalid_ordered_chore_ids") {
+      return NextResponse.json({ error: "invalid_ordered_chore_ids" }, { status: 400 });
+    }
+
+    const response = NextResponse.json({ success: true, updated: data.updatedCount });
+    if (refreshed) {
+      setSessionUserCookie(response, refreshedSession);
+    }
+    return response;
+  } catch (error) {
+    const reason =
+      error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
+    console.error("[CHORES_REORDER_ERROR]", reason);
+    const mapped = mapCommonFirestoreErrors(reason);
+    if (mapped) {
+      return mapped;
+    }
+    return NextResponse.json({ error: "reorder_chores_failed" }, { status: 500 });
   }
 }
 
@@ -829,6 +1030,18 @@ export async function POST(request: NextRequest) {
           return { kind: "forbidden_action" as const };
         }
 
+        const existingDocs = await listDocuments(`families/${familyId}/chores`, idToken, 1000);
+        const openChores = existingDocs
+          .map((doc) => normalizeChoreDoc(doc))
+          .filter((doc) => !doc.deleted && doc.status === "Open")
+          .sort((a, b) => compareBySortOrderOrOldest(a, b));
+        const maxSortOrder = openChores.reduce((maxValue, chore) => {
+          if (typeof chore.sortOrder !== "number") {
+            return maxValue;
+          }
+          return Math.max(maxValue, chore.sortOrder);
+        }, -1);
+        const nextSortOrder = maxSortOrder + 1;
         const resolvedAssigneeName = assigneeId
           ? await getFamilyMemberName(familyId, assigneeId, idToken)
           : "Unassigned";
@@ -844,9 +1057,10 @@ export async function POST(request: NextRequest) {
         }
 
         const now = new Date().toISOString();
-        const createdChores = titles.map((title) => ({
+        const createdChores = titles.map((title, index) => ({
           id: randomUUID(),
           title,
+          sortOrder: nextSortOrder + index,
         }));
         await Promise.all(
           createdChores.map((chore) =>
@@ -863,6 +1077,7 @@ export async function POST(request: NextRequest) {
                 deleted: boolField(false),
                 createdBy: stringField(session.uid),
                 createdAt: timestampField(now),
+                sortOrder: integerField(chore.sortOrder),
               },
               idToken,
             ),

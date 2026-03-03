@@ -13,6 +13,10 @@ type TodayChoreCardProps = {
   chore: FamilySnapshotChore;
   canManageActions: boolean;
   canComplete: boolean;
+  canReorder?: boolean;
+  isDragging?: boolean;
+  isDragOver?: boolean;
+  dropIndicatorPosition?: "before" | "after" | null;
   busyAction: "" | "delete" | "complete";
   disabled: boolean;
   isExiting?: boolean;
@@ -21,6 +25,10 @@ type TodayChoreCardProps = {
     choreId: string,
     source?: { clientX: number; clientY: number },
   ) => Promise<void> | void;
+  onDragStart?: (choreId: string) => void;
+  onDragOver?: (choreId: string, position: "before" | "after") => void;
+  onDrop?: (choreId: string, position: "before" | "after") => void;
+  onDragEnd?: () => void;
   onEdited: () => Promise<void> | void;
 };
 
@@ -39,11 +47,19 @@ export function TodayChoreCard({
   chore,
   canManageActions,
   canComplete,
+  canReorder = false,
+  isDragging = false,
+  isDragOver = false,
+  dropIndicatorPosition = null,
   busyAction,
   disabled,
   isExiting = false,
   onDelete,
   onComplete,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
   onEdited,
 }: TodayChoreCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -114,7 +130,42 @@ export function TodayChoreCard({
 
   return (
     <li
-      className={`today-chore-item${isExiting ? " today-chore-item-exiting" : ""}`}
+      className={`today-chore-item${isExiting ? " today-chore-item-exiting" : ""}${
+        canReorder ? " is-draggable" : ""
+      }${isDragging ? " is-dragging" : ""}${isDragOver ? " is-drag-over" : ""}${
+        dropIndicatorPosition === "before" ? " is-drop-before" : ""
+      }${dropIndicatorPosition === "after" ? " is-drop-after" : ""}`}
+      draggable={canReorder && !disabled && !isExiting}
+      onDragStart={(event) => {
+        if (!canReorder || disabled || isExiting) {
+          return;
+        }
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", chore.id);
+        onDragStart?.(chore.id);
+      }}
+      onDragOver={(event) => {
+        if (!canReorder || disabled || isExiting) {
+          return;
+        }
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        const rect = event.currentTarget.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const position: "before" | "after" = event.clientY < midY ? "before" : "after";
+        onDragOver?.(chore.id, position);
+      }}
+      onDrop={(event) => {
+        if (!canReorder || disabled || isExiting) {
+          return;
+        }
+        event.preventDefault();
+        const rect = event.currentTarget.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const position: "before" | "after" = event.clientY < midY ? "before" : "after";
+        onDrop?.(chore.id, position);
+      }}
+      onDragEnd={() => onDragEnd?.()}
       style={
         {
           "--today-chore-rail-color": assigneePrimaryColor || "#cbd5e1",
@@ -153,6 +204,11 @@ export function TodayChoreCard({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {canReorder ? (
+              <span className="today-chore-drag-handle" aria-hidden="true" title="Drag to reorder">
+                ::
+              </span>
+            ) : null}
             <span className="inline-flex items-center gap-1 text-lg font-bold leading-none text-amber-600">
               <CoinIcon size={20} />
               {chore.coinValue}

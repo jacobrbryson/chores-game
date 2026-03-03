@@ -5,6 +5,7 @@ import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import {
   documentIdFromName,
   boolField,
+  type FirestoreValue,
   getDocument,
   listDocuments,
   patchDocument,
@@ -332,6 +333,7 @@ export async function GET(
             id: choreId,
             title: readString(choreDoc.fields, "title") || "Untitled chore",
             status: readString(choreDoc.fields, "status") || "Open",
+            sortOrder: readOptionalSortOrder(choreDoc.fields),
             assigneeId: readString(choreDoc.fields, "assigneeId") || undefined,
             assigneeName: readString(choreDoc.fields, "assigneeName") || "Unassigned",
             assigneePrimaryColor: await resolveAssigneePrimaryColor(
@@ -392,6 +394,30 @@ type RequesterContext = {
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
+}
+
+function readOptionalSortOrder(
+  fields: Record<string, FirestoreValue> | undefined,
+) {
+  const value = fields?.sortOrder;
+  if (!value) {
+    return undefined;
+  }
+  const raw =
+    "integerValue" in value
+      ? value.integerValue
+      : "stringValue" in value
+        ? value.stringValue
+        : "";
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+  const normalized = Math.floor(parsed);
+  if (normalized < 0) {
+    return undefined;
+  }
+  return normalized;
 }
 
 function isRequesterAssignee(choreAssigneeId: string, uid: string, email: string) {
