@@ -177,6 +177,7 @@ export function TodayChoresPanel({
 }: TodayChoresPanelProps) {
   const canCreateChores = viewerRole === "admin";
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const [mobileAddDialogOpen, setMobileAddDialogOpen] = useState(false);
   const [busyActionsById, setBusyActionsById] = useState<Record<string, "delete" | "complete">>({});
   const [exitingChoreIds, setExitingChoreIds] = useState<Record<string, true>>({});
   const [optimisticallyCompletedIds, setOptimisticallyCompletedIds] = useState<Record<string, true>>({});
@@ -703,20 +704,15 @@ export function TodayChoresPanel({
               {mobileActionsOpen ? (
                 <div className="today-chores-actions-mobile-menu">
                   {canCreateChores ? (
-                    <AddEditChoresDialog
-                      renderTrigger={(openDialog) => (
-                        <Button
-                          type="button"
-                          className="today-chores-mobile-menu-item"
-                          onClick={() => {
-                            setMobileActionsOpen(false);
-                            openDialog();
-                          }}>
-                          Add Chore
-                        </Button>
-                      )}
-                      onSaved={onReload}
-                    />
+                    <Button
+                      type="button"
+                      className="today-chores-mobile-menu-item"
+                      onClick={() => {
+                        setMobileActionsOpen(false);
+                        setMobileAddDialogOpen(true);
+                      }}>
+                      Add Chore
+                    </Button>
                   ) : null}
                   <Link
                     href="/chores"
@@ -725,6 +721,14 @@ export function TodayChoresPanel({
                     View All Chores
                   </Link>
                 </div>
+              ) : null}
+              {canCreateChores ? (
+                <AddEditChoresDialog
+                  hideTrigger
+                  open={mobileAddDialogOpen}
+                  onOpenChange={setMobileAddDialogOpen}
+                  onSaved={onReload}
+                />
               ) : null}
             </div>
           </div>
