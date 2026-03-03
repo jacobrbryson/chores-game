@@ -7,8 +7,21 @@ import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
 import { ModalShell } from "@/components/modal-shell";
-import { isAllowedDashboardColor, type StoreCategory, type StoreOption } from "@/lib/store/catalog";
-import { DEFAULT_THEME_PREFERENCE } from "@/lib/theme/preferences";
+import { dispatchConfettiSelectionChanged } from "@/lib/confetti/party";
+import {
+  DEFAULT_COLOR_THEME_OPTION_ID,
+  DEFAULT_CONFETTI_OPTION_ID,
+  isAllowedDashboardColor,
+  normalizeColor,
+  type StoreCategory,
+  type StoreOption,
+} from "@/lib/store/catalog";
+import {
+  DEFAULT_THEME_PREFERENCE,
+  dispatchThemeChanged,
+  isThemePreference,
+  type ThemePreference,
+} from "@/lib/theme/preferences";
 
 type ProfilePageClientProps = {
   name: string;
@@ -29,6 +42,7 @@ type StoreProfileSummary = {
   avatarId?: string;
   avatarPhotoUrl?: string;
   googlePhotoUrl?: string;
+  selectedConfettiOptionId?: string;
 };
 
 function ProfileFallbackIcon() {
@@ -53,6 +67,19 @@ function formatUnlockedDate(value?: string) {
   return new Date(parsed).toLocaleDateString();
 }
 
+function toThemePreference(option: StoreOption): ThemePreference | null {
+  if (!option.theme) {
+    return null;
+  }
+  const preference = {
+    optionId: option.id,
+    primary: option.theme.primary,
+    secondary: option.theme.secondary,
+    tertiary: option.theme.tertiary,
+  };
+  return isThemePreference(preference) ? preference : null;
+}
+
 export function ProfilePageClient({ name, email, role, picture }: ProfilePageClientProps) {
   const [storeSummary, setStoreSummary] = useState<StoreProfileSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -60,6 +87,12 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [avatarActionPending, setAvatarActionPending] = useState("");
   const [avatarActionError, setAvatarActionError] = useState("");
+  const [themeDialogOpen, setThemeDialogOpen] = useState(false);
+  const [themeActionPending, setThemeActionPending] = useState("");
+  const [themeActionError, setThemeActionError] = useState("");
+  const [confettiDialogOpen, setConfettiDialogOpen] = useState(false);
+  const [confettiActionPending, setConfettiActionPending] = useState("");
+  const [confettiActionError, setConfettiActionError] = useState("");
 
   const loadStoreSummary = useCallback(async () => {
     setIsLoading(true);
@@ -115,8 +148,95 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     storeSummary?.themeTertiaryColor,
   ]);
 
-  const hasCustomTheme = Boolean(storeSummary?.themeOptionId?.trim());
   const ownedSet = useMemo(() => new Set(storeSummary?.ownedOptionIds ?? []), [storeSummary?.ownedOptionIds]);
+  const colorCategory = useMemo(
+    () => storeSummary?.categories?.find((entry) => entry.id === "customize_colors") ?? null,
+    [storeSummary?.categories],
+  );
+  const defaultThemeOption = useMemo(
+    () =>
+      (colorCategory?.options ?? []).find(
+        (option) => option.id === DEFAULT_COLOR_THEME_OPTION_ID && Boolean(option.theme),
+      ) ?? null,
+    [colorCategory?.options],
+  );
+  const unlockedThemeOptions = useMemo(
+    () =>
+      (colorCategory?.options ?? []).filter(
+        (option) =>
+          Boolean(option.theme) &&
+          (ownedSet.has(option.id) || option.id === DEFAULT_COLOR_THEME_OPTION_ID),
+      ),
+    [colorCategory?.options, ownedSet],
+  );
+  const activeThemeOptionId = storeSummary?.themeOptionId?.trim() ?? "";
+  const activeThemeOption = useMemo(() => {
+    const options = colorCategory?.options ?? [];
+    const byId = options.find((option) => option.id === activeThemeOptionId && Boolean(option.theme));
+    if (byId) {
+      return byId;
+    }
+    const byPalette = options.find((option) => {
+      if (!option.theme) {
+        return false;
+      }
+      return (
+        normalizeColor(option.theme.primary) === normalizeColor(themePalette.primary) &&
+        normalizeColor(option.theme.secondary) === normalizeColor(themePalette.secondary) &&
+        normalizeColor(option.theme.tertiary) === normalizeColor(themePalette.tertiary)
+      );
+    });
+    if (byPalette) {
+      return byPalette;
+    }
+    return defaultThemeOption;
+  }, [
+    activeThemeOptionId,
+    colorCategory?.options,
+    defaultThemeOption,
+    themePalette.primary,
+    themePalette.secondary,
+    themePalette.tertiary,
+  ]);
+  const activeThemeName = activeThemeOption?.label ?? "Original Sky";
+  const isDefaultThemeActive =
+    (activeThemeOption?.id ?? DEFAULT_COLOR_THEME_OPTION_ID) === DEFAULT_COLOR_THEME_OPTION_ID;
+  const confettiCategory = useMemo(
+    () => storeSummary?.categories?.find((entry) => entry.id === "victory_confetti") ?? null,
+    [storeSummary?.categories],
+  );
+  const defaultConfettiOption = useMemo(
+    () =>
+      (confettiCategory?.options ?? []).find(
+        (option) => option.id === DEFAULT_CONFETTI_OPTION_ID || option.isDefault,
+      ) ?? null,
+    [confettiCategory?.options],
+  );
+  const unlockedConfettiOptions = useMemo(
+    () =>
+      (confettiCategory?.options ?? []).filter(
+        (option) =>
+          ownedSet.has(option.id) || option.id === DEFAULT_CONFETTI_OPTION_ID || option.isDefault === true,
+      ),
+    [confettiCategory?.options, ownedSet],
+  );
+  const activeConfettiOptionId = storeSummary?.selectedConfettiOptionId?.trim() ?? "";
+  const activeConfettiOption = useMemo(() => {
+    const options = confettiCategory?.options ?? [];
+    return (
+      options.find((option) => option.id === activeConfettiOptionId) ??
+      defaultConfettiOption ??
+      options[0] ??
+      null
+    );
+  }, [activeConfettiOptionId, confettiCategory?.options, defaultConfettiOption]);
+  const activeConfettiName = activeConfettiOption?.label ?? "No confetti";
+  const isDefaultConfettiActive =
+    (activeConfettiOption?.id ?? DEFAULT_CONFETTI_OPTION_ID) === DEFAULT_CONFETTI_OPTION_ID;
+  const activeConfettiColors = (activeConfettiOption?.confetti?.colors ?? ["#cbd5e1", "#94a3b8", "#e2e8f0"]).slice(
+    0,
+    3,
+  );
   const avatarCategory = useMemo(
     () => storeSummary?.categories?.find((entry) => entry.id === "customize_avatar") ?? null,
     [storeSummary?.categories],
@@ -163,6 +283,61 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     void applyAvatarAction({ action: "set_avatar", avatarId: option.value }, option.id);
   }
 
+  async function applyThemeOption(option: StoreOption) {
+    setThemeActionPending(option.id);
+    setThemeActionError("");
+    try {
+      const response = await fetch("/api/store", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_theme", optionId: option.id }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? `PROFILE_THEME_HTTP_${response.status}`);
+      }
+      const preference = toThemePreference(option);
+      if (preference) {
+        dispatchThemeChanged(preference);
+      }
+      await loadStoreSummary();
+    } catch (errorValue) {
+      setThemeActionError(errorValue instanceof Error ? errorValue.message : "theme_update_failed");
+    } finally {
+      setThemeActionPending("");
+    }
+  }
+
+  function onApplyThemeOption(option: StoreOption) {
+    void applyThemeOption(option);
+  }
+
+  async function applyConfettiOption(option: StoreOption) {
+    setConfettiActionPending(option.id);
+    setConfettiActionError("");
+    try {
+      const response = await fetch("/api/store", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_confetti", optionId: option.id }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? `PROFILE_CONFETTI_HTTP_${response.status}`);
+      }
+      dispatchConfettiSelectionChanged(option.id);
+      await loadStoreSummary();
+    } catch (errorValue) {
+      setConfettiActionError(errorValue instanceof Error ? errorValue.message : "confetti_update_failed");
+    } finally {
+      setConfettiActionPending("");
+    }
+  }
+
+  function onApplyConfettiOption(option: StoreOption) {
+    void applyConfettiOption(option);
+  }
+
   const displayName = name || "Signed In User";
   const displayEmail = email || "-";
 
@@ -180,64 +355,105 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
 
       <section className="profile-page-grid">
         <article className="profile-page-avatar-card">
-          <h2>Avatar</h2>
-          <Avatar
-            className="profile-page-avatar-frame"
-            size={140}
-            borderWidth={3}
-            name={displayName}
-            avatarId={activeAvatarId}
-            photoUrl={activeAvatarPhotoUrl || picture || ""}
-            primaryColor={themePalette.primary}
-            secondaryColor={themePalette.secondary}
-            referrerPolicy="no-referrer"
-            loading="eager"
-            fallbackClassName="profile-page-avatar-fallback"
-            fallback={<ProfileFallbackIcon />}
-          />
-          <div className="profile-avatar-actions">
-            <Button
-              type="button"
-              className="btn btn-secondary"
-              disabled={isLoading}
-              onClick={() => {
-                setAvatarActionError("");
-                setAvatarDialogOpen(true);
-              }}>
-              Change
-            </Button>
-          </div>
-          {isLoading ? <p className="small">Loading avatar settings...</p> : null}
-        </article>
-
-        <article className="profile-page-info-card">
           <h2>Details</h2>
-          <dl className="profile-page-fields">
-            <div>
-              <dt>Name</dt>
-              <dd>{displayName}</dd>
+          <div className="profile-page-account-row">
+            <div className="profile-page-account-avatar">
+              <Avatar
+                className="profile-page-avatar-frame"
+                size={140}
+                borderWidth={3}
+                name={displayName}
+                avatarId={activeAvatarId}
+                photoUrl={activeAvatarPhotoUrl || picture || ""}
+                primaryColor={themePalette.primary}
+                secondaryColor={themePalette.secondary}
+                referrerPolicy="no-referrer"
+                loading="eager"
+                fallbackClassName="profile-page-avatar-fallback"
+                fallback={<ProfileFallbackIcon />}
+              />
+              <div className="profile-avatar-actions">
+                <Button
+                  type="button"
+                  className="btn btn-secondary profile-theme-change-btn"
+                  disabled={isLoading}
+                  onClick={() => {
+                    setAvatarActionError("");
+                    setAvatarDialogOpen(true);
+                  }}>
+                  Change
+                </Button>
+              </div>
+              {isLoading ? <p className="small">Loading avatar settings...</p> : null}
             </div>
-            <div>
-              <dt>Email</dt>
-              <dd>{displayEmail}</dd>
-            </div>
-            <div>
-              <dt>Role</dt>
-              <dd>
-                <EnumChip label={humanizeEnum(role)} tone={role === "admin" ? "indigo" : "teal"} />
-              </dd>
-            </div>
+            <dl className="profile-page-fields profile-page-basic-fields">
+              <div>
+                <dt>Name</dt>
+                <dd>{displayName}</dd>
+              </div>
+              <div>
+                <dt>Email</dt>
+                <dd>{displayEmail}</dd>
+              </div>
+              <div>
+                <dt>Role</dt>
+                <dd>
+                  <EnumChip label={humanizeEnum(role)} tone={role === "admin" ? "indigo" : "teal"} />
+                </dd>
+              </div>
+            </dl>
+          </div>
+          <dl className="profile-page-fields profile-page-style-fields">
             <div>
               <dt>Theme</dt>
               <dd className="profile-page-theme-line">
-                <span className="profile-theme-swatch" style={{ backgroundColor: themePalette.primary }} />
-                <span className="profile-theme-swatch" style={{ backgroundColor: themePalette.secondary }} />
-                <span className="profile-theme-swatch" style={{ backgroundColor: themePalette.tertiary }} />
-                <span>
-                  {hasCustomTheme
-                    ? `${themePalette.primary} - ${themePalette.secondary} - ${themePalette.tertiary}`
-                    : "Original Sky theme"}
+                <span className="profile-page-theme-name">
+                  {activeThemeName}
+                  {isDefaultThemeActive ? " (default)" : ""}
                 </span>
+                <span className="profile-page-theme-swatches" aria-hidden="true">
+                  <span className="profile-theme-swatch" style={{ backgroundColor: themePalette.primary }} />
+                  <span className="profile-theme-swatch" style={{ backgroundColor: themePalette.secondary }} />
+                  <span className="profile-theme-swatch" style={{ backgroundColor: themePalette.tertiary }} />
+                </span>
+                <Button
+                  type="button"
+                  className="btn btn-secondary profile-theme-change-btn"
+                  disabled={isLoading}
+                  onClick={() => {
+                    setThemeActionError("");
+                    setThemeDialogOpen(true);
+                  }}>
+                  Change
+                </Button>
+              </dd>
+            </div>
+            <div>
+              <dt>Victory Confetti</dt>
+              <dd className="profile-page-theme-line">
+                <span className="profile-page-theme-name">
+                  {activeConfettiName}
+                  {isDefaultConfettiActive ? " (default)" : ""}
+                </span>
+                <span className="profile-page-theme-swatches" aria-hidden="true">
+                  {activeConfettiColors.map((color, index) => (
+                    <span
+                      key={`${color}-${index}`}
+                      className="profile-theme-swatch"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </span>
+                <Button
+                  type="button"
+                  className="btn btn-secondary profile-theme-change-btn"
+                  disabled={isLoading}
+                  onClick={() => {
+                    setConfettiActionError("");
+                    setConfettiDialogOpen(true);
+                  }}>
+                  Change
+                </Button>
               </dd>
             </div>
           </dl>
@@ -322,6 +538,182 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
               className="btn btn-secondary"
               disabled={avatarActionPending.length > 0}
               onClick={() => setAvatarDialogOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </section>
+      </ModalShell>
+
+      <ModalShell open={themeDialogOpen} onRequestClose={() => setThemeDialogOpen(false)}>
+        <section className="profile-avatar-modal">
+          <header className="profile-avatar-modal-header">
+            <h3>Choose a theme from your collection</h3>
+          </header>
+          {themeActionError ? (
+            <p className="small family-error">Could not update theme: {themeActionError}</p>
+          ) : null}
+          <div className="profile-avatar-option-list">
+            {defaultThemeOption ? (
+              <article className="profile-avatar-option-card">
+                <div className="profile-theme-option-preview">
+                  <span
+                    className="profile-theme-swatch"
+                    style={{ backgroundColor: defaultThemeOption.theme?.primary }}
+                  />
+                  <span
+                    className="profile-theme-swatch"
+                    style={{ backgroundColor: defaultThemeOption.theme?.secondary }}
+                  />
+                  <span
+                    className="profile-theme-swatch"
+                    style={{ backgroundColor: defaultThemeOption.theme?.tertiary }}
+                  />
+                </div>
+                <h4 className="profile-avatar-unlock-meta">
+                  <span>{defaultThemeOption.label}</span>
+                  <strong>Default theme</strong>
+                </h4>
+                <Button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={themeActionPending.length > 0 || activeThemeOption?.id === defaultThemeOption.id}
+                  onClick={() => onApplyThemeOption(defaultThemeOption)}>
+                  {themeActionPending === defaultThemeOption.id
+                    ? "Saving..."
+                    : activeThemeOption?.id === defaultThemeOption.id
+                      ? "Applied"
+                      : "Return to default"}
+                </Button>
+              </article>
+            ) : null}
+            {unlockedThemeOptions
+              .filter((option) => option.id !== DEFAULT_COLOR_THEME_OPTION_ID)
+              .map((option) => {
+                const isApplied = activeThemeOption?.id === option.id;
+                return (
+                  <article key={option.id} className="profile-avatar-option-card">
+                    <div className="profile-theme-option-preview">
+                      <span className="profile-theme-swatch" style={{ backgroundColor: option.theme?.primary }} />
+                      <span className="profile-theme-swatch" style={{ backgroundColor: option.theme?.secondary }} />
+                      <span className="profile-theme-swatch" style={{ backgroundColor: option.theme?.tertiary }} />
+                    </div>
+                    <h4 className="profile-avatar-unlock-meta">
+                      <span>{option.label}</span>
+                      <strong>Unlocked {formatUnlockedDate(storeSummary?.unlockedOptionDates?.[option.id])}</strong>
+                    </h4>
+                    <Button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={themeActionPending.length > 0 || isApplied}
+                      onClick={() => onApplyThemeOption(option)}>
+                      {themeActionPending === option.id ? "Saving..." : isApplied ? "Applied" : "Use"}
+                    </Button>
+                  </article>
+                );
+              })}
+          </div>
+          <div className="profile-avatar-modal-actions">
+            <Link
+              href="/store?category=customize_colors"
+              className="btn btn-secondary"
+              onClick={() => setThemeDialogOpen(false)}>
+              Go to store
+            </Link>
+            <Button
+              type="button"
+              className="btn btn-secondary"
+              disabled={themeActionPending.length > 0}
+              onClick={() => setThemeDialogOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </section>
+      </ModalShell>
+
+      <ModalShell open={confettiDialogOpen} onRequestClose={() => setConfettiDialogOpen(false)}>
+        <section className="profile-avatar-modal">
+          <header className="profile-avatar-modal-header">
+            <h3>Choose a Victory Confetti style</h3>
+          </header>
+          {confettiActionError ? (
+            <p className="small family-error">Could not update confetti: {confettiActionError}</p>
+          ) : null}
+          <div className="profile-avatar-option-list">
+            {defaultConfettiOption ? (
+              <article className="profile-avatar-option-card">
+                <div className="profile-theme-option-preview">
+                  {(defaultConfettiOption.confetti?.colors ?? ["#cbd5e1", "#94a3b8", "#e2e8f0"])
+                    .slice(0, 3)
+                    .map((color, index) => (
+                      <span
+                        key={`${defaultConfettiOption.id}-${color}-${index}`}
+                        className="profile-theme-swatch"
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                </div>
+                <h4 className="profile-avatar-unlock-meta">
+                  <span>{defaultConfettiOption.label}</span>
+                  <strong>Default style</strong>
+                </h4>
+                <Button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={
+                    confettiActionPending.length > 0 || activeConfettiOption?.id === defaultConfettiOption.id
+                  }
+                  onClick={() => onApplyConfettiOption(defaultConfettiOption)}>
+                  {confettiActionPending === defaultConfettiOption.id
+                    ? "Saving..."
+                    : activeConfettiOption?.id === defaultConfettiOption.id
+                      ? "Applied"
+                      : "Return to default"}
+                </Button>
+              </article>
+            ) : null}
+            {unlockedConfettiOptions
+              .filter((option) => option.id !== DEFAULT_CONFETTI_OPTION_ID)
+              .map((option) => {
+                const isApplied = activeConfettiOption?.id === option.id;
+                const previewColors = (option.confetti?.colors ?? ["#cbd5e1", "#94a3b8", "#e2e8f0"]).slice(0, 3);
+                return (
+                  <article key={option.id} className="profile-avatar-option-card">
+                    <div className="profile-theme-option-preview">
+                      {previewColors.map((color, index) => (
+                        <span
+                          key={`${option.id}-${color}-${index}`}
+                          className="profile-theme-swatch"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                    <h4 className="profile-avatar-unlock-meta">
+                      <span>{option.label}</span>
+                      <strong>Unlocked {formatUnlockedDate(storeSummary?.unlockedOptionDates?.[option.id])}</strong>
+                    </h4>
+                    <Button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={confettiActionPending.length > 0 || isApplied}
+                      onClick={() => onApplyConfettiOption(option)}>
+                      {confettiActionPending === option.id ? "Saving..." : isApplied ? "Applied" : "Use"}
+                    </Button>
+                  </article>
+                );
+              })}
+          </div>
+          <div className="profile-avatar-modal-actions">
+            <Link
+              href="/store?category=victory_confetti"
+              className="btn btn-secondary"
+              onClick={() => setConfettiDialogOpen(false)}>
+              Go to store
+            </Link>
+            <Button
+              type="button"
+              className="btn btn-secondary"
+              disabled={confettiActionPending.length > 0}
+              onClick={() => setConfettiDialogOpen(false)}>
               Close
             </Button>
           </div>

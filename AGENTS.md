@@ -280,6 +280,17 @@ Build a family chore game where:
   - Users can apply either Google avatar (`set_google_avatar`) or any unlocked avatar (`set_avatar`) directly from profile.
   - Avatar picker includes `Unlock more in shop` deep link to `/store?category=customize_avatar`.
   - Store page now supports query-driven modal open for categories; `category=customize_avatar` opens the avatar options modal on load.
+- Profile theme picker update (2026-03-02):
+  - `/profile` Theme row now shows the active theme name plus three color dots (no raw hex values) and includes a `Change` action inline.
+  - `Change` opens a modal reusing avatar-modal styling that lets users apply any unlocked theme, return to the default theme, or jump to `/store?category=customize_colors`.
+- Profile confetti picker update (2026-03-02):
+  - `/profile` now also shows `Victory Confetti` with the active confetti style name, color chips, and a `Change` action inline in Details.
+  - `Change` opens a modal reusing avatar/theme modal styling that lets users apply unlocked confetti options, return to default `No confetti`, or jump to `/store?category=victory_confetti`.
+- Profile layout balance update (2026-03-03):
+  - `/profile` avatar card now uses a more balanced desktop layout (wider left column, centered avatar block) to reduce visual imbalance versus the details card.
+  - `/profile` now places avatar preview + avatar `Change` action on the left and basic account fields (`Name`, `Email`, `Role`) on the right within the profile card.
+  - `/profile` now uses a single `Details` card (the separate second details card was removed) and keeps `Theme` + `Victory Confetti` rows in that same primary card.
+  - In that single `Details` card, `Theme` + `Victory Confetti` now render as a full-width section beneath the top avatar/basic-fields row.
 - Victory confetti celebration update (2026-02-25):
   - Added a global full-screen `PartyConfettiOverlay` effect in app layout that can be triggered by event with configurable parameters (`optionId`, `particleCount`, `durationMs`, `intensity`, `spread`).
   - Chore `Mark as Complete` now triggers the overlay celebration effect without blocking pointer interactions (`pointer-events: none`) and with animation duration capped at 1 second.
