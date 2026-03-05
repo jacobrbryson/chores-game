@@ -21,6 +21,7 @@ import { emitFamilyActivity } from "@/lib/notifications/events";
 import { applyWalletDelta } from "@/lib/economy/wallet";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
+import { GOOGLE_TASKS_CHORE_SOURCE, syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
 
 type UpdateChoreBody = {
   action?: unknown;
@@ -333,6 +334,10 @@ export async function GET(
             id: choreId,
             title: readString(choreDoc.fields, "title") || "Untitled chore",
             status: readString(choreDoc.fields, "status") || "Open",
+            source:
+              readString(choreDoc.fields, "source") === GOOGLE_TASKS_CHORE_SOURCE
+                ? "google_tasks"
+                : "manual",
             sortOrder: readOptionalSortOrder(choreDoc.fields),
             assigneeId: readString(choreDoc.fields, "assigneeId") || undefined,
             assigneeName: readString(choreDoc.fields, "assigneeName") || "Unassigned",
@@ -580,13 +585,19 @@ export async function PATCH(
 
         const now = new Date().toISOString();
         const actorName = session.name || session.email;
+        let syncOwnerUid = "";
         if (action === "complete") {
           debugStep = "complete_load_chore";
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
           const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
           const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const choreSource = readString(existingChoreDoc.fields, "source");
+          const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
           const choreCoinValue = Math.max(0, readInteger(existingChoreDoc.fields, "coinValue") || 0);
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
+          if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
+            syncOwnerUid = choreGoogleTaskOwnerUid;
+          }
           if (currentStatus !== "Open") {
             return { kind: "invalid_transition" as const };
           }
@@ -693,7 +704,12 @@ export async function PATCH(
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
           const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
           const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const choreSource = readString(existingChoreDoc.fields, "source");
+          const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
           const choreCoinValue = Math.max(0, readInteger(existingChoreDoc.fields, "coinValue") || 0);
+          if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
+            syncOwnerUid = choreGoogleTaskOwnerUid;
+          }
           if (currentStatus !== "Submitted" && currentStatus !== "Approved") {
             return { kind: "invalid_transition" as const };
           }
@@ -763,6 +779,11 @@ export async function PATCH(
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
           const previousAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
           const previousTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
+          const choreSource = readString(existingChoreDoc.fields, "source");
+          const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
+          if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
+            syncOwnerUid = choreGoogleTaskOwnerUid;
+          }
           if (assigneeId) {
             const activeChoreCount = await countActiveChoresForAssignee(
               familyId,
@@ -808,6 +829,15 @@ export async function PATCH(
             familyId,
             choreId,
             occurredAt: now,
+          });
+        }
+
+        if (syncOwnerUid) {
+          await syncGoogleTasksForUser({
+            uid: syncOwnerUid,
+            idToken,
+            force: true,
+            minIntervalSeconds: 0,
           });
         }
 
@@ -896,6 +926,8 @@ export async function DELETE(
         const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
         const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
         const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+        const choreSource = readString(existingChoreDoc.fields, "source");
+        const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
         const now = new Date().toISOString();
         await patchDocument(
           `families/${familyId}/chores/${choreId}`,
@@ -903,9 +935,10 @@ export async function DELETE(
             deleted: boolField(true),
             deletedAt: timestampField(now),
             status: stringField("Deleted"),
+            updatedAt: timestampField(now),
           },
           idToken,
-          ["deleted", "deletedAt", "status"],
+          ["deleted", "deletedAt", "status", "updatedAt"],
         );
         await emitFamilyActivity({
           familyId,
@@ -926,6 +959,14 @@ export async function DELETE(
           choreId,
           occurredAt: now,
         });
+        if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
+          await syncGoogleTasksForUser({
+            uid: choreGoogleTaskOwnerUid,
+            idToken,
+            force: true,
+            minIntervalSeconds: 0,
+          });
+        }
 
         return { kind: "ok" as const };
       });

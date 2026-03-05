@@ -34,6 +34,10 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: GOOGLE_CLIENT_SECRET
+    secret: GOOGLE_CLIENT_SECRET
+    availability:
+      - RUNTIME
   - variable: FIREBASE_PROJECT_ID
     secret: FIREBASE_PROJECT_ID
     availability:

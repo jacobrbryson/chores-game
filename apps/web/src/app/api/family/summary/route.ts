@@ -22,6 +22,7 @@ import {
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
 import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
 import type { FamilySnapshotMember, FamilySummaryResponse } from "@/lib/family/types";
+import { syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
 
 export const dynamic = "force-dynamic";
 const MAX_FAMILY_MEMBERS = 100;
@@ -45,6 +46,13 @@ function toUnixMillis(value: string | undefined) {
   }
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function isFutureDueDate(value: string, todayIsoDate: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  return value > todayIsoDate;
 }
 
 function readOptionalSortOrder(
@@ -183,6 +191,7 @@ export async function GET(request: NextRequest) {
       uid: session.uid,
       email: maskEmail(session.email),
     });
+    const todayIsoDate = new Date().toISOString().slice(0, 10);
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
         let userDoc: Awaited<ReturnType<typeof getDocument>> | null = null;
@@ -254,6 +263,12 @@ export async function GET(request: NextRequest) {
           familyId = recoveredFamilyId;
           await relinkUserPrimaryFamily(session.uid, familyId, idToken);
         }
+
+        await syncGoogleTasksForUser({
+          uid: session.uid,
+          idToken,
+          minIntervalSeconds: 60,
+        });
 
         const [familyDoc, memberDocs, choreDocs] = await Promise.all([
           getDocument(`families/${familyId}`, idToken),
@@ -453,12 +468,18 @@ export async function GET(request: NextRequest) {
               details: readString(doc.fields, "details") || undefined,
               deleted: readBoolean(doc.fields, "deleted"),
               coinValue: readInteger(doc.fields, "coinValue") || 10,
+              source:
+                readString(doc.fields, "source") === "google_tasks"
+                  ? ("google_tasks" as const)
+                  : ("manual" as const),
               sortOrder: readOptionalSortOrder(doc.fields),
               createdAt: readTimestamp(doc.fields, "createdAt") || undefined,
             }))
             .filter(
               (chore) =>
-                !chore.deleted && chore.status === "Open",
+                !chore.deleted &&
+                chore.status === "Open" &&
+                !isFutureDueDate(chore.dueDate, todayIsoDate),
             )
             .sort(compareBySortOrderOrOldest)
             .map((chore) => ({
@@ -474,6 +495,7 @@ export async function GET(request: NextRequest) {
               dueDate: chore.dueDate,
               details: chore.details,
               coinValue: chore.coinValue,
+              source: chore.source,
               status:
                 chore.status === "Open" ||
                 chore.status === "Submitted" ||

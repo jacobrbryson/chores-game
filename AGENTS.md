@@ -78,6 +78,7 @@ Build a family chore game where:
   - Upsert user record in `users/{uid}` with role defaulting to `player`.
 - Environment variables currently expected by web auth flow:
   - `GOOGLE_CLIENT_ID`
+  - `GOOGLE_CLIENT_SECRET` (required for Google Tasks OAuth code exchange)
   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
   - `FIREBASE_PROJECT_ID`
   - `FIREBASE_WEB_API_KEY`
@@ -296,6 +297,28 @@ Build a family chore game where:
   - Added `PATCH /api/chores` with `action: "reorder"` to persist a full ordered list of open chore IDs.
   - Chore list payloads now include `sortOrder` and are sorted by `sortOrder` first, with oldest `createdAt` first as fallback when no explicit sort order exists.
   - Reorder changes publish realtime `chore_reordered` family activity events so connected clients refresh ordering.
+- Google Tasks profile linking + chore sync update (2026-03-04):
+  - Added Profile `Link with Google` card with linked/unlinked states, Google OAuth CTA, selectable Google task list, sync status, and `Last Synced` display.
+  - Google task-list selection is now multi-select in Profile and uses shared Tailwind select styling patterns for consistency.
+  - Unlinked Google card now includes an alert that synced Google Tasks are shared with all family members, while existing role policy still applies (`admin` can complete others' chores; `player` cannot).
+  - Added Google OAuth scope-elevation flow for Tasks:
+    - `GET /api/auth/google/tasks/start`
+    - `GET /api/auth/google/tasks/callback`
+  - Added `GET/POST /api/google-tasks` for link summary, manual `sync_now`, list selection (`set_task_list`), and unlink.
+  - New user-level Google Tasks fields on `users/{uid}` include link/token metadata, selected task list metadata, and sync status timestamps/errors.
+  - Google-synced chores now persist source metadata:
+    - `source: "google_tasks"`
+    - `googleTaskId`
+    - `googleTaskListId`
+    - `googleTaskOwnerUid`
+  - Chore payloads now surface `source` so synced chores can render Google sync affordances in UI.
+  - Last-write-wins sync is now active between Google Tasks and Family Chores for linked profiles:
+    - Google-side complete/delete updates local chore state.
+    - Local complete/delete/edit/undo on synced chores pushes back to Google.
+    - Sync runs on explicit profile sync and opportunistically during family/chores reads.
+  - Multi-list sync now processes all selected Google task lists for the linked user.
+  - Firestore rules now include a restricted self-service path for creating/updating self-owned Google-synced chores (`coinValue == 0`) so player-linked sync flows can persist safely.
+  - Added runtime secret expectation: `GOOGLE_CLIENT_SECRET` (web backend).
 - Victory confetti celebration update (2026-02-25):
   - Added a global full-screen `PartyConfettiOverlay` effect in app layout that can be triggered by event with configurable parameters (`optionId`, `particleCount`, `durationMs`, `intensity`, `spread`).
   - Chore `Mark as Complete` now triggers the overlay celebration effect without blocking pointer interactions (`pointer-events: none`) and with animation duration capped at 1 second.

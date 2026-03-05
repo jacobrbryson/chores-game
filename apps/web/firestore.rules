@@ -187,7 +187,25 @@ service cloud.firestore {
 
       match /chores/{choreId} {
         allow read: if isFamilyMember(familyId);
-        allow create, delete: if isFamilyAdmin(familyId);
+        allow create: if isFamilyAdmin(familyId)
+          || (
+            isFamilyMember(familyId)
+            && request.resource.data.source == "google_tasks"
+            && request.resource.data.googleTaskOwnerUid == request.auth.uid
+            && isRequesterAssigneeId(request.resource.data.assigneeId)
+            && request.resource.data.createdBy == request.auth.uid
+            && request.resource.data.coinValue is int
+            && request.resource.data.coinValue == 0
+            && request.resource.data.status in ["Open", "Submitted", "Approved", "Rejected", "Deleted"]
+            && request.resource.data.deleted is bool
+            && request.resource.data.createdAt is timestamp
+            && request.resource.data.updatedAt is timestamp
+            && request.resource.data.googleTaskId is string
+            && request.resource.data.googleTaskListId is string
+            && request.resource.data.assigneeName is string
+            && request.resource.data.title is string
+          );
+        allow delete: if isFamilyAdmin(familyId);
         allow update: if isFamilyAdmin(familyId)
           || (
             isFamilyMember(familyId)
@@ -197,6 +215,33 @@ service cloud.firestore {
             && request.resource.data.submittedAt is timestamp
             && request.resource.data.updatedAt is timestamp
             && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status", "submittedAt", "updatedAt"])
+          )
+          || (
+            isFamilyMember(familyId)
+            && resource.data.source == "google_tasks"
+            && resource.data.googleTaskOwnerUid == request.auth.uid
+            && request.resource.data.source == "google_tasks"
+            && request.resource.data.googleTaskOwnerUid == request.auth.uid
+            && isRequesterAssigneeId(resource.data.assigneeId)
+            && isRequesterAssigneeId(request.resource.data.assigneeId)
+            && resource.data.coinValue is int
+            && request.resource.data.coinValue is int
+            && resource.data.coinValue == 0
+            && request.resource.data.coinValue == 0
+            && request.resource.data.status in ["Open", "Submitted", "Approved", "Rejected", "Deleted"]
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              "title",
+              "details",
+              "dueDate",
+              "status",
+              "submittedAt",
+              "updatedAt",
+              "deleted",
+              "deletedAt",
+              "assigneeId",
+              "assigneeName",
+              "googleTaskId"
+            ])
           );
       }
 

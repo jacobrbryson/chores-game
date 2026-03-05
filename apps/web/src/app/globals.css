@@ -1142,6 +1142,17 @@ textarea:disabled {
   will-change: transform;
 }
 
+.today-chore-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.today-chore-sync-indicator {
+  transform: translateY(0.5px);
+}
+
 .today-chore-drag-handle {
   display: inline-flex;
   align-items: center;
@@ -2318,6 +2329,17 @@ textarea:disabled {
   font-size: 0.76rem;
 }
 
+.table-chore-title-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.table-chore-sync-indicator {
+  transform: translateY(0.5px);
+}
+
 .table-pager {
   margin-top: 12px;
   display: flex;
@@ -2346,11 +2368,88 @@ textarea:disabled {
   gap: 8px;
 }
 
+.profile-page-google-card {
+  border: 1px solid #d6e4f9;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff, #f2f8ff);
+  padding: 14px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.profile-google-card-wrap {
+  margin-top: 14px;
+}
+
 .profile-page-avatar-card h2,
 .profile-page-info-card h2 {
   margin: 0 0 10px;
   color: #1d4c81;
   font-size: 1.02rem;
+}
+
+.profile-page-google-card h2 {
+  margin: 0;
+  color: #1d4c81;
+  font-size: 1.02rem;
+}
+
+.profile-google-content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  gap: 14px;
+  align-items: start;
+}
+
+.profile-google-content-copy {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.profile-google-media-layout {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  padding: 4px 6px 6px;
+}
+
+.profile-google-media-card {
+  margin: 0;
+  border: 1px solid #d4e3f8;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff, #eff6ff);
+  box-shadow: 0 12px 30px rgba(20, 52, 92, 0.16);
+  overflow: hidden;
+}
+
+.profile-google-media-card figcaption {
+  border-top: 1px solid #dbe8f9;
+  color: #395f88;
+  font-size: 0.77rem;
+  font-weight: 700;
+  line-height: 1.35;
+  padding: 7px 10px 8px;
+  background: linear-gradient(180deg, #f9fcff, #eff6ff);
+}
+
+.profile-google-media-image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.profile-google-media-card-calendar {
+  width: min(100%, 320px);
+  justify-self: center;
+}
+
+.profile-google-media-note {
+  margin: 10px 2px 0;
+  color: #3f658d;
+  line-height: 1.35;
 }
 
 .profile-page-avatar-card h2 {
@@ -2466,6 +2565,86 @@ textarea:disabled {
   padding: 6px 10px;
   font-size: 0.82rem;
   justify-self: start;
+}
+
+.profile-google-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+}
+
+.profile-google-link-center-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 104px;
+}
+
+.profile-google-link-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.profile-google-summary-list {
+  border: 1px solid #d6e4f9;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f8fbff, #edf5ff);
+  padding: 10px;
+}
+
+.profile-google-list-picker {
+  display: grid;
+  gap: 6px;
+}
+
+.profile-google-list-picker .theme-select-trigger {
+  width: min(100%, 360px);
+}
+
+.profile-google-policy-alert {
+  border: 1px solid #f8d27a;
+  border-radius: 10px;
+  background: #fff8e8;
+  color: #7b5b14;
+  padding: 8px 10px;
+}
+
+.profile-google-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.google-task-sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  border: 1px solid #c9d7ef;
+  background: linear-gradient(180deg, #ffffff, #eef4ff);
+  color: #315883;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.google-task-sync-g-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.google-task-sync-refresh-mark {
+  font-size: 0.72rem;
+  color: #5c7391;
+}
+
+.google-task-sync-label {
+  line-height: 1;
 }
 
 .profile-theme-swatch-white {
@@ -2863,6 +3042,25 @@ textarea:disabled {
     grid-template-columns: 1fr;
   }
 
+  .profile-google-content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-google-media-layout {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 0;
+  }
+
+  .profile-google-media-card-calendar {
+    width: min(100%, 360px);
+    justify-self: center;
+  }
+
+  .profile-google-media-note {
+    margin-top: 0;
+  }
+
   .profile-avatar-modal {
     max-width: 96vw;
     padding: 12px;
@@ -2908,6 +3106,10 @@ textarea:disabled {
 
   .family-list {
     overflow-x: hidden;
+  }
+
+  .profile-google-media-layout {
+    grid-template-columns: 1fr;
   }
 
   .top-nav {

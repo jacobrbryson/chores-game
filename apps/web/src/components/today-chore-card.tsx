@@ -6,6 +6,7 @@ import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
+import { GoogleTaskSyncIndicator } from "@/components/google-task-sync-indicator";
 import { ModalShell } from "@/components/modal-shell";
 import type { FamilySnapshotChore } from "@/lib/family/types";
 
@@ -199,7 +200,12 @@ export function TodayChoreCard({
               referrerPolicy="no-referrer"
             />
             <div className="flex min-w-0 flex-col items-start gap-1">
-              <strong className="block break-words">{chore.title}</strong>
+              <span className="today-chore-title-row">
+                <strong className="block break-words">{chore.title}</strong>
+                {chore.source === "google_tasks" ? (
+                  <GoogleTaskSyncIndicator className="today-chore-sync-indicator" />
+                ) : null}
+              </span>
               <span className="block break-words">{chore.assigneeName}</span>
             </div>
           </div>

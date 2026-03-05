@@ -8,6 +8,7 @@ import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { EnumChip } from "@/components/enum-chip";
+import { GoogleTaskSyncIndicator } from "@/components/google-task-sync-indicator";
 import { ModalShell } from "@/components/modal-shell";
 import { parseCompletionWindow } from "@/lib/preferences/completion-window";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
@@ -16,6 +17,7 @@ type ChoreRow = {
   id: string;
   title: string;
   status: string;
+  source?: "manual" | "google_tasks";
   assigneeId?: string;
   assigneeName: string;
   assigneeAvatarId?: string;
@@ -709,7 +711,14 @@ export default function ChoresPage() {
                       <tbody>
                         {chores.map((chore) => (
                           <tr key={chore.id}>
-                            <td>{chore.title}</td>
+                            <td>
+                              <span className="table-chore-title-cell">
+                                <span>{chore.title}</span>
+                                {chore.source === "google_tasks" ? (
+                                  <GoogleTaskSyncIndicator className="table-chore-sync-indicator" />
+                                ) : null}
+                              </span>
+                            </td>
                             <td>
                               <EnumChip
                                 label={getStatusLabel(chore.status)}

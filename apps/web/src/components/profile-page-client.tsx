@@ -1,12 +1,16 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
+import { GoogleGIcon } from "@/components/google-g-icon";
 import { ModalShell } from "@/components/modal-shell";
+import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
+import type { TailwindSelectOption } from "@/components/tailwind-select";
 import { dispatchConfettiSelectionChanged } from "@/lib/confetti/party";
 import {
   DEFAULT_COLOR_THEME_OPTION_ID,
@@ -45,6 +49,25 @@ type StoreProfileSummary = {
   selectedConfettiOptionId?: string;
 };
 
+type GoogleTasksTaskListOption = {
+  id: string;
+  title: string;
+  isDefault?: boolean;
+};
+
+type GoogleTasksProfileSummary = {
+  linked: boolean;
+  linkedAt?: string;
+  lastSyncedAt?: string;
+  lastSyncStatus?: "idle" | "ok" | "error";
+  lastSyncError?: string;
+  selectedTaskListIds?: string[];
+  selectedTaskListTitles?: string[];
+  selectedTaskListId?: string;
+  selectedTaskListTitle?: string;
+  taskLists?: GoogleTasksTaskListOption[];
+};
+
 function ProfileFallbackIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="profile-page-avatar-icon">
@@ -65,6 +88,17 @@ function formatUnlockedDate(value?: string) {
     return "Unknown";
   }
   return new Date(parsed).toLocaleDateString();
+}
+
+function formatDateTime(value?: string) {
+  if (!value) {
+    return "Never";
+  }
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    return "Never";
+  }
+  return new Date(parsed).toLocaleString();
 }
 
 function toThemePreference(option: StoreOption): ThemePreference | null {
@@ -93,6 +127,11 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
   const [confettiDialogOpen, setConfettiDialogOpen] = useState(false);
   const [confettiActionPending, setConfettiActionPending] = useState("");
   const [confettiActionError, setConfettiActionError] = useState("");
+  const [googleTasksSummary, setGoogleTasksSummary] = useState<GoogleTasksProfileSummary | null>(null);
+  const [googleTasksLoading, setGoogleTasksLoading] = useState(true);
+  const [googleTasksError, setGoogleTasksError] = useState("");
+  const [googleTasksActionPending, setGoogleTasksActionPending] = useState("");
+  const [googleTasksRedirectError, setGoogleTasksRedirectError] = useState("");
 
   const loadStoreSummary = useCallback(async () => {
     setIsLoading(true);
@@ -113,9 +152,48 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     }
   }, []);
 
+  const loadGoogleTasksSummary = useCallback(async () => {
+    setGoogleTasksLoading(true);
+    setGoogleTasksError("");
+    try {
+      const response = await fetch("/api/google-tasks", { cache: "no-store" });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? `GOOGLE_TASKS_HTTP_${response.status}`);
+      }
+      const payload = (await response.json()) as GoogleTasksProfileSummary;
+      setGoogleTasksSummary(payload);
+    } catch (errorValue) {
+      setGoogleTasksSummary(null);
+      setGoogleTasksError(errorValue instanceof Error ? errorValue.message : "google_tasks_unavailable");
+    } finally {
+      setGoogleTasksLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadStoreSummary();
-  }, [loadStoreSummary]);
+    void loadGoogleTasksSummary();
+  }, [loadGoogleTasksSummary, loadStoreSummary]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const searchParams = new URLSearchParams(window.location.search);
+    const redirectError = searchParams.get("googleTasksError")?.trim() ?? "";
+    if (redirectError) {
+      setGoogleTasksRedirectError(redirectError);
+    }
+    const linkedFlag = searchParams.get("googleTasks");
+    if (redirectError || linkedFlag) {
+      searchParams.delete("googleTasksError");
+      searchParams.delete("googleTasks");
+      const nextQuery = searchParams.toString();
+      const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}`;
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }, []);
 
   const themePalette = useMemo(() => {
     const primary = storeSummary?.themePrimaryColor?.trim().toLowerCase() ?? "";
@@ -338,8 +416,89 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     void applyConfettiOption(option);
   }
 
+  async function applyGoogleTasksAction(body: Record<string, unknown>, pendingKey: string) {
+    setGoogleTasksActionPending(pendingKey);
+    setGoogleTasksError("");
+    try {
+      const response = await fetch("/api/google-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? `GOOGLE_TASKS_ACTION_HTTP_${response.status}`);
+      }
+      await loadGoogleTasksSummary();
+    } catch (errorValue) {
+      setGoogleTasksError(errorValue instanceof Error ? errorValue.message : "google_tasks_action_failed");
+    } finally {
+      setGoogleTasksActionPending("");
+    }
+  }
+
+  function onGoogleTasksSyncNow() {
+    void applyGoogleTasksAction({ action: "sync_now" }, "sync_now");
+  }
+
+  function onGoogleTasksTaskListChange(taskListIds: string[]) {
+    if (taskListIds.length === 0) {
+      setGoogleTasksError("Select at least one Google task list.");
+      return;
+    }
+    const pendingKey = `lists:${taskListIds.join(",")}`;
+    void applyGoogleTasksAction({ action: "set_task_list", taskListIds }, pendingKey);
+  }
+
+  function onGoogleTasksUnlink() {
+    void applyGoogleTasksAction({ action: "unlink" }, "unlink");
+  }
+
+  function onGoogleTasksLinkStart() {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.location.assign("/api/auth/google/tasks/start");
+  }
+
   const displayName = name || "Signed In User";
   const displayEmail = email || "-";
+  const googleTasksLinked = googleTasksSummary?.linked === true;
+  const googleTaskLists = googleTasksSummary?.taskLists ?? [];
+  const selectedGoogleTaskListIds =
+    googleTasksSummary?.selectedTaskListIds && googleTasksSummary.selectedTaskListIds.length > 0
+      ? googleTasksSummary.selectedTaskListIds
+      : googleTasksSummary?.selectedTaskListId
+        ? [googleTasksSummary.selectedTaskListId]
+        : [];
+  const selectedGoogleTaskListTitles =
+    googleTasksSummary?.selectedTaskListTitles && googleTasksSummary.selectedTaskListTitles.length > 0
+      ? googleTasksSummary.selectedTaskListTitles
+      : googleTasksSummary?.selectedTaskListTitle
+        ? [googleTasksSummary.selectedTaskListTitle]
+        : selectedGoogleTaskListIds
+            .map((id) => googleTaskLists.find((taskList) => taskList.id === id)?.title ?? "")
+            .filter((title) => title.length > 0);
+  const selectedGoogleTaskListSummary =
+    selectedGoogleTaskListTitles.length > 0
+      ? selectedGoogleTaskListTitles.join(", ")
+      : "No task lists selected";
+  const googleTaskListOptions: TailwindSelectOption<string>[] = useMemo(
+    () =>
+      googleTaskLists.map((taskList) => ({
+        value: taskList.id,
+        label: `${taskList.title}${taskList.isDefault ? " (default)" : ""}`,
+      })),
+    [googleTaskLists],
+  );
+  const googleTasksLastSyncedLabel = formatDateTime(googleTasksSummary?.lastSyncedAt);
+  const googleTasksLastSyncStatus = googleTasksSummary?.lastSyncStatus ?? "idle";
+  const googleTasksStatusLabel =
+    googleTasksLastSyncStatus === "ok"
+      ? "Healthy"
+      : googleTasksLastSyncStatus === "error"
+        ? "Needs attention"
+        : "Not synced yet";
 
   return (
     <main className="panel family-page profile-page">
@@ -457,6 +616,124 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
               </dd>
             </div>
           </dl>
+        </article>
+      </section>
+
+      <section className="profile-google-card-wrap">
+        <article className="profile-page-google-card">
+          <h2>Link with Google</h2>
+          <div className="profile-google-content-grid">
+            <div className="profile-google-content-copy">
+              {googleTasksRedirectError ? (
+                <p className="small family-error">
+                  Could not finish Google link: {googleTasksRedirectError}
+                </p>
+              ) : null}
+              {googleTasksError ? (
+                <p className="small family-error">
+                  Google Tasks update failed: {googleTasksError}
+                </p>
+              ) : null}
+              {googleTasksLoading ? <p className="small">Loading Google link status...</p> : null}
+              {!googleTasksLoading && !googleTasksLinked ? (
+                <>
+                  <p className="small">
+                    Family Chores can link your profile to Google Tasks so your chore checklist stays in
+                    sync with the Google tools your family already uses.
+                  </p>
+                  <p className="small">
+                    Google Tasks can appear in Google Calendar when the task list is enabled there. You can
+                    pick which Google task list this profile syncs with.
+                  </p>
+                  <p className="small profile-google-policy-alert">
+                    Alert: syncing shares linked Google Tasks with all family members. Policy stays the
+                    same: only admins can complete another family member&apos;s tasks.
+                  </p>
+                  <div className="profile-google-link-center-wrap">
+                    <Button
+                      type="button"
+                      className="btn btn-primary profile-google-link-btn"
+                      onClick={onGoogleTasksLinkStart}>
+                      <GoogleGIcon className="profile-google-link-icon" />
+                      Sign in with Google
+                    </Button>
+                  </div>
+                </>
+              ) : null}
+              {!googleTasksLoading && googleTasksLinked ? (
+                <>
+                  <dl className="profile-page-fields profile-google-summary-list">
+                    <div>
+                      <dt>Linked Lists</dt>
+                      <dd>{selectedGoogleTaskListSummary}</dd>
+                    </div>
+                    <div>
+                      <dt>Last Synced</dt>
+                      <dd>{googleTasksLastSyncedLabel}</dd>
+                    </div>
+                    <div>
+                      <dt>Sync Status</dt>
+                      <dd>{googleTasksStatusLabel}</dd>
+                    </div>
+                  </dl>
+                  {googleTaskLists.length > 0 ? (
+                    <div className="profile-google-list-picker">
+                      <span className="small">Google task lists</span>
+                      <TailwindMultiSelect
+                        ariaLabel="Google task lists"
+                        options={googleTaskListOptions}
+                        values={selectedGoogleTaskListIds}
+                        disabled={googleTasksActionPending.length > 0}
+                        placeholder="Select task lists"
+                        onChange={onGoogleTasksTaskListChange}
+                      />
+                    </div>
+                  ) : null}
+                  {googleTasksSummary?.lastSyncError ? (
+                    <p className="small family-error">Last sync issue: {googleTasksSummary.lastSyncError}</p>
+                  ) : null}
+                  <div className="profile-google-actions">
+                    <Button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={googleTasksActionPending.length > 0}
+                      onClick={onGoogleTasksSyncNow}>
+                      {googleTasksActionPending === "sync_now" ? "Syncing..." : "Sync now"}
+                    </Button>
+                    <Button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={googleTasksActionPending.length > 0}
+                      onClick={onGoogleTasksLinkStart}>
+                      Re-link Google
+                    </Button>
+                    <Button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={googleTasksActionPending.length > 0}
+                      onClick={onGoogleTasksUnlink}>
+                      {googleTasksActionPending === "unlink" ? "Unlinking..." : "Unlink"}
+                    </Button>
+                  </div>
+                </>
+              ) : null}
+            </div>
+            <div className="profile-google-media-layout">
+              <figure className="profile-google-media-card profile-google-media-card-calendar">
+                <Image
+                  src="/profile/calendar.png"
+                  alt="Google Calendar view with tasks."
+                  width={900}
+                  height={620}
+                  className="profile-google-media-image"
+                />
+                <figcaption>Synced tasks can show in Google Calendar.</figcaption>
+              </figure>
+              <p className="small profile-google-media-note">
+                Choose one or more lists to sync tasks between Google and Family Chores.
+              </p>
+            </div>
+          </div>
         </article>
       </section>
 

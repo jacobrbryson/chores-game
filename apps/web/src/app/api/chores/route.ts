@@ -24,6 +24,7 @@ import { emitFamilyActivity } from "@/lib/notifications/events";
 import { parseCompletionWindow, type CompletionWindow } from "@/lib/preferences/completion-window";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
+import { GOOGLE_TASKS_CHORE_SOURCE, syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
 
 type CreateChoresBody = {
   description?: unknown;
@@ -42,6 +43,7 @@ type ChoreRow = {
   id: string;
   title: string;
   status: string;
+  source: "manual" | "google_tasks";
   sortOrder?: number;
   assigneeId?: string;
   assigneeName: string;
@@ -246,10 +248,13 @@ function normalizeChoreDoc(doc: {
   name: string;
   fields?: Record<string, FirestoreValue>;
 }): ChoreRow {
+  const sourceField = readString(doc.fields, "source");
+  const source = sourceField === GOOGLE_TASKS_CHORE_SOURCE ? "google_tasks" : "manual";
   return {
     id: documentIdFromName(doc.name),
     title: readString(doc.fields, "title") || "Untitled chore",
     status: readString(doc.fields, "status") || "Open",
+    source,
     sortOrder: readOptionalSortOrder(doc.fields),
     assigneeId: readString(doc.fields, "assigneeId") || undefined,
     assigneeName: readString(doc.fields, "assigneeName") || "Unassigned",
@@ -487,6 +492,13 @@ function dueDateToIso(value: string) {
   return `${value}T00:00:00.000Z`;
 }
 
+function isFutureDueDate(value: string, todayIsoDate: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  return value > todayIsoDate;
+}
+
 function isCompletedStatus(status: string) {
   return status === "Submitted" || status === "Approved";
 }
@@ -681,6 +693,7 @@ export async function GET(request: NextRequest) {
   const completionWindowRange = completionWindow
     ? getCompletionWindowRange(completionWindow, timezoneOffsetMinutes)
     : null;
+  const todayIsoDate = new Date().toISOString().slice(0, 10);
 
   try {
     const { data, session: refreshedSession, refreshed } =
@@ -715,6 +728,11 @@ export async function GET(request: NextRequest) {
             wsAuthToken: "",
           };
         }
+        await syncGoogleTasksForUser({
+          uid: session.uid,
+          idToken,
+          minIntervalSeconds: 60,
+        });
         const viewerRole = await getViewerRole(familyId, session.uid, idToken);
 
         const [memberDocs, docs] = await Promise.all([
@@ -765,6 +783,12 @@ export async function GET(request: NextRequest) {
           .map((doc) => normalizeChoreDoc(doc))
           .filter((doc) => !doc.deleted)
           .filter((doc) => {
+            if (isCompletedStatus(doc.status)) {
+              return true;
+            }
+            return !isFutureDueDate(doc.dueDate, todayIsoDate);
+          })
+          .filter((doc) => {
             if (statusFilter !== "completed") {
               return true;
             }
@@ -807,6 +831,7 @@ export async function GET(request: NextRequest) {
             id: doc.id,
             title: doc.title,
             status: doc.status,
+            source: doc.source,
             sortOrder: doc.sortOrder,
             assigneeId: doc.assigneeId,
             assigneeName: doc.assigneeName,
@@ -1078,6 +1103,7 @@ export async function POST(request: NextRequest) {
                 createdBy: stringField(session.uid),
                 createdAt: timestampField(now),
                 sortOrder: integerField(chore.sortOrder),
+                source: stringField("manual"),
               },
               idToken,
             ),

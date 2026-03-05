@@ -102,6 +102,7 @@ export function FamilyCard() {
             id: string;
             title: string;
             status: string;
+            source?: "manual" | "google_tasks";
             sortOrder?: number;
             assigneeId?: string;
             assigneeName: string;
@@ -132,6 +133,7 @@ export function FamilyCard() {
         details: chore.details,
         coinValue: chore.coinValue || 10,
         createdAt: chore.createdAt,
+        source: chore.source,
         status: toFamilySnapshotStatus(chore.status),
       } satisfies FamilySnapshotChore;
       if (normalized.status !== "Open") {
