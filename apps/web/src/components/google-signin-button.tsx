@@ -1,0 +1,67 @@
+"use client";
+
+import Script from "next/script";
+import { Button } from "@/components/button";
+import { GoogleGIcon } from "@/components/google-g-icon";
+
+type GoogleSignInButtonProps =
+  | {
+      mode: "gsi";
+      clientId: string;
+      loginUri: string;
+      width?: number;
+      includeScript?: boolean;
+      wrapperClassName?: string;
+    }
+  | {
+      mode: "action";
+      onClick: () => void;
+      disabled?: boolean;
+      className?: string;
+      iconClassName?: string;
+      label?: string;
+    };
+
+export function GoogleSignInButton(props: GoogleSignInButtonProps) {
+  if (props.mode === "gsi") {
+    const width = props.width ?? 248;
+    return (
+      <>
+        {props.includeScript !== false ? (
+          <Script src="https://accounts.google.com/gsi/client" async defer />
+        ) : null}
+        <div
+          id="g_id_onload"
+          data-client_id={props.clientId}
+          data-context="signin"
+          data-auto_prompt="false"
+          data-ux_mode="redirect"
+          data-login_uri={props.loginUri}
+          data-auto_select="false"
+          data-itp_support="true"
+          data-use_fedcm_for_prompt="false"
+          data-use_fedcm_for_button="false"
+        />
+        <div className={props.wrapperClassName ?? "google-signin-wrap"}>
+          <div
+            className="g_id_signin"
+            data-type="standard"
+            data-shape="rectangular"
+            data-theme="outline"
+            data-text="signin_with"
+            data-size="large"
+            data-logo_alignment="left"
+            data-width={String(width)}
+          />
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <Button type="button" className={props.className ?? "btn btn-primary"} onClick={props.onClick} disabled={props.disabled}>
+      <GoogleGIcon className={props.iconClassName ?? "profile-google-link-icon"} />
+      {props.label ?? "Sign in with Google"}
+    </Button>
+  );
+}
