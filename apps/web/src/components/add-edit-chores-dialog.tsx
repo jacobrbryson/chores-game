@@ -97,6 +97,7 @@ export function AddEditChoresDialog({
   const [showAdditionalOptions, setShowAdditionalOptions] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [maxActiveChores, setMaxActiveChores] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestionMenu, setShowSuggestionMenu] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
@@ -295,6 +296,7 @@ export function AddEditChoresDialog({
 
     setSaving(true);
     setError("");
+    setMaxActiveChores(null);
     try {
       const response = await fetch(
         isEditMode ? `/api/chores/${editingChoreId}` : "/api/chores",
@@ -320,7 +322,10 @@ export function AddEditChoresDialog({
         },
       );
       if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
+        const body = (await response.json()) as { error?: string; maxActiveChores?: number };
+        setMaxActiveChores(
+          typeof body.maxActiveChores === "number" ? body.maxActiveChores : null,
+        );
         throw new Error(
           body.error ??
             (isEditMode
@@ -384,6 +389,11 @@ export function AddEditChoresDialog({
       }
     }
   }
+
+  const isActiveChoreLimitError = error === "active_chore_limit_reached";
+  const errorMessage = isActiveChoreLimitError
+    ? `This assignee has reached the maximum number of open chores (${maxActiveChores ?? 100}). Complete or remove an open chore before adding another.`
+    : error;
 
   const descriptionSuggestionMenuNode =
     open &&
@@ -514,7 +524,28 @@ export function AddEditChoresDialog({
                 </div>
               </div>
 
-              {error ? <p className="text-sm text-red-700">{error}</p> : null}
+              {error ? (
+                isActiveChoreLimitError ? (
+                  <div
+                    role="alert"
+                    className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800">
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      className="h-5 w-5 shrink-0">
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm-.75-11a.75.75 0 0 1 1.5 0v4a.75.75 0 0 1-1.5 0V7Zm.75 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <p className="text-sm leading-5">{errorMessage}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-red-700">{errorMessage}</p>
+                )
+              ) : null}
 
               <div className="mt-1 flex justify-end gap-2">
                 <Button
@@ -542,3 +573,4 @@ export function AddEditChoresDialog({
     </>
   );
 }
+

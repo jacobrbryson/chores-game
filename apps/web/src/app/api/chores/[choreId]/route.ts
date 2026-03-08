@@ -270,7 +270,7 @@ async function countActiveChoresForAssignee(
       return false;
     }
     const status = readString(doc.fields, "status");
-    if (status === "Deleted") {
+    if (status !== "Open") {
       return false;
     }
     return readString(doc.fields, "assigneeId") === assigneeId;
@@ -990,3 +990,4 @@ export async function DELETE(
     return mapCommonFirestoreErrors(reason, "delete_chore_failed");
   }
 }
+

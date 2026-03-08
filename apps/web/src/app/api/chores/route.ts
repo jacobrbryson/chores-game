@@ -324,7 +324,7 @@ async function countActiveChoresForAssignee(
       return false;
     }
     const status = readString(doc.fields, "status");
-    if (status === "Deleted") {
+    if (status !== "Open") {
       return false;
     }
     return readString(doc.fields, "assigneeId") === assigneeId;
@@ -1187,3 +1187,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "create_chores_failed" }, { status: 500 });
   }
 }
+
