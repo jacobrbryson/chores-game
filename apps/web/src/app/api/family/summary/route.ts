@@ -26,6 +26,8 @@ import { syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
 
 export const dynamic = "force-dynamic";
 const MAX_FAMILY_MEMBERS = 100;
+const MINUTE_MILLIS = 60 * 1000;
+const MAX_SUMMARY_CHORES = 1000;
 
 function maskEmail(email: string) {
   const normalized = email.trim().toLowerCase();
@@ -46,6 +48,25 @@ function toUnixMillis(value: string | undefined) {
   }
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function parseTimezoneOffsetMinutes(value: string | null) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return new Date().getTimezoneOffset();
+  }
+  const normalized = Math.trunc(parsed);
+  return Math.max(-14 * 60, Math.min(14 * 60, normalized));
+}
+
+function toShiftedUtcMillis(value: number, timezoneOffsetMinutes: number) {
+  return value - timezoneOffsetMinutes * MINUTE_MILLIS;
+}
+
+function localTodayIsoDate(timezoneOffsetMinutes: number) {
+  return new Date(toShiftedUtcMillis(Date.now(), timezoneOffsetMinutes))
+    .toISOString()
+    .slice(0, 10);
 }
 
 function isFutureDueDate(value: string, todayIsoDate: string) {
@@ -185,13 +206,16 @@ export async function GET(request: NextRequest) {
   if (!session.firebaseIdToken && !session.firebaseRefreshToken) {
     return jsonReauthRequired();
   }
+  const timezoneOffsetMinutes = parseTimezoneOffsetMinutes(
+    request.nextUrl.searchParams.get("tzOffsetMinutes"),
+  );
+  const todayIsoDate = localTodayIsoDate(timezoneOffsetMinutes);
 
   try {
     logInviteDebug("summary_start", {
       uid: session.uid,
       email: maskEmail(session.email),
     });
-    const todayIsoDate = new Date().toISOString().slice(0, 10);
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
         let userDoc: Awaited<ReturnType<typeof getDocument>> | null = null;
@@ -273,7 +297,7 @@ export async function GET(request: NextRequest) {
         const [familyDoc, memberDocs, choreDocs] = await Promise.all([
           getDocument(`families/${familyId}`, idToken),
           listDocuments(`families/${familyId}/members`, idToken, 100),
-          listDocuments(`families/${familyId}/chores`, idToken, 100),
+          listDocuments(`families/${familyId}/chores`, idToken, MAX_SUMMARY_CHORES),
         ]);
 
         const rawMemberCount = memberDocs.length;
@@ -427,6 +451,29 @@ export async function GET(request: NextRequest) {
           returnedMemberCount: mappedMembers.length,
         });
 
+        const choreFilterCandidates = choreDocs.map((doc) => ({
+          status: readString(doc.fields, "status"),
+          deleted: readBoolean(doc.fields, "deleted"),
+          dueDate: readString(doc.fields, "dueDate"),
+        }));
+        const openChoreCandidates = choreFilterCandidates.filter(
+          (chore) => !chore.deleted && chore.status === "Open",
+        );
+        const futureExcludedCount = openChoreCandidates.filter((chore) =>
+          isFutureDueDate(chore.dueDate, todayIsoDate),
+        ).length;
+        if (futureExcludedCount > 0 || choreDocs.length >= MAX_SUMMARY_CHORES) {
+          console.info("[SUMMARY_CHORES_FILTER]", {
+            familyId,
+            timezoneOffsetMinutes,
+            todayIsoDate,
+            loadedChores: choreDocs.length,
+            openChores: openChoreCandidates.length,
+            futureExcluded: futureExcludedCount,
+            dueTodayOpen: openChoreCandidates.filter((chore) => chore.dueDate === todayIsoDate).length,
+          });
+        }
+
         return {
           viewerUid: session.uid,
           wsAuthToken: createFamilySocketAuthToken({
@@ -537,3 +584,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "summary_unavailable" }, { status: 500 });
   }
 }
+
+
+
+
+
+

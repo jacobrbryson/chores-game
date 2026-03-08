@@ -1,6 +1,6 @@
 "use client";
 
-import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
+import { AddEditChoresDialog, type AddEditChoreSavedResult } from "@/components/add-edit-chores-dialog";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
@@ -99,6 +99,7 @@ const COMPLETION_WINDOW_OPTIONS: TailwindSelectOption<CompletionWindow>[] = [
   { value: "year", label: "This Year" },
 ];
 const CHORE_EXIT_ANIMATION_MS = 160;
+
 
 ChartJS.register(
   CategoryScale,
@@ -234,6 +235,10 @@ export function TodayChoresPanel({
   const [busyActionsById, setBusyActionsById] = useState<Record<string, "delete" | "complete">>({});
   const [exitingChoreIds, setExitingChoreIds] = useState<Record<string, true>>({});
   const [optimisticallyCompletedIds, setOptimisticallyCompletedIds] = useState<Record<string, true>>({});
+  const [optimisticallyRemovedIds, setOptimisticallyRemovedIds] = useState<Record<string, true>>({});
+  const [pendingDeleteChoreIds, setPendingDeleteChoreIds] = useState<Record<string, true>>({});
+  const [pendingCreateChoresByRequestId, setPendingCreateChoresByRequestId] =
+    useState<Record<string, FamilySnapshotChore>>({});
   const [localOpenOrderIds, setLocalOpenOrderIds] = useState<string[] | null>(null);
   const [draggingChoreId, setDraggingChoreId] = useState("");
   const [dragOverChoreId, setDragOverChoreId] = useState("");
@@ -255,6 +260,7 @@ export function TodayChoresPanel({
   const [completionStatsRefreshTick, setCompletionStatsRefreshTick] = useState(0);
   const mobileActionsRef = useRef<HTMLDivElement | null>(null);
   const completionHideTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
 
   useEffect(() => {
     let cancelled = false;
@@ -345,6 +351,35 @@ export function TodayChoresPanel({
   }, [chores]);
 
   useEffect(() => {
+    setOptimisticallyRemovedIds((current) => {
+      const openChoreIds = new Set(chores.map((chore) => chore.id));
+      let changed = false;
+      const next: Record<string, true> = {};
+      for (const choreId of Object.keys(current)) {
+        if (openChoreIds.has(choreId)) {
+          next[choreId] = true;
+        } else {
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+    setPendingDeleteChoreIds((current) => {
+      const openChoreIds = new Set(chores.map((chore) => chore.id));
+      let changed = false;
+      const next: Record<string, true> = {};
+      for (const choreId of Object.keys(current)) {
+        if (openChoreIds.has(choreId)) {
+          next[choreId] = true;
+        } else {
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [chores]);
+
+  useEffect(() => {
     setExitingChoreIds((current) => {
       const openChoreIds = new Set(chores.map((chore) => chore.id));
       let changed = false;
@@ -406,13 +441,33 @@ export function TodayChoresPanel({
   }, [completionSeries.series]);
 
   const viewerAssigneeIdSet = useMemo(() => new Set(viewerAssigneeIds), [viewerAssigneeIds]);
-  const baseOpenChores = useMemo(
-    () =>
-      chores
-        .filter((chore) => !optimisticallyCompletedIds[chore.id])
-        .sort(compareChoresBySortOrderOrOldest),
-    [chores, optimisticallyCompletedIds],
+  const pendingCreateChores = useMemo(
+    () => Object.values(pendingCreateChoresByRequestId),
+    [pendingCreateChoresByRequestId],
   );
+  const baseOpenChores = useMemo(() => {
+    const serverOpenChores = chores
+      .filter(
+        (chore) => !optimisticallyCompletedIds[chore.id] && !optimisticallyRemovedIds[chore.id],
+      )
+      .sort(compareChoresBySortOrderOrOldest);
+    if (pendingCreateChores.length === 0) {
+      return serverOpenChores;
+    }
+    const maxSortOrder = serverOpenChores.reduce((maxValue, chore) => {
+      if (typeof chore.sortOrder !== "number") {
+        return maxValue;
+      }
+      return Math.max(maxValue, chore.sortOrder);
+    }, -1);
+    const optimisticPending = pendingCreateChores
+      .map((chore, index) => ({
+        ...chore,
+        sortOrder: maxSortOrder + index + 1,
+      }))
+      .sort(compareChoresBySortOrderOrOldest);
+    return [...serverOpenChores, ...optimisticPending];
+  }, [chores, optimisticallyCompletedIds, optimisticallyRemovedIds, pendingCreateChores]);
   const openChores = useMemo(() => {
     if (!localOpenOrderIds) {
       return baseOpenChores;
@@ -426,6 +481,10 @@ export function TodayChoresPanel({
     }
     return reordered;
   }, [baseOpenChores, localOpenOrderIds]);
+  const pendingCreateChoreIdSet = useMemo(
+    () => new Set(Object.values(pendingCreateChoresByRequestId).map((chore) => chore.id)),
+    [pendingCreateChoresByRequestId],
+  );
   const myChoreCount = useMemo(
     () =>
       openChores.filter(
@@ -442,7 +501,13 @@ export function TodayChoresPanel({
     );
   }, [openChores, myChoresOnly, viewerAssigneeIdSet]);
   const hasBusyChoreAction = Object.keys(busyActionsById).length > 0;
-  const canReorderChores = viewerRole === "admin" && !myChoresOnly && !hasBusyChoreAction;
+  const hasPendingCreates = Object.keys(pendingCreateChoresByRequestId).length > 0;
+  const hasPendingDeletes = Object.keys(pendingDeleteChoreIds).length > 0;
+  const canReorderChores =
+    viewerRole === "admin" &&
+    !hasBusyChoreAction &&
+    !hasPendingCreates &&
+    !hasPendingDeletes;
   useEffect(() => {
     if (canReorderChores) {
       return;
@@ -630,21 +695,81 @@ export function TodayChoresPanel({
     });
   }
 
+  async function onChoreSaved(result: AddEditChoreSavedResult) {
+    if (result.mode === "create") {
+      const requestId = result.requestId;
+      const pendingChore = result.pendingChore;
+      if (result.phase === "pending" && requestId && pendingChore) {
+        setPendingCreateChoresByRequestId((current) => ({
+          ...current,
+          [requestId]: {
+            id: pendingChore.id,
+            title: pendingChore.title,
+            status: "Open",
+            assigneeId: pendingChore.assigneeId,
+            assigneeName: pendingChore.assigneeName,
+            dueDate: pendingChore.dueDate,
+            details: pendingChore.details,
+            coinValue: 10,
+            source: "manual",
+            createdAt: new Date().toISOString(),
+          },
+        }));
+        return;
+      }
+      if (requestId) {
+        setPendingCreateChoresByRequestId((current) => {
+          const next = { ...current };
+          delete next[requestId];
+          return next;
+        });
+      }
+      if (result.phase === "error") {
+        setChoreActionError(result.error || "create_chore_failed");
+        return;
+      }
+      await onReload();
+      return;
+    }
+
+    if (result.phase === "error") {
+      setChoreActionError(result.error || "update_chore_failed");
+      return;
+    }
+    if (result.phase === "success") {
+      await onReload();
+    }
+  }
+
   async function onDeleteChore(choreId: string) {
     if (busyActionsById[choreId]) {
       return;
     }
     setChoreActionError("");
     setBusyActionsById((current) => ({ ...current, [choreId]: "delete" }));
+    setPendingDeleteChoreIds((current) => ({ ...current, [choreId]: true }));
     try {
       const response = await fetch(`/api/chores/${choreId}`, { method: "DELETE" });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? `REMOVE_CHORE_HTTP_${response.status}`);
       }
+      setPendingDeleteChoreIds((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
+      setExitingChoreIds((current) => ({ ...current, [choreId]: true }));
+      await new Promise((resolve) => setTimeout(resolve, CHORE_EXIT_ANIMATION_MS));
+      setOptimisticallyRemovedIds((current) => ({ ...current, [choreId]: true }));
       await onReload();
     } catch (removeError) {
       setChoreActionError(normalizeError(removeError, "remove_chore_failed"));
+      setPendingDeleteChoreIds((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
     } finally {
       setBusyActionsById((current) => {
         const next = { ...current };
@@ -812,7 +937,7 @@ export function TodayChoresPanel({
                       +
                     </Button>
                   )}
-                  onSaved={onReload}
+                  onSaved={onChoreSaved}
                 />
               ) : null}
             </div>
@@ -855,18 +980,13 @@ export function TodayChoresPanel({
                   hideTrigger
                   open={mobileAddDialogOpen}
                   onOpenChange={setMobileAddDialogOpen}
-                  onSaved={onReload}
+                  onSaved={onChoreSaved}
                 />
               ) : null}
             </div>
           </div>
           {choreActionError ? (
             <p className="small family-error mb-3">Chore update failed: {choreActionError}</p>
-          ) : null}
-          {viewerRole === "admin" ? (
-            <p className="small mb-3">
-              {myChoresOnly ? "Turn off My Chores to reorder by drag and drop." : "Drag chores to reorder them."}
-            </p>
           ) : null}
           {visibleChores.length === 0 ? (
             <div className="flex flex-col gap-3 pt-1">
@@ -875,7 +995,7 @@ export function TodayChoresPanel({
               </p>
               {canCreateChores ? (
                 <div className="chores-empty-cta">
-                  <AddEditChoresDialog onSaved={onReload} />
+                  <AddEditChoresDialog onSaved={onChoreSaved} />
                 </div>
               ) : null}
             </div>
@@ -886,10 +1006,13 @@ export function TodayChoresPanel({
                   <TodayChoreCard
                     key={chore.id}
                     chore={chore}
-                    canManageActions={viewerRole === "admin"}
+                    canManageActions={
+                      viewerRole === "admin" && !pendingCreateChoreIdSet.has(chore.id)
+                    }
                     canComplete={
-                      viewerRole === "admin" ||
-                      Boolean(chore.assigneeId && viewerAssigneeIdSet.has(chore.assigneeId))
+                      !pendingCreateChoreIdSet.has(chore.id) &&
+                      (viewerRole === "admin" ||
+                        Boolean(chore.assigneeId && viewerAssigneeIdSet.has(chore.assigneeId)))
                     }
                     canReorder={canReorderChores && !reorderBusy}
                     isDragging={draggingChoreId === chore.id}
@@ -900,8 +1023,14 @@ export function TodayChoresPanel({
                     busyAction={
                       busyActionsById[chore.id] ?? ""
                     }
-                    disabled={Boolean(busyActionsById[chore.id]) || reorderBusy}
+                    disabled={
+                      Boolean(busyActionsById[chore.id]) ||
+                      reorderBusy ||
+                      pendingCreateChoreIdSet.has(chore.id)
+                    }
                     isExiting={Boolean(exitingChoreIds[chore.id])}
+                    isCreatePending={pendingCreateChoreIdSet.has(chore.id)}
+                    isDeletePending={Boolean(pendingDeleteChoreIds[chore.id])}
                     onDelete={onDeleteChore}
                     onComplete={onCompleteChore}
                     onDragStart={(choreId) => {
@@ -1048,3 +1177,6 @@ export function TodayChoresPanel({
     </article>
   );
 }
+
+
+

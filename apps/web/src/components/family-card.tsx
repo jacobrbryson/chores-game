@@ -153,7 +153,8 @@ export function FamilyCard() {
     }
     setError("");
     try {
-      const response = await fetch("/api/family/summary", { cache: "no-store" });
+      const tzOffsetMinutes = new Date().getTimezoneOffset();
+      const response = await fetch(`/api/family/summary?tzOffsetMinutes=${tzOffsetMinutes}`, { cache: "no-store" });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? `SUMMARY_HTTP_${response.status}`);
@@ -314,3 +315,5 @@ export function FamilyCard() {
     </>
   );
 }
+
+

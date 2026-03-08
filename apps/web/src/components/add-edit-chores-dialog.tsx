@@ -27,8 +27,24 @@ type EditableChore = {
   details?: string;
 };
 
+export type AddEditChoreSavedResult = {
+  mode: "create" | "edit";
+  phase: "pending" | "success" | "error";
+  choreIds: string[];
+  requestId?: string;
+  pendingChore?: {
+    id: string;
+    title: string;
+    assigneeId?: string;
+    assigneeName: string;
+    dueDate: string;
+    details?: string;
+  };
+  error?: string;
+};
+
 type AddEditChoresDialogProps = {
-  onSaved?: () => Promise<void> | void;
+  onSaved?: (result: AddEditChoreSavedResult) => Promise<void> | void;
   triggerLabel?: string;
   triggerClassName?: string;
   chore?: EditableChore;
@@ -36,6 +52,7 @@ type AddEditChoresDialogProps = {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hideTrigger?: boolean;
+  optimisticCreate?: boolean;
 };
 
 const LAST_ASSIGNEE_STORAGE_KEY = "chores_last_assignee_id";
@@ -80,6 +97,7 @@ export function AddEditChoresDialog({
   open: controlledOpen,
   onOpenChange,
   hideTrigger = false,
+  optimisticCreate = false,
 }: AddEditChoresDialogProps) {
   const SUGGESTION_GAP_PX = 6;
   const SUGGESTION_VIEWPORT_MARGIN_PX = 8;
@@ -166,7 +184,10 @@ export function AddEditChoresDialog({
   }
 
   async function loadMembers() {
-    const response = await fetch("/api/family/summary", { cache: "no-store" });
+    const tzOffsetMinutes = new Date().getTimezoneOffset();
+    const response = await fetch(`/api/family/summary?tzOffsetMinutes=${tzOffsetMinutes}`, {
+      cache: "no-store",
+    });
     if (!response.ok) {
       const body = (await response.json()) as { error?: string };
       throw new Error(body.error ?? `FAMILY_HTTP_${response.status}`);
@@ -294,9 +315,48 @@ export function AddEditChoresDialog({
       return;
     }
 
+    const selectedAssignee = members.find((member) => member.id === assigneeId);
+    const resolvedAssigneeName = selectedAssignee?.name || "Unassigned";
+    const resolvedDueDate = showAdditionalOptions ? dueDate : todayIsoDate();
+    const resolvedDetails = showAdditionalOptions ? details : "";
+    const requestId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `pending-${Date.now()}`;
+
+    const useOptimisticCreate = !isEditMode && optimisticCreate;
+
     setSaving(true);
     setError("");
     setMaxActiveChores(null);
+
+    if (useOptimisticCreate) {
+      setDialogOpen(false);
+      setDescription("");
+      setShowSuggestionMenu(false);
+      setActiveSuggestionIndex(-1);
+      setAssigneeId("");
+      setDueDate(todayIsoDate());
+      setDetails("");
+      setShowAdditionalOptions(false);
+      if (onSaved) {
+        await onSaved({
+          mode: "create",
+          phase: "pending",
+          choreIds: [],
+          requestId,
+          pendingChore: {
+            id: requestId,
+            title: normalizedDescription,
+            assigneeId: assigneeId || undefined,
+            assigneeName: resolvedAssigneeName,
+            dueDate: resolvedDueDate,
+            details: resolvedDetails,
+          },
+        });
+      }
+    }
+
     try {
       const response = await fetch(
         isEditMode ? `/api/chores/${editingChoreId}` : "/api/chores",
@@ -309,20 +369,24 @@ export function AddEditChoresDialog({
                   action: "edit",
                   description: normalizedDescription,
                   assigneeId,
-                  dueDate: showAdditionalOptions ? dueDate : todayIsoDate(),
-                  details: showAdditionalOptions ? details : "",
+                  dueDate: resolvedDueDate,
+                  details: resolvedDetails,
                 }
               : {
                   description: normalizedDescription,
                   assigneeId,
                   dueDate: showAdditionalOptions ? dueDate : undefined,
-                  details: showAdditionalOptions ? details : "",
+                  details: resolvedDetails,
                 },
           ),
         },
       );
+      const body = (await response.json()) as {
+        error?: string;
+        maxActiveChores?: number;
+        createdChoreIds?: string[];
+      };
       if (!response.ok) {
-        const body = (await response.json()) as { error?: string; maxActiveChores?: number };
         setMaxActiveChores(
           typeof body.maxActiveChores === "number" ? body.maxActiveChores : null,
         );
@@ -334,19 +398,44 @@ export function AddEditChoresDialog({
         );
       }
 
-      setDialogOpen(false);
-      setDescription("");
-      setShowSuggestionMenu(false);
-      setActiveSuggestionIndex(-1);
-      setAssigneeId("");
-      setDueDate(todayIsoDate());
-      setDetails("");
-      setShowAdditionalOptions(false);
+      const savedResult: AddEditChoreSavedResult = {
+        mode: isEditMode ? "edit" : "create",
+        phase: "success",
+        requestId,
+        choreIds: isEditMode
+          ? [editingChoreId]
+          : Array.isArray(body.createdChoreIds)
+            ? body.createdChoreIds.filter((id): id is string => typeof id === "string")
+            : [],
+      };
+
+      if (isEditMode || !useOptimisticCreate) {
+        setDialogOpen(false);
+        setDescription("");
+        setShowSuggestionMenu(false);
+        setActiveSuggestionIndex(-1);
+        setAssigneeId("");
+        setDueDate(todayIsoDate());
+        setDetails("");
+        setShowAdditionalOptions(false);
+      }
       if (onSaved) {
-        await onSaved();
+        await onSaved(savedResult);
       }
     } catch (submitError) {
-      setError(normalizeError(submitError));
+      const message = normalizeError(submitError);
+      if (isEditMode || !useOptimisticCreate) {
+        setError(message);
+      }
+      if (onSaved) {
+        await onSaved({
+          mode: isEditMode ? "edit" : "create",
+          phase: "error",
+          requestId,
+          choreIds: isEditMode ? [editingChoreId] : [],
+          error: message,
+        });
+      }
     } finally {
       setSaving(false);
     }
@@ -573,4 +662,11 @@ export function AddEditChoresDialog({
     </>
   );
 }
+
+
+
+
+
+
+
 

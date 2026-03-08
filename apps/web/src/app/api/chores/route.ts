@@ -569,6 +569,42 @@ function buildAssigneeAliasToMemberId(
   return aliasToMemberId;
 }
 
+function buildViewerAssigneeAliases(
+  memberDocs: Array<{ name: string; fields?: Record<string, FirestoreValue> }>,
+  uid: string,
+  email: string,
+) {
+  const aliases = new Set<string>();
+  aliases.add(uid);
+  const normalizedEmail = normalizeEmail(email);
+  if (normalizedEmail) {
+    aliases.add(normalizedEmail);
+  }
+
+  for (const memberDoc of memberDocs) {
+    if (readBoolean(memberDoc.fields, "deleted")) {
+      continue;
+    }
+    const memberId = documentIdFromName(memberDoc.name);
+    const memberUid = readString(memberDoc.fields, "uid");
+    const memberEmail = normalizeEmail(readString(memberDoc.fields, "email"));
+    const matchesUid = memberId === uid || memberUid === uid;
+    const matchesEmail = Boolean(normalizedEmail) && memberEmail === normalizedEmail;
+    if (!matchesUid && !matchesEmail) {
+      continue;
+    }
+    aliases.add(memberId);
+    if (memberUid) {
+      aliases.add(memberUid);
+    }
+    if (memberEmail) {
+      aliases.add(memberEmail);
+    }
+  }
+
+  return Array.from(aliases);
+}
+
 function choreCompletedAt(doc: ChoreRow) {
   if (doc.status === "Submitted" || doc.status === "Approved") {
     return doc.submittedAt || doc.updatedAt || "";
@@ -740,6 +776,7 @@ export async function GET(request: NextRequest) {
           listDocuments(`families/${familyId}/chores`, idToken, 500),
         ]);
         const assigneeAliasToMemberId = buildAssigneeAliasToMemberId(memberDocs);
+        const viewerAssigneeAliases = buildViewerAssigneeAliases(memberDocs, session.uid, session.email);
         const targetAssigneeId = assigneeFilter
           ? assigneeAliasToMemberId.get(assigneeFilter) ??
             assigneeAliasToMemberId.get(normalizeEmail(assigneeFilter)) ??
@@ -858,6 +895,7 @@ export async function GET(request: NextRequest) {
           chores: pagination.rows,
           viewerRole,
           viewerUid: session.uid,
+          viewerAssigneeAliases,
           familyId,
           wsAuthToken: createFamilySocketAuthToken({
             uid: session.uid,

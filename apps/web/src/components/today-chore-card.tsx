@@ -21,6 +21,8 @@ type TodayChoreCardProps = {
   busyAction: "" | "delete" | "complete";
   disabled: boolean;
   isExiting?: boolean;
+  isCreatePending?: boolean;
+  isDeletePending?: boolean;
   onDelete: (choreId: string) => Promise<void> | void;
   onComplete: (
     choreId: string,
@@ -55,6 +57,8 @@ export function TodayChoreCard({
   busyAction,
   disabled,
   isExiting = false,
+  isCreatePending = false,
+  isDeletePending = false,
   onDelete,
   onComplete,
   onDragStart,
@@ -135,7 +139,9 @@ export function TodayChoreCard({
         canReorder ? " is-draggable" : ""
       }${isDragging ? " is-dragging" : ""}${isDragOver ? " is-drag-over" : ""}${
         dropIndicatorPosition === "before" ? " is-drop-before" : ""
-      }${dropIndicatorPosition === "after" ? " is-drop-after" : ""}`}
+      }${dropIndicatorPosition === "after" ? " is-drop-after" : ""}${
+        isCreatePending ? " is-create-pending" : ""
+      }${isDeletePending ? " is-delete-pending" : ""}`}
       draggable={canReorder && !disabled && !isExiting}
       onDragStart={(event) => {
         if (!canReorder || disabled || isExiting) {
@@ -172,6 +178,12 @@ export function TodayChoreCard({
           "--today-chore-rail-color": assigneePrimaryColor || "#cbd5e1",
         } as CSSProperties
       }>
+      {isCreatePending ? (
+        <span className="today-chore-loading-highlight today-chore-loading-highlight-gold" aria-hidden="true" />
+      ) : null}
+      {isDeletePending ? (
+        <span className="today-chore-loading-highlight today-chore-loading-highlight-red" aria-hidden="true" />
+      ) : null}
       <AddEditChoresDialog
         chore={{
           id: chore.id,
@@ -212,7 +224,7 @@ export function TodayChoreCard({
           <div className="flex items-center gap-2">
             {canReorder ? (
               <span className="today-chore-drag-handle" aria-hidden="true" title="Drag to reorder">
-                ::
+                &#8942;&#8942;
               </span>
             ) : null}
             <span className="inline-flex items-center gap-1 text-lg font-bold leading-none text-amber-600">
@@ -314,3 +326,4 @@ export function TodayChoreCard({
     </li>
   );
 }
+

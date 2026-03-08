@@ -33,6 +33,7 @@ type ChoresResponse = {
   chores: ChoreRow[];
   viewerRole?: "admin" | "player";
   viewerUid?: string;
+  viewerAssigneeAliases?: string[];
   familyId?: string;
   wsAuthToken?: string;
   pagination?: {
@@ -179,6 +180,23 @@ type RowActionState = {
   choreId: string;
   action: "delete" | "undo_complete";
 };
+type BulkActionState = {
+  action: "delete" | "undo_complete";
+  total: number;
+  completed: number;
+};
+
+type SelectedChoreState = {
+  canUndoCompletion: boolean;
+};
+
+function normalizeAssigneeAlias(value?: string) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function canUndoCompletion(status: string) {
+  return status === "Submitted" || status === "Approved";
+}
 
 type ChoreActionsMenuProps = {
   chore: ChoreRow;
@@ -316,6 +334,124 @@ function ChoreActionsMenu({
   );
 }
 
+
+type BulkActionsMenuProps = {
+  disabled: boolean;
+  selectedUndoCount: number;
+  busyAction: "" | "delete" | "undo_complete";
+  onDeleteRequested: () => void;
+  onUndoCompletion: () => void;
+};
+
+function BulkActionsMenu({
+  disabled,
+  selectedUndoCount,
+  busyAction,
+  onDeleteRequested,
+  onUndoCompletion,
+}: BulkActionsMenuProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+
+  const updateMenuPosition = useCallback(() => {
+    if (!triggerRef.current || typeof window === "undefined") {
+      return;
+    }
+    const rect = triggerRef.current.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const menuWidth = 180;
+    const margin = 8;
+    const left = Math.max(
+      margin,
+      Math.min(rect.right - menuWidth, viewportWidth - menuWidth - margin),
+    );
+    setMenuPosition({
+      top: rect.bottom + 6,
+      left,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    updateMenuPosition();
+
+    function onPointerDown(event: MouseEvent | TouchEvent) {
+      const target = event.target as Node | null;
+      if (!target) {
+        return;
+      }
+      if (triggerRef.current?.contains(target) || dropdownRef.current?.contains(target)) {
+        return;
+      }
+      setMenuOpen(false);
+    }
+    function onWindowChange() {
+      updateMenuPosition();
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    window.addEventListener("resize", onWindowChange);
+    window.addEventListener("scroll", onWindowChange, true);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+      window.removeEventListener("resize", onWindowChange);
+      window.removeEventListener("scroll", onWindowChange, true);
+    };
+  }, [menuOpen, updateMenuPosition]);
+
+  return (
+    <div className="relative" ref={triggerRef}>
+      <Button
+        type="button"
+        aria-label="Bulk actions"
+        aria-expanded={menuOpen}
+        className="btn btn-secondary h-9 px-3 py-2 text-sm"
+        disabled={disabled}
+        onClick={() => setMenuOpen((current) => !current)}>
+        Bulk Actions
+      </Button>
+      {menuOpen && menuPosition && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={dropdownRef}
+              className="fixed z-[90] mt-1 w-44 rounded-md border border-slate-200 bg-white p-1 shadow-lg"
+              style={{ top: menuPosition.top, left: menuPosition.left }}>
+              <Button
+                type="button"
+                className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={disabled}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDeleteRequested();
+                }}>
+                {busyAction === "delete" ? "Deleting..." : "Delete"}
+              </Button>
+              <Button
+                type="button"
+                className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={disabled || selectedUndoCount <= 0}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onUndoCompletion();
+                }}>
+                {busyAction === "undo_complete" ? "Undoing..." : "Undo completion"}
+              </Button>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
 export default function ChoresPage() {
   const [chores, setChores] = useState<ChoreRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -324,12 +460,17 @@ export default function ChoresPage() {
   const [rowActionState, setRowActionState] = useState<RowActionState | null>(null);
   const [editingChore, setEditingChore] = useState<ChoreRow | null>(null);
   const [pendingDeleteChore, setPendingDeleteChore] = useState<ChoreRow | null>(null);
+  const [pendingBulkDeleteOpen, setPendingBulkDeleteOpen] = useState(false);
+  const [viewerUid, setViewerUid] = useState("");
+  const [viewerAssigneeAliases, setViewerAssigneeAliases] = useState<string[]>([]);
   const [viewerRole, setViewerRole] = useState<"admin" | "player">("player");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [searchInput, setSearchInput] = useState("");
+  const [selectedChoreStateById, setSelectedChoreStateById] = useState<Record<string, SelectedChoreState>>({});
+  const [bulkActionState, setBulkActionState] = useState<BulkActionState | null>(null);
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState<ChoreSortBy>("completedAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -357,6 +498,49 @@ export default function ChoresPage() {
     routeFilters.tzOffsetMinutes ??
     new Date().getTimezoneOffset();
 
+  const viewerAssigneeAliasSet = useMemo(() => {
+    const aliases = new Set<string>();
+    if (viewerUid) {
+      aliases.add(normalizeAssigneeAlias(viewerUid));
+    }
+    for (const alias of viewerAssigneeAliases) {
+      const normalizedAlias = normalizeAssigneeAlias(alias);
+      if (normalizedAlias) {
+        aliases.add(normalizedAlias);
+      }
+    }
+    return aliases;
+  }, [viewerAssigneeAliases, viewerUid]);
+  const hasBusyAction = Boolean(rowActionState) || Boolean(bulkActionState);
+  const selectedChoreIds = useMemo(() => Object.keys(selectedChoreStateById), [selectedChoreStateById]);
+  const selectedCount = selectedChoreIds.length;
+  const selectedUndoCount = useMemo(
+    () => Object.values(selectedChoreStateById).filter((entry) => entry.canUndoCompletion).length,
+    [selectedChoreStateById],
+  );
+  const selectAllRef = useRef<HTMLInputElement | null>(null);
+
+  const canManageBulkActionsForChore = useCallback((chore: ChoreRow) => {
+    if (viewerRole === "admin") {
+      return true;
+    }
+    const assigneeAlias = normalizeAssigneeAlias(chore.assigneeId);
+    if (!assigneeAlias) {
+      return false;
+    }
+    return viewerAssigneeAliasSet.has(assigneeAlias);
+  }, [viewerAssigneeAliasSet, viewerRole]);
+
+  const selectableChoreIdsOnPage = useMemo(
+    () => chores.filter((chore) => canManageBulkActionsForChore(chore)).map((chore) => chore.id),
+    [canManageBulkActionsForChore, chores],
+  );
+  const selectedOnPageCount = useMemo(
+    () => selectableChoreIdsOnPage.filter((choreId) => Boolean(selectedChoreStateById[choreId])).length,
+    [selectableChoreIdsOnPage, selectedChoreStateById],
+  );
+  const allSelectableOnPageSelected =
+    selectableChoreIdsOnPage.length > 0 && selectedOnPageCount === selectableChoreIdsOnPage.length;
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -398,9 +582,9 @@ export default function ChoresPage() {
       if (statusFilter === "completed") {
         params.set("status", "completed");
       }
+      params.set("tzOffsetMinutes", String(completionFilterTimezoneOffset));
       if (completedWindowFilter) {
         params.set("completedWindow", completedWindowFilter);
-        params.set("tzOffsetMinutes", String(completionFilterTimezoneOffset));
       }
       const response = await fetch(`/api/chores?${params.toString()}`, {
         cache: "no-store",
@@ -416,6 +600,8 @@ export default function ChoresPage() {
       const payload = (await response.json()) as ChoresResponse;
       setChores(sortChoreRows(payload.chores ?? [], sortBy, sortDir));
       setViewerRole(payload.viewerRole === "admin" ? "admin" : "player");
+      setViewerUid(payload.viewerUid ?? "");
+      setViewerAssigneeAliases(payload.viewerAssigneeAliases ?? []);
       setPage(payload.pagination?.page ?? targetPage);
       setTotal(payload.pagination?.total ?? payload.chores.length ?? 0);
       setTotalPages(payload.pagination?.totalPages ?? 1);
@@ -542,9 +728,39 @@ export default function ChoresPage() {
     };
   }, [applyChoreRow, loadChores, realtimeContext, refreshChoreRowFromApi, shouldApplySearch]);
 
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate =
+        selectedOnPageCount > 0 && selectedOnPageCount < selectableChoreIdsOnPage.length;
+    }
+  }, [selectedOnPageCount, selectableChoreIdsOnPage.length]);
+
+  useEffect(() => {
+    setSelectedChoreStateById((current) => {
+      let changed = false;
+      const next: Record<string, SelectedChoreState> = { ...current };
+      for (const chore of chores) {
+        if (!next[chore.id]) {
+          continue;
+        }
+        if (!canManageBulkActionsForChore(chore)) {
+          delete next[chore.id];
+          changed = true;
+          continue;
+        }
+        const nextCanUndo = canUndoCompletion(chore.status);
+        if (next[chore.id].canUndoCompletion !== nextCanUndo) {
+          next[chore.id] = { canUndoCompletion: nextCanUndo };
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [canManageBulkActionsForChore, chores]);
+
   const sortLabel = useMemo(
     () => (column: ChoreSortBy, label: string) =>
-      sortBy === column ? `${label} ${sortDir === "asc" ? "↑" : "↓"}` : label,
+      sortBy === column ? `${label} ${sortDir === "asc" ? "^" : "v"}` : label,
     [sortBy, sortDir],
   );
 
@@ -557,7 +773,7 @@ export default function ChoresPage() {
   }
 
   async function onRemoveChore(choreId: string) {
-    if (rowActionState) {
+    if (hasBusyAction) {
       return false;
     }
     setRowActionState({ choreId, action: "delete" });
@@ -569,6 +785,14 @@ export default function ChoresPage() {
         throw new Error(body.error ?? `REMOVE_CHORE_HTTP_${response.status}`);
       }
       await loadChores({ silent: true });
+      setSelectedChoreStateById((current) => {
+        if (!current[choreId]) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
       return true;
     } catch (removeError) {
       const message =
@@ -581,7 +805,7 @@ export default function ChoresPage() {
   }
 
   async function onUndoCompletion(choreId: string) {
-    if (rowActionState) {
+    if (hasBusyAction) {
       return;
     }
     setRowActionState({ choreId, action: "undo_complete" });
@@ -597,6 +821,17 @@ export default function ChoresPage() {
         throw new Error(body.error ?? `UNDO_COMPLETE_HTTP_${response.status}`);
       }
       await loadChores({ silent: true });
+      setSelectedChoreStateById((current) => {
+        if (!current[choreId]) {
+          return current;
+        }
+        return {
+          ...current,
+          [choreId]: {
+            canUndoCompletion: false,
+          },
+        };
+      });
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("wallet:refresh"));
       }
@@ -607,6 +842,141 @@ export default function ChoresPage() {
     } finally {
       setRowActionState(null);
     }
+  }
+
+  function onToggleRowSelection(chore: ChoreRow, nextChecked: boolean) {
+    if (!canManageBulkActionsForChore(chore)) {
+      return;
+    }
+    setSelectedChoreStateById((current) => {
+      const alreadySelected = Boolean(current[chore.id]);
+      if (nextChecked && alreadySelected) {
+        return current;
+      }
+      if (!nextChecked && !alreadySelected) {
+        return current;
+      }
+      const next = { ...current };
+      if (nextChecked) {
+        next[chore.id] = { canUndoCompletion: canUndoCompletion(chore.status) };
+      } else {
+        delete next[chore.id];
+      }
+      return next;
+    });
+  }
+
+  function onToggleSelectAllCurrentPage(nextChecked: boolean) {
+    setSelectedChoreStateById((current) => {
+      const next = { ...current };
+      let changed = false;
+      for (const chore of chores) {
+        if (!canManageBulkActionsForChore(chore)) {
+          continue;
+        }
+        const isSelected = Boolean(next[chore.id]);
+        if (nextChecked && !isSelected) {
+          next[chore.id] = { canUndoCompletion: canUndoCompletion(chore.status) };
+          changed = true;
+        } else if (!nextChecked && isSelected) {
+          delete next[chore.id];
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }
+
+  async function onBulkAction(action: "delete" | "undo_complete", choreIds: string[]) {
+    if (hasBusyAction || choreIds.length === 0) {
+      return;
+    }
+    setBulkActionState({
+      action,
+      total: choreIds.length,
+      completed: 0,
+    });
+    setActionError("");
+    let completedCount = 0;
+    let failedCount = 0;
+    for (const choreId of choreIds) {
+      try {
+        if (action === "delete") {
+          const response = await fetch(`/api/chores/${choreId}`, { method: "DELETE" });
+          if (!response.ok) {
+            const body = (await response.json()) as { error?: string };
+            throw new Error(body.error ?? `REMOVE_CHORE_HTTP_${response.status}`);
+          }
+        } else {
+          const response = await fetch(`/api/chores/${choreId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "undo_complete" }),
+          });
+          if (!response.ok) {
+            const body = (await response.json()) as { error?: string };
+            throw new Error(body.error ?? `UNDO_COMPLETE_HTTP_${response.status}`);
+          }
+        }
+        completedCount += 1;
+      } catch {
+        failedCount += 1;
+      } finally {
+        setBulkActionState((current) => {
+          if (!current) {
+            return current;
+          }
+          return {
+            ...current,
+            completed: current.completed + 1,
+          };
+        });
+      }
+    }
+    if (action === "delete") {
+      const deletedIds = new Set(choreIds);
+      setSelectedChoreStateById((current) => {
+        let changed = false;
+        const next: Record<string, SelectedChoreState> = {};
+        for (const [choreId, value] of Object.entries(current)) {
+          if (deletedIds.has(choreId)) {
+            changed = true;
+            continue;
+          }
+          next[choreId] = value;
+        }
+        return changed ? next : current;
+      });
+    } else {
+      const undoneIds = new Set(choreIds);
+      setSelectedChoreStateById((current) => {
+        let changed = false;
+        const next: Record<string, SelectedChoreState> = {};
+        for (const [choreId, value] of Object.entries(current)) {
+          if (undoneIds.has(choreId)) {
+            next[choreId] = { canUndoCompletion: false };
+            if (value.canUndoCompletion) {
+              changed = true;
+            }
+            continue;
+          }
+          next[choreId] = value;
+        }
+        return changed ? next : current;
+      });
+      if (completedCount > 0 && typeof window !== "undefined") {
+        window.dispatchEvent(new Event("wallet:refresh"));
+      }
+    }
+    await loadChores({ silent: true });
+    if (failedCount > 0) {
+      setActionError(
+        action === "delete"
+          ? `bulk_delete_failed_${failedCount}`
+          : `bulk_undo_complete_failed_${failedCount}`,
+      );
+    }
+    setBulkActionState(null);
   }
 
   return (
@@ -668,13 +1038,47 @@ export default function ChoresPage() {
                 </div>
               ) : (
                 <>
-                  <p className="small family-page-subhead">
-                    {total} chore{total === 1 ? "" : "s"}
-                  </p>
+                  <div className="family-page-subhead chores-table-subhead">
+                    <p className="small chores-table-total">
+                      {total} chore{total === 1 ? "" : "s"}
+                    </p>
+                    {selectedCount > 0 ? (
+                      <div className="chores-table-bulk-actions">
+                        <span className="small chores-table-selected-count">
+                          {selectedCount} selected
+                          {bulkActionState ? ` (${bulkActionState.completed}/${bulkActionState.total})` : ""}
+                        </span>
+                        <BulkActionsMenu
+                          disabled={hasBusyAction}
+                          selectedUndoCount={selectedUndoCount}
+                          busyAction={bulkActionState?.action ?? ""}
+                          onDeleteRequested={() => setPendingBulkDeleteOpen(true)}
+                          onUndoCompletion={() =>
+                            void onBulkAction(
+                              "undo_complete",
+                              Object.entries(selectedChoreStateById)
+                                .filter(([, entry]) => entry.canUndoCompletion)
+                                .map(([choreId]) => choreId),
+                            )
+                          }
+                        />
+                      </div>
+                    ) : null}
+                  </div>
                   <div className="family-table-wrap">
                     <table className="family-table">
                       <thead>
                         <tr>
+                          <th>
+                            <input
+                              ref={selectAllRef}
+                              type="checkbox"
+                              aria-label="Select all chores on this page"
+                              checked={allSelectableOnPageSelected}
+                              disabled={selectableChoreIdsOnPage.length === 0 || hasBusyAction}
+                              onChange={(event) => onToggleSelectAllCurrentPage(event.target.checked)}
+                            />
+                          </th>
                           <th>
                             <button type="button" className="table-sort-btn" onClick={() => onSort("title")}>
                               {sortLabel("title", "Title")}
@@ -711,6 +1115,15 @@ export default function ChoresPage() {
                       <tbody>
                         {chores.map((chore) => (
                           <tr key={chore.id}>
+                            <td>
+                              <input
+                                type="checkbox"
+                                aria-label={`Select chore ${chore.title}`}
+                                checked={Boolean(selectedChoreStateById[chore.id])}
+                                disabled={!canManageBulkActionsForChore(chore) || hasBusyAction}
+                                onChange={(event) => onToggleRowSelection(chore, event.target.checked)}
+                              />
+                            </td>
                             <td>
                               <span className="table-chore-title-cell">
                                 <span>{chore.title}</span>
@@ -755,7 +1168,7 @@ export default function ChoresPage() {
                                 busyAction={
                                   rowActionState?.choreId === chore.id ? rowActionState.action : ""
                                 }
-                                disabled={Boolean(rowActionState)}
+                                disabled={hasBusyAction}
                                 onEdit={(selectedChore) => setEditingChore(selectedChore)}
                                 onDeleteRequested={(selectedChore) => setPendingDeleteChore(selectedChore)}
                                 onUndoCompletion={onUndoCompletion}
@@ -812,14 +1225,14 @@ export default function ChoresPage() {
                 <Button
                   type="button"
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-                  disabled={Boolean(rowActionState)}
+                  disabled={hasBusyAction}
                   onClick={() => setPendingDeleteChore(null)}>
                   Cancel
                 </Button>
                 <Button
                   type="button"
                   className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700"
-                  disabled={Boolean(rowActionState)}
+                  disabled={hasBusyAction}
                   onClick={async () => {
                     const removed = await onRemoveChore(pendingDeleteChore.id);
                     if (removed) {
@@ -836,6 +1249,39 @@ export default function ChoresPage() {
           ) : null}
         </div>
       </ModalShell>
+      <ModalShell
+        open={pendingBulkDeleteOpen}
+        onRequestClose={() => setPendingBulkDeleteOpen(false)}>
+        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <h3 className="mb-2 text-lg font-bold text-slate-800">Delete Selected Chores</h3>
+          <p className="mb-4 text-sm text-slate-600">
+            Delete <strong>{selectedCount}</strong> selected chore{selectedCount === 1 ? "" : "s"}?
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+              disabled={hasBusyAction}
+              onClick={() => setPendingBulkDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700"
+              disabled={hasBusyAction}
+              onClick={async () => {
+                await onBulkAction("delete", Object.keys(selectedChoreStateById));
+                setPendingBulkDeleteOpen(false);
+              }}>
+              {bulkActionState?.action === "delete" ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        </div>
+      </ModalShell>
     </>
   );
 }
+
+
+
+
