@@ -367,6 +367,20 @@ Build a family chore game where:
   - Added a shared global footer rendered on all pages with links for Privacy Policy, Terms of Service, and external attribution to Orcwood Games.
   - Added legal routes /privacy-policy and /terms-of-service with app-styled, static policy content.
 
+- Chore categories update (2026-03-09):
+  - Added family-scoped category management APIs:
+    - `GET/POST /api/family/categories`
+    - `PATCH/DELETE /api/family/categories/{categoryId}`
+  - Firestore rules now include `families/{familyId}/categories` (family-read, admin-write).
+  - `/family` now includes admin `Manage Categories` flow with create/edit/delete and color selection for chip styling.
+  - Chores now support multi-category assignment via `categoryIds` in create/edit API payloads and persistence.
+  - Family summary and chores APIs now return both `categoryIds` and resolved category objects (`id`, `name`, `color`) for each chore.
+  - Add/Edit Chores dialog now supports multi-select categories in `Additional Options`.
+  - Chores table categories render as expandable chips: collapsed `[Name] +N`, hover tooltip of all categories, click-to-expand into one chip per category.
+  - Add/Edit Chores advanced-options expand/collapse state now defaults closed and persists per user via preferences (`choreAdvancedOptionsOpenV2`) with localStorage fallback.
+  - Category multi-select now shows an empty-state CTA linking to `/family` (`Manage Categories`) when no category options exist.
+  - `/family` now renders categories in a dedicated card below the family members section instead of inside the members card area.
+  - `Manage Categories` action on `/family` now appears in the Categories card header (the top page header keeps only member actions).
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.
 - Chores module: CRUD, assignment, submission, approval pipeline.
@@ -380,5 +394,13 @@ Build a family chore game where:
 - Error states are handled (unauthorized, invalid transition, insufficient funds).
 - Tests cover critical business rules.
 - Documentation updated in `AGENTS.md` when behavior or rules change.
+
+
+
+
+
+
+
+
 
 

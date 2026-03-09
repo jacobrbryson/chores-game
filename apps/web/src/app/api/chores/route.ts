@@ -17,6 +17,7 @@ import {
   readString,
   readStringArray,
   readTimestamp,
+  stringArrayField,
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
@@ -25,6 +26,15 @@ import { parseCompletionWindow, type CompletionWindow } from "@/lib/preferences/
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
 import { GOOGLE_TASKS_CHORE_SOURCE, syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
+import {
+  buildCategoryMap,
+  hasAllCategoryIds,
+  listFamilyCategories,
+  normalizeCategoryIds,
+  readChoreCategoryIds,
+  resolveChoreCategories,
+} from "@/lib/family/categories";
+import type { FamilyCategory } from "@/lib/family/types";
 
 type CreateChoresBody = {
   description?: unknown;
@@ -32,6 +42,7 @@ type CreateChoresBody = {
   details?: unknown;
   titles?: unknown;
   dueDate?: unknown;
+  categoryIds?: unknown;
 };
 
 type ReorderChoresBody = {
@@ -51,6 +62,8 @@ type ChoreRow = {
   assigneeAvatarPhotoUrl?: string;
   details?: string;
   dueDate: string;
+  categoryIds: string[];
+  categories: FamilyCategory[];
   completedAt?: string;
   coinValue: number;
   deleted: boolean;
@@ -265,6 +278,8 @@ function normalizeChoreDoc(doc: {
     assigneeName: readString(doc.fields, "assigneeName") || "Unassigned",
     details: readString(doc.fields, "details") || undefined,
     dueDate: readString(doc.fields, "dueDate"),
+    categoryIds: readChoreCategoryIds(doc.fields),
+    categories: [],
     submittedAt: readTimestamp(doc.fields, "submittedAt") || undefined,
     updatedAt: readTimestamp(doc.fields, "updatedAt") || undefined,
     coinValue: readInteger(doc.fields, "coinValue") || 10,
@@ -627,6 +642,7 @@ function choreMatchesQuery(doc: ChoreRow, query: string) {
     doc.assigneeName,
     doc.details ?? "",
     doc.dueDate,
+    doc.categories.map((category) => category.name).join(" "),
   ]
     .join(" ")
     .toLowerCase();
@@ -781,10 +797,12 @@ export async function GET(request: NextRequest) {
         });
         const viewerRole = await getViewerRole(familyId, session.uid, idToken);
 
-        const [memberDocs, docs] = await Promise.all([
+        const [memberDocs, docs, categories] = await Promise.all([
           listDocuments(`families/${familyId}/members`, idToken, 200),
           listDocuments(`families/${familyId}/chores`, idToken, 500),
+          listFamilyCategories(familyId, idToken),
         ]);
+        const categoryMap = buildCategoryMap(categories);
         const assigneeAliasToMemberId = buildAssigneeAliasToMemberId(memberDocs);
         const viewerAssigneeAliases = buildViewerAssigneeAliases(memberDocs, session.uid, session.email);
         const targetAssigneeId = assigneeFilter
@@ -827,7 +845,13 @@ export async function GET(request: NextRequest) {
           }
         }
         const filteredChores = docs
-          .map((doc) => normalizeChoreDoc(doc))
+          .map((doc) => {
+            const chore = normalizeChoreDoc(doc);
+            return {
+              ...chore,
+              categories: resolveChoreCategories(chore.categoryIds, categoryMap),
+            };
+          })
           .filter((doc) => !doc.deleted)
           .filter((doc) => {
             if (isCompletedStatus(doc.status)) {
@@ -891,6 +915,8 @@ export async function GET(request: NextRequest) {
                 assigneeAvatarPhotoByAlias.get(normalizeEmail(doc.assigneeId))
               : undefined,
             details: doc.details,
+            categoryIds: doc.categoryIds,
+            categories: doc.categories,
             dueDate: doc.dueDate,
             completedAt:
               doc.status === "Submitted" || doc.status === "Approved"
@@ -1078,6 +1104,7 @@ export async function POST(request: NextRequest) {
     typeof body.assigneeId === "string" && body.assigneeId.trim().length > 0
       ? body.assigneeId.trim()
       : "";
+  const categoryIds = normalizeCategoryIds(body.categoryIds);
   const descriptionFromSingle =
     typeof body.description === "string" ? normalizeDescription(body.description) : "";
   const titlesInput = Array.isArray(body.titles) ? body.titles : [];
@@ -1108,7 +1135,14 @@ export async function POST(request: NextRequest) {
           return { kind: "forbidden_action" as const };
         }
 
-        const existingDocs = await listDocuments(`families/${familyId}/chores`, idToken, 1000);
+        const [existingDocs, categories] = await Promise.all([
+          listDocuments(`families/${familyId}/chores`, idToken, 1000),
+          listFamilyCategories(familyId, idToken),
+        ]);
+        const categoryMap = buildCategoryMap(categories);
+        if (!hasAllCategoryIds(categoryIds, categoryMap)) {
+          return { kind: "invalid_category_ids" as const };
+        }
         const openChores = existingDocs
           .map((doc) => normalizeChoreDoc(doc))
           .filter((doc) => !doc.deleted && doc.status === "Open")
@@ -1150,6 +1184,7 @@ export async function POST(request: NextRequest) {
                 assigneeId: stringField(assigneeId),
                 assigneeName: stringField(resolvedAssigneeName),
                 details: stringField(details),
+                categoryIds: stringArrayField(categoryIds),
                 dueDate: stringField(dueDate),
                 coinValue: integerField(10),
                 deleted: boolField(false),
@@ -1208,7 +1243,11 @@ export async function POST(request: NextRequest) {
           }),
         );
 
-        return { kind: "ok" as const, created: titles.length };
+        return {
+          kind: "ok" as const,
+          created: titles.length,
+          createdChoreIds: createdChores.map((chore) => chore.id),
+        };
       });
 
     if (data.kind === "family_not_found") {
@@ -1224,7 +1263,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = NextResponse.json({ success: true, created: data.created }, { status: 201 });
+    if (data.kind === "invalid_category_ids") {
+      return NextResponse.json({ error: "invalid_category_ids" }, { status: 400 });
+    }
+
+    const response = NextResponse.json(
+      { success: true, created: data.created, createdChoreIds: data.createdChoreIds },
+      { status: 201 },
+    );
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);
     }
@@ -1240,6 +1286,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "create_chores_failed" }, { status: 500 });
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
+import { ChoreCategoriesChip } from "@/components/chore-categories-chip";
 import { CoinIcon } from "@/components/coin-icon";
 import { GoogleTaskSyncIndicator } from "@/components/google-task-sync-indicator";
 import { ModalShell } from "@/components/modal-shell";
@@ -81,6 +82,7 @@ export function TodayChoreCard({
   const assigneePrimaryColor = getSafeHexColor(chore.assigneePrimaryColor);
   const assigneeAvatarId = chore.assigneeAvatarId?.trim() || "";
   const assigneeAvatarPhotoUrl = chore.assigneeAvatarPhotoUrl?.trim() || "";
+  const isGoogleSynced = showGoogleSyncIndicator && chore.source === "google_tasks";
   const assigneeAvatarSecondaryColor = assigneePrimaryColor
     ? `color-mix(in srgb, ${assigneePrimaryColor} 22%, #ffffff)`
     : "";
@@ -193,6 +195,7 @@ export function TodayChoreCard({
           assigneeId: chore.assigneeId,
           dueDate: chore.dueDate,
           details: chore.details,
+          categoryIds: chore.categoryIds,
         }}
         onSaved={onEdited}
         open={editDialogOpen}
@@ -216,35 +219,43 @@ export function TodayChoreCard({
             <div className="flex min-w-0 flex-col items-start gap-1">
               <span className="today-chore-title-row">
                 <strong className="block break-words">{chore.title}</strong>
-                {showGoogleSyncIndicator && chore.source === "google_tasks" ? (
-                  <GoogleTaskSyncIndicator className="today-chore-sync-indicator" />
+                {isGoogleSynced ? (
+                  <GoogleTaskSyncIndicator className="today-chore-sync-indicator today-chore-sync-indicator-desktop" />
                 ) : null}
               </span>
               <span className="block break-words">{chore.assigneeName}</span>
+              {(chore.categories?.length ?? 0) > 0 ? (
+                <ChoreCategoriesChip categories={chore.categories} className="today-chore-categories-chip" />
+              ) : null}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {canReorder ? (
-              <span className="today-chore-drag-handle" aria-hidden="true" title="Drag to reorder">
-                &#8942;&#8942;
+          <div className="today-chore-meta-actions">
+            {isGoogleSynced ? (
+              <GoogleTaskSyncIndicator className="today-chore-sync-indicator today-chore-sync-indicator-mobile" />
+            ) : null}
+            <div className="flex items-center gap-2">
+              {canReorder ? (
+                <span className="today-chore-drag-handle" aria-hidden="true" title="Drag to reorder">
+                  &#8942;&#8942;
+                </span>
+              ) : null}
+              <span className="inline-flex items-center gap-1 text-lg font-bold leading-none text-amber-600">
+                <CoinIcon size={20} />
+                {chore.coinValue}
               </span>
-            ) : null}
-            <span className="inline-flex items-center gap-1 text-lg font-bold leading-none text-amber-600">
-              <CoinIcon size={20} />
-              {chore.coinValue}
-            </span>
-            {canManageActions ? (
-              <div className="relative" ref={triggerRef}>
-                <Button
-                  type="button"
-                  aria-label="Chore options"
-                  aria-expanded={menuOpen}
-                  className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-                  onClick={() => setMenuOpen((current) => !current)}>
-                  <span className="text-lg leading-none">...</span>
-                </Button>
-              </div>
-            ) : null}
+              {canManageActions ? (
+                <div className="relative" ref={triggerRef}>
+                  <Button
+                    type="button"
+                    aria-label="Chore options"
+                    aria-expanded={menuOpen}
+                    className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                    onClick={() => setMenuOpen((current) => !current)}>
+                    <span className="text-lg leading-none">...</span>
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
         {canManageActions && menuOpen && menuPosition && typeof document !== "undefined"
@@ -328,4 +339,5 @@ export function TodayChoreCard({
     </li>
   );
 }
+
 

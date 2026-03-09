@@ -1,6 +1,6 @@
 "use client";
 
-import { Dispatch, FormEvent, SetStateAction, useEffect, useMemo, useState } from "react";
+import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useMemo, useState } from "react";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
@@ -19,6 +19,17 @@ type PendingRemoveMember = {
 };
 
 type FamilyMember = FamilySummaryResponse["members"][number];
+type FamilyCategory = FamilySummaryResponse["categories"][number];
+
+type CategoryFormState = {
+  name: string;
+  color: string;
+};
+
+type PendingRemoveCategory = {
+  id: string;
+  name: string;
+};
 
 type AddMemberFieldsProps = {
   form: AddMemberState;
@@ -107,6 +118,11 @@ const initialMemberState: AddMemberState = {
   role: "player",
 };
 
+const initialCategoryFormState: CategoryFormState = {
+  name: "",
+  color: "#3b82f6",
+};
+
 function memberRoleTone(role: string) {
   return role === "admin" ? "indigo" : "teal";
 }
@@ -128,6 +144,11 @@ function memberLastSignInLabel(member: FamilyMember, viewerUid?: string) {
   return new Date(member.lastSignInAt).toLocaleString();
 }
 
+function normalizeCategoryColor(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(normalized) ? normalized : "";
+}
+
 export default function FamilyPage() {
   const [summary, setSummary] = useState<FamilySummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -142,6 +163,18 @@ export default function FamilyPage() {
   const [pendingRemoveMember, setPendingRemoveMember] =
     useState<PendingRemoveMember | null>(null);
   const [showAddMemberForm, setShowAddMemberForm] = useState(false);
+
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [categoryForm, setCategoryForm] = useState<CategoryFormState>(initialCategoryFormState);
+  const [editingCategoryId, setEditingCategoryId] = useState("");
+  const [categorySaving, setCategorySaving] = useState(false);
+  const [categoryActionLoading, setCategoryActionLoading] = useState<{
+    categoryId: string;
+    action: "delete";
+  } | null>(null);
+  const [categoryError, setCategoryError] = useState("");
+  const [pendingRemoveCategory, setPendingRemoveCategory] =
+    useState<PendingRemoveCategory | null>(null);
 
   async function loadSummary() {
     setIsLoading(true);
@@ -228,7 +261,103 @@ export default function FamilyPage() {
     }
   }
 
+  function resetCategoryEditor() {
+    setEditingCategoryId("");
+    setCategoryForm(initialCategoryFormState);
+    setCategoryError("");
+  }
+
+  function onEditCategory(category: FamilyCategory) {
+    setEditingCategoryId(category.id);
+    setCategoryForm({
+      name: category.name,
+      color: category.color,
+    });
+    setCategoryError("");
+  }
+
+  async function onSaveCategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (categorySaving) {
+      return;
+    }
+
+    const normalizedName = categoryForm.name.trim().replace(/\s+/g, " ");
+    const normalizedColor = normalizeCategoryColor(categoryForm.color);
+
+    if (!normalizedName) {
+      setCategoryError("name_required");
+      return;
+    }
+    if (!normalizedColor) {
+      setCategoryError("invalid_color");
+      return;
+    }
+
+    setCategorySaving(true);
+    setCategoryError("");
+
+    try {
+      const response = await fetch(
+        editingCategoryId
+          ? `/api/family/categories/${editingCategoryId}`
+          : "/api/family/categories",
+        {
+          method: editingCategoryId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: normalizedName,
+            color: normalizedColor,
+          }),
+        },
+      );
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `CATEGORY_SAVE_HTTP_${response.status}`);
+      }
+      resetCategoryEditor();
+      await loadSummary();
+    } catch (saveError) {
+      const message =
+        saveError instanceof Error ? saveError.message : "save_category_failed";
+      setCategoryError(message);
+    } finally {
+      setCategorySaving(false);
+    }
+  }
+
+  async function onDeleteCategory() {
+    if (!pendingRemoveCategory || categoryActionLoading) {
+      return;
+    }
+
+    setCategoryActionLoading({ categoryId: pendingRemoveCategory.id, action: "delete" });
+    setCategoryError("");
+
+    try {
+      const response = await fetch(`/api/family/categories/${pendingRemoveCategory.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `CATEGORY_DELETE_HTTP_${response.status}`);
+      }
+      if (editingCategoryId === pendingRemoveCategory.id) {
+        resetCategoryEditor();
+      }
+      setPendingRemoveCategory(null);
+      await loadSummary();
+    } catch (deleteError) {
+      const message =
+        deleteError instanceof Error ? deleteError.message : "delete_category_failed";
+      setCategoryError(message);
+    } finally {
+      setCategoryActionLoading(null);
+    }
+  }
+
   const members = useMemo(() => summary?.members ?? [], [summary]);
+  const categories = useMemo(() => summary?.categories ?? [], [summary]);
   const viewerMember =
     summary?.members.find(
       (member) => member.uid === summary.viewerUid || member.id === summary.viewerUid,
@@ -245,12 +374,14 @@ export default function FamilyPage() {
               <h1>Family Members</h1>
             </div>
             {canManageMembers ? (
-              <Button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => setShowAddMemberForm(true)}>
-                Add Family Member
-              </Button>
+              <div className="family-page-header-actions">
+                <Button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setShowAddMemberForm(true)}>
+                  Add Family Member
+                </Button>
+              </div>
             ) : null}
           </div>
 
@@ -272,6 +403,7 @@ export default function FamilyPage() {
                   <p className="small family-page-subhead">
                     {members.length} member{members.length === 1 ? "" : "s"}
                   </p>
+
                   <div className="family-table-wrap family-table-desktop">
                     <table className="family-table">
                       <thead>
@@ -412,6 +544,41 @@ export default function FamilyPage() {
                       ))
                     )}
                   </div>
+                  <section className="family-categories-card" aria-label="Categories">
+                    <div className="family-categories-card-header">
+                      <div className="family-categories-card-title">
+                        <h2>Categories</h2>
+                        <p className="small">
+                          {categories.length} categor{categories.length === 1 ? "y" : "ies"}
+                        </p>
+                      </div>
+                      {canManageMembers ? (
+                        <Button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            setShowCategoryManager(true);
+                            setCategoryError("");
+                          }}>
+                          Manage Categories
+                        </Button>
+                      ) : null}
+                    </div>
+                    {categories.length > 0 ? (
+                      <div className="family-category-chip-row">
+                        {categories.map((category) => (
+                          <span
+                            key={category.id}
+                            className="family-category-chip"
+                            style={{ "--category-color": category.color } as CSSProperties}>
+                            [{category.name}]
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="small">No categories yet.</p>
+                    )}
+                  </section>
                 </>
               )}
             </>
@@ -442,6 +609,110 @@ export default function FamilyPage() {
         </div>
       </ModalShell>
 
+      <ModalShell open={showCategoryManager} onRequestClose={() => setShowCategoryManager(false)}>
+        <div className="family-modal-card">
+          <h3 className="family-modal-title">Manage Categories</h3>
+          <p className="small mb-2">Create, recolor, rename, and remove chore categories.</p>
+          <form className="flex w-full flex-col gap-3" onSubmit={onSaveCategory}>
+            <label className="flex w-full flex-col gap-1.5">
+              <span className="text-sm font-medium text-slate-700">Category Name</span>
+              <input
+                required
+                maxLength={40}
+                value={categoryForm.name}
+                onChange={(event) =>
+                  setCategoryForm((current) => ({ ...current, name: event.target.value }))
+                }
+                placeholder="Kitchen"
+                className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+              />
+            </label>
+            <label className="flex w-full flex-col gap-1.5">
+              <span className="text-sm font-medium text-slate-700">Chip Color</span>
+              <div className="family-category-color-row">
+                <input
+                  type="color"
+                  value={normalizeCategoryColor(categoryForm.color) || "#64748b"}
+                  onChange={(event) =>
+                    setCategoryForm((current) => ({ ...current, color: event.target.value }))
+                  }
+                  className="family-category-color-input"
+                />
+                <input
+                  value={categoryForm.color}
+                  onChange={(event) =>
+                    setCategoryForm((current) => ({ ...current, color: event.target.value }))
+                  }
+                  placeholder="#3b82f6"
+                  className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+                />
+              </div>
+            </label>
+            {categoryError ? <p className="small family-error">Category update failed: {categoryError}</p> : null}
+            <div className="family-modal-actions">
+              {editingCategoryId ? (
+                <Button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={categorySaving}
+                  onClick={resetCategoryEditor}>
+                  Cancel Edit
+                </Button>
+              ) : null}
+              <Button
+                type="submit"
+                className="btn btn-primary"
+                disabled={categorySaving}>
+                {categorySaving
+                  ? "Saving..."
+                  : editingCategoryId
+                    ? "Save Category"
+                    : "Add Category"}
+              </Button>
+            </div>
+          </form>
+
+          <div className="family-category-manage-list">
+            {categories.length === 0 ? (
+              <p className="small">No categories yet.</p>
+            ) : (
+              categories.map((category) => (
+                <div key={category.id} className="family-category-manage-item">
+                  <span
+                    className="family-category-chip"
+                    style={{ "--category-color": category.color } as CSSProperties}>
+                    [{category.name}]
+                  </span>
+                  <div className="member-actions">
+                    <Button
+                      type="button"
+                      className="btn btn-secondary member-action-btn"
+                      disabled={Boolean(categoryActionLoading) || categorySaving}
+                      onClick={() => onEditCategory(category)}>
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      className="btn member-action-remove"
+                      disabled={Boolean(categoryActionLoading) || categorySaving}
+                      onClick={() =>
+                        setPendingRemoveCategory({
+                          id: category.id,
+                          name: category.name,
+                        })
+                      }>
+                      {categoryActionLoading?.categoryId === category.id
+                        ? "Working..."
+                        : "Delete"}
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </ModalShell>
+
       <ModalShell
         open={Boolean(pendingRemoveMember)}
         onRequestClose={() => setPendingRemoveMember(null)}>
@@ -469,6 +740,38 @@ export default function FamilyPage() {
                   memberActionLoading.action === "remove"
                     ? "Removing..."
                     : "Remove"}
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </ModalShell>
+
+      <ModalShell
+        open={Boolean(pendingRemoveCategory)}
+        onRequestClose={() => setPendingRemoveCategory(null)}>
+        <div className="family-modal-card">
+          {pendingRemoveCategory ? (
+            <>
+              <h3 className="family-modal-title">Delete Category</h3>
+              <p className="mb-4 text-sm text-slate-600">
+                Delete <strong>{pendingRemoveCategory.name}</strong>?
+                Existing chores will keep working and this category will be removed from them.
+              </p>
+              <div className="family-modal-actions">
+                <Button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={Boolean(categoryActionLoading)}
+                  onClick={() => setPendingRemoveCategory(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="btn member-action-remove"
+                  disabled={Boolean(categoryActionLoading)}
+                  onClick={onDeleteCategory}>
+                  {categoryActionLoading ? "Deleting..." : "Delete"}
                 </Button>
               </div>
             </>

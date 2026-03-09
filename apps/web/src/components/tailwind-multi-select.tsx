@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import type { TailwindSelectOption } from "@/components/tailwind-select";
 
@@ -14,6 +23,7 @@ type TailwindMultiSelectProps<T extends string = string> = {
   menuClassName?: string;
   disabled?: boolean;
   placeholder?: string;
+  emptyState?: ReactNode;
 };
 
 function joinClasses(...classes: Array<string | undefined | false>) {
@@ -34,6 +44,7 @@ export function TailwindMultiSelect<T extends string = string>({
   menuClassName,
   disabled = false,
   placeholder = "Select options",
+  emptyState,
 }: TailwindMultiSelectProps<T>) {
   const MENU_GAP_PX = 6;
   const VIEWPORT_MARGIN_PX = 8;
@@ -227,30 +238,36 @@ export function TailwindMultiSelect<T extends string = string>({
           "z-[70] overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg",
           menuClassName,
         )}>
-        {options.map((option, index) => {
-          const active = index === highlightedIndex;
-          const selected = selectedSet.has(option.value);
-          return (
-            <li key={option.value} role="presentation">
-              <button
-                type="button"
-                role="option"
-                aria-selected={selected}
-                disabled={option.disabled}
-                className={joinClasses(
-                  "theme-select-option flex items-center justify-between gap-2",
-                  active && !option.disabled && "theme-select-option-active",
-                  selected && !option.disabled && "theme-select-option-selected",
-                  option.disabled && "cursor-not-allowed opacity-60",
-                )}
-                onMouseEnter={() => setHighlightedIndex(index)}
-                onClick={() => toggleIndex(index)}>
-                <span>{option.label}</span>
-                <span aria-hidden="true">{selected ? "✓" : ""}</span>
-              </button>
-            </li>
-          );
-        })}
+        {options.length === 0 ? (
+          <li role="presentation" className="px-2 py-2 text-sm text-slate-600">
+            {emptyState ?? "No options available."}
+          </li>
+        ) : (
+          options.map((option, index) => {
+            const active = index === highlightedIndex;
+            const selected = selectedSet.has(option.value);
+            return (
+              <li key={option.value} role="presentation">
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  disabled={option.disabled}
+                  className={joinClasses(
+                    "theme-select-option flex items-center justify-between gap-2",
+                    active && !option.disabled && "theme-select-option-active",
+                    selected && !option.disabled && "theme-select-option-selected",
+                    option.disabled && "cursor-not-allowed opacity-60",
+                  )}
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                  onClick={() => toggleIndex(index)}>
+                  <span>{option.label}</span>
+                  <span aria-hidden="true">{selected ? "\u2713" : ""}</span>
+                </button>
+              </li>
+            );
+          })
+        )}
       </ul>
     ) : null;
 
@@ -286,3 +303,4 @@ export function TailwindMultiSelect<T extends string = string>({
     </div>
   );
 }
+

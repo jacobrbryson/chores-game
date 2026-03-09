@@ -32,6 +32,7 @@ type UpdatePreferencesBody = {
   themePrimaryColor?: unknown;
   themeSecondaryColor?: unknown;
   themeTertiaryColor?: unknown;
+  choreAdvancedOptionsOpenV2?: unknown;
 };
 
 function jsonUnauthorized() {
@@ -136,6 +137,7 @@ export async function GET(request: NextRequest) {
           themePrimaryColor: readString(userDoc.fields, "preferencesThemePrimaryColor"),
           themeSecondaryColor: readString(userDoc.fields, "preferencesThemeSecondaryColor"),
           themeTertiaryColor: readString(userDoc.fields, "preferencesThemeTertiaryColor"),
+          choreAdvancedOptionsOpenV2: readBoolean(userDoc.fields, "preferencesChoreAdvancedOptionsOpenV2"),
         };
       });
 
@@ -183,11 +185,16 @@ export async function PATCH(request: NextRequest) {
       { status: 400 },
     );
   }
+  const hasChoreAdvancedOptionsOpenV2 = body.choreAdvancedOptionsOpenV2 !== undefined;
+  if (hasChoreAdvancedOptionsOpenV2 && typeof body.choreAdvancedOptionsOpenV2 !== "boolean") {
+    return NextResponse.json({ error: "invalid_chore_advanced_options_open" }, { status: 400 });
+  }
+
   const themeParse = parseThemePreference(body);
   if (themeParse.error) {
     return NextResponse.json({ error: themeParse.error }, { status: 400 });
   }
-  if (!hasMyChoresOnly && !hasCompletionWindow && !themeParse.hasThemeField) {
+  if (!hasMyChoresOnly && !hasCompletionWindow && !hasChoreAdvancedOptionsOpenV2 && !themeParse.hasThemeField) {
     return NextResponse.json({ error: "no_preference_updates" }, { status: 400 });
   }
 
@@ -206,6 +213,10 @@ export async function PATCH(request: NextRequest) {
         if (hasCompletionWindow && parsedCompletionWindow) {
           fields.preferencesCompletionWindow = stringField(parsedCompletionWindow);
           updateMask.push("preferencesCompletionWindow");
+        }
+        if (hasChoreAdvancedOptionsOpenV2) {
+          fields.preferencesChoreAdvancedOptionsOpenV2 = boolField(body.choreAdvancedOptionsOpenV2 as boolean);
+          updateMask.push("preferencesChoreAdvancedOptionsOpenV2");
         }
         if (themeParse.preference) {
           fields.preferencesThemeOptionId = stringField(themeParse.preference.optionId);
@@ -241,3 +252,5 @@ export async function PATCH(request: NextRequest) {
     return mapCommonFirestoreErrors(reason, "preferences_update_failed");
   }
 }
+
+

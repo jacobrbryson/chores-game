@@ -1310,6 +1310,20 @@ textarea:disabled {
   transform: translateY(0.5px);
 }
 
+.today-chore-sync-indicator.today-chore-sync-indicator-desktop {
+  display: inline-flex;
+}
+
+.today-chore-sync-indicator.today-chore-sync-indicator-mobile {
+  display: none;
+}
+
+.today-chore-meta-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .today-chore-drag-handle {
   display: inline-flex;
   align-items: center;
@@ -3394,6 +3408,25 @@ textarea:disabled {
     max-width: calc(100vw - 34px);
   }
 
+  .today-chore-sync-indicator.today-chore-sync-indicator-desktop {
+    display: none;
+  }
+
+  .today-chore-sync-indicator.today-chore-sync-indicator-mobile {
+    display: inline-flex;
+    align-self: flex-end;
+  }
+
+  .today-chore-drag-handle {
+    display: none;
+  }
+
+  .today-chore-meta-actions {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
   .completion-chart-header {
     align-items: stretch;
     flex-wrap: wrap;
@@ -3627,10 +3660,5 @@ textarea:disabled {
   flex-shrink: 0;
   color: currentColor;
 }
-
-
-
-
-
 
 

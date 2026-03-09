@@ -14,6 +14,7 @@ import {
   readStringArray,
   readInteger,
   readTimestamp,
+  stringArrayField,
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
@@ -22,6 +23,14 @@ import { applyWalletDelta } from "@/lib/economy/wallet";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
 import { GOOGLE_TASKS_CHORE_SOURCE, syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
+import {
+  buildCategoryMap,
+  hasAllCategoryIds,
+  listFamilyCategories,
+  normalizeCategoryIds,
+  readChoreCategoryIds,
+  resolveChoreCategories,
+} from "@/lib/family/categories";
 
 type UpdateChoreBody = {
   action?: unknown;
@@ -29,6 +38,7 @@ type UpdateChoreBody = {
   assigneeId?: unknown;
   dueDate?: unknown;
   details?: unknown;
+  categoryIds?: unknown;
 };
 const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
 
@@ -328,6 +338,9 @@ export async function GET(
         if (readBoolean(choreDoc.fields, "deleted")) {
           return { kind: "chore_not_found" as const };
         }
+        const categories = await listFamilyCategories(familyId, idToken);
+        const categoryMap = buildCategoryMap(categories);
+        const categoryIds = readChoreCategoryIds(choreDoc.fields);
         return {
           kind: "ok" as const,
           chore: {
@@ -358,6 +371,8 @@ export async function GET(
             ),
             details: readString(choreDoc.fields, "details") || undefined,
             dueDate: readString(choreDoc.fields, "dueDate"),
+            categoryIds,
+            categories: resolveChoreCategories(categoryIds, categoryMap),
             completedAt:
               readString(choreDoc.fields, "status") === "Submitted" ||
               readString(choreDoc.fields, "status") === "Approved"
@@ -560,6 +575,8 @@ export async function PATCH(
     typeof body.details === "string" && body.details.trim().length > 0
       ? body.details.trim().slice(0, 2000)
       : "";
+  const hasCategoryIds = Array.isArray(body.categoryIds);
+  const categoryIds = normalizeCategoryIds(body.categoryIds);
 
   if (action === "edit") {
     if (!normalizedDescription) {
@@ -746,6 +763,13 @@ export async function PATCH(
           const previousTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
           const choreSource = readString(existingChoreDoc.fields, "source");
           const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
+          const existingCategoryIds = readChoreCategoryIds(existingChoreDoc.fields);
+          const categories = await listFamilyCategories(familyId, idToken);
+          const categoryMap = buildCategoryMap(categories);
+          const nextCategoryIds = hasCategoryIds ? categoryIds : existingCategoryIds;
+          if (!hasAllCategoryIds(nextCategoryIds, categoryMap)) {
+            return { kind: "invalid_category_ids" as const };
+          }
           if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
             syncOwnerUid = choreGoogleTaskOwnerUid;
           }
@@ -771,10 +795,11 @@ export async function PATCH(
               assigneeName: stringField(resolvedAssigneeName),
               dueDate: stringField(dueDate),
               details: stringField(details),
+              categoryIds: stringArrayField(nextCategoryIds),
               updatedAt: timestampField(now),
             },
             idToken,
-            ["title", "assigneeId", "assigneeName", "dueDate", "details", "updatedAt"],
+            ["title", "assigneeId", "assigneeName", "dueDate", "details", "categoryIds", "updatedAt"],
           );
           await emitFamilyActivity({
             familyId,
@@ -829,6 +854,9 @@ export async function PATCH(
         { error: "active_chore_limit_reached", maxActiveChores: MAX_ACTIVE_CHORES_PER_ASSIGNEE },
         { status: 409 },
       );
+    }
+    if (data.kind === "invalid_category_ids") {
+      return NextResponse.json({ error: "invalid_category_ids" }, { status: 400 });
     }
 
     const response = NextResponse.json({ success: true });
@@ -945,5 +973,17 @@ export async function DELETE(
     return mapCommonFirestoreErrors(reason, "delete_chore_failed");
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 

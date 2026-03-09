@@ -6,12 +6,19 @@ import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
 import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
+import { ChoreCategoriesChip } from "@/components/chore-categories-chip";
 import { CoinIcon } from "@/components/coin-icon";
 import { EnumChip } from "@/components/enum-chip";
 import { GoogleTaskSyncIndicator } from "@/components/google-task-sync-indicator";
 import { ModalShell } from "@/components/modal-shell";
 import { parseCompletionWindow } from "@/lib/preferences/completion-window";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
+
+type ChoreCategory = {
+  id: string;
+  name: string;
+  color: string;
+};
 
 type ChoreRow = {
   id: string;
@@ -24,6 +31,8 @@ type ChoreRow = {
   assigneeAvatarPhotoUrl?: string;
   details?: string;
   dueDate: string;
+  categoryIds?: string[];
+  categories?: ChoreCategory[];
   completedAt?: string;
   coinValue: number;
   createdAt?: string;
@@ -994,6 +1003,7 @@ export default function ChoresPage() {
                     assigneeId: editingChore.assigneeId,
                     dueDate: editingChore.dueDate,
                     details: editingChore.details,
+                    categoryIds: editingChore.categoryIds,
                   }
                 : undefined
             }
@@ -1087,6 +1097,7 @@ export default function ChoresPage() {
                               {sortLabel("title", "Title")}
                             </button>
                           </th>
+                          <th>Categories</th>
                           <th>
                             <button type="button" className="table-sort-btn" onClick={() => onSort("status")}>
                               {sortLabel("status", "Status")}
@@ -1134,6 +1145,9 @@ export default function ChoresPage() {
                                   <GoogleTaskSyncIndicator className="table-chore-sync-indicator" />
                                 ) : null}
                               </span>
+                            </td>
+                            <td>
+                              <ChoreCategoriesChip categories={chore.categories ?? []} />
                             </td>
                             <td>
                               <EnumChip
@@ -1284,4 +1298,12 @@ export default function ChoresPage() {
     </>
   );
 }
+
+
+
+
+
+
+
+
 

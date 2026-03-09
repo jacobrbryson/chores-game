@@ -97,24 +97,26 @@ export function FamilyCard() {
         removeTodayChore(choreId);
         return;
       }
-        const payload = (await response.json()) as {
-          chore?: {
-            id: string;
-            title: string;
-            status: string;
-            source?: "manual" | "google_tasks";
-            sortOrder?: number;
-            assigneeId?: string;
-            assigneeName: string;
-            assigneePrimaryColor?: string;
-            assigneeAvatarId?: string;
-            assigneeAvatarPhotoUrl?: string;
-            dueDate: string;
-            details?: string;
-            coinValue: number;
-            createdAt?: string;
-          };
+      const payload = (await response.json()) as {
+        chore?: {
+          id: string;
+          title: string;
+          status: string;
+          source?: "manual" | "google_tasks";
+          sortOrder?: number;
+          assigneeId?: string;
+          assigneeName: string;
+          assigneePrimaryColor?: string;
+          assigneeAvatarId?: string;
+          assigneeAvatarPhotoUrl?: string;
+          dueDate: string;
+          details?: string;
+          categoryIds?: string[];
+          categories?: { id: string; name: string; color: string }[];
+          coinValue: number;
+          createdAt?: string;
         };
+      };
       const chore = payload.chore;
       if (!chore) {
         removeTodayChore(choreId);
@@ -131,6 +133,8 @@ export function FamilyCard() {
         assigneeAvatarPhotoUrl: chore.assigneeAvatarPhotoUrl,
         dueDate: chore.dueDate,
         details: chore.details,
+        categoryIds: Array.isArray(chore.categoryIds) ? chore.categoryIds : [],
+        categories: Array.isArray(chore.categories) ? chore.categories : [],
         coinValue: chore.coinValue || 10,
         createdAt: chore.createdAt,
         source: chore.source,
@@ -316,4 +320,3 @@ export function FamilyCard() {
     </>
   );
 }
-

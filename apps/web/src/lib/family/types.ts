@@ -1,3 +1,9 @@
+export type FamilyCategory = {
+  id: string;
+  name: string;
+  color: string;
+};
+
 export type FamilySnapshotMember = {
   id: string;
   uid?: string;
@@ -34,6 +40,8 @@ export type FamilySnapshotChore = {
   assigneeAvatarPhotoUrl?: string;
   dueDate: string;
   details?: string;
+  categoryIds?: string[];
+  categories?: FamilyCategory[];
   coinValue: number;
 };
 
@@ -47,7 +55,7 @@ export type FamilySummaryResponse = {
     name: string;
   };
   members: FamilySnapshotMember[];
+  categories: FamilyCategory[];
   choresToday: FamilySnapshotChore[];
   pendingInvite: FamilyPendingInvite | null;
 };
-

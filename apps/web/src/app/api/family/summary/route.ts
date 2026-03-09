@@ -22,6 +22,12 @@ import {
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
 import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
 import type { FamilySnapshotMember, FamilySummaryResponse } from "@/lib/family/types";
+import {
+  buildCategoryMap,
+  listFamilyCategories,
+  readChoreCategoryIds,
+  resolveChoreCategories,
+} from "@/lib/family/categories";
 import { syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
 
 export const dynamic = "force-dynamic";
@@ -131,6 +137,7 @@ function emptySummary(viewerUid: string, viewerGoogleTasksLinked = false): Famil
     noFamily: true,
     family: null,
     members: [],
+    categories: [],
     choresToday: [],
     pendingInvite: null,
   };
@@ -199,7 +206,8 @@ export async function GET(request: NextRequest) {
   );
   const todayIsoDate = localTodayIsoDate(timezoneOffsetMinutes);
 
-  try {    const { data, session: refreshedSession, refreshed } =
+  try {
+    const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
         let userDoc: Awaited<ReturnType<typeof getDocument>> | null = null;
         try {
@@ -235,7 +243,9 @@ export async function GET(request: NextRequest) {
               }
             } catch (error) {
               const reason = error instanceof Error ? error.message : "";
-              if (!reason.includes("FIRESTORE_HTTP_404")) {              }
+              if (!reason.includes("FIRESTORE_HTTP_404")) {
+                throw error;
+              }
             }
           }
           const uidRecoveredFamilyId = await findFirstFamilyIdByMemberUid(session.uid, idToken);
@@ -243,7 +253,8 @@ export async function GET(request: NextRequest) {
             ? ""
             : await findFirstFamilyIdByMemberEmail(session.email, idToken);
           const recoveredFamilyId =
-            uidRecoveredFamilyId || inviteLookupFamilyId || emailRecoveredFamilyId;          if (!recoveredFamilyId) {
+            uidRecoveredFamilyId || inviteLookupFamilyId || emailRecoveredFamilyId;
+          if (!recoveredFamilyId) {
             return emptySummary(session.uid, viewerGoogleTasksLinked);
           }
           familyId = recoveredFamilyId;
@@ -256,11 +267,13 @@ export async function GET(request: NextRequest) {
           minIntervalSeconds: 60,
         });
 
-        const [familyDoc, memberDocs, choreDocs] = await Promise.all([
+        const [familyDoc, memberDocs, choreDocs, categories] = await Promise.all([
           getDocument(`families/${familyId}`, idToken),
           listDocuments(`families/${familyId}/members`, idToken, 100),
           listDocuments(`families/${familyId}/chores`, idToken, MAX_SUMMARY_CHORES),
+          listFamilyCategories(familyId, idToken),
         ]);
+        const categoryMap = buildCategoryMap(categories);
 
         const rawMemberCount = memberDocs.length;
         const familyName = readString(familyDoc.fields, "name") || "My Family";
@@ -352,6 +365,7 @@ export async function GET(request: NextRequest) {
                   },
                 ]
               : [],
+            categories: [],
             choresToday: [],
             pendingInvite: {
               familyId,
@@ -420,6 +434,7 @@ export async function GET(request: NextRequest) {
             name: familyName,
           },
           members: mappedMembers,
+          categories,
           choresToday: choreDocs
             .map((doc) => ({
               id: documentIdFromName(doc.name),
@@ -447,6 +462,7 @@ export async function GET(request: NextRequest) {
                 undefined,
               dueDate: readString(doc.fields, "dueDate"),
               details: readString(doc.fields, "details") || undefined,
+              categoryIds: readChoreCategoryIds(doc.fields),
               deleted: readBoolean(doc.fields, "deleted"),
               coinValue: readInteger(doc.fields, "coinValue") || 10,
               source:
@@ -475,6 +491,8 @@ export async function GET(request: NextRequest) {
               assigneeAvatarPhotoUrl: chore.assigneeAvatarPhotoUrl,
               dueDate: chore.dueDate,
               details: chore.details,
+              categoryIds: chore.categoryIds,
+              categories: resolveChoreCategories(chore.categoryIds, categoryMap),
               coinValue: chore.coinValue,
               source: chore.source,
               status:
@@ -518,6 +536,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "summary_unavailable" }, { status: 500 });
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

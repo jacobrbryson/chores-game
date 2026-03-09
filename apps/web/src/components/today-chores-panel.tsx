@@ -712,6 +712,8 @@ export function TodayChoresPanel({
             assigneeName: pendingChore.assigneeName,
             dueDate: pendingChore.dueDate,
             details: pendingChore.details,
+            categoryIds: pendingChore.categoryIds,
+            categories: pendingChore.categories,
             coinValue: 10,
             source: "manual",
             createdAt: new Date().toISOString(),
@@ -1180,5 +1182,7 @@ export function TodayChoresPanel({
     </article>
   );
 }
+
+
 
 

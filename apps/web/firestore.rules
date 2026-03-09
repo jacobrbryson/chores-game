@@ -245,6 +245,11 @@ service cloud.firestore {
           );
       }
 
+      match /categories/{categoryId} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update, delete: if isFamilyAdmin(familyId);
+      }
+
       match /notifications/{notificationId} {
         allow read: if isFamilyMember(familyId);
         allow create: if isFamilyMember(familyId)
@@ -299,3 +304,4 @@ service cloud.firestore {
     }
   }
 }
+

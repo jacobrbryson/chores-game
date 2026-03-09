@@ -2,9 +2,12 @@
 
 import { FormEvent, KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
+import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
+import type { FamilyCategory } from "@/lib/family/types";
 
 type Suggestion = {
   description: string;
@@ -25,6 +28,7 @@ type EditableChore = {
   assigneeId?: string;
   dueDate?: string;
   details?: string;
+  categoryIds?: string[];
 };
 
 export type AddEditChoreSavedResult = {
@@ -39,6 +43,8 @@ export type AddEditChoreSavedResult = {
     assigneeName: string;
     dueDate: string;
     details?: string;
+    categoryIds?: string[];
+    categories?: FamilyCategory[];
   };
   error?: string;
 };
@@ -56,6 +62,7 @@ type AddEditChoresDialogProps = {
 };
 
 const LAST_ASSIGNEE_STORAGE_KEY = "chores_last_assignee_id";
+const ADDITIONAL_OPTIONS_STORAGE_KEY = "chores_additional_options_open_v2";
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
@@ -88,6 +95,21 @@ function writeLastAssigneeId(value: string) {
   }
 }
 
+function readAdditionalOptionsPreferenceFromStorage() {
+  try {
+    return window.localStorage.getItem(ADDITIONAL_OPTIONS_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeAdditionalOptionsPreferenceToStorage(value: boolean) {
+  try {
+    window.localStorage.setItem(ADDITIONAL_OPTIONS_STORAGE_KEY, value ? "1" : "0");
+  } catch {
+    // Ignore storage errors.
+  }
+}
 export function AddEditChoresDialog({
   onSaved,
   triggerLabel = "Let's add some!",
@@ -112,6 +134,7 @@ export function AddEditChoresDialog({
   const [assigneeId, setAssigneeId] = useState("");
   const [dueDate, setDueDate] = useState(todayIsoDate());
   const [details, setDetails] = useState("");
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [showAdditionalOptions, setShowAdditionalOptions] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -127,6 +150,7 @@ export function AddEditChoresDialog({
     maxHeight: number;
   } | null>(null);
   const [members, setMembers] = useState<FamilyMemberOption[]>([]);
+  const [categories, setCategories] = useState<FamilyCategory[]>([]);
   const [assigneeHydrated, setAssigneeHydrated] = useState(false);
   const effectiveDueDate = showAdditionalOptions ? dueDate : todayIsoDate();
 
@@ -148,6 +172,14 @@ export function AddEditChoresDialog({
   const assigneeSelectOptions = useMemo<TailwindSelectOption[]>(
     () => [{ value: "", label: "Unassigned" }, ...assigneeOptions],
     [assigneeOptions],
+  );
+  const categorySelectOptions = useMemo<TailwindSelectOption[]>(
+    () =>
+      categories.map((category) => ({
+        value: category.id,
+        label: category.name,
+      })),
+    [categories],
   );
 
   const filteredSuggestions = useMemo(() => {
@@ -194,12 +226,16 @@ export function AddEditChoresDialog({
     }
     const payload = (await response.json()) as {
       members?: FamilyMemberOption[];
+      categories?: FamilyCategory[];
       viewerUid?: string;
     };
     const allMembers = payload.members ?? [];
+    const allCategories = payload.categories ?? [];
     setMembers(allMembers);
+    setCategories(allCategories);
     if (chore) {
       setAssigneeId(chore.assigneeId ?? "");
+      setCategoryIds(chore.categoryIds ?? []);
       setAssigneeHydrated(true);
       return;
     }
@@ -212,12 +248,43 @@ export function AddEditChoresDialog({
     setAssigneeHydrated(true);
   }
 
-  function hydrateFromChore() {
+  async function loadAdditionalOptionsPreference() {
+    try {
+      const response = await fetch("/api/preferences", { cache: "no-store" });
+      if (!response.ok) {
+        return;
+      }
+      const payload = (await response.json()) as {
+        choreAdvancedOptionsOpenV2?: boolean;
+      };
+      if (typeof payload.choreAdvancedOptionsOpenV2 === "boolean") {
+        setShowAdditionalOptions(payload.choreAdvancedOptionsOpenV2);
+        writeAdditionalOptionsPreferenceToStorage(payload.choreAdvancedOptionsOpenV2);
+      }
+    } catch {
+      // Keep local fallback value.
+    }
+  }
+
+  function persistAdditionalOptionsPreference(next: boolean) {
+    setShowAdditionalOptions(next);
+    writeAdditionalOptionsPreferenceToStorage(next);
+    void fetch("/api/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ choreAdvancedOptionsOpenV2: next }),
+    }).catch(() => {
+      // Keep local value; retry will happen on next toggle.
+    });
+  }
+
+  function hydrateFromChore(preferredOpen: boolean) {
     setDescription(chore?.title ?? "");
     setAssigneeId(chore?.assigneeId ?? "");
     setDueDate(chore?.dueDate || todayIsoDate());
     setDetails(chore?.details ?? "");
-    setShowAdditionalOptions(Boolean(chore?.dueDate || chore?.details));
+    setCategoryIds(chore?.categoryIds ?? []);
+    setShowAdditionalOptions(preferredOpen);
   }
 
   useEffect(() => {
@@ -226,10 +293,12 @@ export function AddEditChoresDialog({
     }
     setError("");
     setAssigneeHydrated(false);
-    hydrateFromChore();
+    const localAdditionalOptionsPreference = readAdditionalOptionsPreferenceFromStorage();
+    hydrateFromChore(localAdditionalOptionsPreference);
     void Promise.all([loadSuggestions(), loadMembers()]).catch((loadError) => {
       setError(normalizeError(loadError));
     });
+    void loadAdditionalOptionsPreference();
   }, [open]);
 
   useEffect(() => {
@@ -317,8 +386,27 @@ export function AddEditChoresDialog({
 
     const selectedAssignee = members.find((member) => member.id === assigneeId);
     const resolvedAssigneeName = selectedAssignee?.name || "Unassigned";
-    const resolvedDueDate = showAdditionalOptions ? dueDate : todayIsoDate();
-    const resolvedDetails = showAdditionalOptions ? details : "";
+    const fallbackDueDate = chore?.dueDate || todayIsoDate();
+    const fallbackDetails = chore?.details ?? "";
+    const fallbackCategoryIds = chore?.categoryIds ?? [];
+    const resolvedDueDate = showAdditionalOptions
+      ? dueDate
+      : isEditMode
+        ? fallbackDueDate
+        : todayIsoDate();
+    const resolvedDetails = showAdditionalOptions
+      ? details
+      : isEditMode
+        ? fallbackDetails
+        : "";
+    const resolvedCategoryIds = showAdditionalOptions
+      ? categoryIds
+      : isEditMode
+        ? fallbackCategoryIds
+        : [];
+    const resolvedCategories = resolvedCategoryIds
+      .map((categoryId) => categories.find((category) => category.id === categoryId))
+      .filter((category): category is FamilyCategory => Boolean(category));
     const requestId =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
@@ -338,6 +426,7 @@ export function AddEditChoresDialog({
       setAssigneeId("");
       setDueDate(todayIsoDate());
       setDetails("");
+      setCategoryIds([]);
       setShowAdditionalOptions(false);
       if (onSaved) {
         await onSaved({
@@ -352,6 +441,8 @@ export function AddEditChoresDialog({
             assigneeName: resolvedAssigneeName,
             dueDate: resolvedDueDate,
             details: resolvedDetails,
+            categoryIds: resolvedCategoryIds,
+            categories: resolvedCategories,
           },
         });
       }
@@ -371,12 +462,14 @@ export function AddEditChoresDialog({
                   assigneeId,
                   dueDate: resolvedDueDate,
                   details: resolvedDetails,
+                  categoryIds: resolvedCategoryIds,
                 }
               : {
                   description: normalizedDescription,
                   assigneeId,
                   dueDate: showAdditionalOptions ? dueDate : undefined,
                   details: resolvedDetails,
+                  categoryIds: resolvedCategoryIds,
                 },
           ),
         },
@@ -417,6 +510,7 @@ export function AddEditChoresDialog({
         setAssigneeId("");
         setDueDate(todayIsoDate());
         setDetails("");
+        setCategoryIds([]);
         setShowAdditionalOptions(false);
       }
       if (onSaved) {
@@ -575,7 +669,7 @@ export function AddEditChoresDialog({
               <Button
                 type="button"
                 className="group inline-flex cursor-pointer items-center gap-2 self-start text-sm font-semibold text-[#1f69b7]"
-                onClick={() => setShowAdditionalOptions((openState) => !openState)}>
+                onClick={() => persistAdditionalOptionsPreference(!showAdditionalOptions)}>
                 <span aria-hidden="true" className="text-base leading-none font-bold">
                   {showAdditionalOptions ? "-" : "+"}
                 </span>
@@ -596,6 +690,34 @@ export function AddEditChoresDialog({
                       disabled={!showAdditionalOptions}
                       onChange={(event) => setDueDate(event.target.value)}
                       className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800"
+                    />
+                  </label>
+
+                  <label className="flex w-full flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">Categories</span>
+                    <TailwindMultiSelect
+                      ariaLabel="Categories"
+                      values={categoryIds}
+                      onChange={setCategoryIds}
+                      options={categorySelectOptions}
+                      disabled={!showAdditionalOptions}
+                      placeholder={
+                        categorySelectOptions.length > 0 ? "Select categories" : "No categories yet"
+                      }
+                      className="w-full"
+                      buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                      menuClassName="border-slate-300"
+                      emptyState={
+                        <span className="inline-flex items-center gap-2">
+                          <span>No categories yet.</span>
+                          <Link
+                            href="/family"
+                            className="font-semibold text-[#1f69b7] underline"
+                            onClick={() => setDialogOpen(false)}>
+                            Manage Categories
+                          </Link>
+                        </span>
+                      }
                     />
                   </label>
 
@@ -662,11 +784,6 @@ export function AddEditChoresDialog({
     </>
   );
 }
-
-
-
-
-
 
 
 
