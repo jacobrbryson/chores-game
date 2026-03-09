@@ -334,7 +334,7 @@ export function TodayChoresPanel({
     return () => {
       cancelled = true;
     };
-  }, [completionWindow, chores, completionStatsRefreshTick]);
+  }, [completionWindow, completionStatsRefreshTick]);
 
   useEffect(() => {
     setOptimisticallyCompletedIds((current) => {
@@ -1180,4 +1180,5 @@ export function TodayChoresPanel({
     </article>
   );
 }
+
 

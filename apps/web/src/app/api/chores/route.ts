@@ -985,18 +985,22 @@ export async function PATCH(request: NextRequest) {
         }
 
         const openById = new Map(openChores.map((chore) => [chore.id, chore] as const));
+        const seenOrderedIds = new Set<string>();
         for (const choreId of orderedChoreIds) {
-          if (!openById.has(choreId)) {
+          if (!openById.has(choreId) || seenOrderedIds.has(choreId)) {
             return { kind: "invalid_ordered_chore_ids" as const };
           }
+          seenOrderedIds.add(choreId);
         }
-        const openIds = new Set(openChores.map((chore) => chore.id));
-        if (orderedChoreIds.length !== openIds.size) {
-          return { kind: "invalid_ordered_chore_ids" as const };
-        }
+        const mergedOrderedIds = [
+          ...orderedChoreIds,
+          ...openChores
+            .map((chore) => chore.id)
+            .filter((choreId) => !seenOrderedIds.has(choreId)),
+        ];
 
         const now = new Date().toISOString();
-        const changedOpenChores = orderedChoreIds
+        const changedOpenChores = mergedOrderedIds
           .map((id, index) => ({ id, sortOrder: index }))
           .filter((entry) => openById.get(entry.id)?.sortOrder !== entry.sortOrder);
         await Promise.all(
@@ -1236,6 +1240,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "create_chores_failed" }, { status: 500 });
   }
 }
+
 
 
 
