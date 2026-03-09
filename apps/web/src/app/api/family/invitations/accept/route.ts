@@ -17,19 +17,6 @@ import {
   timestampField,
 } from "@/lib/firestore/rest";
 
-function maskEmail(email: string) {
-  const normalized = email.trim().toLowerCase();
-  const atIndex = normalized.indexOf("@");
-  if (atIndex <= 1) {
-    return normalized || "(empty)";
-  }
-  return `${normalized.slice(0, 2)}***${normalized.slice(atIndex)}`;
-}
-
-function logAcceptInviteDebug(event: string, details: Record<string, unknown>) {
-  console.info("[ACCEPT_INVITE_DEBUG]", event, JSON.stringify(details));
-}
-
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 }
@@ -98,12 +85,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "session_email_missing" }, { status: 400 });
   }
 
-  try {
-    logAcceptInviteDebug("accept_start", {
-      uid: session.uid,
-      email: maskEmail(normalizedEmail),
-    });
-    const { data, session: refreshedSession, refreshed } =
+  try {    const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
         let familyId = "";
         let familyIdSource = "";
@@ -114,12 +96,7 @@ export async function POST(request: NextRequest) {
             familyIdSource = "users.familyIds";
           }
         } catch (error) {
-          const reason = error instanceof Error ? error.message : "";
-          logAcceptInviteDebug("accept_user_doc_error", {
-            uid: session.uid,
-            reason: reason.slice(0, 180),
-          });
-          if (!reason.includes("FIRESTORE_HTTP_404")) {
+          const reason = error instanceof Error ? error.message : "";          if (!reason.includes("FIRESTORE_HTTP_404")) {
             throw error;
           }
         }
@@ -132,21 +109,8 @@ export async function POST(request: NextRequest) {
             if ((status === "invited" || status === "claimed") && candidateFamilyId) {
               familyId = candidateFamilyId;
               familyIdSource = "inviteLookup";
-            }
-            logAcceptInviteDebug("accept_invite_lookup", {
-              uid: session.uid,
-              email: maskEmail(normalizedEmail),
-              status: status || null,
-              candidateFamilyId: candidateFamilyId || null,
-            });
-          } catch (error) {
-            const reason = error instanceof Error ? error.message : "";
-            logAcceptInviteDebug("accept_invite_lookup_error", {
-              uid: session.uid,
-              email: maskEmail(normalizedEmail),
-              reason: reason.slice(0, 180),
-            });
-            if (!reason.includes("FIRESTORE_HTTP_404")) {
+            }          } catch (error) {
+            const reason = error instanceof Error ? error.message : "";            if (!reason.includes("FIRESTORE_HTTP_404")) {
               throw error;
             }
           }
@@ -157,14 +121,7 @@ export async function POST(request: NextRequest) {
           if (familyId) {
             familyIdSource = "member_email_query";
           }
-        }
-        logAcceptInviteDebug("accept_family_resolved", {
-          uid: session.uid,
-          email: maskEmail(normalizedEmail),
-          familyId: familyId || null,
-          familyIdSource: familyIdSource || null,
-        });
-        if (!familyId) {
+        }        if (!familyId) {
           return { kind: "invite_not_found" as const };
         }
 
@@ -176,14 +133,7 @@ export async function POST(request: NextRequest) {
           inviteDoc = await getDocument(emailMemberPath, idToken);
           inviteDocSource = "email_member_doc";
         } catch (error) {
-          const reason = error instanceof Error ? error.message : "";
-          logAcceptInviteDebug("accept_email_member_doc_error", {
-            uid: session.uid,
-            familyId,
-            email: maskEmail(normalizedEmail),
-            reason: reason.slice(0, 180),
-          });
-          if (isDocumentNotFoundError(reason)) {
+          const reason = error instanceof Error ? error.message : "";          if (isDocumentNotFoundError(reason)) {
             inviteDoc = null;
           } else {
             throw error;
@@ -228,25 +178,9 @@ export async function POST(request: NextRequest) {
         const inviteRole = getInviteRole(inviteDoc);
         const inviteName = getInviteName(inviteDoc);
         const inviteCreatedAt = getInviteCreatedAt(inviteDoc);
-        logAcceptInviteDebug("accept_invite_doc_loaded", {
-          uid: session.uid,
-          familyId,
-          inviteDocSource,
-          inviteStatus,
-          inviteRole,
-        });
-
         if (existingUidMemberDoc && !readBoolean(existingUidMemberDoc.fields, "deleted")) {
           const existingStatus = normalizeMemberStatus(readString(existingUidMemberDoc.fields, "status"));
-          const existingEmail = readString(existingUidMemberDoc.fields, "email").trim().toLowerCase();
-          logAcceptInviteDebug("accept_existing_uid_member", {
-            uid: session.uid,
-            familyId,
-            status: existingStatus || null,
-            hasEmail: Boolean(existingEmail),
-            emailMatches: !existingEmail || existingEmail === normalizedEmail,
-          });
-          if (
+          const existingEmail = readString(existingUidMemberDoc.fields, "email").trim().toLowerCase();          if (
             existingStatus === "active" &&
             (!existingEmail || existingEmail === normalizedEmail)
           ) {
@@ -285,39 +219,15 @@ export async function POST(request: NextRequest) {
             );
           } else {
             await createOrReplaceDocument(uidMemberPath, uidMemberFields, idToken);
-          }
-          logAcceptInviteDebug("accept_uid_member_upserted", {
-            uid: session.uid,
-            familyId,
-            uidMemberPath,
-          });
-        } catch (error) {
-          const reason = error instanceof Error ? error.message : "unknown";
-          logAcceptInviteDebug("accept_uid_member_upsert_error", {
-            uid: session.uid,
-            familyId,
-            uidMemberPath,
-            reason: reason.slice(0, 220),
-          });
-          throw error;
+          }        } catch (error) {
+          const reason = error instanceof Error ? error.message : "unknown";          throw error;
         }
 
         try {
           await relinkUserPrimaryFamily(session.uid, familyId, idToken);
         } catch (error) {
-          const reason = error instanceof Error ? error.message : "unknown";
-          logAcceptInviteDebug("accept_relink_user_family_error", {
-            uid: session.uid,
-            familyId,
-            reason: reason.slice(0, 220),
-          });
-          throw error;
-        }
-        logAcceptInviteDebug("accept_success", {
-          uid: session.uid,
-          familyId,
-        });
-        return { kind: "ok" as const, familyId };
+          const reason = error instanceof Error ? error.message : "unknown";          throw error;
+        }        return { kind: "ok" as const, familyId };
       });
 
     if (data.kind === "invite_not_found") {
@@ -345,3 +255,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "accept_invite_failed" }, { status: 500 });
   }
 }
+

@@ -95,11 +95,6 @@ httpServer.on("request", (req, res) => {
 });
 
 io.on("connection", (socket) => {
-	console.log("[ws] client connected", {
-		socketId: socket.id,
-		origin: socket.handshake.headers.origin ?? null,
-	});
-
 	socket.on(
 		"auth:identify",
 		(payload: { authToken?: string }) => {
@@ -119,14 +114,6 @@ io.on("connection", (socket) => {
 			socket.emit("auth:ok");
 		},
 	);
-
-	socket.on("disconnect", () => {
-		console.log("[ws] client disconnected", { socketId: socket.id });
-	});
 });
 
-httpServer.listen(PORT, () => {
-	console.log(`[ws] listening on :${PORT}`);
-	console.log("[ws] allowed origins", Array.from(allowedOrigins));
-	console.log("[ws] allow all origins", allowAllOrigins);
-});
+httpServer.listen(PORT);

@@ -32,19 +32,6 @@ type FirebaseSession = {
   photoUrl?: string;
 };
 
-function maskEmail(email: string) {
-  const normalized = email.trim().toLowerCase();
-  const atIndex = normalized.indexOf("@");
-  if (atIndex <= 1) {
-    return normalized || "(empty)";
-  }
-  return `${normalized.slice(0, 2)}***${normalized.slice(atIndex)}`;
-}
-
-function logInviteDebug(event: string, details: Record<string, unknown>) {
-  console.info("[INVITE_DEBUG]", event, JSON.stringify(details));
-}
-
 function resolvePublicOrigin(request: NextRequest) {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
   if (configured) {
@@ -139,10 +126,6 @@ async function upsertFirebaseUser(
 ) {
   const now = new Date().toISOString();
   const normalizedEmail = (tokenInfo.email ?? session.email ?? "").trim().toLowerCase();
-  logInviteDebug("gsi_upsert_start", {
-    uid: session.localId,
-    email: maskEmail(normalizedEmail),
-  });
   let existingFamilyIds: string[] = [];
   try {
     const existingUserDoc = await getDocument(`users/${session.localId}`, session.idToken);
@@ -155,11 +138,6 @@ async function upsertFirebaseUser(
   }
 
   let linkedFamilyId = existingFamilyIds[0] ?? "";
-  logInviteDebug("gsi_existing_user", {
-    uid: session.localId,
-    familyIdsCount: existingFamilyIds.length,
-    linkedFamilyId: linkedFamilyId || null,
-  });
   if (!linkedFamilyId && normalizedEmail) {
     try {
       const inviteLookupDoc = await getDocument(`inviteLookup/${normalizedEmail}`, session.idToken);
@@ -168,38 +146,15 @@ async function upsertFirebaseUser(
       if (inviteLookupStatus === "invited" && inviteLookupFamilyId) {
         linkedFamilyId = inviteLookupFamilyId;
       }
-      logInviteDebug("gsi_invite_lookup_doc", {
-        uid: session.localId,
-        email: maskEmail(normalizedEmail),
-        inviteLookupStatus: inviteLookupStatus || null,
-        inviteLookupFamilyId: inviteLookupFamilyId || null,
-      });
     } catch (error) {
       const reason = error instanceof Error ? error.message : "";
       if (!reason.includes("FIRESTORE_HTTP_404")) {
-        logInviteDebug("gsi_invite_lookup_error", {
-          uid: session.localId,
-          email: maskEmail(normalizedEmail),
-          reason: reason.slice(0, 180),
-        });
+        throw error;
       }
     }
   }
   if (!linkedFamilyId && normalizedEmail) {
     linkedFamilyId = await findFirstFamilyIdByMemberEmail(normalizedEmail, session.idToken);
-    logInviteDebug("gsi_email_lookup", {
-      uid: session.localId,
-      email: maskEmail(normalizedEmail),
-      linkedFamilyId: linkedFamilyId || null,
-    });
-  }
-
-  if (linkedFamilyId && normalizedEmail) {
-    logInviteDebug("gsi_invite_pending", {
-      uid: session.localId,
-      familyId: linkedFamilyId,
-      email: maskEmail(normalizedEmail),
-    });
   }
 
   const authFields = {
@@ -223,11 +178,6 @@ async function upsertFirebaseUser(
     session.idToken,
     Object.keys(authFields),
   );
-  logInviteDebug("gsi_user_patch_success", {
-    uid: session.localId,
-    email: maskEmail(normalizedEmail),
-    linkedFamilyId: linkedFamilyId || null,
-  });
   return true;
 }
 

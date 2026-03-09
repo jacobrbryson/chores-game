@@ -24,19 +24,6 @@ type AddMemberBody = {
 };
 const MAX_FAMILY_MEMBERS = 100;
 
-function maskEmail(email: string) {
-  const normalized = email.trim().toLowerCase();
-  const atIndex = normalized.indexOf("@");
-  if (atIndex <= 1) {
-    return normalized || "(empty)";
-  }
-  return `${normalized.slice(0, 2)}***${normalized.slice(atIndex)}`;
-}
-
-function logInviteDebug(event: string, details: Record<string, unknown>) {
-  console.info("[INVITE_DEBUG]", event, JSON.stringify(details));
-}
-
 function jsonReauthRequired() {
   return NextResponse.json(
     {
@@ -178,13 +165,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid_email" }, { status: 400 });
   }
 
-  try {
-    logInviteDebug("add_member_start", {
-      requesterUid: session.uid,
-      email: maskEmail(email),
-      role,
-    });
-    const { data, session: refreshedSession, refreshed } =
+  try {    const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
         let familyIds = await getUserFamilyIds(session.uid, idToken);
         let familyId = familyIds[0];
@@ -241,14 +222,6 @@ export async function POST(request: NextRequest) {
             idToken,
           );
         }
-        logInviteDebug("add_member_written", {
-          requesterUid: session.uid,
-          familyId,
-          memberId,
-          email: maskEmail(email),
-          role,
-        });
-
         return {
           kind: "ok" as const,
           familyId,
@@ -295,3 +268,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "add_member_failed" }, { status: 500 });
   }
 }
+

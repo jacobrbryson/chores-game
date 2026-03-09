@@ -33,8 +33,6 @@ const DEFAULT_CHORE_COINS_FOR_IMPORTED_GOOGLE_TASKS = 0;
 const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
 const LOCAL_REMOTE_AUTHORITY_TOLERANCE_MILLIS = 1000;
 const DEFAULT_MIN_SYNC_INTERVAL_SECONDS = 60;
-const ENABLE_GOOGLE_SYNC_DEBUG_LOGS =
-  process.env.NODE_ENV !== "production" || process.env.GOOGLE_SYNC_DEBUG === "1";
 
 type LocalChore = {
   id: string;
@@ -408,25 +406,6 @@ export async function syncGoogleTasksForUser(
       const remoteTaskListId = remoteTaskEntry.taskListId;
       const remoteTaskKey = `${remoteTaskListId}:${remoteTask.id}`;
       seenRemoteTaskKeys.add(remoteTaskKey);
-      if (
-        ENABLE_GOOGLE_SYNC_DEBUG_LOGS &&
-        normalizeComparableText(remoteTask.title || "").includes("hardwood floors")
-      ) {
-        console.info(
-          "[GOOGLE_SYNC_REATTACH_DEBUG]",
-          JSON.stringify({
-            event: "remote_seen",
-            uid: options.uid,
-            remoteTaskKey,
-            remoteTitle: remoteTask.title || "",
-            remoteTaskListId,
-            remoteTaskId: remoteTask.id,
-            remoteDeleted: Boolean(remoteTask.deleted),
-            remoteStatus: remoteTask.status || "",
-            remoteDue: remoteTask.due || "",
-          }),
-        );
-      }
       let localChore = localByTaskKey.get(remoteTaskKey);
       if (!localChore && !remoteTask.deleted) {
         const titleKey = normalizeComparableText(remoteTask.title || "");
@@ -441,25 +420,6 @@ export async function syncGoogleTasksForUser(
             : titleMatches.length === 1
               ? titleMatches[0]
               : undefined;
-        if (
-          ENABLE_GOOGLE_SYNC_DEBUG_LOGS &&
-          (titleKey.includes("hardwood floors") || Boolean(attachCandidate))
-        ) {
-          console.info(
-            "[GOOGLE_SYNC_REATTACH_DEBUG]",
-            JSON.stringify({
-              event: "candidate_lookup",
-              uid: options.uid,
-              remoteTaskKey,
-              remoteTitle: remoteTask.title || "",
-              remoteDueDate: remoteDueDate || "",
-              candidateCount: titleMatches.length,
-              dueMatchCount: dueMatches.length,
-              candidateIds: titleMatches.map((candidate) => candidate.id),
-              selectedCandidateId: attachCandidate?.id || "",
-            }),
-          );
-        }
         if (attachCandidate) {
           localChore = attachCandidate;
           localByTaskKey.set(remoteTaskKey, attachCandidate);
@@ -792,4 +752,6 @@ export async function syncGoogleTasksForUser(
     };
   }
 }
+
+
 

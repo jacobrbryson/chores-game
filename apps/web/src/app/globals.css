@@ -3568,6 +3568,7 @@ textarea:disabled {
   margin: 0 0 8px;
   color: #1a4777;
   font-size: 1.04rem;
+  font-weight: 800;
 }
 
 .legal-section p,
@@ -3577,11 +3578,24 @@ textarea:disabled {
   line-height: 1.52;
 }
 
+.legal-section p {
+  padding-left: 1.1rem;
+}
+
 .legal-section ul {
   margin: 0;
-  padding-left: 1.1rem;
-  display: grid;
-  gap: 7px;
+  padding-left: 1.35rem;
+  list-style-type: disc;
+  list-style-position: outside;
+  display: block;
+}
+
+.legal-section ul li + li {
+  margin-top: 7px;
+}
+
+.legal-section li::marker {
+  color: #325a86;
 }
 
 .legal-section a {
@@ -3613,6 +3627,9 @@ textarea:disabled {
   flex-shrink: 0;
   color: currentColor;
 }
+
+
+
 
 
 

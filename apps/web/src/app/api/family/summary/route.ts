@@ -28,21 +28,6 @@ export const dynamic = "force-dynamic";
 const MAX_FAMILY_MEMBERS = 100;
 const MINUTE_MILLIS = 60 * 1000;
 const MAX_SUMMARY_CHORES = 1000;
-const ENABLE_GOOGLE_SYNC_DEBUG_LOGS =
-  process.env.NODE_ENV !== "production" || process.env.GOOGLE_SYNC_DEBUG === "1";
-
-function maskEmail(email: string) {
-  const normalized = email.trim().toLowerCase();
-  const atIndex = normalized.indexOf("@");
-  if (atIndex <= 1) {
-    return normalized || "(empty)";
-  }
-  return `${normalized.slice(0, 2)}***${normalized.slice(atIndex)}`;
-}
-
-function logInviteDebug(event: string, details: Record<string, unknown>) {
-  console.info("[INVITE_DEBUG]", event, JSON.stringify(details));
-}
 
 function toUnixMillis(value: string | undefined) {
   if (!value) {
@@ -214,12 +199,7 @@ export async function GET(request: NextRequest) {
   );
   const todayIsoDate = localTodayIsoDate(timezoneOffsetMinutes);
 
-  try {
-    logInviteDebug("summary_start", {
-      uid: session.uid,
-      email: maskEmail(session.email),
-    });
-    const { data, session: refreshedSession, refreshed } =
+  try {    const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
         let userDoc: Awaited<ReturnType<typeof getDocument>> | null = null;
         try {
@@ -240,13 +220,6 @@ export async function GET(request: NextRequest) {
         const familyIds = readStringArray(userDoc?.fields, "familyIds");
         const viewerGoogleTasksLinked = readBoolean(userDoc?.fields, "googleTasksLinked");
         let familyId = familyIds[0];
-        logInviteDebug("summary_user_doc", {
-          uid: session.uid,
-          userDocFound: Boolean(userDoc),
-          familyIdsCount: familyIds.length,
-          familyId: familyId || null,
-        });
-
         if (!familyId) {
           let inviteLookupFamilyId = "";
           if (session.email) {
@@ -262,13 +235,7 @@ export async function GET(request: NextRequest) {
               }
             } catch (error) {
               const reason = error instanceof Error ? error.message : "";
-              if (!reason.includes("FIRESTORE_HTTP_404")) {
-                logInviteDebug("summary_invite_lookup_error", {
-                  uid: session.uid,
-                  email: maskEmail(session.email),
-                  reason: reason.slice(0, 180),
-                });
-              }
+              if (!reason.includes("FIRESTORE_HTTP_404")) {              }
             }
           }
           const uidRecoveredFamilyId = await findFirstFamilyIdByMemberUid(session.uid, idToken);
@@ -276,16 +243,7 @@ export async function GET(request: NextRequest) {
             ? ""
             : await findFirstFamilyIdByMemberEmail(session.email, idToken);
           const recoveredFamilyId =
-            uidRecoveredFamilyId || inviteLookupFamilyId || emailRecoveredFamilyId;
-          logInviteDebug("summary_family_recovery", {
-            uid: session.uid,
-            email: maskEmail(session.email),
-            uidRecoveredFamilyId: uidRecoveredFamilyId || null,
-            inviteLookupFamilyId: inviteLookupFamilyId || null,
-            emailRecoveredFamilyId: emailRecoveredFamilyId || null,
-            recoveredFamilyId: recoveredFamilyId || null,
-          });
-          if (!recoveredFamilyId) {
+            uidRecoveredFamilyId || inviteLookupFamilyId || emailRecoveredFamilyId;          if (!recoveredFamilyId) {
             return emptySummary(session.uid, viewerGoogleTasksLinked);
           }
           familyId = recoveredFamilyId;
@@ -449,65 +407,6 @@ export async function GET(request: NextRequest) {
           }))
           .slice(0, MAX_FAMILY_MEMBERS);
 
-        logInviteDebug("summary_members_loaded", {
-          uid: session.uid,
-          familyId,
-          rawMemberCount,
-          returnedMemberCount: mappedMembers.length,
-        });
-
-        const choreFilterCandidates = choreDocs.map((doc) => ({
-          status: readString(doc.fields, "status"),
-          deleted: readBoolean(doc.fields, "deleted"),
-          dueDate: readString(doc.fields, "dueDate"),
-        }));
-        const openChoreCandidates = choreFilterCandidates.filter(
-          (chore) => !chore.deleted && chore.status === "Open",
-        );
-        const futureExcludedCount = openChoreCandidates.filter((chore) =>
-          isFutureDueDate(chore.dueDate, todayIsoDate),
-        ).length;
-        if (futureExcludedCount > 0 || choreDocs.length >= MAX_SUMMARY_CHORES) {
-          console.info("[SUMMARY_CHORES_FILTER]", {
-            familyId,
-            timezoneOffsetMinutes,
-            todayIsoDate,
-            loadedChores: choreDocs.length,
-            openChores: openChoreCandidates.length,
-            futureExcluded: futureExcludedCount,
-            dueTodayOpen: openChoreCandidates.filter((chore) => chore.dueDate === todayIsoDate).length,
-          });
-        }
-
-        if (ENABLE_GOOGLE_SYNC_DEBUG_LOGS) {
-          for (const doc of choreDocs) {
-            const title = readString(doc.fields, "title") || "Untitled chore";
-            const sourceField = readString(doc.fields, "source");
-            const googleTaskId = readString(doc.fields, "googleTaskId");
-            const googleTaskListId = readString(doc.fields, "googleTaskListId");
-            const googleTaskOwnerUid = readString(doc.fields, "googleTaskOwnerUid");
-            const hasGoogleMetadata = Boolean(googleTaskId && googleTaskListId && googleTaskOwnerUid);
-            const isTitleMatch = title.toLowerCase().includes("hardwood floors");
-            if (!hasGoogleMetadata && !isTitleMatch) {
-              continue;
-            }
-            console.info(
-              "[GOOGLE_SYNC_SOURCE_DEBUG]",
-              JSON.stringify({
-                route: "family_summary",
-                choreId: documentIdFromName(doc.name),
-                title,
-                sourceField,
-                hasGoogleMetadata,
-                googleTaskId,
-                googleTaskListId,
-                googleTaskOwnerUid,
-                status: readString(doc.fields, "status"),
-                deleted: readBoolean(doc.fields, "deleted"),
-              }),
-            );
-          }
-        }
         return {
           viewerUid: session.uid,
           viewerGoogleTasksLinked,
@@ -619,4 +518,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "summary_unavailable" }, { status: 500 });
   }
 }
+
+
+
 

@@ -19,19 +19,23 @@ export default function TermsOfServicePage() {
 
       <section className="legal-section">
         <h2>Agreement to Terms</h2>
-        <p>
-          By using Family Chores, you agree to these Terms of Service. If you do not agree, do not
-          use the app.
-        </p>
+        <ul>
+          <li>
+            By using Family Chores, you agree to these Terms of Service. If you do not agree, do not
+            use the app.
+          </li>
+        </ul>
       </section>
 
       <section className="legal-section">
         <h2>Service Description</h2>
-        <p>
-          Family Chores is a household task-management game where parents/guardians assign and review
-          chores and players complete chores to earn in-app virtual currency and unlock cosmetic
-          features.
-        </p>
+        <ul>
+          <li>
+            Family Chores is a household task-management game where parents/guardians assign and review
+            chores and players complete chores to earn in-app virtual currency and unlock cosmetic
+            features.
+          </li>
+        </ul>
       </section>
 
       <section className="legal-section">
@@ -48,7 +52,6 @@ export default function TermsOfServicePage() {
 
       <section className="legal-section">
         <h2>Acceptable Use</h2>
-        <p>You agree not to:</p>
         <ul>
           <li>Attempt unauthorized access to any account, family, or data.</li>
           <li>Interfere with app operation, security features, or availability.</li>
@@ -74,58 +77,69 @@ export default function TermsOfServicePage() {
 
       <section className="legal-section">
         <h2>Third-Party Services</h2>
-        <p>
-          Family Chores may use third-party services (such as Google sign-in and optional Google
-          Tasks sync). Your use of those services may also be subject to their terms and policies.
-        </p>
+        <ul>
+          <li>
+            Family Chores may use third-party services (such as Google sign-in and optional Google
+            Tasks sync). Your use of those services may also be subject to their terms and policies.
+          </li>
+        </ul>
       </section>
 
       <section className="legal-section">
         <h2>Intellectual Property</h2>
-        <p>
-          Family Chores, including its design, code, branding, and content, is owned by Orcwood
-          Games or its licensors and is protected by applicable intellectual property laws.
-        </p>
+        <ul>
+          <li>
+            Family Chores, including its design, code, branding, and content, is owned by Orcwood
+            Games or its licensors and is protected by applicable intellectual property laws.
+          </li>
+        </ul>
       </section>
 
       <section className="legal-section">
         <h2>Disclaimers</h2>
-        <p>
-          Family Chores is provided on an "as is" and "as available" basis. To the maximum extent
-          permitted by law, we disclaim warranties of any kind, express or implied.
-        </p>
+        <ul>
+          <li>
+            Family Chores is provided on an "as is" and "as available" basis. To the maximum extent
+            permitted by law, we disclaim warranties of any kind, express or implied.
+          </li>
+        </ul>
       </section>
 
       <section className="legal-section">
         <h2>Limitation of Liability</h2>
-        <p>
-          To the maximum extent permitted by law, Orcwood Games is not liable for indirect,
-          incidental, special, consequential, or punitive damages, or for loss of data, use, or
-          profits arising from use of the app.
-        </p>
+        <ul>
+          <li>
+            To the maximum extent permitted by law, Orcwood Games is not liable for indirect,
+            incidental, special, consequential, or punitive damages, or for loss of data, use, or
+            profits arising from use of the app.
+          </li>
+        </ul>
       </section>
 
       <section className="legal-section">
         <h2>Termination</h2>
-        <p>
-          We may suspend or terminate access if these terms are violated, if required by law, or when
-          necessary to protect the service or users.
-        </p>
+        <ul>
+          <li>
+            We may suspend or terminate access if these terms are violated, if required by law, or when
+            necessary to protect the service or users.
+          </li>
+        </ul>
       </section>
 
       <section className="legal-section">
         <h2>Changes to Terms</h2>
-        <p>
-          We may update these Terms of Service from time to time. Continued use after updates means
-          you accept the revised terms.
-        </p>
+        <ul>
+          <li>
+            We may update these Terms of Service from time to time. Continued use after updates means
+            you accept the revised terms.
+          </li>
+        </ul>
       </section>
 
       <section className="legal-section">
         <h2>Contact</h2>
         <p>
-          For terms questions, visit
-          {" "}
+          For terms questions, visit{" "}
           <a href="https://orcwood.com" target="_blank" rel="noreferrer">
             Orcwood Games
           </a>

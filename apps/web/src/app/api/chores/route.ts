@@ -63,8 +63,6 @@ type ViewerRole = "admin" | "player";
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
-const ENABLE_GOOGLE_SYNC_DEBUG_LOGS =
-  process.env.NODE_ENV !== "production" || process.env.GOOGLE_SYNC_DEBUG === "1";
 type ChoreSortBy =
   | "sortOrder"
   | "title"
@@ -257,24 +255,6 @@ function normalizeChoreDoc(doc: {
   const googleTaskOwnerUid = readString(doc.fields, "googleTaskOwnerUid");
   const hasGoogleMetadata = Boolean(googleTaskId && googleTaskListId && googleTaskOwnerUid);
   const source = sourceField === GOOGLE_TASKS_CHORE_SOURCE ? "google_tasks" : "manual";
-  if (ENABLE_GOOGLE_SYNC_DEBUG_LOGS && (hasGoogleMetadata || title.toLowerCase().includes("hardwood floors"))) {
-    console.info(
-      "[GOOGLE_SYNC_SOURCE_DEBUG]",
-      JSON.stringify({
-        route: "chores_list",
-        choreId: documentIdFromName(doc.name),
-        title,
-        sourceField,
-        sourceDerived: source,
-        hasGoogleMetadata,
-        googleTaskId,
-        googleTaskListId,
-        googleTaskOwnerUid,
-        status: readString(doc.fields, "status") || "Open",
-        deleted: readBoolean(doc.fields, "deleted"),
-      }),
-    );
-  }
   return {
     id: documentIdFromName(doc.name),
     title,
@@ -1256,4 +1236,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "create_chores_failed" }, { status: 500 });
   }
 }
+
+
 

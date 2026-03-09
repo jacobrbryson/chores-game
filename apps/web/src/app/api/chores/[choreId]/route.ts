@@ -548,7 +548,6 @@ export async function PATCH(
   if (action !== "edit" && action !== "complete" && action !== "undo_complete") {
     return NextResponse.json({ error: "invalid_action" }, { status: 400 });
   }
-  let debugStep = "validate_body";
 
   const normalizedDescription =
     typeof body.description === "string" ? normalizeDescription(body.description) : "";
@@ -577,7 +576,6 @@ export async function PATCH(
   try {
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
-        debugStep = "resolve_family";
         const familyId = await getPrimaryFamilyId(session.uid, idToken);
         if (!familyId) {
           return { kind: "family_not_found" as const };
@@ -587,7 +585,6 @@ export async function PATCH(
         const actorName = session.name || session.email;
         let syncOwnerUid = "";
         if (action === "complete") {
-          debugStep = "complete_load_chore";
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
           const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
           const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
@@ -606,41 +603,17 @@ export async function PATCH(
             session.uid,
             session.email,
           );
-          console.info(
-            "[CHORE_PATCH_DEBUG]",
-            JSON.stringify({
-              step: "complete_ownership_check",
-              uid: session.uid,
-              choreId,
-              action,
-              assigneeId: choreAssigneeId || null,
-              requesterOwnsChore,
-            }),
-          );
           if (!requesterOwnsChore) {
-            debugStep = "complete_role_lookup";
             const requester = await getRequesterContext(
               familyId,
               session.uid,
               session.email,
               idToken,
             );
-            console.info(
-              "[CHORE_PATCH_DEBUG]",
-              JSON.stringify({
-                step: "complete_role_check",
-                uid: session.uid,
-                choreId,
-                action,
-                role: requester.role,
-              }),
-            );
             if (requester.role !== "admin") {
               return { kind: "forbidden_action" as const };
             }
           }
-
-          debugStep = "complete_patch";
           await patchDocument(
             `families/${familyId}/chores/${choreId}`,
             {
@@ -688,7 +661,6 @@ export async function PATCH(
             occurredAt: now,
           });
         } else if (action === "undo_complete") {
-          debugStep = "undo_role_lookup";
           const requester = await getRequesterContext(
             familyId,
             session.uid,
@@ -698,8 +670,6 @@ export async function PATCH(
           if (requester.role !== "admin") {
             return { kind: "forbidden_action" as const };
           }
-
-          debugStep = "undo_load_chore";
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
           const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
@@ -713,8 +683,6 @@ export async function PATCH(
           if (currentStatus !== "Submitted" && currentStatus !== "Approved") {
             return { kind: "invalid_transition" as const };
           }
-
-          debugStep = "undo_patch";
           await patchDocument(
             `families/${familyId}/chores/${choreId}`,
             {
@@ -764,7 +732,6 @@ export async function PATCH(
             occurredAt: now,
           });
         } else {
-          debugStep = "edit_role_lookup";
           const requester = await getRequesterContext(
             familyId,
             session.uid,
@@ -774,8 +741,6 @@ export async function PATCH(
           if (requester.role !== "admin") {
             return { kind: "forbidden_action" as const };
           }
-
-          debugStep = "edit_patch";
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
           const previousAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
           const previousTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
@@ -874,17 +839,7 @@ export async function PATCH(
   } catch (error) {
     const reason =
       error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
-    console.error(
-      "[CHORE_PATCH_ERROR]",
-      JSON.stringify({
-        reason,
-        step: debugStep,
-        action,
-        uid: session.uid,
-        email: session.email,
-        choreId,
-      }),
-    );
+    console.error("[CHORE_PATCH_ERROR]", reason);
     return mapCommonFirestoreErrors(reason, "update_chore_failed");
   }
 }
@@ -990,4 +945,5 @@ export async function DELETE(
     return mapCommonFirestoreErrors(reason, "delete_chore_failed");
   }
 }
+
 
