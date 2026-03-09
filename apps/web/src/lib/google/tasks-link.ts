@@ -442,8 +442,7 @@ export async function setGoogleTasksSelectedTaskLists(input: {
 
 export async function unlinkGoogleTasks(uid: string, idToken: string) {
   const now = new Date().toISOString();
-  await patchDocument(
-    `users/${uid}`,
+  await patchDocument(`users/${uid}`,
     {
       googleTasksLinked: boolField(false),
       googleTasksRefreshToken: stringField(""),
@@ -474,6 +473,7 @@ export async function unlinkGoogleTasks(uid: string, idToken: string) {
       "googleTasksUpdatedAt",
     ],
   );
+
 }
 
 export async function getGoogleTasksProfileState(uid: string, idToken: string): Promise<GoogleTasksProfileState> {
@@ -503,3 +503,5 @@ export async function getGoogleTasksProfileState(uid: string, idToken: string): 
     taskLists: resolved.taskLists,
   };
 }
+
+

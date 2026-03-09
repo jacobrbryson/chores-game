@@ -63,6 +63,8 @@ type ViewerRole = "admin" | "player";
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
+const ENABLE_GOOGLE_SYNC_DEBUG_LOGS =
+  process.env.NODE_ENV !== "production" || process.env.GOOGLE_SYNC_DEBUG === "1";
 type ChoreSortBy =
   | "sortOrder"
   | "title"
@@ -249,10 +251,33 @@ function normalizeChoreDoc(doc: {
   fields?: Record<string, FirestoreValue>;
 }): ChoreRow {
   const sourceField = readString(doc.fields, "source");
+  const title = readString(doc.fields, "title") || "Untitled chore";
+  const googleTaskId = readString(doc.fields, "googleTaskId");
+  const googleTaskListId = readString(doc.fields, "googleTaskListId");
+  const googleTaskOwnerUid = readString(doc.fields, "googleTaskOwnerUid");
+  const hasGoogleMetadata = Boolean(googleTaskId && googleTaskListId && googleTaskOwnerUid);
   const source = sourceField === GOOGLE_TASKS_CHORE_SOURCE ? "google_tasks" : "manual";
+  if (ENABLE_GOOGLE_SYNC_DEBUG_LOGS && (hasGoogleMetadata || title.toLowerCase().includes("hardwood floors"))) {
+    console.info(
+      "[GOOGLE_SYNC_SOURCE_DEBUG]",
+      JSON.stringify({
+        route: "chores_list",
+        choreId: documentIdFromName(doc.name),
+        title,
+        sourceField,
+        sourceDerived: source,
+        hasGoogleMetadata,
+        googleTaskId,
+        googleTaskListId,
+        googleTaskOwnerUid,
+        status: readString(doc.fields, "status") || "Open",
+        deleted: readBoolean(doc.fields, "deleted"),
+      }),
+    );
+  }
   return {
     id: documentIdFromName(doc.name),
-    title: readString(doc.fields, "title") || "Untitled chore",
+    title,
     status: readString(doc.fields, "status") || "Open",
     source,
     sortOrder: readOptionalSortOrder(doc.fields),
@@ -735,8 +760,11 @@ export async function GET(request: NextRequest) {
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
         let familyId = "";
+        let viewerGoogleTasksLinked = false;
         try {
-          familyId = await getPrimaryFamilyId(session.uid, idToken);
+          const userDoc = await getDocument(`users/${session.uid}`, idToken);
+          familyId = readStringArray(userDoc.fields, "familyIds")[0] ?? "";
+          viewerGoogleTasksLinked = readBoolean(userDoc.fields, "googleTasksLinked");
         } catch (error) {
           const reason = error instanceof Error ? error.message : "";
           if (
@@ -748,6 +776,7 @@ export async function GET(request: NextRequest) {
               chores: [] as ChoreRow[],
               viewerRole: "player" as ViewerRole,
               viewerUid: session.uid,
+              viewerGoogleTasksLinked,
               familyId: "",
               wsAuthToken: "",
             };
@@ -760,6 +789,7 @@ export async function GET(request: NextRequest) {
             chores: [] as ChoreRow[],
             viewerRole: "player" as ViewerRole,
             viewerUid: session.uid,
+            viewerGoogleTasksLinked,
             familyId: "",
             wsAuthToken: "",
           };
@@ -895,6 +925,7 @@ export async function GET(request: NextRequest) {
           chores: pagination.rows,
           viewerRole,
           viewerUid: session.uid,
+          viewerGoogleTasksLinked,
           viewerAssigneeAliases,
           familyId,
           wsAuthToken: createFamilySocketAuthToken({

@@ -33,6 +33,8 @@ const DEFAULT_CHORE_COINS_FOR_IMPORTED_GOOGLE_TASKS = 0;
 const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
 const LOCAL_REMOTE_AUTHORITY_TOLERANCE_MILLIS = 1000;
 const DEFAULT_MIN_SYNC_INTERVAL_SECONDS = 60;
+const ENABLE_GOOGLE_SYNC_DEBUG_LOGS =
+  process.env.NODE_ENV !== "production" || process.env.GOOGLE_SYNC_DEBUG === "1";
 
 type LocalChore = {
   id: string;
@@ -92,6 +94,10 @@ function normalizeTitle(value: string) {
 
 function normalizeDetails(value: string) {
   return value.trim().slice(0, 2000);
+}
+
+function normalizeComparableText(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function readOptionalSortOrder(fields: Record<string, FirestoreValue> | undefined) {
@@ -173,6 +179,34 @@ function localAuthorityMillis(chore: LocalChore) {
   return toUnixMillis(chore.updatedAt) || toUnixMillis(chore.submittedAt) || toUnixMillis(chore.createdAt);
 }
 
+function isGoogleMappedChoreForOwner(chore: LocalChore, ownerUid: string) {
+  if (!chore.googleTaskId || !chore.googleTaskListId) {
+    return false;
+  }
+  if (chore.googleTaskOwnerUid && chore.googleTaskOwnerUid !== ownerUid) {
+    return false;
+  }
+  if (!chore.googleTaskOwnerUid && chore.assigneeId !== ownerUid) {
+    return false;
+  }
+  return true;
+}
+
+function isManualReattachCandidateForOwner(chore: LocalChore, ownerUid: string) {
+  if (chore.deleted || chore.status === "Deleted") {
+    return false;
+  }
+  if (chore.assigneeId !== ownerUid) {
+    return false;
+  }
+  if (chore.source === GOOGLE_TASKS_CHORE_SOURCE) {
+    return false;
+  }
+  if (chore.googleTaskId || chore.googleTaskListId || chore.googleTaskOwnerUid) {
+    return false;
+  }
+  return true;
+}
 function parseLocalChore(doc: {
   name: string;
   fields?: Record<string, FirestoreValue>;
@@ -231,6 +265,13 @@ function isGoogleTaskNotFound(error: unknown) {
     return false;
   }
   return error.status === 404;
+}
+
+function isGoogleTaskForbidden(error: unknown) {
+  if (!(error instanceof GoogleTasksHttpError)) {
+    return false;
+  }
+  return error.status === 403;
 }
 
 export async function syncGoogleTasksForUser(
@@ -307,10 +348,8 @@ export async function syncGoogleTasksForUser(
     const choreDocs = await listDocuments(`families/${link.familyId}/chores`, options.idToken, 1000);
     const allChores = choreDocs.map((doc) => parseLocalChore(doc));
     const localGoogleChores = allChores
-      .filter((chore) => chore.source === GOOGLE_TASKS_CHORE_SOURCE)
-      .filter((chore) => chore.googleTaskOwnerUid === options.uid)
-      .filter((chore) => selectedTaskListIds.has(chore.googleTaskListId))
-      .filter((chore) => Boolean(chore.googleTaskId));
+      .filter((chore) => isGoogleMappedChoreForOwner(chore, options.uid))
+      .filter((chore) => selectedTaskListIds.has(chore.googleTaskListId));
     const localByTaskKey = new Map<string, LocalChore>();
     for (const chore of localGoogleChores) {
       const key = `${chore.googleTaskListId}:${chore.googleTaskId}`;
@@ -318,6 +357,22 @@ export async function syncGoogleTasksForUser(
       if (!existing || localAuthorityMillis(chore) > localAuthorityMillis(existing)) {
         localByTaskKey.set(key, chore);
       }
+    }
+    const manualReattachByTitle = new Map<string, LocalChore[]>();
+    for (const chore of allChores) {
+      if (!isManualReattachCandidateForOwner(chore, options.uid)) {
+        continue;
+      }
+      const titleKey = normalizeComparableText(chore.title);
+      if (!titleKey) {
+        continue;
+      }
+      const existingCandidates = manualReattachByTitle.get(titleKey) ?? [];
+      existingCandidates.push(chore);
+      manualReattachByTitle.set(titleKey, existingCandidates);
+    }
+    for (const candidates of manualReattachByTitle.values()) {
+      candidates.sort((a, b) => localAuthorityMillis(b) - localAuthorityMillis(a));
     }
     const openChores = allChores
       .filter((chore) => !chore.deleted && chore.status === "Open")
@@ -353,7 +408,71 @@ export async function syncGoogleTasksForUser(
       const remoteTaskListId = remoteTaskEntry.taskListId;
       const remoteTaskKey = `${remoteTaskListId}:${remoteTask.id}`;
       seenRemoteTaskKeys.add(remoteTaskKey);
-      const localChore = localByTaskKey.get(remoteTaskKey);
+      if (
+        ENABLE_GOOGLE_SYNC_DEBUG_LOGS &&
+        normalizeComparableText(remoteTask.title || "").includes("hardwood floors")
+      ) {
+        console.info(
+          "[GOOGLE_SYNC_REATTACH_DEBUG]",
+          JSON.stringify({
+            event: "remote_seen",
+            uid: options.uid,
+            remoteTaskKey,
+            remoteTitle: remoteTask.title || "",
+            remoteTaskListId,
+            remoteTaskId: remoteTask.id,
+            remoteDeleted: Boolean(remoteTask.deleted),
+            remoteStatus: remoteTask.status || "",
+            remoteDue: remoteTask.due || "",
+          }),
+        );
+      }
+      let localChore = localByTaskKey.get(remoteTaskKey);
+      if (!localChore && !remoteTask.deleted) {
+        const titleKey = normalizeComparableText(remoteTask.title || "");
+        const titleMatches = titleKey ? (manualReattachByTitle.get(titleKey) ?? []) : [];
+        const remoteDueDate = googleDueToDueDate(remoteTask.due);
+        const dueMatches = remoteDueDate
+          ? titleMatches.filter((candidate) => candidate.dueDate === remoteDueDate)
+          : [];
+        const attachCandidate =
+          dueMatches.length === 1
+            ? dueMatches[0]
+            : titleMatches.length === 1
+              ? titleMatches[0]
+              : undefined;
+        if (
+          ENABLE_GOOGLE_SYNC_DEBUG_LOGS &&
+          (titleKey.includes("hardwood floors") || Boolean(attachCandidate))
+        ) {
+          console.info(
+            "[GOOGLE_SYNC_REATTACH_DEBUG]",
+            JSON.stringify({
+              event: "candidate_lookup",
+              uid: options.uid,
+              remoteTaskKey,
+              remoteTitle: remoteTask.title || "",
+              remoteDueDate: remoteDueDate || "",
+              candidateCount: titleMatches.length,
+              dueMatchCount: dueMatches.length,
+              candidateIds: titleMatches.map((candidate) => candidate.id),
+              selectedCandidateId: attachCandidate?.id || "",
+            }),
+          );
+        }
+        if (attachCandidate) {
+          localChore = attachCandidate;
+          localByTaskKey.set(remoteTaskKey, attachCandidate);
+          const remainingTitleMatches = titleMatches.filter(
+            (candidate) => candidate.id !== attachCandidate.id,
+          );
+          if (remainingTitleMatches.length > 0) {
+            manualReattachByTitle.set(titleKey, remainingTitleMatches);
+          } else {
+            manualReattachByTitle.delete(titleKey);
+          }
+        }
+      }
       const remoteUpdatedAt = remoteTask.updated || remoteTask.completed || now;
       const remoteUpdatedMillis = toUnixMillis(remoteUpdatedAt);
 
@@ -408,6 +527,32 @@ export async function syncGoogleTasksForUser(
         continue;
       }
 
+      const metadataPatchFields: Record<string, FirestoreValue> = {};
+      const metadataUpdateMask: string[] = [];
+      if (localChore.source !== GOOGLE_TASKS_CHORE_SOURCE) {
+        metadataPatchFields.source = stringField(GOOGLE_TASKS_CHORE_SOURCE);
+        metadataUpdateMask.push("source");
+      }
+      if (localChore.googleTaskOwnerUid !== options.uid) {
+        metadataPatchFields.googleTaskOwnerUid = stringField(options.uid);
+        metadataUpdateMask.push("googleTaskOwnerUid");
+      }
+      if (localChore.googleTaskListId !== remoteTaskListId) {
+        metadataPatchFields.googleTaskListId = stringField(remoteTaskListId);
+        metadataUpdateMask.push("googleTaskListId");
+      }
+      if (localChore.googleTaskId !== remoteTask.id) {
+        metadataPatchFields.googleTaskId = stringField(remoteTask.id);
+        metadataUpdateMask.push("googleTaskId");
+      }
+      if (metadataUpdateMask.length > 0) {
+        await patchDocument(
+          `families/${link.familyId}/chores/${localChore.id}`,
+          metadataPatchFields,
+          options.idToken,
+          metadataUpdateMask,
+        );
+      }
       const localUpdatedMillis = localAuthorityMillis(localChore);
       if (remoteUpdatedMillis > localUpdatedMillis + LOCAL_REMOTE_AUTHORITY_TOLERANCE_MILLIS) {
         if (remoteTask.deleted) {
@@ -498,14 +643,20 @@ export async function syncGoogleTasksForUser(
       if (localUpdatedMillis > remoteUpdatedMillis + LOCAL_REMOTE_AUTHORITY_TOLERANCE_MILLIS) {
         if (localChore.deleted || localChore.status === "Deleted") {
           if (!remoteTask.deleted) {
+            let pushedRemoteDelete = false;
             try {
               await deleteGoogleTask(link.accessToken, remoteTaskListId, remoteTask.id);
+              pushedRemoteDelete = true;
             } catch (error) {
-              if (!isGoogleTaskNotFound(error)) {
+              if (isGoogleTaskNotFound(error)) {
+                pushedRemoteDelete = true;
+              } else if (!isGoogleTaskForbidden(error)) {
                 throw error;
               }
             }
-            pushedCount += 1;
+            if (pushedRemoteDelete) {
+              pushedCount += 1;
+            }
           }
           continue;
         }
@@ -513,6 +664,7 @@ export async function syncGoogleTasksForUser(
         const status = isCompletedStatus(localChore.status) ? "completed" : "needsAction";
         const due = dueDateToGoogleDue(localChore.dueDate);
         const notes = normalizeDetails(localChore.details);
+        let pushedRemoteTask = false;
         try {
           await patchGoogleTask(link.accessToken, remoteTaskListId, remoteTask.id, {
             title: normalizeTitle(localChore.title),
@@ -523,26 +675,40 @@ export async function syncGoogleTasksForUser(
               ? { completed: localChore.submittedAt || localChore.updatedAt || now }
               : {}),
           });
+          pushedRemoteTask = true;
         } catch (error) {
+          if (isGoogleTaskForbidden(error)) {
+            continue;
+          }
           if (!isGoogleTaskNotFound(error)) {
             throw error;
           }
-          const createdTask = await createGoogleTask(link.accessToken, remoteTaskListId, {
-            title: normalizeTitle(localChore.title),
-            notes,
-            due,
-            status,
-          });
-          await patchDocument(
-            `families/${link.familyId}/chores/${localChore.id}`,
-            {
-              googleTaskId: stringField(createdTask.id),
-            },
-            options.idToken,
-            ["googleTaskId"],
-          );
+          try {
+            const createdTask = await createGoogleTask(link.accessToken, remoteTaskListId, {
+              title: normalizeTitle(localChore.title),
+              notes,
+              due,
+              status,
+            });
+            await patchDocument(
+              `families/${link.familyId}/chores/${localChore.id}`,
+              {
+                googleTaskId: stringField(createdTask.id),
+              },
+              options.idToken,
+              ["googleTaskId"],
+            );
+            pushedRemoteTask = true;
+          } catch (createError) {
+            if (isGoogleTaskForbidden(createError)) {
+              continue;
+            }
+            throw createError;
+          }
         }
-        pushedCount += 1;
+        if (pushedRemoteTask) {
+          pushedCount += 1;
+        }
       }
     }
 
@@ -562,21 +728,27 @@ export async function syncGoogleTasksForUser(
       if (!targetTaskListId) {
         continue;
       }
-      const createdTask = await createGoogleTask(link.accessToken, targetTaskListId, {
-        title: normalizeTitle(localChore.title),
-        notes,
-        due,
-        status,
-      });
-      await patchDocument(
-        `families/${link.familyId}/chores/${localChore.id}`,
-        {
-          googleTaskId: stringField(createdTask.id),
-        },
-        options.idToken,
-        ["googleTaskId"],
-      );
-      pushedCount += 1;
+      try {
+        const createdTask = await createGoogleTask(link.accessToken, targetTaskListId, {
+          title: normalizeTitle(localChore.title),
+          notes,
+          due,
+          status,
+        });
+        await patchDocument(
+          `families/${link.familyId}/chores/${localChore.id}`,
+          {
+            googleTaskId: stringField(createdTask.id),
+          },
+          options.idToken,
+          ["googleTaskId"],
+        );
+        pushedCount += 1;
+      } catch (error) {
+        if (!isGoogleTaskForbidden(error)) {
+          throw error;
+        }
+      }
     }
 
     await updateGoogleTasksSyncMetadata({
@@ -620,3 +792,4 @@ export async function syncGoogleTasksForUser(
     };
   }
 }
+

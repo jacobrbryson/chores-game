@@ -12,6 +12,7 @@ import type { FamilySnapshotChore } from "@/lib/family/types";
 
 type TodayChoreCardProps = {
   chore: FamilySnapshotChore;
+  showGoogleSyncIndicator: boolean;
   canManageActions: boolean;
   canComplete: boolean;
   canReorder?: boolean;
@@ -48,6 +49,7 @@ function getSafeHexColor(value: string | undefined) {
 
 export function TodayChoreCard({
   chore,
+  showGoogleSyncIndicator,
   canManageActions,
   canComplete,
   canReorder = false,
@@ -214,7 +216,7 @@ export function TodayChoreCard({
             <div className="flex min-w-0 flex-col items-start gap-1">
               <span className="today-chore-title-row">
                 <strong className="block break-words">{chore.title}</strong>
-                {chore.source === "google_tasks" ? (
+                {showGoogleSyncIndicator && chore.source === "google_tasks" ? (
                   <GoogleTaskSyncIndicator className="today-chore-sync-indicator" />
                 ) : null}
               </span>

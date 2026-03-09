@@ -22,6 +22,10 @@ type GoogleSignInButtonProps =
       label?: string;
     };
 
+function joinClasses(...classes: Array<string | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
 export function GoogleSignInButton(props: GoogleSignInButtonProps) {
   if (props.mode === "gsi") {
     const width = props.width ?? 248;
@@ -46,7 +50,7 @@ export function GoogleSignInButton(props: GoogleSignInButtonProps) {
           <div
             className="g_id_signin"
             data-type="standard"
-            data-shape="rectangular"
+            data-shape="pill"
             data-theme="outline"
             data-text="signin_with"
             data-size="large"
@@ -59,9 +63,14 @@ export function GoogleSignInButton(props: GoogleSignInButtonProps) {
   }
 
   return (
-    <Button type="button" className={props.className ?? "btn btn-primary"} onClick={props.onClick} disabled={props.disabled}>
-      <GoogleGIcon className={props.iconClassName ?? "profile-google-link-icon"} />
-      {props.label ?? "Sign in with Google"}
+    <Button
+      type="button"
+      className={joinClasses("google-brand-action-btn", props.className)}
+      onClick={props.onClick}
+      disabled={props.disabled}>
+      <GoogleGIcon className={joinClasses("google-brand-action-btn-icon", props.iconClassName)} />
+      <span>{props.label ?? "Continue with Google"}</span>
     </Button>
   );
 }
+

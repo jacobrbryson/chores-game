@@ -28,6 +28,8 @@ export const dynamic = "force-dynamic";
 const MAX_FAMILY_MEMBERS = 100;
 const MINUTE_MILLIS = 60 * 1000;
 const MAX_SUMMARY_CHORES = 1000;
+const ENABLE_GOOGLE_SYNC_DEBUG_LOGS =
+  process.env.NODE_ENV !== "production" || process.env.GOOGLE_SYNC_DEBUG === "1";
 
 function maskEmail(email: string) {
   const normalized = email.trim().toLowerCase();
@@ -136,9 +138,10 @@ function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
 
-function emptySummary(viewerUid: string): FamilySummaryResponse {
+function emptySummary(viewerUid: string, viewerGoogleTasksLinked = false): FamilySummaryResponse {
   return {
     viewerUid,
+    viewerGoogleTasksLinked,
     wsAuthToken: "",
     noFamily: true,
     family: null,
@@ -235,6 +238,7 @@ export async function GET(request: NextRequest) {
         }
 
         const familyIds = readStringArray(userDoc?.fields, "familyIds");
+        const viewerGoogleTasksLinked = readBoolean(userDoc?.fields, "googleTasksLinked");
         let familyId = familyIds[0];
         logInviteDebug("summary_user_doc", {
           uid: session.uid,
@@ -282,7 +286,7 @@ export async function GET(request: NextRequest) {
             recoveredFamilyId: recoveredFamilyId || null,
           });
           if (!recoveredFamilyId) {
-            return emptySummary(session.uid);
+            return emptySummary(session.uid, viewerGoogleTasksLinked);
           }
           familyId = recoveredFamilyId;
           await relinkUserPrimaryFamily(session.uid, familyId, idToken);
@@ -367,6 +371,7 @@ export async function GET(request: NextRequest) {
             ) ?? null;
           const pendingSummary: FamilySummaryResponse = {
             viewerUid: session.uid,
+            viewerGoogleTasksLinked,
             wsAuthToken: createFamilySocketAuthToken({
               uid: session.uid,
               familyIds: [familyId],
@@ -474,8 +479,38 @@ export async function GET(request: NextRequest) {
           });
         }
 
+        if (ENABLE_GOOGLE_SYNC_DEBUG_LOGS) {
+          for (const doc of choreDocs) {
+            const title = readString(doc.fields, "title") || "Untitled chore";
+            const sourceField = readString(doc.fields, "source");
+            const googleTaskId = readString(doc.fields, "googleTaskId");
+            const googleTaskListId = readString(doc.fields, "googleTaskListId");
+            const googleTaskOwnerUid = readString(doc.fields, "googleTaskOwnerUid");
+            const hasGoogleMetadata = Boolean(googleTaskId && googleTaskListId && googleTaskOwnerUid);
+            const isTitleMatch = title.toLowerCase().includes("hardwood floors");
+            if (!hasGoogleMetadata && !isTitleMatch) {
+              continue;
+            }
+            console.info(
+              "[GOOGLE_SYNC_SOURCE_DEBUG]",
+              JSON.stringify({
+                route: "family_summary",
+                choreId: documentIdFromName(doc.name),
+                title,
+                sourceField,
+                hasGoogleMetadata,
+                googleTaskId,
+                googleTaskListId,
+                googleTaskOwnerUid,
+                status: readString(doc.fields, "status"),
+                deleted: readBoolean(doc.fields, "deleted"),
+              }),
+            );
+          }
+        }
         return {
           viewerUid: session.uid,
+          viewerGoogleTasksLinked,
           wsAuthToken: createFamilySocketAuthToken({
             uid: session.uid,
             familyIds: [familyId],
@@ -584,9 +619,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "summary_unavailable" }, { status: 500 });
   }
 }
-
-
-
-
-
 

@@ -32,6 +32,7 @@ type TodayChoresPanelProps = {
   chores: FamilySnapshotChore[];
   viewerAssigneeIds: string[];
   viewerRole: "admin" | "player";
+  viewerGoogleTasksLinked: boolean;
   onReload: () => Promise<void> | void;
 };
 
@@ -227,6 +228,7 @@ export function TodayChoresPanel({
   chores,
   viewerAssigneeIds,
   viewerRole,
+  viewerGoogleTasksLinked,
   onReload,
 }: TodayChoresPanelProps) {
   const canCreateChores = viewerRole === "admin";
@@ -1006,6 +1008,7 @@ export function TodayChoresPanel({
                   <TodayChoreCard
                     key={chore.id}
                     chore={chore}
+                    showGoogleSyncIndicator={viewerGoogleTasksLinked}
                     canManageActions={
                       viewerRole === "admin" && !pendingCreateChoreIdSet.has(chore.id)
                     }
@@ -1177,6 +1180,4 @@ export function TodayChoresPanel({
     </article>
   );
 }
-
-
 

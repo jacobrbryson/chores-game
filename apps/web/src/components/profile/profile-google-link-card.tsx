@@ -16,11 +16,14 @@ type ProfileGoogleLinkCardProps = {
   googleTaskListsLength: number;
   googleTaskListOptions: TailwindSelectOption<string>[];
   selectedGoogleTaskListIds: string[];
+  showGoogleTaskListPicker: boolean;
+  showGoogleTasksSyncNow: boolean;
   googleTasksActionPending: string;
   googleTasksSummary: GoogleTasksProfileSummary | null;
   onGoogleTasksLinkStart: () => void;
   onGoogleTasksTaskListChange: (taskListIds: string[]) => void;
   onGoogleTasksSyncNow: () => void;
+  onGoogleTasksForceResync: () => void;
   onGoogleTasksUnlink: () => void;
 };
 
@@ -35,11 +38,14 @@ export function ProfileGoogleLinkCard({
   googleTaskListsLength,
   googleTaskListOptions,
   selectedGoogleTaskListIds,
+  showGoogleTaskListPicker,
+  showGoogleTasksSyncNow,
   googleTasksActionPending,
   googleTasksSummary,
   onGoogleTasksLinkStart,
   onGoogleTasksTaskListChange,
   onGoogleTasksSyncNow,
+  onGoogleTasksForceResync,
   onGoogleTasksUnlink,
 }: ProfileGoogleLinkCardProps) {
   return (
@@ -61,18 +67,25 @@ export function ProfileGoogleLinkCard({
                   Family Chores can link your profile to Google Tasks so your chore checklist stays in sync with the
                   Google tools your family already uses.
                 </p>
-                <p className="small">
-                  Google Tasks can appear in Google Calendar when the task list is enabled there. You can pick which
-                  Google task list this profile syncs with.
-                </p>
                 <p className="small profile-google-policy-alert">
-                  Alert: syncing shares linked Google Tasks with all family members. Policy stays the same: only admins
-                  can complete another family member&apos;s tasks.
+                  <span className="profile-google-policy-alert-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path
+                        d="M12 3.5 2.8 19.5a1 1 0 0 0 .87 1.5h16.66a1 1 0 0 0 .87-1.5L12 3.5Zm0 5.3a1 1 0 0 1 1 1v5.1a1 1 0 1 1-2 0V9.8a1 1 0 0 1 1-1Zm0 9a1.15 1.15 0 1 1 0 2.3 1.15 1.15 0 0 1 0-2.3Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                  <span>
+                    Syncing shares linked Google Tasks with all family members. Only guardians (admins) can
+                    complete another family member&apos;s tasks.
+                  </span>
                 </p>
                 <div className="profile-google-link-center-wrap">
                   <GoogleSignInButton
                     mode="action"
-                    className="btn btn-primary profile-google-link-btn"
+                    className="profile-google-link-btn"
+                    label="Continue with Google"
                     onClick={onGoogleTasksLinkStart}
                   />
                 </div>
@@ -94,7 +107,7 @@ export function ProfileGoogleLinkCard({
                     <dd>{googleTasksStatusLabel}</dd>
                   </div>
                 </dl>
-                {googleTaskListsLength > 0 ? (
+                {showGoogleTaskListPicker ? (
                   <div className="profile-google-list-picker">
                     <span className="small">Google task lists</span>
                     <TailwindMultiSelect
@@ -111,19 +124,25 @@ export function ProfileGoogleLinkCard({
                   <p className="small family-error">Last sync issue: {googleTasksSummary.lastSyncError}</p>
                 ) : null}
                 <div className="profile-google-actions">
-                  <Button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={googleTasksActionPending.length > 0}
-                    onClick={onGoogleTasksSyncNow}>
-                    {googleTasksActionPending === "sync_now" ? "Syncing..." : "Sync now"}
-                  </Button>
+                  {showGoogleTasksSyncNow ? (
+                    <Button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={googleTasksActionPending.length > 0}
+                      onClick={onGoogleTasksSyncNow}>
+                      {googleTasksActionPending === "sync_now" || googleTasksActionPending === "force_sync_now"
+                        ? "Syncing..."
+                        : "Sync now"}
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     className="btn btn-secondary"
                     disabled={googleTasksActionPending.length > 0}
-                    onClick={onGoogleTasksLinkStart}>
-                    Re-link Google
+                    onClick={onGoogleTasksForceResync}>
+                    {googleTasksActionPending === "sync_now" || googleTasksActionPending === "force_sync_now"
+                      ? "Syncing..."
+                      : "Force Re-sync"}
                   </Button>
                   <Button
                     type="button"
@@ -147,12 +166,11 @@ export function ProfileGoogleLinkCard({
               />
               <figcaption>Synced tasks can show in Google Calendar.</figcaption>
             </figure>
-            <p className="small profile-google-media-note">
-              Choose one or more lists to sync tasks between Google and Family Chores.
-            </p>
+
           </div>
         </div>
       </article>
     </section>
   );
 }
+

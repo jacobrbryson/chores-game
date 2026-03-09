@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AppFooter } from "@/components/app-footer";
 import { AppHeader } from "@/components/app-header";
 import { PartyConfettiOverlay } from "@/components/party-confetti-overlay";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
@@ -33,9 +34,12 @@ export default async function RootLayout({
         <ThemePreferenceSync />
         <PartyConfettiOverlay />
         <div className="shell">
-          <div className="container">
-            <AppHeader />
-            {children}
+          <div className="container app-layout">
+            <div className="app-main">
+              <AppHeader />
+              {children}
+            </div>
+            <AppFooter />
           </div>
         </div>
       </body>

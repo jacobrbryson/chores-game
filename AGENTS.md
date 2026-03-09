@@ -363,6 +363,10 @@ Build a family chore game where:
   - Coin icon center mark now uses `$`, and hover spin uses a 3D Y-axis rotation effect.
   - Coin hover spin now includes stronger depth cues (slight tilt, edge-thinning at quarter turns, and deeper shadow) for a more 3D look.
   - Completed chores chart rows now have matching hover highlight + avatar glow behavior, and both progress bars and trend lines include a subtle golden glow treatment.
+- Footer + legal pages update (2026-03-09):
+  - Added a shared global footer rendered on all pages with links for Privacy Policy, Terms of Service, and external attribution to Orcwood Games.
+  - Added legal routes /privacy-policy and /terms-of-service with app-styled, static policy content.
+
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.
 - Chores module: CRUD, assignment, submission, approval pipeline.
@@ -376,4 +380,5 @@ Build a family chore game where:
 - Error states are handled (unauthorized, invalid transition, insufficient funds).
 - Tests cover critical business rules.
 - Documentation updated in `AGENTS.md` when behavior or rules change.
+
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BackLink } from "@/components/back-link";
 import { ProfileCustomizationModals } from "@/components/profile/profile-customization-modals";
 import { ProfileDetailsSection } from "@/components/profile/profile-details-section";
@@ -27,6 +27,25 @@ import {
 } from "@/lib/store/catalog";
 import { DEFAULT_THEME_PREFERENCE, dispatchThemeChanged } from "@/lib/theme/preferences";
 
+function normalizeTaskListIds(taskListIds: string[]) {
+  return Array.from(
+    new Set(
+      taskListIds
+        .map((taskListId) => taskListId.trim())
+        .filter((taskListId) => taskListId.length > 0),
+    ),
+  ).sort();
+}
+
+function haveSameTaskListSelection(leftTaskListIds: string[], rightTaskListIds: string[]) {
+  const left = normalizeTaskListIds(leftTaskListIds);
+  const right = normalizeTaskListIds(rightTaskListIds);
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((taskListId, index) => taskListId === right[index]);
+}
+
 export function ProfilePageClient({ name, email, role, picture }: ProfilePageClientProps) {
   const [storeSummary, setStoreSummary] = useState<StoreProfileSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,6 +68,9 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
   const [googleTasksError, setGoogleTasksError] = useState("");
   const [googleTasksActionPending, setGoogleTasksActionPending] = useState("");
   const [googleTasksRedirectError, setGoogleTasksRedirectError] = useState("");
+  const [googleTaskListSelectionDraft, setGoogleTaskListSelectionDraft] = useState<string[] | null>(null);
+  const singleTaskListAutoSyncRef = useRef("");
+  const postLinkAutoSyncPendingRef = useRef(false);
 
   const loadStoreSummary = useCallback(async () => {
     setIsLoading(true);
@@ -103,6 +125,9 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
       setGoogleTasksRedirectError(redirectError);
     }
     const linkedFlag = searchParams.get("googleTasks");
+    if (linkedFlag === "linked") {
+      postLinkAutoSyncPendingRef.current = true;
+    }
     if (redirectError || linkedFlag) {
       searchParams.delete("googleTasksError");
       searchParams.delete("googleTasks");
@@ -278,23 +303,106 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     }
   }
 
-  async function applyGoogleTasksAction(body: Record<string, unknown>, pendingKey: string) {
-    setGoogleTasksActionPending(pendingKey);
-    setGoogleTasksError("");
-    try {
-      await postGoogleTasksAction(body);
-      await loadGoogleTasksSummary();
-    } catch (errorValue) {
-      setGoogleTasksError(errorValue instanceof Error ? errorValue.message : "google_tasks_action_failed");
-    } finally {
-      setGoogleTasksActionPending("");
-    }
-  }
+  const applyGoogleTasksAction = useCallback(
+    async (body: Record<string, unknown>, pendingKey: string) => {
+      setGoogleTasksActionPending(pendingKey);
+      setGoogleTasksError("");
+      try {
+        await postGoogleTasksAction(body);
+        await loadGoogleTasksSummary();
+      } catch (errorValue) {
+        setGoogleTasksError(errorValue instanceof Error ? errorValue.message : "google_tasks_action_failed");
+      } finally {
+        setGoogleTasksActionPending("");
+      }
+    },
+    [loadGoogleTasksSummary],
+  );
 
   const googleTasksView = useMemo(
     () => deriveGoogleTasksView(googleTasksSummary, formatDateTime),
     [googleTasksSummary],
   );
+
+  const selectedGoogleTaskListIds = useMemo(
+    () => normalizeTaskListIds(googleTasksView.selectedGoogleTaskListIds),
+    [googleTasksView.selectedGoogleTaskListIds],
+  );
+  const hasMultipleGoogleTaskListOptions = googleTasksView.googleTaskListsLength > 1;
+  const showGoogleTaskListPicker = hasMultipleGoogleTaskListOptions;
+  const effectiveGoogleTaskListSelection = googleTaskListSelectionDraft ?? selectedGoogleTaskListIds;
+  const hasGoogleTaskListSelectionChanged =
+    showGoogleTaskListPicker &&
+    googleTaskListSelectionDraft !== null &&
+    !haveSameTaskListSelection(googleTaskListSelectionDraft, selectedGoogleTaskListIds);
+  const showGoogleTasksSyncNow = hasGoogleTaskListSelectionChanged;
+
+  useEffect(() => {
+    if (googleTaskListSelectionDraft === null) {
+      return;
+    }
+    if (
+      !showGoogleTaskListPicker ||
+      haveSameTaskListSelection(googleTaskListSelectionDraft, selectedGoogleTaskListIds)
+    ) {
+      setGoogleTaskListSelectionDraft(null);
+    }
+  }, [googleTaskListSelectionDraft, selectedGoogleTaskListIds, showGoogleTaskListPicker]);
+
+  useEffect(() => {
+    if (!postLinkAutoSyncPendingRef.current) {
+      return;
+    }
+    if (googleTasksLoading || googleTasksActionPending.length > 0) {
+      return;
+    }
+    if (!googleTasksView.googleTasksLinked) {
+      return;
+    }
+    postLinkAutoSyncPendingRef.current = false;
+    void applyGoogleTasksAction({ action: "sync_now" }, "sync_now");
+  }, [
+    applyGoogleTasksAction,
+    googleTasksActionPending,
+    googleTasksLoading,
+    googleTasksView.googleTasksLinked,
+  ]);
+
+  useEffect(() => {
+    if (!googleTasksView.googleTasksLinked) {
+      singleTaskListAutoSyncRef.current = "";
+      return;
+    }
+    if (googleTasksLoading || googleTasksActionPending.length > 0) {
+      return;
+    }
+    if (googleTasksView.googleTaskListsLength !== 1) {
+      singleTaskListAutoSyncRef.current = "";
+      return;
+    }
+    const singleTaskListId = googleTasksView.googleTaskListOptions[0]?.value.trim() ?? "";
+    if (!singleTaskListId) {
+      return;
+    }
+    if (singleTaskListAutoSyncRef.current === singleTaskListId) {
+      return;
+    }
+    if (selectedGoogleTaskListIds.length === 1 && selectedGoogleTaskListIds[0] === singleTaskListId) {
+      singleTaskListAutoSyncRef.current = singleTaskListId;
+      return;
+    }
+    singleTaskListAutoSyncRef.current = singleTaskListId;
+    setGoogleTaskListSelectionDraft(null);
+    void applyGoogleTasksAction({ action: "set_task_list", taskListIds: [singleTaskListId] }, "sync_now");
+  }, [
+    applyGoogleTasksAction,
+    googleTasksActionPending,
+    googleTasksLoading,
+    googleTasksView.googleTaskListOptions,
+    googleTasksView.googleTaskListsLength,
+    googleTasksView.googleTasksLinked,
+    selectedGoogleTaskListIds,
+  ]);
 
   const displayName = name || "Signed In User";
   const displayEmail = email || "-";
@@ -350,7 +458,9 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
         googleTasksStatusLabel={googleTasksView.googleTasksStatusLabel}
         googleTaskListsLength={googleTasksView.googleTaskListsLength}
         googleTaskListOptions={googleTasksView.googleTaskListOptions}
-        selectedGoogleTaskListIds={googleTasksView.selectedGoogleTaskListIds}
+        selectedGoogleTaskListIds={effectiveGoogleTaskListSelection}
+        showGoogleTaskListPicker={showGoogleTaskListPicker}
+        showGoogleTasksSyncNow={showGoogleTasksSyncNow}
         googleTasksActionPending={googleTasksActionPending}
         googleTasksSummary={googleTasksSummary}
         onGoogleTasksLinkStart={() => {
@@ -359,15 +469,25 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
           }
         }}
         onGoogleTasksTaskListChange={(taskListIds) => {
-          if (taskListIds.length === 0) {
+          const normalizedTaskListIds = normalizeTaskListIds(taskListIds);
+          if (normalizedTaskListIds.length === 0) {
             setGoogleTasksError("Select at least one Google task list.");
             return;
           }
-          const pendingKey = `lists:${taskListIds.join(",")}`;
-          void applyGoogleTasksAction({ action: "set_task_list", taskListIds }, pendingKey);
+          setGoogleTasksError("");
+          setGoogleTaskListSelectionDraft(normalizedTaskListIds);
         }}
         onGoogleTasksSyncNow={() => {
-          void applyGoogleTasksAction({ action: "sync_now" }, "sync_now");
+          if (!hasGoogleTaskListSelectionChanged || !googleTaskListSelectionDraft) {
+            return;
+          }
+          void applyGoogleTasksAction(
+            { action: "set_task_list", taskListIds: googleTaskListSelectionDraft },
+            "sync_now",
+          );
+        }}
+        onGoogleTasksForceResync={() => {
+          void applyGoogleTasksAction({ action: "sync_now" }, "force_sync_now");
         }}
         onGoogleTasksUnlink={() => {
           void applyGoogleTasksAction({ action: "unlink" }, "unlink");
@@ -416,3 +536,4 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     </main>
   );
 }
+

@@ -34,6 +34,7 @@ type ChoresResponse = {
   viewerRole?: "admin" | "player";
   viewerUid?: string;
   viewerAssigneeAliases?: string[];
+  viewerGoogleTasksLinked?: boolean;
   familyId?: string;
   wsAuthToken?: string;
   pagination?: {
@@ -463,6 +464,7 @@ export default function ChoresPage() {
   const [pendingBulkDeleteOpen, setPendingBulkDeleteOpen] = useState(false);
   const [viewerUid, setViewerUid] = useState("");
   const [viewerAssigneeAliases, setViewerAssigneeAliases] = useState<string[]>([]);
+  const [viewerGoogleTasksLinked, setViewerGoogleTasksLinked] = useState(false);
   const [viewerRole, setViewerRole] = useState<"admin" | "player">("player");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
@@ -601,6 +603,7 @@ export default function ChoresPage() {
       setChores(sortChoreRows(payload.chores ?? [], sortBy, sortDir));
       setViewerRole(payload.viewerRole === "admin" ? "admin" : "player");
       setViewerUid(payload.viewerUid ?? "");
+      setViewerGoogleTasksLinked(Boolean(payload.viewerGoogleTasksLinked));
       setViewerAssigneeAliases(payload.viewerAssigneeAliases ?? []);
       setPage(payload.pagination?.page ?? targetPage);
       setTotal(payload.pagination?.total ?? payload.chores.length ?? 0);
@@ -1127,7 +1130,7 @@ export default function ChoresPage() {
                             <td>
                               <span className="table-chore-title-cell">
                                 <span>{chore.title}</span>
-                                {chore.source === "google_tasks" ? (
+                                {viewerGoogleTasksLinked && chore.source === "google_tasks" ? (
                                   <GoogleTaskSyncIndicator className="table-chore-sync-indicator" />
                                 ) : null}
                               </span>
@@ -1281,7 +1284,4 @@ export default function ChoresPage() {
     </>
   );
 }
-
-
-
 

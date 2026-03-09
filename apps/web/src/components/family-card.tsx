@@ -307,6 +307,7 @@ export function FamilyCard() {
               chores={summary.choresToday}
               viewerAssigneeIds={viewerAssigneeIds}
               viewerRole={viewerRole}
+              viewerGoogleTasksLinked={Boolean(summary.viewerGoogleTasksLinked)}
               onReload={() => loadSummary({ silent: true })}
             />
           )}
@@ -315,5 +316,4 @@ export function FamilyCard() {
     </>
   );
 }
-
 

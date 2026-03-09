@@ -39,6 +39,7 @@ export type FamilySnapshotChore = {
 
 export type FamilySummaryResponse = {
   viewerUid: string;
+  viewerGoogleTasksLinked?: boolean;
   wsAuthToken?: string;
   noFamily: boolean;
   family: null | {
@@ -49,3 +50,4 @@ export type FamilySummaryResponse = {
   choresToday: FamilySnapshotChore[];
   pendingInvite: FamilyPendingInvite | null;
 };
+

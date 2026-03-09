@@ -8,22 +8,29 @@ type BackLinkProps = {
   ariaLabel?: string;
 };
 
-function hasSameOriginHistory() {
+function resolveSafeBackTarget() {
   if (typeof window === "undefined") {
-    return false;
-  }
-  if (window.history.length <= 1) {
-    return false;
+    return "/";
   }
   const referrer = document.referrer;
   if (!referrer) {
-    return false;
+    return "/";
   }
   try {
     const referrerUrl = new URL(referrer);
-    return referrerUrl.origin === window.location.origin;
+    if (referrerUrl.origin !== window.location.origin) {
+      return "/";
+    }
+    const nextPath = `${referrerUrl.pathname}${referrerUrl.search}${referrerUrl.hash}` || "/";
+    if (nextPath.startsWith("/api/")) {
+      return "/";
+    }
+    if (nextPath === window.location.pathname + window.location.search + window.location.hash) {
+      return "/";
+    }
+    return nextPath;
   } catch {
-    return false;
+    return "/";
   }
 }
 
@@ -38,13 +45,9 @@ export function BackLink({ className = "family-back-link", ariaLabel = "Go back"
       title="Back"
       onClick={(event) => {
         event.preventDefault();
-        if (hasSameOriginHistory()) {
-          router.back();
-          return;
-        }
-        router.push("/");
+        router.push(resolveSafeBackTarget());
       }}>
-      <span className="back-link-icon" aria-hidden="true">←</span>
+      <span className="back-link-icon" aria-hidden="true">&larr;</span>
     </Link>
   );
 }

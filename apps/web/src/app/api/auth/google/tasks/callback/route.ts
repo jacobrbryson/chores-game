@@ -4,7 +4,6 @@ import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { exchangeGoogleTasksAuthCode, listGoogleTaskLists } from "@/lib/google/tasks-api";
 import { persistGoogleTasksOAuthLink } from "@/lib/google/tasks-link";
-import { syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
 
 const OAUTH_STATE_COOKIE_NAME = "google_tasks_oauth_state";
 
@@ -89,12 +88,6 @@ export async function GET(request: NextRequest) {
           token,
           selectedTaskLists: selectedTaskList ? [selectedTaskList] : [],
         });
-        await syncGoogleTasksForUser({
-          uid: session.uid,
-          idToken,
-          force: true,
-          minIntervalSeconds: 0,
-        });
         return null;
       },
     );
@@ -113,3 +106,5 @@ export async function GET(request: NextRequest) {
     return redirect;
   }
 }
+
+
