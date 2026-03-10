@@ -1,9 +1,10 @@
 export type StoreCategoryId =
 	| "customize_colors"
 	| "customize_avatar"
-	| "victory_confetti";
+	| "victory_confetti"
+	| "family_awards";
 
-export type StoreOptionKind = "color" | "avatar" | "confetti";
+export type StoreOptionKind = "color" | "avatar" | "confetti" | "reward";
 
 export type ConfettiShape = "rect" | "circle" | "streamer";
 
@@ -28,6 +29,7 @@ export type StoreOption = {
 	theme?: ThemePalette;
 	confetti?: ConfettiPreset;
 	isDefault?: boolean;
+	price?: number;
 };
 
 export type StoreCategory = {
@@ -313,7 +315,8 @@ export function isStoreCategoryId(
 	return (
 		value === "customize_colors" ||
 		value === "customize_avatar" ||
-		value === "victory_confetti"
+		value === "victory_confetti" ||
+		value === "family_awards"
 	);
 }
 

@@ -381,6 +381,17 @@ Build a family chore game where:
   - Category multi-select now shows an empty-state CTA linking to `/family` (`Manage Categories`) when no category options exist.
   - `/family` now renders categories in a dedicated card below the family members section instead of inside the members card area.
   - `Manage Categories` action on `/family` now appears in the Categories card header (the top page header keeps only member actions).
+
+- Family awards update (2026-03-09):
+  - Added family-scoped custom rewards APIs:
+    - `GET/POST /api/family/rewards`
+    - `PATCH/DELETE /api/family/rewards/{rewardId}`
+  - Firestore rules now include `families/{familyId}/rewards` (family-read, admin-write).
+  - Store now includes dynamic `Family Awards` category using `/store3/family-rewards.png` and family-managed reward options.
+  - Family Awards empty state in store options modal is role-aware:
+    - `admin`: `Get started by adding rewards` link to `/family`.
+    - `player`: `Ask a parent or guardian to add some custom rewards`.
+  - `/family` now includes admin `Manage Family Awards` controls for reward description, coin amount, and image selection from a predefined list.
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.
 - Chores module: CRUD, assignment, submission, approval pipeline.
@@ -394,13 +405,3 @@ Build a family chore game where:
 - Error states are handled (unauthorized, invalid transition, insufficient funds).
 - Tests cover critical business rules.
 - Documentation updated in `AGENTS.md` when behavior or rules change.
-
-
-
-
-
-
-
-
-
-

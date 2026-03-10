@@ -52,7 +52,7 @@ export function ChoreCategoriesChip({
                   "--category-color": toSafeHexColor(category.color),
                 } as CSSProperties
               }>
-              [{category.name}]
+              {category.name}
             </span>
           ))}
         </span>
@@ -64,7 +64,7 @@ export function ChoreCategoriesChip({
               "--category-color": toSafeHexColor(firstCategory?.color),
             } as CSSProperties
           }>
-          [{firstCategory?.name}]
+          {firstCategory?.name}
           {additionalCount > 0 ? ` +${additionalCount}` : ""}
         </span>
       )}

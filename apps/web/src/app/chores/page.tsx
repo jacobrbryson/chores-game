@@ -11,6 +11,8 @@ import { CoinIcon } from "@/components/coin-icon";
 import { EnumChip } from "@/components/enum-chip";
 import { GoogleTaskSyncIndicator } from "@/components/google-task-sync-indicator";
 import { ModalShell } from "@/components/modal-shell";
+import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
+import type { TailwindSelectOption } from "@/components/tailwind-select";
 import { parseCompletionWindow } from "@/lib/preferences/completion-window";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
 
@@ -52,6 +54,10 @@ type ChoresResponse = {
     total: number;
     totalPages: number;
   };
+};
+
+type FamilyCategoriesResponse = {
+  categories?: ChoreCategory[];
 };
 
 type ChoreResponse = {
@@ -191,7 +197,7 @@ type RowActionState = {
   action: "delete" | "undo_complete";
 };
 type BulkActionState = {
-  action: "delete" | "undo_complete";
+  action: "delete" | "undo_complete" | "set_categories";
   total: number;
   completed: number;
 };
@@ -348,9 +354,11 @@ function ChoreActionsMenu({
 type BulkActionsMenuProps = {
   disabled: boolean;
   selectedUndoCount: number;
-  busyAction: "" | "delete" | "undo_complete";
+  busyAction: "" | "delete" | "undo_complete" | "set_categories";
   onDeleteRequested: () => void;
   onUndoCompletion: () => void;
+  canSetCategories: boolean;
+  onSetCategoriesRequested: () => void;
 };
 
 function BulkActionsMenu({
@@ -359,6 +367,8 @@ function BulkActionsMenu({
   busyAction,
   onDeleteRequested,
   onUndoCompletion,
+  canSetCategories,
+  onSetCategoriesRequested,
 }: BulkActionsMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement | null>(null);
@@ -374,7 +384,7 @@ function BulkActionsMenu({
     }
     const rect = triggerRef.current.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
-    const menuWidth = 180;
+    const menuWidth = 196;
     const margin = 8;
     const left = Math.max(
       margin,
@@ -433,7 +443,7 @@ function BulkActionsMenu({
         ? createPortal(
             <div
               ref={dropdownRef}
-              className="fixed z-[90] mt-1 w-44 rounded-md border border-slate-200 bg-white p-1 shadow-lg"
+              className="fixed z-[90] mt-1 w-52 rounded-md border border-slate-200 bg-white p-1 shadow-lg"
               style={{ top: menuPosition.top, left: menuPosition.left }}>
               <Button
                 type="button"
@@ -455,6 +465,16 @@ function BulkActionsMenu({
                 }}>
                 {busyAction === "undo_complete" ? "Undoing..." : "Undo completion"}
               </Button>
+              <Button
+                type="button"
+                className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={disabled || !canSetCategories}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onSetCategoriesRequested();
+                }}>
+                {busyAction === "set_categories" ? "Applying..." : "Set categories"}
+              </Button>
             </div>,
             document.body,
           )
@@ -471,6 +491,9 @@ export default function ChoresPage() {
   const [editingChore, setEditingChore] = useState<ChoreRow | null>(null);
   const [pendingDeleteChore, setPendingDeleteChore] = useState<ChoreRow | null>(null);
   const [pendingBulkDeleteOpen, setPendingBulkDeleteOpen] = useState(false);
+  const [pendingBulkSetCategoriesOpen, setPendingBulkSetCategoriesOpen] = useState(false);
+  const [bulkCategoryIds, setBulkCategoryIds] = useState<string[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<ChoreCategory[]>([]);
   const [viewerUid, setViewerUid] = useState("");
   const [viewerAssigneeAliases, setViewerAssigneeAliases] = useState<string[]>([]);
   const [viewerGoogleTasksLinked, setViewerGoogleTasksLinked] = useState(false);
@@ -528,6 +551,10 @@ export default function ChoresPage() {
   const selectedUndoCount = useMemo(
     () => Object.values(selectedChoreStateById).filter((entry) => entry.canUndoCompletion).length,
     [selectedChoreStateById],
+  );
+  const categorySelectOptions = useMemo<TailwindSelectOption[]>(
+    () => availableCategories.map((category) => ({ value: category.id, label: category.name })),
+    [availableCategories],
   );
   const selectAllRef = useRef<HTMLInputElement | null>(null);
 
@@ -648,6 +675,27 @@ export default function ChoresPage() {
     sortDir,
     statusFilter,
   ]);
+
+  const loadFamilyCategories = useCallback(async () => {
+    if (viewerRole !== "admin") {
+      setAvailableCategories([]);
+      return;
+    }
+    try {
+      const response = await fetch("/api/family/categories", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("family_categories_unavailable");
+      }
+      const payload = (await response.json()) as FamilyCategoriesResponse;
+      setAvailableCategories(payload.categories ?? []);
+    } catch {
+      setAvailableCategories([]);
+    }
+  }, [viewerRole]);
+
+  useEffect(() => {
+    void loadFamilyCategories();
+  }, [loadFamilyCategories]);
 
   const applyChoreRow = useCallback((row: ChoreRow | null, choreId: string) => {
     setChores((current) => {
@@ -991,6 +1039,49 @@ export default function ChoresPage() {
     setBulkActionState(null);
   }
 
+  async function onBulkSetCategories(choreIds: string[], nextCategoryIds: string[]) {
+    if (hasBusyAction || choreIds.length === 0) {
+      return;
+    }
+    setBulkActionState({
+      action: "set_categories",
+      total: choreIds.length,
+      completed: 0,
+    });
+    setActionError("");
+    let failedCount = 0;
+    for (const choreId of choreIds) {
+      try {
+        const response = await fetch(`/api/chores/${choreId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "set_categories", categoryIds: nextCategoryIds }),
+        });
+        if (!response.ok) {
+          const body = (await response.json()) as { error?: string };
+          throw new Error(body.error ?? `SET_CATEGORY_HTTP_${response.status}`);
+        }
+      } catch {
+        failedCount += 1;
+      } finally {
+        setBulkActionState((current) => {
+          if (!current) {
+            return current;
+          }
+          return {
+            ...current,
+            completed: current.completed + 1,
+          };
+        });
+      }
+    }
+    await loadChores({ silent: true });
+    if (failedCount > 0) {
+      setActionError(`bulk_set_categories_failed_${failedCount}`);
+    }
+    setBulkActionState(null);
+  }
+
   return (
     <>
       <main className="panel family-page">
@@ -1074,6 +1165,11 @@ export default function ChoresPage() {
                                 .map(([choreId]) => choreId),
                             )
                           }
+                          canSetCategories={viewerRole === "admin"}
+                          onSetCategoriesRequested={() => {
+                            setBulkCategoryIds([]);
+                            setPendingBulkSetCategoriesOpen(true);
+                          }}
                         />
                       </div>
                     ) : null}
@@ -1267,6 +1363,50 @@ export default function ChoresPage() {
         </div>
       </ModalShell>
       <ModalShell
+        open={pendingBulkSetCategoriesOpen}
+        onRequestClose={() => setPendingBulkSetCategoriesOpen(false)}>
+        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <h3 className="mb-2 text-lg font-bold text-slate-800">Set Categories</h3>
+          <p className="mb-4 text-sm text-slate-600">
+            Apply categories to <strong>{selectedCount}</strong> selected chore{selectedCount === 1 ? "" : "s"}.
+            Leave empty to clear categories.
+          </p>
+          <TailwindMultiSelect
+            ariaLabel="Bulk categories"
+            values={bulkCategoryIds}
+            onChange={setBulkCategoryIds}
+            options={categorySelectOptions}
+            placeholder={categorySelectOptions.length > 0 ? "Select categories" : "No categories yet"}
+            buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+            menuClassName="border-slate-300"
+          />
+          {categorySelectOptions.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-600">
+              No categories exist yet. Apply now to clear selected chores categories.
+            </p>
+          ) : null}
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              type="button"
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+              disabled={hasBusyAction}
+              onClick={() => setPendingBulkSetCategoriesOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
+              disabled={hasBusyAction || selectedCount === 0}
+              onClick={async () => {
+                await onBulkSetCategories(Object.keys(selectedChoreStateById), bulkCategoryIds);
+                setPendingBulkSetCategoriesOpen(false);
+              }}>
+              {bulkActionState?.action === "set_categories" ? "Applying..." : "Apply"}
+            </Button>
+          </div>
+        </div>
+      </ModalShell>
+      <ModalShell
         open={pendingBulkDeleteOpen}
         onRequestClose={() => setPendingBulkDeleteOpen(false)}>
         <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
@@ -1298,12 +1438,4 @@ export default function ChoresPage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
 

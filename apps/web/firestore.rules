@@ -250,6 +250,11 @@ service cloud.firestore {
         allow create, update, delete: if isFamilyAdmin(familyId);
       }
 
+      match /rewards/{rewardId} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update, delete: if isFamilyAdmin(familyId);
+      }
+
       match /notifications/{notificationId} {
         allow read: if isFamilyMember(familyId);
         allow create: if isFamilyMember(familyId)
@@ -304,4 +309,3 @@ service cloud.firestore {
     }
   }
 }
-

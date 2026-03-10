@@ -560,7 +560,7 @@ export async function PATCH(
   }
 
   const action = typeof body.action === "string" ? body.action : "edit";
-  if (action !== "edit" && action !== "complete" && action !== "undo_complete") {
+  if (action !== "edit" && action !== "complete" && action !== "undo_complete" && action !== "set_categories") {
     return NextResponse.json({ error: "invalid_action" }, { status: 400 });
   }
 
@@ -577,6 +577,10 @@ export async function PATCH(
       : "";
   const hasCategoryIds = Array.isArray(body.categoryIds);
   const categoryIds = normalizeCategoryIds(body.categoryIds);
+
+  if (action === "set_categories" && !hasCategoryIds) {
+    return NextResponse.json({ error: "category_ids_required" }, { status: 400 });
+  }
 
   if (action === "edit") {
     if (!normalizedDescription) {
@@ -738,6 +742,52 @@ export async function PATCH(
             actorName,
             title: "Completion undone",
             message: `${actorName} moved "${choreTitle}" back to open.`,
+            choreId,
+            choreTitle,
+            relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
+          });
+          await publishFamilyActivity({
+            type: "chore_updated",
+            familyId,
+            choreId,
+            occurredAt: now,
+          });
+        } else if (action === "set_categories") {
+          const requester = await getRequesterContext(
+            familyId,
+            session.uid,
+            session.email,
+            idToken,
+          );
+          if (requester.role !== "admin") {
+            return { kind: "forbidden_action" as const };
+          }
+          const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
+          const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
+          const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const categories = await listFamilyCategories(familyId, idToken);
+          const categoryMap = buildCategoryMap(categories);
+          if (!hasAllCategoryIds(categoryIds, categoryMap)) {
+            return { kind: "invalid_category_ids" as const };
+          }
+          await patchDocument(
+            `families/${familyId}/chores/${choreId}`,
+            {
+              categoryIds: stringArrayField(categoryIds),
+              updatedAt: timestampField(now),
+            },
+            idToken,
+            ["categoryIds", "updatedAt"],
+          );
+          await emitFamilyActivity({
+            familyId,
+            idToken,
+            kind: "chore_edited",
+            actorUid: session.uid,
+            actorEmail: session.email,
+            actorName,
+            title: "Chore categories updated",
+            message: `${actorName} updated categories for "${choreTitle}".`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
@@ -973,17 +1023,4 @@ export async function DELETE(
     return mapCommonFirestoreErrors(reason, "delete_chore_failed");
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 

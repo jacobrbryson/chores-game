@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
@@ -23,7 +24,6 @@ import {
   isAllowedDashboardColor,
   normalizeColor,
   type StoreCategory,
-  type StoreCategoryId,
   type StoreOption,
 } from "@/lib/store/catalog";
 import {
@@ -33,6 +33,7 @@ import {
   isThemePreference,
   type ThemePreference,
 } from "@/lib/theme/preferences";
+import { findFamilyRewardImageOption } from "@/lib/family/rewards";
 
 type StoreSummaryResponse = {
   balance: number;
@@ -46,6 +47,7 @@ type StoreSummaryResponse = {
   avatarPhotoUrl?: string;
   googlePhotoUrl?: string;
   selectedConfettiOptionId: string;
+  viewerRole?: "admin" | "player";
   categories: StoreCategory[];
 };
 
@@ -62,12 +64,16 @@ function toThemePreference(option: StoreOption) {
   return isThemePreference(preference) ? preference : null;
 }
 
+function getOptionPrice(category: StoreCategory, option: StoreOption) {
+  return Math.max(0, Math.floor(option.price ?? category.price));
+}
+
 export function StorePageClient() {
   const [summary, setSummary] = useState<StoreSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
-  const [activeCategoryId, setActiveCategoryId] = useState<StoreCategoryId | null>(null);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [pendingOptionId, setPendingOptionId] = useState("");
   const [previewOptionId, setPreviewOptionId] = useState("");
   const [previewConfettiOptionId, setPreviewConfettiOptionId] = useState("");
@@ -219,7 +225,10 @@ export function StorePageClient() {
     if (category.kind === "avatar") {
       return summary.avatarId === option.value;
     }
-    return summary.selectedConfettiOptionId === option.id;
+    if (category.kind === "confetti") {
+      return summary.selectedConfettiOptionId === option.id;
+    }
+    return false;
   }
 
   async function applyOption(category: StoreCategory, option: StoreOption, bypassPending = false) {
@@ -229,6 +238,9 @@ export function StorePageClient() {
     setPendingOptionId(option.id);
     setActionError("");
     try {
+      if (category.kind === "reward") {
+        return;
+      }
       const body =
         category.kind === "color"
           ? { action: "set_theme", optionId: option.id }
@@ -270,7 +282,8 @@ export function StorePageClient() {
     if (!summary || pendingOptionId) {
       return;
     }
-    if (summary.balance < category.price) {
+    const optionPrice = getOptionPrice(category, option);
+    if (summary.balance < optionPrice) {
       setActionError("insufficient_funds");
       return;
     }
@@ -421,13 +434,29 @@ export function StorePageClient() {
                       </Button>
                     </article>
                   ) : null}
+                  {activeCategory.kind === "reward" && activeCategory.options.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-left">
+                      {summary.viewerRole === "admin" ? (
+                        <p className="small">
+                          <Link href="/family" className="font-semibold text-sky-700 underline">
+                            Get started by adding rewards
+                          </Link>
+                        </p>
+                      ) : (
+                        <p className="small">Ask a parent or guardian to add some custom rewards</p>
+                      )}
+                    </div>
+                  ) : null}
                   {activeCategory.options.map((option) => {
-                    const owned = ownedSet.has(option.id);
-                    const applied = isOptionApplied(activeCategory, option);
-                    const canAfford = summary.balance >= activeCategory.price;
+                    const isRewardOption = activeCategory.kind === "reward";
+                    const rewardImage = isRewardOption ? findFamilyRewardImageOption(option.value) : null;
+                    const optionPrice = getOptionPrice(activeCategory, option);
+                    const owned = isRewardOption ? false : ownedSet.has(option.id);
+                    const applied = isRewardOption ? false : isOptionApplied(activeCategory, option);
+                    const canAfford = summary.balance >= optionPrice;
                     const isDefaultConfettiOption =
                       activeCategory.kind === "confetti" && option.isDefault === true;
-                    const requiresPurchase = !owned && !isDefaultConfettiOption;
+                    const requiresPurchase = isRewardOption ? true : !owned && !isDefaultConfettiOption;
                     const disabled = pendingOptionId.length > 0 || (requiresPurchase && !canAfford);
                     const isPending = pendingOptionId === option.id;
                     const canThemePreview = activeCategory.kind === "color" && Boolean(option.theme);
@@ -527,6 +556,13 @@ export function StorePageClient() {
                               )}
                             </div>
                           ) : null}
+                          {activeCategory.kind === "reward" ? (
+                            <div className="flex h-[78px] w-[78px] items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-center">
+                              <span className="text-[0.58rem] font-bold uppercase tracking-wide text-slate-600">
+                                {rewardImage?.icon ?? "REWARD"}
+                              </span>
+                            </div>
+                          ) : null}
                           {canThemePreview ? (
                             <Button
                               type="button"
@@ -547,12 +583,16 @@ export function StorePageClient() {
                         </div>
                         <h4>{option.label}</h4>
                         <p className="small">
-                          {owned || isDefaultConfettiOption ? (
+                          {isRewardOption ? (
+                            <>
+                              <CoinIcon size={14} /> {optionPrice} coins
+                              {rewardImage ? ` - ${rewardImage.label}` : ""}
+                            </>
+                          ) : owned || isDefaultConfettiOption ? (
                             "Owned"
                           ) : (
                             <>
-                              <CoinIcon size={14} />{" "}
-                              {activeCategory.price} coins
+                              <CoinIcon size={14} /> {optionPrice} coins
                             </>
                           )}
                         </p>
@@ -561,29 +601,39 @@ export function StorePageClient() {
                           className="btn btn-primary"
                           disabled={disabled}
                           onClick={() => {
+                            if (isRewardOption) {
+                              void onPurchaseOption(activeCategory, option);
+                              return;
+                            }
                             if (owned || isDefaultConfettiOption) {
                               void applyOption(activeCategory, option);
                               return;
                             }
                             void onPurchaseOption(activeCategory, option);
                           }}>
-                          {isPending
-                            ? "Saving..."
-                            : owned
-                              ? applied
-                                ? activeCategory.kind === "color"
-                                  ? "Theme active"
-                                  : activeCategory.kind === "confetti" && isDefaultConfettiOption
-                                    ? "Confetti off"
-                                  : "Applied"
-                                : activeCategory.kind === "color"
-                                  ? "Set theme"
-                                  : activeCategory.kind === "confetti" && isDefaultConfettiOption
-                                    ? "Disable confetti"
-                                  : "Apply"
+                          {isRewardOption
+                            ? isPending
+                              ? "Redeeming..."
                               : canAfford
-                                ? "Buy"
-                                : "Not enough coins"}
+                                ? "Redeem"
+                                : "Not enough coins"
+                            : isPending
+                              ? "Saving..."
+                              : owned
+                                ? applied
+                                  ? activeCategory.kind === "color"
+                                    ? "Theme active"
+                                    : activeCategory.kind === "confetti" && isDefaultConfettiOption
+                                      ? "Confetti off"
+                                    : "Applied"
+                                  : activeCategory.kind === "color"
+                                    ? "Set theme"
+                                    : activeCategory.kind === "confetti" && isDefaultConfettiOption
+                                      ? "Disable confetti"
+                                    : "Apply"
+                                : canAfford
+                                  ? "Buy"
+                                  : "Not enough coins"}
                         </Button>
                       </article>
                     );

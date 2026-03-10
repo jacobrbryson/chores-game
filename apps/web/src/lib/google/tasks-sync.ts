@@ -8,6 +8,7 @@ import {
   listDocuments,
   patchDocument,
   readBoolean,
+  readInteger,
   readString,
   readTimestamp,
   stringField,
@@ -25,11 +26,12 @@ import {
   resolveGoogleTaskListsForUser,
   updateGoogleTasksSyncMetadata,
 } from "@/lib/google/tasks-link";
+import { applyWalletDelta } from "@/lib/economy/wallet";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 
 export const GOOGLE_TASKS_CHORE_SOURCE = "google_tasks";
 
-const DEFAULT_CHORE_COINS_FOR_IMPORTED_GOOGLE_TASKS = 0;
+const DEFAULT_CHORE_COINS_FOR_IMPORTED_GOOGLE_TASKS = 10;
 const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
 const LOCAL_REMOTE_AUTHORITY_TOLERANCE_MILLIS = 1000;
 const DEFAULT_MIN_SYNC_INTERVAL_SECONDS = 60;
@@ -46,6 +48,7 @@ type LocalChore = {
   createdAt: string;
   submittedAt: string;
   updatedAt: string;
+  coinValue: number;
   sortOrder?: number;
   source: string;
   googleTaskId: string;
@@ -169,6 +172,25 @@ function isFutureDueDate(value: string, todayIsoDate: string) {
   return value > todayIsoDate;
 }
 
+function isDueAndCompletedBeforeSyncDate(
+  task: { status: string; due?: string; completed?: string },
+  syncIsoDate: string,
+) {
+  if (task.status !== "completed") {
+    return false;
+  }
+  const dueDate = googleDueToDueDate(task.due);
+  if (!dueDate || dueDate >= syncIsoDate) {
+    return false;
+  }
+  const completedAtMillis = toUnixMillis(task.completed ?? "");
+  if (!completedAtMillis) {
+    return false;
+  }
+  const completedIsoDate = new Date(completedAtMillis).toISOString().slice(0, 10);
+  return completedIsoDate < syncIsoDate;
+}
+
 function isCompletedStatus(value: string) {
   return value === "Submitted" || value === "Approved";
 }
@@ -221,6 +243,7 @@ function parseLocalChore(doc: {
     createdAt: readTimestamp(doc.fields, "createdAt") || "",
     submittedAt: readTimestamp(doc.fields, "submittedAt") || "",
     updatedAt: readTimestamp(doc.fields, "updatedAt") || "",
+    coinValue: Math.max(0, readInteger(doc.fields, "coinValue") || 0),
     sortOrder: readOptionalSortOrder(doc.fields),
     source: readString(doc.fields, "source"),
     googleTaskId: readString(doc.fields, "googleTaskId"),
@@ -258,6 +281,22 @@ async function resolveAssigneeName(familyId: string, uid: string, idToken: strin
   return fallbackName || "Unassigned";
 }
 
+async function resolveAssigneeUid(familyId: string, assigneeId: string, idToken: string) {
+  if (!assigneeId) {
+    return "";
+  }
+  try {
+    const memberDoc = await getDocument(`families/${familyId}/members/${assigneeId}`, idToken);
+    const memberUid = readString(memberDoc.fields, "uid");
+    return memberUid || assigneeId;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (reason.includes("FIRESTORE_HTTP_404")) {
+      return assigneeId;
+    }
+    throw error;
+  }
+}
 function isGoogleTaskNotFound(error: unknown) {
   if (!(error instanceof GoogleTasksHttpError)) {
     return false;
@@ -433,6 +472,11 @@ export async function syncGoogleTasksForUser(
           }
         }
       }
+      // Only skip older completed tasks when they would be a brand-new import.
+      // Existing mapped chores must still reconcile to remote completion state.
+      if (!localChore && isDueAndCompletedBeforeSyncDate(remoteTask, todayIsoDate)) {
+        continue;
+      }
       const remoteUpdatedAt = remoteTask.updated || remoteTask.completed || now;
       const remoteUpdatedMillis = toUnixMillis(remoteUpdatedAt);
 
@@ -557,7 +601,8 @@ export async function syncGoogleTasksForUser(
           patchFields.dueDate = stringField(nextDueDate);
           updateMask.push("dueDate");
         }
-        if (localChore.status !== nextStatus) {
+        const statusChanged = localChore.status !== nextStatus;
+        if (statusChanged) {
           patchFields.status = stringField(nextStatus);
           updateMask.push("status");
         }
@@ -589,6 +634,27 @@ export async function syncGoogleTasksForUser(
             options.idToken,
             updateMask,
           );
+          if (statusChanged && localChore.coinValue > 0) {
+            const assigneeUid = await resolveAssigneeUid(link.familyId, localChore.assigneeId, options.idToken);
+            if (assigneeUid) {
+              const walletDelta = nextStatus === "Submitted" ? localChore.coinValue : -localChore.coinValue;
+              const walletReason = nextStatus === "Submitted" ? "chore_complete" : "chore_undo_complete";
+              try {
+                await applyWalletDelta({
+                  uid: assigneeUid,
+                  idToken: options.idToken,
+                  delta: walletDelta,
+                  reason: walletReason,
+                  choreId: localChore.id,
+                });
+              } catch (error) {
+                const reason = error instanceof Error ? error.message : "";
+                if (!reason.includes("FIRESTORE_HTTP_404")) {
+                  throw error;
+                }
+              }
+            }
+          }
           await publishFamilyActivity({
             type: "chore_updated",
             familyId: link.familyId,
@@ -752,6 +818,5 @@ export async function syncGoogleTasksForUser(
     };
   }
 }
-
 
 

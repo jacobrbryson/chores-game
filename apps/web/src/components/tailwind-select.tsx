@@ -217,7 +217,7 @@ export function TailwindSelect<T extends string = string>({
           maxHeight: menuPosition.maxHeight,
         }}
         className={joinClasses(
-          "z-[70] overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg",
+          "theme-select-menu z-[70] overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg",
           menuClassName,
         )}>
         {options.map((option, index) => {
@@ -284,3 +284,4 @@ export function TailwindSelect<T extends string = string>({
     </div>
   );
 }
+

@@ -7,8 +7,10 @@ import {
   listDocuments,
   getDocument,
   patchDocument,
+  findFirstFamilyIdByMemberUid,
   readTimestamp,
   readInteger,
+  readBoolean,
   readString,
   readStringArray,
   stringArrayField,
@@ -28,7 +30,9 @@ import {
   isStoreCategoryId,
   normalizeColor,
   normalizeThemePalette,
+  type StoreCategory,
 } from "@/lib/store/catalog";
+import { listFamilyRewards } from "@/lib/family/rewards";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 
 type StoreActionBody = {
@@ -102,9 +106,71 @@ function toUnixMillis(value: string) {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function buildFamilyAwardsCategory(rewards: Awaited<ReturnType<typeof listFamilyRewards>>): StoreCategory {
+  return {
+    id: "family_awards",
+    name: "Family Awards",
+    description: "Redeem custom family rewards.",
+    price: 0,
+    imagePath: "/store3/family-rewards.png",
+    kind: "reward",
+    options: rewards.map((reward) => ({
+      id: reward.id,
+      label: reward.description,
+      value: reward.imageId,
+      price: reward.coinCost,
+    })),
+  };
+}
+
+async function getPrimaryFamilyIdWithFallback(uid: string, idToken: string) {
+  try {
+    const userDoc = await getDocument(`users/${uid}`, idToken);
+    const fromUser = readStringArray(userDoc.fields, "familyIds")[0] ?? "";
+    if (fromUser) {
+      return fromUser;
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
+
+  return findFirstFamilyIdByMemberUid(uid, idToken);
+}
+
+async function getViewerRoleForFamily(familyId: string, uid: string, idToken: string) {
+  try {
+    const memberDoc = await getDocument(`families/${familyId}/members/${uid}`, idToken);
+    if (readBoolean(memberDoc.fields, "deleted")) {
+      return "player" as const;
+    }
+    return readString(memberDoc.fields, "role") === "admin" ? ("admin" as const) : ("player" as const);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
+
+  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 200);
+  const memberByUid = memberDocs.find((doc) => {
+    if (readBoolean(doc.fields, "deleted")) {
+      return false;
+    }
+    return readString(doc.fields, "uid") === uid;
+  });
+  if (!memberByUid) {
+    return "player" as const;
+  }
+  return readString(memberByUid.fields, "role") === "admin" ? ("admin" as const) : ("player" as const);
+}
+
 async function getStoreSummary(uid: string, idToken: string) {
   const userDoc = await getDocument(`users/${uid}`, idToken);
-  const familyId = readStringArray(userDoc.fields, "familyIds")[0] ?? "";
+  const fallbackFamilyId = await getPrimaryFamilyIdWithFallback(uid, idToken);
+  const familyId = readStringArray(userDoc.fields, "familyIds")[0] ?? fallbackFamilyId;
   const balance = Math.max(0, readInteger(userDoc.fields, "walletBalance"));
   const ownedOptionIds = resolveOwnedOptionIds(userDoc.fields);
 
@@ -117,8 +183,10 @@ async function getStoreSummary(uid: string, idToken: string) {
   let themePrimaryColor = normalizeColor(readString(userDoc.fields, "preferencesThemePrimaryColor"));
   let themeSecondaryColor = normalizeColor(readString(userDoc.fields, "preferencesThemeSecondaryColor"));
   let themeTertiaryColor = normalizeColor(readString(userDoc.fields, "preferencesThemeTertiaryColor"));
+  let viewerRole: "admin" | "player" = "player";
 
   if (familyId) {
+    viewerRole = await getViewerRoleForFamily(familyId, uid, idToken);
     try {
       const memberDoc = await getDocument(`families/${familyId}/members/${uid}`, idToken);
       dashboardPrimaryColor = normalizeColor(readString(memberDoc.fields, "dashboardPrimaryColor"));
@@ -189,9 +257,13 @@ async function getStoreSummary(uid: string, idToken: string) {
     }
   }
 
+  const familyRewards = familyId ? await listFamilyRewards(familyId, idToken) : [];
+  const familyAwardsCategory = buildFamilyAwardsCategory(familyRewards);
+
   return {
     balance,
     familyId,
+    viewerRole,
     ownedOptionIds: Array.from(ownedOptionIds),
     dashboardPrimaryColor,
     themeOptionId,
@@ -203,7 +275,7 @@ async function getStoreSummary(uid: string, idToken: string) {
     googlePhotoUrl,
     unlockedOptionDates,
     selectedConfettiOptionId,
-    categories: STORE_CATEGORIES,
+    categories: [...STORE_CATEGORIES, familyAwardsCategory],
     avatarOptions: DEFAULT_AVATAR_IDS,
   };
 }
@@ -401,24 +473,38 @@ export async function POST(request: NextRequest) {
         }
 
         if (action === "purchase_option") {
-          const categoryId = typeof body.categoryId === "string" ? body.categoryId : "";
-          const optionId = typeof body.optionId === "string" ? body.optionId : "";
-          const category = findStoreCategoryById(categoryId);
+          const categoryId = typeof body.categoryId === "string" ? body.categoryId.trim() : "";
+          const optionId = typeof body.optionId === "string" ? body.optionId.trim() : "";
+
+          let category = findStoreCategoryById(categoryId);
+          let option = category?.options.find((entry) => entry.id === optionId) ?? null;
+
+          if (!category && categoryId === "family_awards") {
+            const familyId = await getPrimaryFamilyIdWithFallback(uid, idToken);
+            if (!familyId) {
+              return { kind: "family_not_found" as const };
+            }
+            const familyRewards = await listFamilyRewards(familyId, idToken);
+            category = buildFamilyAwardsCategory(familyRewards);
+            option = category.options.find((entry) => entry.id === optionId) ?? null;
+          }
+
           if (!category) {
             return { kind: "invalid_category" as const };
           }
-          const option = category.options.find((entry) => entry.id === optionId);
           if (!option) {
             return { kind: "invalid_option" as const };
           }
 
+          const optionPrice = Math.max(0, Math.floor(option.price ?? category.price));
           const userDoc = await getDocument(`users/${uid}`, idToken);
           const ownedOptionIds = resolveOwnedOptionIds(userDoc.fields);
-          if (ownedOptionIds.has(option.id)) {
+          if (category.kind !== "reward" && ownedOptionIds.has(option.id)) {
             return { kind: "already_owned" as const };
           }
+
           const balance = await getWalletBalance(uid, idToken);
-          if (balance < category.price) {
+          if (balance < optionPrice) {
             return { kind: "insufficient_funds" as const };
           }
 
@@ -426,7 +512,7 @@ export async function POST(request: NextRequest) {
             await applyWalletDelta({
               uid,
               idToken,
-              delta: -category.price,
+              delta: -optionPrice,
               reason: "store_purchase",
               itemId: option.id,
             });
@@ -437,6 +523,11 @@ export async function POST(request: NextRequest) {
             }
             throw error;
           }
+
+          if (category.kind === "reward") {
+            return { kind: "ok" as const };
+          }
+
           ownedOptionIds.add(option.id);
           await patchDocument(
             `users/${uid}`,

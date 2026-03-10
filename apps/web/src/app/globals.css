@@ -1571,7 +1571,121 @@ textarea:disabled {
 }
 
 .family-page-subhead {
-  margin: 10px 0 14px;
+  margin: 0;
+}
+
+.family-page-header-actions {
+  display: inline-flex;
+}
+
+.family-page-grid {
+  margin-top: 8px;
+  display: grid;
+  gap: 14px;
+}
+
+.family-page-card {
+  border: 1px solid #d6e4f9;
+  border-radius: 16px;
+  padding: clamp(12px, 2vw, 16px);
+  background:
+    radial-gradient(180px 90px at 0% 0%, #bfe4ff40, transparent 72%),
+    linear-gradient(180deg, #ffffff, #f5f9ff);
+  box-shadow: 0 12px 22px rgba(24, 58, 97, 0.08);
+}
+
+.family-page-card-header {
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.family-page-card h2 {
+  margin: 0;
+  color: #17416f;
+  font-size: 1.05rem;
+}
+
+.family-categories-card {
+  display: grid;
+  gap: 12px;
+}
+
+.family-categories-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  flex-wrap: wrap;
+}
+
+.family-categories-card-title {
+  display: grid;
+  gap: 2px;
+}
+
+.family-categories-card-title h2 {
+  margin: 0;
+}
+
+.family-categories-card-title .small {
+  margin: 0;
+}
+
+.family-category-chip-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.family-category-chip {
+  --category-chip-color: color-mix(in srgb, var(--category-color, #3b82f6) 80%, #ffffff 20%);
+  border: 1px solid color-mix(in srgb, var(--category-chip-color) 42%, #ffffff);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: color-mix(in srgb, var(--category-chip-color) 68%, #10243f 32%);
+  background: color-mix(in srgb, var(--category-chip-color) 18%, #ffffff 82%);
+}
+
+.family-category-color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.family-category-color-input {
+  width: 44px;
+  height: 40px;
+  border: 1px solid #c4d8f5;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.family-category-manage-list {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.family-category-manage-item {
+  border: 1px solid #d7e5f9;
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: #f8fbff;
 }
 
 .chores-table-subhead {
@@ -1589,6 +1703,7 @@ textarea:disabled {
 
 .chores-table-bulk-actions {
   margin-left: auto;
+  margin-bottom: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
@@ -1601,6 +1716,53 @@ textarea:disabled {
   font-weight: 700;
   white-space: nowrap;
 }
+
+.chore-category-empty {
+color: #5f7da3;
+font-size: 0.82rem;
+font-weight: 600;
+}
+
+.chore-category-toggle {
+display: inline-flex;
+align-items: center;
+max-width: 100%;
+border: 0;
+background: transparent;
+padding: 0;
+border-radius: 999px;
+cursor: pointer;
+font-family: inherit;
+}
+
+.chore-category-toggle:focus-visible {
+outline: none;
+box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 42%, transparent);
+}
+
+.chore-category-pill-list {
+display: inline-flex;
+align-items: center;
+flex-wrap: wrap;
+gap: 6px;
+}
+
+.chore-category-pill {
+--category-chip-color: color-mix(in srgb, var(--category-color, #3b82f6) 80%, #ffffff 20%);
+display: inline-flex;
+align-items: center;
+max-width: 100%;
+border: 1px solid color-mix(in srgb, var(--category-chip-color) 42%, #ffffff);
+border-radius: 999px;
+padding: 2px 9px;
+background: color-mix(in srgb, var(--category-chip-color) 18%, #ffffff 82%);
+color: color-mix(in srgb, var(--category-chip-color) 68%, #10243f 32%);
+font-size: 0.78rem;
+font-weight: 700;
+line-height: 1.25;
+white-space: nowrap;
+}
+
 
 .family-table-desktop {
   display: block;
@@ -2162,6 +2324,11 @@ textarea:disabled {
 .theme-select-trigger:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+
+.theme-select-menu > li + li {
+  margin-top: 4px;
 }
 
 .theme-select-option {
@@ -3460,7 +3627,24 @@ textarea:disabled {
   }
 
   .family-page-subhead {
-    margin: 6px 0 10px;
+    margin: 0;
+  }
+
+  .family-page-card {
+    border-radius: 14px;
+    padding: 12px;
+  }
+
+  .family-categories-card-header .btn {
+    width: 100%;
+  }
+
+  .family-category-manage-item {
+    padding: 9px;
+  }
+
+  .family-category-manage-item .member-actions {
+    width: 100%;
   }
 
   .family-table-desktop {

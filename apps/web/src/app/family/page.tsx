@@ -5,7 +5,15 @@ import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
 import { ModalShell } from "@/components/modal-shell";
+import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import type { FamilySummaryResponse } from "@/lib/family/types";
+import {
+  FAMILY_REWARD_IMAGE_OPTIONS,
+  findFamilyRewardImageOption,
+  isFamilyRewardImageId,
+  normalizeFamilyRewardCoinCost,
+  type FamilyReward,
+} from "@/lib/family/rewards";
 
 type AddMemberState = {
   name: string;
@@ -29,6 +37,23 @@ type CategoryFormState = {
 type PendingRemoveCategory = {
   id: string;
   name: string;
+};
+
+type RewardFormState = {
+  description: string;
+  coinCost: string;
+  imageId: string;
+};
+
+type PendingRemoveReward = {
+  id: string;
+  description: string;
+};
+
+type FamilyRewardsResponse = {
+  noFamily: boolean;
+  viewerRole: "admin" | "player";
+  rewards: FamilyReward[];
 };
 
 type AddMemberFieldsProps = {
@@ -123,6 +148,12 @@ const initialCategoryFormState: CategoryFormState = {
   color: "#3b82f6",
 };
 
+const initialRewardFormState: RewardFormState = {
+  description: "",
+  coinCost: "10",
+  imageId: FAMILY_REWARD_IMAGE_OPTIONS[0]?.id ?? "screen_time",
+};
+
 function memberRoleTone(role: string) {
   return role === "admin" ? "indigo" : "teal";
 }
@@ -176,22 +207,61 @@ export default function FamilyPage() {
   const [pendingRemoveCategory, setPendingRemoveCategory] =
     useState<PendingRemoveCategory | null>(null);
 
+  const [rewards, setRewards] = useState<FamilyReward[]>([]);
+  const [rewardLoadError, setRewardLoadError] = useState("");
+  const [showRewardManager, setShowRewardManager] = useState(false);
+  const [rewardForm, setRewardForm] = useState<RewardFormState>(initialRewardFormState);
+  const [editingRewardId, setEditingRewardId] = useState("");
+  const [rewardSaving, setRewardSaving] = useState(false);
+  const [rewardActionLoading, setRewardActionLoading] = useState<{
+    rewardId: string;
+    action: "delete";
+  } | null>(null);
+  const [rewardError, setRewardError] = useState("");
+  const [pendingRemoveReward, setPendingRemoveReward] =
+    useState<PendingRemoveReward | null>(null);
+
+  const rewardImageSelectOptions = useMemo<TailwindSelectOption[]>(
+    () =>
+      FAMILY_REWARD_IMAGE_OPTIONS.map((option) => ({
+        value: option.id,
+        label: `${option.icon} - ${option.label}`,
+      })),
+    [],
+  );
+
   async function loadSummary() {
     setIsLoading(true);
     setError("");
+    setRewardLoadError("");
     try {
       const tzOffsetMinutes = new Date().getTimezoneOffset();
-      const response = await fetch(`/api/family/summary?tzOffsetMinutes=${tzOffsetMinutes}`, { cache: "no-store" });
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        throw new Error(body.error ?? `SUMMARY_HTTP_${response.status}`);
+      const [summaryResponse, rewardsResponse] = await Promise.all([
+        fetch(`/api/family/summary?tzOffsetMinutes=${tzOffsetMinutes}`, { cache: "no-store" }),
+        fetch("/api/family/rewards", { cache: "no-store" }),
+      ]);
+
+      if (!summaryResponse.ok) {
+        const body = (await summaryResponse.json()) as { error?: string };
+        throw new Error(body.error ?? `SUMMARY_HTTP_${summaryResponse.status}`);
       }
-      const payload = (await response.json()) as FamilySummaryResponse;
+
+      const payload = (await summaryResponse.json()) as FamilySummaryResponse;
       setSummary(payload);
+
+      if (!rewardsResponse.ok) {
+        const body = (await rewardsResponse.json()) as { error?: string };
+        setRewardLoadError(body.error ?? `REWARDS_HTTP_${rewardsResponse.status}`);
+        setRewards([]);
+      } else {
+        const rewardsPayload = (await rewardsResponse.json()) as FamilyRewardsResponse;
+        setRewards(Array.isArray(rewardsPayload.rewards) ? rewardsPayload.rewards : []);
+      }
     } catch (loadError) {
       const message =
         loadError instanceof Error ? loadError.message : "summary_unavailable";
       setError(message);
+      setRewards([]);
     } finally {
       setIsLoading(false);
     }
@@ -356,8 +426,113 @@ export default function FamilyPage() {
     }
   }
 
+  function resetRewardEditor() {
+    setEditingRewardId("");
+    setRewardForm(initialRewardFormState);
+    setRewardError("");
+  }
+
+  function onEditReward(reward: FamilyReward) {
+    setEditingRewardId(reward.id);
+    setRewardForm({
+      description: reward.description,
+      coinCost: String(reward.coinCost),
+      imageId: reward.imageId,
+    });
+    setRewardError("");
+  }
+
+  async function onSaveReward(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (rewardSaving) {
+      return;
+    }
+
+    const description = rewardForm.description.trim().replace(/\s+/g, " " );
+    const coinCost = normalizeFamilyRewardCoinCost(rewardForm.coinCost);
+    const imageId = rewardForm.imageId.trim();
+
+    if (!description) {
+      setRewardError("description_required");
+      return;
+    }
+    if (!Number.isInteger(coinCost) || coinCost < 1) {
+      setRewardError("invalid_coin_cost");
+      return;
+    }
+    if (!isFamilyRewardImageId(imageId)) {
+      setRewardError("invalid_image_id");
+      return;
+    }
+
+    setRewardSaving(true);
+    setRewardError("");
+
+    try {
+      const response = await fetch(
+        editingRewardId
+          ? `/api/family/rewards/${editingRewardId}`
+          : "/api/family/rewards",
+        {
+          method: editingRewardId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            description,
+            coinCost,
+            imageId,
+          }),
+        },
+      );
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `REWARD_SAVE_HTTP_${response.status}`);
+      }
+
+      resetRewardEditor();
+      await loadSummary();
+    } catch (saveError) {
+      const message =
+        saveError instanceof Error ? saveError.message : "save_reward_failed";
+      setRewardError(message);
+    } finally {
+      setRewardSaving(false);
+    }
+  }
+
+  async function onDeleteReward() {
+    if (!pendingRemoveReward || rewardActionLoading) {
+      return;
+    }
+
+    setRewardActionLoading({ rewardId: pendingRemoveReward.id, action: "delete" });
+    setRewardError("");
+
+    try {
+      const response = await fetch(`/api/family/rewards/${pendingRemoveReward.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `REWARD_DELETE_HTTP_${response.status}`);
+      }
+
+      if (editingRewardId === pendingRemoveReward.id) {
+        resetRewardEditor();
+      }
+      setPendingRemoveReward(null);
+      await loadSummary();
+    } catch (deleteError) {
+      const message =
+        deleteError instanceof Error ? deleteError.message : "delete_reward_failed";
+      setRewardError(message);
+    } finally {
+      setRewardActionLoading(null);
+    }
+  }
+
   const members = useMemo(() => summary?.members ?? [], [summary]);
   const categories = useMemo(() => summary?.categories ?? [], [summary]);
+  const familyRewards = useMemo(() => rewards, [rewards]);
   const viewerMember =
     summary?.members.find(
       (member) => member.uid === summary.viewerUid || member.id === summary.viewerUid,
@@ -400,185 +575,235 @@ export default function FamilyPage() {
                   {memberActionError ? (
                     <p className="small family-error">Member update failed: {memberActionError}</p>
                   ) : null}
-                  <p className="small family-page-subhead">
-                    {members.length} member{members.length === 1 ? "" : "s"}
-                  </p>
-
-                  <div className="family-table-wrap family-table-desktop">
-                    <table className="family-table">
-                      <thead>
-                        <tr>
-                          <th>Name</th>
-                          <th>Email</th>
-                          <th>Role</th>
-                          <th>Status</th>
-                          <th>Last Sign In</th>
-                          <th />
-                        </tr>
-                      </thead>
-                      <tbody>
+                  <div className="family-page-grid">
+                    <section className="family-page-card" aria-label="Family members">
+                      <div className="family-page-card-header">
+                        <h2>Members</h2>
+                        <p className="small family-page-subhead">
+                          {members.length} member{members.length === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <div className="family-table-wrap family-table-desktop">
+                        <table className="family-table">
+                          <thead>
+                            <tr>
+                              <th>Name</th>
+                              <th>Email</th>
+                              <th>Role</th>
+                              <th>Status</th>
+                              <th>Last Sign In</th>
+                              <th />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {members.length === 0 ? (
+                              <tr>
+                                <td colSpan={6}>No family members found.</td>
+                              </tr>
+                            ) : (
+                              members.map((member) => (
+                                <tr key={member.id}>
+                                  <td>{member.name}</td>
+                                  <td>{member.email || "-"}</td>
+                                  <td>
+                                    <EnumChip
+                                      label={humanizeEnum(member.role)}
+                                      tone={memberRoleTone(member.role)}
+                                    />
+                                  </td>
+                                  <td>
+                                    <EnumChip
+                                      label={humanizeEnum(member.status)}
+                                      tone={memberStatusTone(member.status)}
+                                    />
+                                  </td>
+                                  <td>{memberLastSignInLabel(member, summary?.viewerUid)}</td>
+                                  <td>
+                                    {canManageMembers &&
+                                    member.id !== viewerUid &&
+                                    member.uid !== viewerUid ? (
+                                      <div className="member-actions">
+                                        <Button
+                                          type="button"
+                                          className="btn btn-secondary member-action-btn"
+                                          disabled={Boolean(memberActionLoading)}
+                                          onClick={() => onMemberAction(member.id, "reinvite")}>
+                                          {memberActionLoading?.memberId === member.id &&
+                                          memberActionLoading.action === "reinvite"
+                                            ? "Working..."
+                                            : "Re-invite"}
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          className="btn member-action-remove"
+                                          disabled={Boolean(memberActionLoading)}
+                                          onClick={() =>
+                                            setPendingRemoveMember({
+                                              id: member.id,
+                                              name: member.name,
+                                            })
+                                          }>
+                                          {memberActionLoading?.memberId === member.id &&
+                                          memberActionLoading.action === "remove"
+                                            ? "Working..."
+                                            : "Remove"}
+                                        </Button>
+                                      </div>
+                                    ) : null}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="family-member-cards">
                         {members.length === 0 ? (
-                          <tr>
-                            <td colSpan={6}>No family members found.</td>
-                          </tr>
+                          <div className="family-member-empty">No family members found.</div>
                         ) : (
                           members.map((member) => (
-                            <tr key={member.id}>
-                              <td>{member.name}</td>
-                              <td>{member.email || "-"}</td>
-                              <td>
-                                <EnumChip
-                                  label={humanizeEnum(member.role)}
-                                  tone={memberRoleTone(member.role)}
-                                />
-                              </td>
-                              <td>
+                            <article key={member.id} className="family-member-card">
+                              <div className="family-member-card-head">
+                                <div>
+                                  <h3 className="family-member-name">{member.name}</h3>
+                                  <p className="family-member-email">{member.email || "-"}</p>
+                                </div>
                                 <EnumChip
                                   label={humanizeEnum(member.status)}
                                   tone={memberStatusTone(member.status)}
                                 />
-                              </td>
-                              <td>
-                                {memberLastSignInLabel(member, summary?.viewerUid)}
-                              </td>
-                              <td>
-                                {canManageMembers &&
-                                member.id !== viewerUid &&
-                                member.uid !== viewerUid ? (
-                                  <div className="member-actions">
-                                    <Button
-                                      type="button"
-                                      className="btn btn-secondary member-action-btn"
-                                      disabled={Boolean(memberActionLoading)}
-                                      onClick={() => onMemberAction(member.id, "reinvite")}>
-                                      {memberActionLoading?.memberId === member.id &&
-                                      memberActionLoading.action === "reinvite"
-                                        ? "Working..."
-                                        : "Re-invite"}
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      className="btn member-action-remove"
-                                      disabled={Boolean(memberActionLoading)}
-                                      onClick={() =>
-                                        setPendingRemoveMember({
-                                          id: member.id,
-                                          name: member.name,
-                                        })
-                                      }>
-                                      {memberActionLoading?.memberId === member.id &&
-                                      memberActionLoading.action === "remove"
-                                        ? "Working..."
-                                        : "Remove"}
-                                    </Button>
-                                  </div>
-                                ) : null}
-                              </td>
-                            </tr>
+                              </div>
+                              <div className="family-member-meta">
+                                <div className="family-member-meta-item">
+                                  <span>Role</span>
+                                  <EnumChip
+                                    label={humanizeEnum(member.role)}
+                                    tone={memberRoleTone(member.role)}
+                                  />
+                                </div>
+                                <div className="family-member-meta-item">
+                                  <span>Last Sign In</span>
+                                  <strong>{memberLastSignInLabel(member, summary?.viewerUid)}</strong>
+                                </div>
+                              </div>
+                              {canManageMembers &&
+                              member.id !== viewerUid &&
+                              member.uid !== viewerUid ? (
+                                <div className="family-member-actions">
+                                  <Button
+                                    type="button"
+                                    className="btn btn-secondary member-action-btn"
+                                    disabled={Boolean(memberActionLoading)}
+                                    onClick={() => onMemberAction(member.id, "reinvite")}>
+                                    {memberActionLoading?.memberId === member.id &&
+                                    memberActionLoading.action === "reinvite"
+                                      ? "Working..."
+                                      : "Re-invite"}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    className="btn member-action-remove"
+                                    disabled={Boolean(memberActionLoading)}
+                                    onClick={() =>
+                                      setPendingRemoveMember({
+                                        id: member.id,
+                                        name: member.name,
+                                      })
+                                    }>
+                                    {memberActionLoading?.memberId === member.id &&
+                                    memberActionLoading.action === "remove"
+                                      ? "Working..."
+                                      : "Remove"}
+                                  </Button>
+                                </div>
+                              ) : null}
+                            </article>
                           ))
                         )}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="family-member-cards">
-                    {members.length === 0 ? (
-                      <div className="family-member-empty">No family members found.</div>
-                    ) : (
-                      members.map((member) => (
-                        <article key={member.id} className="family-member-card">
-                          <div className="family-member-card-head">
-                            <div>
-                              <h3 className="family-member-name">{member.name}</h3>
-                              <p className="family-member-email">{member.email || "-"}</p>
-                            </div>
-                            <EnumChip
-                              label={humanizeEnum(member.status)}
-                              tone={memberStatusTone(member.status)}
-                            />
-                          </div>
-                          <div className="family-member-meta">
-                            <div className="family-member-meta-item">
-                              <span>Role</span>
-                              <EnumChip
-                                label={humanizeEnum(member.role)}
-                                tone={memberRoleTone(member.role)}
-                              />
-                            </div>
-                            <div className="family-member-meta-item">
-                              <span>Last Sign In</span>
-                              <strong>{memberLastSignInLabel(member, summary?.viewerUid)}</strong>
-                            </div>
-                          </div>
-                          {canManageMembers &&
-                          member.id !== viewerUid &&
-                          member.uid !== viewerUid ? (
-                            <div className="family-member-actions">
-                              <Button
-                                type="button"
-                                className="btn btn-secondary member-action-btn"
-                                disabled={Boolean(memberActionLoading)}
-                                onClick={() => onMemberAction(member.id, "reinvite")}>
-                                {memberActionLoading?.memberId === member.id &&
-                                memberActionLoading.action === "reinvite"
-                                  ? "Working..."
-                                  : "Re-invite"}
-                              </Button>
-                              <Button
-                                type="button"
-                                className="btn member-action-remove"
-                                disabled={Boolean(memberActionLoading)}
-                                onClick={() =>
-                                  setPendingRemoveMember({
-                                    id: member.id,
-                                    name: member.name,
-                                  })
-                                }>
-                                {memberActionLoading?.memberId === member.id &&
-                                memberActionLoading.action === "remove"
-                                  ? "Working..."
-                                  : "Remove"}
-                              </Button>
-                            </div>
-                          ) : null}
-                        </article>
-                      ))
-                    )}
-                  </div>
-                  <section className="family-categories-card" aria-label="Categories">
-                    <div className="family-categories-card-header">
-                      <div className="family-categories-card-title">
-                        <h2>Categories</h2>
-                        <p className="small">
-                          {categories.length} categor{categories.length === 1 ? "y" : "ies"}
-                        </p>
                       </div>
-                      {canManageMembers ? (
-                        <Button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={() => {
-                            setShowCategoryManager(true);
-                            setCategoryError("");
-                          }}>
-                          Manage Categories
-                        </Button>
+                    </section>
+                    <section className="family-page-card family-categories-card" aria-label="Categories">
+                      <div className="family-categories-card-header">
+                        <div className="family-categories-card-title">
+                          <h2>Categories</h2>
+                          <p className="small">
+                            {categories.length} categor{categories.length === 1 ? "y" : "ies"}
+                          </p>
+                        </div>
+                        {canManageMembers ? (
+                          <Button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => {
+                              setShowCategoryManager(true);
+                              setCategoryError("");
+                            }}>
+                            Manage Categories
+                          </Button>
+                        ) : null}
+                      </div>
+                      {categories.length > 0 ? (
+                        <div className="family-category-chip-row">
+                          {categories.map((category) => (
+                            <span
+                              key={category.id}
+                              className="family-category-chip"
+                              style={{ "--category-color": category.color } as CSSProperties}>
+                              [{category.name}]
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="small">No categories yet.</p>
+                      )}
+                    </section>
+                    <section className="family-page-card family-categories-card" aria-label="Family awards">
+                      <div className="family-categories-card-header">
+                        <div className="family-categories-card-title">
+                          <h2>Family Awards</h2>
+                          <p className="small">
+                            {familyRewards.length} reward{familyRewards.length === 1 ? "" : "s"}
+                          </p>
+                        </div>
+                        {canManageMembers ? (
+                          <Button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => {
+                              setShowRewardManager(true);
+                              setRewardError("");
+                            }}>
+                            Manage Awards
+                          </Button>
+                        ) : null}
+                      </div>
+                      {rewardLoadError ? (
+                        <p className="small family-error">Could not load rewards: {rewardLoadError}</p>
                       ) : null}
-                    </div>
-                    {categories.length > 0 ? (
-                      <div className="family-category-chip-row">
-                        {categories.map((category) => (
-                          <span
-                            key={category.id}
-                            className="family-category-chip"
-                            style={{ "--category-color": category.color } as CSSProperties}>
-                            [{category.name}]
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="small">No categories yet.</p>
-                    )}
-                  </section>
+                      {familyRewards.length > 0 ? (
+                        <div className="family-category-manage-list">
+                          {familyRewards.map((reward) => {
+                            const image = findFamilyRewardImageOption(reward.imageId);
+                            return (
+                              <div key={reward.id} className="family-category-manage-item">
+                                <div className="flex items-center gap-3">
+                                  <span className="inline-flex h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-[0.58rem] font-bold uppercase tracking-wide text-slate-600">
+                                    {image?.icon ?? "REWARD"}
+                                  </span>
+                                  <div className="grid gap-0.5">
+                                    <strong className="text-slate-800">{reward.description}</strong>
+                                    <span className="small text-slate-600">{reward.coinCost} coins</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="small">No custom rewards yet.</p>
+                      )}
+                    </section>
+                  </div>
                 </>
               )}
             </>
@@ -713,6 +938,156 @@ export default function FamilyPage() {
         </div>
       </ModalShell>
 
+      <ModalShell open={showRewardManager} onRequestClose={() => setShowRewardManager(false)}>
+        <div className="family-modal-card">
+          <h3 className="family-modal-title">Manage Family Awards</h3>
+          <p className="small mb-2">
+            Add custom rewards your family can redeem with coins. Examples: extra screen time,
+            ice cream, candy, soda, zoo trips, museum trips, vacations.
+          </p>
+          <form className="flex w-full flex-col gap-3" onSubmit={onSaveReward}>
+            <label className="flex w-full flex-col gap-1.5">
+              <span className="text-sm font-medium text-slate-700">Description</span>
+              <input
+                required
+                maxLength={120}
+                value={rewardForm.description}
+                onChange={(event) =>
+                  setRewardForm((current) => ({ ...current, description: event.target.value }))
+                }
+                placeholder="Extra screen time (30 minutes)"
+                className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+              />
+            </label>
+            <label className="flex w-full flex-col gap-1.5">
+              <span className="text-sm font-medium text-slate-700">Coin Amount</span>
+              <input
+                type="number"
+                min={1}
+                max={10000}
+                required
+                value={rewardForm.coinCost}
+                onChange={(event) =>
+                  setRewardForm((current) => ({ ...current, coinCost: event.target.value }))
+                }
+                placeholder="25"
+                className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+              />
+            </label>
+            <label className="flex w-full flex-col gap-1.5">
+              <span className="text-sm font-medium text-slate-700">Reward Image</span>
+              <TailwindSelect
+                ariaLabel="Reward image"
+                value={rewardForm.imageId}
+                options={rewardImageSelectOptions}
+                onChange={(value) =>
+                  setRewardForm((current) => ({ ...current, imageId: value }))
+                }
+              />
+            </label>
+            {rewardError ? <p className="small family-error">Reward update failed: {rewardError}</p> : null}
+            <div className="family-modal-actions">
+              {editingRewardId ? (
+                <Button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={rewardSaving}
+                  onClick={resetRewardEditor}>
+                  Cancel Edit
+                </Button>
+              ) : null}
+              <Button
+                type="submit"
+                className="btn btn-primary"
+                disabled={rewardSaving}>
+                {rewardSaving
+                  ? "Saving..."
+                  : editingRewardId
+                    ? "Save Reward"
+                    : "Add Reward"}
+              </Button>
+            </div>
+          </form>
+
+          <div className="family-category-manage-list">
+            {familyRewards.length === 0 ? (
+              <p className="small">No custom rewards yet.</p>
+            ) : (
+              familyRewards.map((reward) => {
+                const image = findFamilyRewardImageOption(reward.imageId);
+                return (
+                  <div key={reward.id} className="family-category-manage-item">
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-[0.58rem] font-bold uppercase tracking-wide text-slate-600">
+                        {image?.icon ?? "REWARD"}
+                      </span>
+                      <div className="grid gap-0.5">
+                        <strong className="text-slate-800">{reward.description}</strong>
+                        <span className="small text-slate-600">{reward.coinCost} coins</span>
+                      </div>
+                    </div>
+                    <div className="member-actions">
+                      <Button
+                        type="button"
+                        className="btn btn-secondary member-action-btn"
+                        disabled={Boolean(rewardActionLoading) || rewardSaving}
+                        onClick={() => onEditReward(reward)}>
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        className="btn member-action-remove"
+                        disabled={Boolean(rewardActionLoading) || rewardSaving}
+                        onClick={() =>
+                          setPendingRemoveReward({
+                            id: reward.id,
+                            description: reward.description,
+                          })
+                        }>
+                        {rewardActionLoading?.rewardId === reward.id
+                          ? "Working..."
+                          : "Delete"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </ModalShell>
+
+      <ModalShell
+        open={Boolean(pendingRemoveReward)}
+        onRequestClose={() => setPendingRemoveReward(null)}>
+        <div className="family-modal-card">
+          {pendingRemoveReward ? (
+            <>
+              <h3 className="family-modal-title">Delete Family Award</h3>
+              <p className="mb-4 text-sm text-slate-600">
+                Delete <strong>{pendingRemoveReward.description}</strong>?
+              </p>
+              <div className="family-modal-actions">
+                <Button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={Boolean(rewardActionLoading)}
+                  onClick={() => setPendingRemoveReward(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="btn member-action-remove"
+                  disabled={Boolean(rewardActionLoading)}
+                  onClick={onDeleteReward}>
+                  {rewardActionLoading ? "Deleting..." : "Delete"}
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </ModalShell>
+
       <ModalShell
         open={Boolean(pendingRemoveMember)}
         onRequestClose={() => setPendingRemoveMember(null)}>
@@ -781,5 +1156,3 @@ export default function FamilyPage() {
     </>
   );
 }
-
-
