@@ -363,14 +363,16 @@ body {
 .google-signin-wrap {
   display: inline-flex;
   max-width: 100%;
+  overflow: visible;
 }
 
 .google-signin-wrap .g_id_signin {
   max-width: 100%;
+  overflow: visible;
 }
 
 .google-signin-wrap iframe {
-  max-width: 100%;
+  max-width: none;
 }
 
 .google-brand-action-btn {
@@ -3947,3 +3949,4 @@ white-space: nowrap;
   flex-shrink: 0;
   color: currentColor;
 }
+
