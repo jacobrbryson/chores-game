@@ -1,11 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useMemo, useState } from "react";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
 import { ModalShell } from "@/components/modal-shell";
-import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import type { FamilySummaryResponse } from "@/lib/family/types";
 import {
   FAMILY_REWARD_IMAGE_OPTIONS,
@@ -220,15 +220,6 @@ export default function FamilyPage() {
   const [rewardError, setRewardError] = useState("");
   const [pendingRemoveReward, setPendingRemoveReward] =
     useState<PendingRemoveReward | null>(null);
-
-  const rewardImageSelectOptions = useMemo<TailwindSelectOption[]>(
-    () =>
-      FAMILY_REWARD_IMAGE_OPTIONS.map((option) => ({
-        value: option.id,
-        label: `${option.icon} - ${option.label}`,
-      })),
-    [],
-  );
 
   async function loadSummary() {
     setIsLoading(true);
@@ -787,9 +778,19 @@ export default function FamilyPage() {
                             return (
                               <div key={reward.id} className="family-category-manage-item">
                                 <div className="flex items-center gap-3">
-                                  <span className="inline-flex h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-[0.58rem] font-bold uppercase tracking-wide text-slate-600">
-                                    {image?.icon ?? "REWARD"}
-                                  </span>
+                                  <div className="family-reward-chip-image-wrap">
+                                    <Image
+                                      src={
+                                        image?.imagePath ??
+                                        FAMILY_REWARD_IMAGE_OPTIONS[0]?.imagePath ??
+                                        "/rewards/screens.png"
+                                      }
+                                      alt={image?.label ?? "Reward image"}
+                                      width={80}
+                                      height={80}
+                                      className="family-reward-chip-image"
+                                    />
+                                  </div>
                                   <div className="grid gap-0.5">
                                     <strong className="text-slate-800">{reward.description}</strong>
                                     <span className="small text-slate-600">{reward.coinCost} coins</span>
@@ -976,14 +977,33 @@ export default function FamilyPage() {
             </label>
             <label className="flex w-full flex-col gap-1.5">
               <span className="text-sm font-medium text-slate-700">Reward Image</span>
-              <TailwindSelect
-                ariaLabel="Reward image"
-                value={rewardForm.imageId}
-                options={rewardImageSelectOptions}
-                onChange={(value) =>
-                  setRewardForm((current) => ({ ...current, imageId: value }))
-                }
-              />
+              <div className="family-reward-image-grid" role="radiogroup" aria-label="Reward image">
+                {FAMILY_REWARD_IMAGE_OPTIONS.map((option) => {
+                  const isSelected = rewardForm.imageId === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      className={`family-reward-image-option${isSelected ? " is-selected" : ""}`}
+                      onClick={() =>
+                        setRewardForm((current) => ({ ...current, imageId: option.id }))
+                      }>
+                      <span className="family-reward-image-option-media">
+                        <Image
+                          src={option.imagePath}
+                          alt={option.label}
+                          width={120}
+                          height={120}
+                          className="family-reward-image-option-img"
+                        />
+                      </span>
+                      <span className="family-reward-image-option-label">{option.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </label>
             {rewardError ? <p className="small family-error">Reward update failed: {rewardError}</p> : null}
             <div className="family-modal-actions">
@@ -1018,9 +1038,19 @@ export default function FamilyPage() {
                 return (
                   <div key={reward.id} className="family-category-manage-item">
                     <div className="flex items-center gap-3">
-                      <span className="inline-flex h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-[0.58rem] font-bold uppercase tracking-wide text-slate-600">
-                        {image?.icon ?? "REWARD"}
-                      </span>
+                      <div className="family-reward-chip-image-wrap">
+                        <Image
+                          src={
+                            image?.imagePath ??
+                            FAMILY_REWARD_IMAGE_OPTIONS[0]?.imagePath ??
+                            "/rewards/screens.png"
+                          }
+                          alt={image?.label ?? "Reward image"}
+                          width={80}
+                          height={80}
+                          className="family-reward-chip-image"
+                        />
+                      </div>
                       <div className="grid gap-0.5">
                         <strong className="text-slate-800">{reward.description}</strong>
                         <span className="small text-slate-600">{reward.coinCost} coins</span>

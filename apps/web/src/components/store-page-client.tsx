@@ -480,7 +480,7 @@ export function StorePageClient() {
                         className={`store-option-card${
                           isActiveThemeCard ? " is-active" : ""
                         }${isPreviewThemeCard || previewingConfetti ? " is-previewing" : ""}`}>
-                        <div className="store-option-preview">
+                        <div className={`store-option-preview${activeCategory.kind === "reward" ? " store-option-preview-reward" : ""}`}>
                           {activeCategory.kind === "color" ? (
                             <div className="store-option-theme-preview">
                               <span
@@ -557,10 +557,17 @@ export function StorePageClient() {
                             </div>
                           ) : null}
                           {activeCategory.kind === "reward" ? (
-                            <div className="flex h-[78px] w-[78px] items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-center">
-                              <span className="text-[0.58rem] font-bold uppercase tracking-wide text-slate-600">
-                                {rewardImage?.icon ?? "REWARD"}
-                              </span>
+                            <div className="store-option-reward-image-wrap">
+                              <Image
+                                src={
+                                  rewardImage?.imagePath ??
+                                  "/rewards/screens.png"
+                                }
+                                alt={rewardImage?.label ?? option.label}
+                                width={128}
+                                height={128}
+                                className="store-option-reward-image"
+                              />
                             </div>
                           ) : null}
                           {canThemePreview ? (

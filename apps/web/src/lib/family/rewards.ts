@@ -17,19 +17,19 @@ export type FamilyReward = {
 export type FamilyRewardImageOption = {
   id: string;
   label: string;
-  icon: string;
+  imagePath: string;
 };
 
 export const FAMILY_REWARD_IMAGE_OPTIONS: FamilyRewardImageOption[] = [
-  { id: "screen_time", label: "Extra Screen Time", icon: "PHONE" },
-  { id: "ice_cream", label: "Ice Cream", icon: "ICE" },
-  { id: "candy", label: "Candy", icon: "CANDY" },
-  { id: "soda", label: "Soda", icon: "SODA" },
-  { id: "zoo_trip", label: "Zoo Trip", icon: "ZOO" },
-  { id: "museum_trip", label: "Museum Trip", icon: "MUSEUM" },
-  { id: "vacation", label: "Vacation", icon: "VACATION" },
-  { id: "movie_night", label: "Movie Night", icon: "MOVIE" },
-  { id: "sleepover", label: "Sleepover", icon: "SLEEP" },
+  { id: "screen_time", label: "Extra Screen Time", imagePath: "/rewards/screens.png" },
+  { id: "ice_cream", label: "Ice Cream", imagePath: "/rewards/icecream.png" },
+  { id: "candy", label: "Candy", imagePath: "/rewards/candy.png" },
+  { id: "soda", label: "Soda", imagePath: "/rewards/sodas.png" },
+  { id: "zoo_trip", label: "Zoo Trip", imagePath: "/rewards/zoo.png" },
+  { id: "museum_trip", label: "Museum Trip", imagePath: "/rewards/museum.png" },
+  { id: "vacation", label: "Vacation", imagePath: "/rewards/vacation.png" },
+  { id: "movie_night", label: "Movie Night", imagePath: "/rewards/movie.png" },
+  { id: "sleepover", label: "Sleepover", imagePath: "/rewards/sleep.png" },
 ];
 
 export const MAX_FAMILY_REWARD_DESCRIPTION_LENGTH = 120;
