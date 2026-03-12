@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
@@ -78,6 +78,28 @@ function mapCommonFirestoreErrors(reason: string, fallbackError: string) {
     return jsonFirestoreForbidden();
   }
   return NextResponse.json({ error: fallbackError }, { status: 500 });
+}
+function resolveSessionPictureFromStoreSummary(
+  summary: {
+    avatarId?: string;
+    avatarPhotoUrl?: string;
+    googlePhotoUrl?: string;
+  },
+  fallbackPicture: string,
+) {
+  const avatarId = summary.avatarId?.trim() ?? "";
+  if (avatarId) {
+    return `/avatars/default/${encodeURIComponent(avatarId)}`;
+  }
+  const avatarPhotoUrl = summary.avatarPhotoUrl?.trim() ?? "";
+  if (avatarPhotoUrl) {
+    return avatarPhotoUrl;
+  }
+  const googlePhotoUrl = summary.googlePhotoUrl?.trim() ?? "";
+  if (googlePhotoUrl) {
+    return googlePhotoUrl;
+  }
+  return fallbackPicture;
 }
 
 function resolveOwnedOptionIds(
@@ -307,9 +329,31 @@ export async function GET(request: NextRequest) {
       },
     );
 
+    let nextSession = refreshedSession;
+    let shouldSetSessionCookie = refreshed;
+    if (!brief) {
+      const summary = data as {
+        avatarId?: unknown;
+        avatarPhotoUrl?: unknown;
+        googlePhotoUrl?: unknown;
+      };
+      const resolvedPicture = resolveSessionPictureFromStoreSummary(
+        {
+          avatarId: typeof summary.avatarId === "string" ? summary.avatarId : "",
+          avatarPhotoUrl: typeof summary.avatarPhotoUrl === "string" ? summary.avatarPhotoUrl : "",
+          googlePhotoUrl: typeof summary.googlePhotoUrl === "string" ? summary.googlePhotoUrl : "",
+        },
+        refreshedSession.picture,
+      );
+      if (resolvedPicture !== refreshedSession.picture) {
+        nextSession = { ...refreshedSession, picture: resolvedPicture };
+        shouldSetSessionCookie = true;
+      }
+    }
+
     const response = NextResponse.json(data);
-    if (refreshed) {
-      setSessionUserCookie(response, refreshedSession);
+    if (shouldSetSessionCookie) {
+      setSessionUserCookie(response, nextSession);
     }
     return response;
   } catch (error) {
@@ -433,7 +477,10 @@ export async function POST(request: NextRequest) {
             familyId,
             occurredAt: now,
           });
-          return { kind: "ok" as const };
+          return {
+            kind: "ok" as const,
+            nextPicture: `/avatars/default/${encodeURIComponent(avatarId)}`,
+          };
         }
 
         async function applyGoogleAvatar(googleAvatarUrl: string) {
@@ -469,7 +516,7 @@ export async function POST(request: NextRequest) {
             familyId,
             occurredAt: now,
           });
-          return { kind: "ok" as const };
+          return { kind: "ok" as const, nextPicture: normalizedUrl };
         }
 
         if (action === "purchase_option") {
@@ -648,9 +695,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "family_not_found" }, { status: 404 });
     }
 
+    let nextSession = refreshedSession;
+    let shouldSetSessionCookie = refreshed;
+    const maybeNextPicture = (data as { nextPicture?: unknown }).nextPicture;
+    if (typeof maybeNextPicture === "string") {
+      const trimmedNextPicture = maybeNextPicture.trim();
+      if (trimmedNextPicture && trimmedNextPicture !== refreshedSession.picture) {
+        nextSession = { ...refreshedSession, picture: trimmedNextPicture };
+        shouldSetSessionCookie = true;
+      }
+    }
+
     const response = NextResponse.json({ success: true });
-    if (refreshed) {
-      setSessionUserCookie(response, refreshedSession);
+    if (shouldSetSessionCookie) {
+      setSessionUserCookie(response, nextSession);
     }
     return response;
   } catch (error) {
@@ -660,3 +718,5 @@ export async function POST(request: NextRequest) {
     return mapCommonFirestoreErrors(reason, "store_update_failed");
   }
 }
+
+

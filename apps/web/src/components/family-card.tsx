@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
@@ -310,9 +310,7 @@ export function FamilyCard() {
             <TodayChoresPanel
               chores={summary.choresToday}
               viewerAssigneeIds={viewerAssigneeIds}
-              viewerRole={viewerRole}
-              viewerGoogleTasksLinked={Boolean(summary.viewerGoogleTasksLinked)}
-              onReload={() => loadSummary({ silent: true })}
+              viewerRole={viewerRole}              onReload={() => loadSummary({ silent: true })}
             />
           )}
         </>
@@ -320,3 +318,4 @@ export function FamilyCard() {
     </>
   );
 }
+

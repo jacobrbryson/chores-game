@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { AddEditChoresDialog, type AddEditChoreSavedResult } from "@/components/add-edit-chores-dialog";
 import { Avatar } from "@/components/avatar";
@@ -31,9 +31,7 @@ import { triggerPartyConfetti } from "@/lib/confetti/party";
 type TodayChoresPanelProps = {
   chores: FamilySnapshotChore[];
   viewerAssigneeIds: string[];
-  viewerRole: "admin" | "player";
-  viewerGoogleTasksLinked: boolean;
-  onReload: () => Promise<void> | void;
+  viewerRole: "admin" | "player";  onReload: () => Promise<void> | void;
 };
 
 type CompletionTrendInterval = "hour" | "day" | "week";
@@ -227,9 +225,7 @@ function reorderChoreIds(
 export function TodayChoresPanel({
   chores,
   viewerAssigneeIds,
-  viewerRole,
-  viewerGoogleTasksLinked,
-  onReload,
+  viewerRole,  onReload,
 }: TodayChoresPanelProps) {
   const canCreateChores = viewerRole === "admin";
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
@@ -1009,9 +1005,7 @@ export function TodayChoresPanel({
                 {visibleChores.map((chore) => (
                   <TodayChoreCard
                     key={chore.id}
-                    chore={chore}
-                    showGoogleSyncIndicator={viewerGoogleTasksLinked}
-                    canManageActions={
+                    chore={chore}                    canManageActions={
                       viewerRole === "admin" && !pendingCreateChoreIdSet.has(chore.id)
                     }
                     canComplete={
@@ -1182,6 +1176,7 @@ export function TodayChoresPanel({
     </article>
   );
 }
+
 
 
 

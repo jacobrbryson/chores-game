@@ -180,10 +180,26 @@ export async function POST(request: NextRequest) {
         const inviteCreatedAt = getInviteCreatedAt(inviteDoc);
         if (existingUidMemberDoc && !readBoolean(existingUidMemberDoc.fields, "deleted")) {
           const existingStatus = normalizeMemberStatus(readString(existingUidMemberDoc.fields, "status"));
-          const existingEmail = readString(existingUidMemberDoc.fields, "email").trim().toLowerCase();          if (
+          const existingEmail = readString(existingUidMemberDoc.fields, "email").trim().toLowerCase();
+          if (
             existingStatus === "active" &&
             (!existingEmail || existingEmail === normalizedEmail)
           ) {
+            try {
+              await patchDocument(
+                uidMemberPath,
+                {
+                  lastSignInAt: timestampField(now),
+                },
+                idToken,
+                ["lastSignInAt"],
+              );
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
+                throw error;
+              }
+            }
             await relinkUserPrimaryFamily(session.uid, familyId, idToken);
             return { kind: "ok" as const, familyId };
           }
@@ -198,6 +214,7 @@ export async function POST(request: NextRequest) {
           uid: stringField(session.uid),
           createdAt: timestampField(inviteCreatedAt),
           acceptedInviteAt: timestampField(now),
+          lastSignInAt: timestampField(now),
         };
 
         try {
@@ -215,6 +232,7 @@ export async function POST(request: NextRequest) {
                 "uid",
                 "createdAt",
                 "acceptedInviteAt",
+                "lastSignInAt",
               ],
             );
           } else {

@@ -630,9 +630,17 @@ export function AddEditChoresDialog({
       )}
       <ModalShell open={open} onRequestClose={() => setDialogOpen(false)}>
         <div className="add-chores-modal-card w-full max-w-4xl rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <h3 className="mb-3 text-lg font-bold text-slate-800">
-              {isEditMode ? "Edit Chore" : "Add Chores"}
-            </h3>
+            <div className="modal-dialog-title-row mb-3">
+              <h3 className="text-lg font-bold text-slate-800">{isEditMode ? "Edit Chore" : "Add Chores"}</h3>
+              <Button
+                type="button"
+                className="modal-close-button"
+                onClick={() => setDialogOpen(false)}
+                aria-label="Close dialog"
+                title="Close dialog">
+                X
+              </Button>
+            </div>
             <form className="flex w-full flex-col gap-3" onSubmit={onSubmit}>
               <label className="flex w-full flex-col gap-1.5">
                 <span className="text-sm font-medium text-slate-700">Description</span>
@@ -784,6 +792,7 @@ export function AddEditChoresDialog({
     </>
   );
 }
+
 
 
 

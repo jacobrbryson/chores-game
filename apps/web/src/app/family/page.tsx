@@ -162,13 +162,7 @@ function memberStatusTone(status: string) {
   return status === "active" ? "green" : "amber";
 }
 
-function memberLastSignInLabel(member: FamilyMember, viewerUid?: string) {
-  if (!viewerUid) {
-    return "-";
-  }
-  if (member.id === viewerUid || member.uid === viewerUid) {
-    return "-";
-  }
+function memberLastSignInLabel(member: FamilyMember) {
   if (!member.lastSignInAt) {
     return "-";
   }
@@ -608,7 +602,7 @@ export default function FamilyPage() {
                                       tone={memberStatusTone(member.status)}
                                     />
                                   </td>
-                                  <td>{memberLastSignInLabel(member, summary?.viewerUid)}</td>
+                                  <td>{memberLastSignInLabel(member)}</td>
                                   <td>
                                     {canManageMembers &&
                                     member.id !== viewerUid &&
@@ -674,7 +668,7 @@ export default function FamilyPage() {
                                 </div>
                                 <div className="family-member-meta-item">
                                   <span>Last Sign In</span>
-                                  <strong>{memberLastSignInLabel(member, summary?.viewerUid)}</strong>
+                                  <strong>{memberLastSignInLabel(member)}</strong>
                                 </div>
                               </div>
                               {canManageMembers &&
@@ -740,7 +734,7 @@ export default function FamilyPage() {
                               key={category.id}
                               className="family-category-chip"
                               style={{ "--category-color": category.color } as CSSProperties}>
-                              [{category.name}]
+                              {category.name}
                             </span>
                           ))}
                         </div>
@@ -813,7 +807,17 @@ export default function FamilyPage() {
 
       <ModalShell open={showAddMemberForm} onRequestClose={() => setShowAddMemberForm(false)}>
         <div className="family-modal-card">
+          <div className="modal-dialog-title-row family-modal-title-row">
           <h3 className="family-modal-title">Add Family Member</h3>
+          <Button
+            type="button"
+            className="modal-close-button"
+            onClick={() => setShowAddMemberForm(false)}
+            aria-label="Close dialog"
+            title="Close dialog">
+            X
+          </Button>
+        </div>
           <form className="flex w-full flex-col gap-3" onSubmit={onSubmit}>
             <AddMemberFields form={form} setForm={setForm} />
             <div className="family-modal-actions">
@@ -837,7 +841,17 @@ export default function FamilyPage() {
 
       <ModalShell open={showCategoryManager} onRequestClose={() => setShowCategoryManager(false)}>
         <div className="family-modal-card">
+          <div className="modal-dialog-title-row family-modal-title-row">
           <h3 className="family-modal-title">Manage Categories</h3>
+          <Button
+            type="button"
+            className="modal-close-button"
+            onClick={() => setShowCategoryManager(false)}
+            aria-label="Close dialog"
+            title="Close dialog">
+            X
+          </Button>
+        </div>
           <p className="small mb-2">Create, recolor, rename, and remove chore categories.</p>
           <form className="flex w-full flex-col gap-3" onSubmit={onSaveCategory}>
             <label className="flex w-full flex-col gap-1.5">
@@ -907,7 +921,7 @@ export default function FamilyPage() {
                   <span
                     className="family-category-chip"
                     style={{ "--category-color": category.color } as CSSProperties}>
-                    [{category.name}]
+                    {category.name}
                   </span>
                   <div className="member-actions">
                     <Button
@@ -941,7 +955,17 @@ export default function FamilyPage() {
 
       <ModalShell open={showRewardManager} onRequestClose={() => setShowRewardManager(false)}>
         <div className="family-modal-card">
+          <div className="modal-dialog-title-row family-modal-title-row">
           <h3 className="family-modal-title">Manage Family Awards</h3>
+          <Button
+            type="button"
+            className="modal-close-button"
+            onClick={() => setShowRewardManager(false)}
+            aria-label="Close dialog"
+            title="Close dialog">
+            X
+          </Button>
+        </div>
           <p className="small mb-2">
             Add custom rewards your family can redeem with coins. Examples: extra screen time,
             ice cream, candy, soda, zoo trips, museum trips, vacations.
@@ -1093,7 +1117,17 @@ export default function FamilyPage() {
         <div className="family-modal-card">
           {pendingRemoveReward ? (
             <>
-              <h3 className="family-modal-title">Delete Family Award</h3>
+              <div className="modal-dialog-title-row family-modal-title-row">
+          <h3 className="family-modal-title">Delete Family Award</h3>
+          <Button
+            type="button"
+            className="modal-close-button"
+            onClick={() => setPendingRemoveReward(null)}
+            aria-label="Close dialog"
+            title="Close dialog">
+            X
+          </Button>
+        </div>
               <p className="mb-4 text-sm text-slate-600">
                 Delete <strong>{pendingRemoveReward.description}</strong>?
               </p>
@@ -1124,7 +1158,17 @@ export default function FamilyPage() {
         <div className="family-modal-card">
           {pendingRemoveMember ? (
             <>
-              <h3 className="family-modal-title">Remove Family Member</h3>
+              <div className="modal-dialog-title-row family-modal-title-row">
+          <h3 className="family-modal-title">Remove Family Member</h3>
+          <Button
+            type="button"
+            className="modal-close-button"
+            onClick={() => setPendingRemoveMember(null)}
+            aria-label="Close dialog"
+            title="Close dialog">
+            X
+          </Button>
+        </div>
               <p className="mb-4 text-sm text-slate-600">
                 Remove <strong>{pendingRemoveMember.name}</strong> from your family?
               </p>
@@ -1158,7 +1202,17 @@ export default function FamilyPage() {
         <div className="family-modal-card">
           {pendingRemoveCategory ? (
             <>
-              <h3 className="family-modal-title">Delete Category</h3>
+              <div className="modal-dialog-title-row family-modal-title-row">
+          <h3 className="family-modal-title">Delete Category</h3>
+          <Button
+            type="button"
+            className="modal-close-button"
+            onClick={() => setPendingRemoveCategory(null)}
+            aria-label="Close dialog"
+            title="Close dialog">
+            X
+          </Button>
+        </div>
               <p className="mb-4 text-sm text-slate-600">
                 Delete <strong>{pendingRemoveCategory.name}</strong>?
                 Existing chores will keep working and this category will be removed from them.
@@ -1186,3 +1240,6 @@ export default function FamilyPage() {
     </>
   );
 }
+
+
+

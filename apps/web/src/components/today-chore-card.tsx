@@ -7,13 +7,11 @@ import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { ChoreCategoriesChip } from "@/components/chore-categories-chip";
 import { CoinIcon } from "@/components/coin-icon";
-import { GoogleTaskSyncIndicator } from "@/components/google-task-sync-indicator";
 import { ModalShell } from "@/components/modal-shell";
 import type { FamilySnapshotChore } from "@/lib/family/types";
 
 type TodayChoreCardProps = {
   chore: FamilySnapshotChore;
-  showGoogleSyncIndicator: boolean;
   canManageActions: boolean;
   canComplete: boolean;
   canReorder?: boolean;
@@ -50,7 +48,6 @@ function getSafeHexColor(value: string | undefined) {
 
 export function TodayChoreCard({
   chore,
-  showGoogleSyncIndicator,
   canManageActions,
   canComplete,
   canReorder = false,
@@ -82,7 +79,6 @@ export function TodayChoreCard({
   const assigneePrimaryColor = getSafeHexColor(chore.assigneePrimaryColor);
   const assigneeAvatarId = chore.assigneeAvatarId?.trim() || "";
   const assigneeAvatarPhotoUrl = chore.assigneeAvatarPhotoUrl?.trim() || "";
-  const isGoogleSynced = showGoogleSyncIndicator && chore.source === "google_tasks";
   const assigneeAvatarSecondaryColor = assigneePrimaryColor
     ? `color-mix(in srgb, ${assigneePrimaryColor} 22%, #ffffff)`
     : "";
@@ -219,9 +215,6 @@ export function TodayChoreCard({
             <div className="flex min-w-0 flex-col items-start gap-1">
               <span className="today-chore-title-row">
                 <strong className="block break-words">{chore.title}</strong>
-                {isGoogleSynced ? (
-                  <GoogleTaskSyncIndicator className="today-chore-sync-indicator today-chore-sync-indicator-desktop" />
-                ) : null}
               </span>
               <span className="block break-words">{chore.assigneeName}</span>
               {(chore.categories?.length ?? 0) > 0 ? (
@@ -230,9 +223,6 @@ export function TodayChoreCard({
             </div>
           </div>
           <div className="today-chore-meta-actions">
-            {isGoogleSynced ? (
-              <GoogleTaskSyncIndicator className="today-chore-sync-indicator today-chore-sync-indicator-mobile" />
-            ) : null}
             <div className="flex items-center gap-2">
               {canReorder ? (
                 <span className="today-chore-drag-handle" aria-hidden="true" title="Drag to reorder">
@@ -291,7 +281,17 @@ export function TodayChoreCard({
           open={canManageActions && confirmDeleteOpen}
           onRequestClose={() => setConfirmDeleteOpen(false)}>
           <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <h3 className="mb-2 text-lg font-bold text-slate-800">Delete Chore</h3>
+            <div className="modal-dialog-title-row mb-2">
+              <h3 className="text-lg font-bold text-slate-800">Delete Chore</h3>
+              <Button
+                type="button"
+                className="modal-close-button"
+                onClick={() => setConfirmDeleteOpen(false)}
+                aria-label="Close dialog"
+                title="Close dialog">
+                X
+              </Button>
+            </div>
             <p className="mb-4 text-sm text-slate-600">
               Delete <strong>{chore.title}</strong>?
             </p>
@@ -339,5 +339,9 @@ export function TodayChoreCard({
     </li>
   );
 }
+
+
+
+
 
 

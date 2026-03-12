@@ -102,6 +102,7 @@ async function createFamilyForUser(
       deleted: boolField(false),
       uid: stringField(uid),
       createdAt: timestampField(now),
+      lastSignInAt: timestampField(now),
     },
     idToken,
   );

@@ -398,9 +398,23 @@ export function StorePageClient() {
             {activeCategory ? (
               <section className="store-options-modal">
                 <header className="store-options-modal-header">
-                  <div className="store-options-modal-title-row">
+                  <div className="store-options-modal-title-row modal-dialog-title-row">
                     <h3>{activeCategory.name}</h3>
                     <p className="small">Balance: {summary.balance} coins</p>
+                    <Button
+                      type="button"
+                      className="modal-close-button"
+                      onClick={() => {
+                        if (!pendingOptionId) {
+                          clearPreview();
+                          setPreviewConfettiOptionId("");
+                          setActiveCategoryId(null);
+                        }
+                      }}
+                      aria-label="Close dialog"
+                      title="Close dialog">
+                      X
+                    </Button>
                   </div>
                 </header>
                 <div className="store-options-grid">
@@ -667,3 +681,5 @@ export function StorePageClient() {
     </main>
   );
 }
+
+

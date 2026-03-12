@@ -9,7 +9,6 @@ import { Button } from "@/components/button";
 import { ChoreCategoriesChip } from "@/components/chore-categories-chip";
 import { CoinIcon } from "@/components/coin-icon";
 import { EnumChip } from "@/components/enum-chip";
-import { GoogleTaskSyncIndicator } from "@/components/google-task-sync-indicator";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
 import type { TailwindSelectOption } from "@/components/tailwind-select";
@@ -496,7 +495,6 @@ export default function ChoresPage() {
   const [availableCategories, setAvailableCategories] = useState<ChoreCategory[]>([]);
   const [viewerUid, setViewerUid] = useState("");
   const [viewerAssigneeAliases, setViewerAssigneeAliases] = useState<string[]>([]);
-  const [viewerGoogleTasksLinked, setViewerGoogleTasksLinked] = useState(false);
   const [viewerRole, setViewerRole] = useState<"admin" | "player">("player");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
@@ -639,7 +637,6 @@ export default function ChoresPage() {
       setChores(sortChoreRows(payload.chores ?? [], sortBy, sortDir));
       setViewerRole(payload.viewerRole === "admin" ? "admin" : "player");
       setViewerUid(payload.viewerUid ?? "");
-      setViewerGoogleTasksLinked(Boolean(payload.viewerGoogleTasksLinked));
       setViewerAssigneeAliases(payload.viewerAssigneeAliases ?? []);
       setPage(payload.pagination?.page ?? targetPage);
       setTotal(payload.pagination?.total ?? payload.chores.length ?? 0);
@@ -659,7 +656,7 @@ export default function ChoresPage() {
         loadErrorValue instanceof Error ? loadErrorValue.message : "chores_unavailable";
       setLoadError(message);
     } finally {
-      if (!silent) {
+      if (!silent && requestSeq === requestSeqRef.current && !controller.signal.aborted) {
         setIsLoading(false);
       }
     }
@@ -1236,11 +1233,7 @@ export default function ChoresPage() {
                             </td>
                             <td>
                               <span className="table-chore-title-cell">
-                                <span>{chore.title}</span>
-                                {viewerGoogleTasksLinked && chore.source === "google_tasks" ? (
-                                  <GoogleTaskSyncIndicator className="table-chore-sync-indicator" />
-                                ) : null}
-                              </span>
+                                <span>{chore.title}</span>                              </span>
                             </td>
                             <td>
                               <ChoreCategoriesChip categories={chore.categories ?? []} />
@@ -1330,7 +1323,17 @@ export default function ChoresPage() {
         <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
           {pendingDeleteChore ? (
             <>
-              <h3 className="mb-2 text-lg font-bold text-slate-800">Delete Chore</h3>
+              <div className="modal-dialog-title-row mb-2">
+                <h3 className="text-lg font-bold text-slate-800">Delete Chore</h3>
+                <Button
+                  type="button"
+                  className="modal-close-button"
+                  onClick={() => setPendingDeleteChore(null)}
+                  aria-label="Close dialog"
+                  title="Close dialog">
+                  X
+                </Button>
+              </div>
               <p className="mb-4 text-sm text-slate-600">
                 Delete <strong>{pendingDeleteChore.title}</strong>?
               </p>
@@ -1366,7 +1369,17 @@ export default function ChoresPage() {
         open={pendingBulkSetCategoriesOpen}
         onRequestClose={() => setPendingBulkSetCategoriesOpen(false)}>
         <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
-          <h3 className="mb-2 text-lg font-bold text-slate-800">Set Categories</h3>
+          <div className="modal-dialog-title-row mb-2">
+            <h3 className="text-lg font-bold text-slate-800">Set Categories</h3>
+            <Button
+              type="button"
+              className="modal-close-button"
+              onClick={() => setPendingBulkSetCategoriesOpen(false)}
+              aria-label="Close dialog"
+              title="Close dialog">
+              X
+            </Button>
+          </div>
           <p className="mb-4 text-sm text-slate-600">
             Apply categories to <strong>{selectedCount}</strong> selected chore{selectedCount === 1 ? "" : "s"}.
             Leave empty to clear categories.
@@ -1410,7 +1423,17 @@ export default function ChoresPage() {
         open={pendingBulkDeleteOpen}
         onRequestClose={() => setPendingBulkDeleteOpen(false)}>
         <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
-          <h3 className="mb-2 text-lg font-bold text-slate-800">Delete Selected Chores</h3>
+          <div className="modal-dialog-title-row mb-2">
+            <h3 className="text-lg font-bold text-slate-800">Delete Selected Chores</h3>
+            <Button
+              type="button"
+              className="modal-close-button"
+              onClick={() => setPendingBulkDeleteOpen(false)}
+              aria-label="Close dialog"
+              title="Close dialog">
+              X
+            </Button>
+          </div>
           <p className="mb-4 text-sm text-slate-600">
             Delete <strong>{selectedCount}</strong> selected chore{selectedCount === 1 ? "" : "s"}?
           </p>
@@ -1438,4 +1461,8 @@ export default function ChoresPage() {
     </>
   );
 }
+
+
+
+
 

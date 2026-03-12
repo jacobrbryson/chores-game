@@ -83,8 +83,16 @@ export function ProfileCustomizationModals({
     <>
       <ModalShell open={avatarDialogOpen} onRequestClose={() => setAvatarDialogOpen(false)}>
         <section className="profile-avatar-modal">
-          <header className="profile-avatar-modal-header">
+          <header className="profile-avatar-modal-header modal-dialog-title-row">
             <h3>Choose an avatar from your collection</h3>
+            <Button
+              type="button"
+              className="modal-close-button"
+              onClick={() => setAvatarDialogOpen(false)}
+              aria-label="Close dialog"
+              title="Close dialog">
+              X
+            </Button>
           </header>
           {avatarActionError ? <p className="small family-error">Could not update avatar: {avatarActionError}</p> : null}
           <div className="profile-avatar-option-list">
@@ -157,8 +165,16 @@ export function ProfileCustomizationModals({
 
       <ModalShell open={themeDialogOpen} onRequestClose={() => setThemeDialogOpen(false)}>
         <section className="profile-avatar-modal">
-          <header className="profile-avatar-modal-header">
+          <header className="profile-avatar-modal-header modal-dialog-title-row">
             <h3>Choose a theme from your collection</h3>
+            <Button
+              type="button"
+              className="modal-close-button"
+              onClick={() => setThemeDialogOpen(false)}
+              aria-label="Close dialog"
+              title="Close dialog">
+              X
+            </Button>
           </header>
           {themeActionError ? <p className="small family-error">Could not update theme: {themeActionError}</p> : null}
           <div className="profile-avatar-option-list">
@@ -232,8 +248,16 @@ export function ProfileCustomizationModals({
 
       <ModalShell open={confettiDialogOpen} onRequestClose={() => setConfettiDialogOpen(false)}>
         <section className="profile-avatar-modal">
-          <header className="profile-avatar-modal-header">
+          <header className="profile-avatar-modal-header modal-dialog-title-row">
             <h3>Choose a Victory Confetti style</h3>
+            <Button
+              type="button"
+              className="modal-close-button"
+              onClick={() => setConfettiDialogOpen(false)}
+              aria-label="Close dialog"
+              title="Close dialog">
+              X
+            </Button>
           </header>
           {confettiActionError ? (
             <p className="small family-error">Could not update confetti: {confettiActionError}</p>
@@ -320,3 +344,4 @@ export function ProfileCustomizationModals({
     </>
   );
 }
+

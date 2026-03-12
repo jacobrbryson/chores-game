@@ -178,6 +178,25 @@ async function upsertFirebaseUser(
     session.idToken,
     Object.keys(authFields),
   );
+
+  if (linkedFamilyId) {
+    try {
+      await patchDocument(
+        `families/${linkedFamilyId}/members/${session.localId}`,
+        {
+          lastSignInAt: timestampField(now),
+        },
+        session.idToken,
+        ["lastSignInAt"],
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
+        throw error;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -234,3 +253,4 @@ export async function POST(request: NextRequest) {
     return redirectToPath(request, "/", { error: "google_signin_failed" });
   }
 }
+

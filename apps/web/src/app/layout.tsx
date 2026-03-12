@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import "./globals.css";
 import { AppFooter } from "@/components/app-footer";
 import { AppHeader } from "@/components/app-header";
@@ -30,6 +30,14 @@ export default async function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Jim+Nightshade&family=Luckiest+Guy&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body className="antialiased">
         <ThemePreferenceSync />
         <PartyConfettiOverlay />

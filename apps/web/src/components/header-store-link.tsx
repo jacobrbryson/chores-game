@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -52,9 +52,12 @@ export function HeaderStoreLink({ visible }: HeaderStoreLinkProps) {
 	}
 
 	return (
-		<Link href="/store" className="store-link-chip">
+		<Link href="/store" className="store-link-chip" aria-label="Store" title="Store">
+			<span className="store-link-label jim-nightshade-regular">Store</span>
 			<CoinIcon size={18} />
-			<span>{balance}</span>
+			<span className="store-link-balance">{balance}</span>
 		</Link>
 	);
 }
+
+
