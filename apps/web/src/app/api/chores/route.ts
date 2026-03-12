@@ -164,6 +164,17 @@ function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
 
+function isRequesterAssignee(assigneeId: string, uid: string, email: string) {
+  if (!assigneeId) {
+    return false;
+  }
+  if (assigneeId === uid) {
+    return true;
+  }
+  const normalizedEmail = normalizeEmail(email);
+  return Boolean(normalizedEmail) && normalizeEmail(assigneeId) === normalizedEmail;
+}
+
 function usageKey(value: string) {
   const normalized = normalizeDescription(value).toLowerCase();
   const key = normalized
@@ -1243,6 +1254,15 @@ export async function POST(request: NextRequest) {
           }),
         );
 
+        if (isRequesterAssignee(assigneeId, session.uid, session.email)) {
+          await syncGoogleTasksForUser({
+            uid: session.uid,
+            idToken,
+            force: true,
+            minIntervalSeconds: 0,
+          });
+        }
+
         return {
           kind: "ok" as const,
           created: titles.length,
@@ -1286,27 +1306,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "create_chores_failed" }, { status: 500 });
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

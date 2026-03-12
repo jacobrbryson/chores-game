@@ -97,9 +97,6 @@ function normalizeDetails(value: string) {
   return value.trim().slice(0, 2000);
 }
 
-function normalizeComparableText(value: string) {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
 
 function readOptionalSortOrder(fields: Record<string, FirestoreValue> | undefined) {
   const value = fields?.sortOrder;
@@ -212,21 +209,27 @@ function isGoogleMappedChoreForOwner(chore: LocalChore, ownerUid: string) {
   return true;
 }
 
-function isManualReattachCandidateForOwner(chore: LocalChore, ownerUid: string) {
+
+function isUnmappedLocalChoreForOwner(
+  chore: LocalChore,
+  ownerUid: string,
+  mappedChoreIds: Set<string>,
+) {
+  if (mappedChoreIds.has(chore.id)) {
+    return false;
+  }
   if (chore.deleted || chore.status === "Deleted") {
     return false;
   }
   if (chore.assigneeId !== ownerUid) {
     return false;
   }
-  if (chore.source === GOOGLE_TASKS_CHORE_SOURCE) {
-    return false;
-  }
-  if (chore.googleTaskId || chore.googleTaskListId || chore.googleTaskOwnerUid) {
+  if (chore.googleTaskOwnerUid && chore.googleTaskOwnerUid !== ownerUid) {
     return false;
   }
   return true;
 }
+
 function parseLocalChore(doc: {
   name: string;
   fields?: Record<string, FirestoreValue>;
@@ -395,22 +398,7 @@ export async function syncGoogleTasksForUser(
         localByTaskKey.set(key, chore);
       }
     }
-    const manualReattachByTitle = new Map<string, LocalChore[]>();
-    for (const chore of allChores) {
-      if (!isManualReattachCandidateForOwner(chore, options.uid)) {
-        continue;
-      }
-      const titleKey = normalizeComparableText(chore.title);
-      if (!titleKey) {
-        continue;
-      }
-      const existingCandidates = manualReattachByTitle.get(titleKey) ?? [];
-      existingCandidates.push(chore);
-      manualReattachByTitle.set(titleKey, existingCandidates);
-    }
-    for (const candidates of manualReattachByTitle.values()) {
-      candidates.sort((a, b) => localAuthorityMillis(b) - localAuthorityMillis(a));
-    }
+
     const openChores = allChores
       .filter((chore) => !chore.deleted && chore.status === "Open")
       .sort(compareBySortOrderOrOldest);
@@ -446,32 +434,7 @@ export async function syncGoogleTasksForUser(
       const remoteTaskKey = `${remoteTaskListId}:${remoteTask.id}`;
       seenRemoteTaskKeys.add(remoteTaskKey);
       let localChore = localByTaskKey.get(remoteTaskKey);
-      if (!localChore && !remoteTask.deleted) {
-        const titleKey = normalizeComparableText(remoteTask.title || "");
-        const titleMatches = titleKey ? (manualReattachByTitle.get(titleKey) ?? []) : [];
-        const remoteDueDate = googleDueToDueDate(remoteTask.due);
-        const dueMatches = remoteDueDate
-          ? titleMatches.filter((candidate) => candidate.dueDate === remoteDueDate)
-          : [];
-        const attachCandidate =
-          dueMatches.length === 1
-            ? dueMatches[0]
-            : titleMatches.length === 1
-              ? titleMatches[0]
-              : undefined;
-        if (attachCandidate) {
-          localChore = attachCandidate;
-          localByTaskKey.set(remoteTaskKey, attachCandidate);
-          const remainingTitleMatches = titleMatches.filter(
-            (candidate) => candidate.id !== attachCandidate.id,
-          );
-          if (remainingTitleMatches.length > 0) {
-            manualReattachByTitle.set(titleKey, remainingTitleMatches);
-          } else {
-            manualReattachByTitle.delete(titleKey);
-          }
-        }
-      }
+
       // Only skip older completed tasks when they would be a brand-new import.
       // Existing mapped chores must still reconcile to remote completion state.
       if (!localChore && isDueAndCompletedBeforeSyncDate(remoteTask, todayIsoDate)) {
@@ -777,6 +740,48 @@ export async function syncGoogleTasksForUser(
       }
     }
 
+    const mappedChoreIds = new Set(Array.from(localByTaskKey.values()).map((chore) => chore.id));
+    const localUnmappedOwnerChores = allChores
+      .filter((chore) => isUnmappedLocalChoreForOwner(chore, options.uid, mappedChoreIds))
+      .sort(compareBySortOrderOrOldest);
+
+    for (const localChore of localUnmappedOwnerChores) {
+      const status = isCompletedStatus(localChore.status) ? "completed" : "needsAction";
+      const due = dueDateToGoogleDue(localChore.dueDate);
+      const notes = normalizeDetails(localChore.details);
+      const targetTaskListId =
+        localChore.googleTaskListId && selectedTaskListIds.has(localChore.googleTaskListId)
+          ? localChore.googleTaskListId
+          : selectedTaskLists[0]?.id || "";
+      if (!targetTaskListId) {
+        continue;
+      }
+      try {
+        const createdTask = await createGoogleTask(link.accessToken, targetTaskListId, {
+          title: normalizeTitle(localChore.title),
+          notes,
+          due,
+          status,
+        });
+        await patchDocument(
+          `families/${link.familyId}/chores/${localChore.id}`,
+          {
+            source: stringField(GOOGLE_TASKS_CHORE_SOURCE),
+            googleTaskOwnerUid: stringField(options.uid),
+            googleTaskListId: stringField(targetTaskListId),
+            googleTaskId: stringField(createdTask.id),
+          },
+          options.idToken,
+          ["source", "googleTaskOwnerUid", "googleTaskListId", "googleTaskId"],
+        );
+        pushedCount += 1;
+      } catch (error) {
+        if (!isGoogleTaskForbidden(error)) {
+          throw error;
+        }
+      }
+    }
+
     await updateGoogleTasksSyncMetadata({
       uid: options.uid,
       idToken: options.idToken,
@@ -818,5 +823,3 @@ export async function syncGoogleTasksForUser(
     };
   }
 }
-
-

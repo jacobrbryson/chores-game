@@ -981,7 +981,7 @@ export default function FamilyPage() {
                 {FAMILY_REWARD_IMAGE_OPTIONS.map((option) => {
                   const isSelected = rewardForm.imageId === option.id;
                   return (
-                    <button
+                    <Button
                       key={option.id}
                       type="button"
                       role="radio"
@@ -1000,7 +1000,7 @@ export default function FamilyPage() {
                         />
                       </span>
                       <span className="family-reward-image-option-label">{option.label}</span>
-                    </button>
+                    </Button>
                   );
                 })}
               </div>

@@ -615,6 +615,8 @@ export async function PATCH(
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
           if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
             syncOwnerUid = choreGoogleTaskOwnerUid;
+          } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.email)) {
+            syncOwnerUid = session.uid;
           }
           if (currentStatus !== "Open") {
             return { kind: "invalid_transition" as const };
@@ -700,6 +702,8 @@ export async function PATCH(
           const choreCoinValue = Math.max(0, readInteger(existingChoreDoc.fields, "coinValue") || 0);
           if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
             syncOwnerUid = choreGoogleTaskOwnerUid;
+          } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.email)) {
+            syncOwnerUid = session.uid;
           }
           if (currentStatus !== "Submitted" && currentStatus !== "Approved") {
             return { kind: "invalid_transition" as const };
@@ -822,6 +826,11 @@ export async function PATCH(
           }
           if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
             syncOwnerUid = choreGoogleTaskOwnerUid;
+          } else if (
+            isRequesterAssignee(previousAssigneeId, session.uid, session.email) ||
+            isRequesterAssignee(assigneeId, session.uid, session.email)
+          ) {
+            syncOwnerUid = session.uid;
           }
           if (assigneeId) {
             const activeChoreCount = await countActiveChoresForAssignee(
@@ -999,6 +1008,13 @@ export async function DELETE(
             force: true,
             minIntervalSeconds: 0,
           });
+        } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.email)) {
+          await syncGoogleTasksForUser({
+            uid: session.uid,
+            idToken,
+            force: true,
+            minIntervalSeconds: 0,
+          });
         }
 
         return { kind: "ok" as const };
@@ -1023,4 +1039,3 @@ export async function DELETE(
     return mapCommonFirestoreErrors(reason, "delete_chore_failed");
   }
 }
-
