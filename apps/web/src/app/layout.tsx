@@ -8,7 +8,7 @@ import { ThemePreferenceSync } from "@/components/theme-preference-sync";
 export const metadata: Metadata = {
   title: "Family Chores",
   description:
-    "A family chore game where kids complete quests and parents approve rewards.",
+    "A family chore system with parent approval, rewards, Google integration, and live household activity.",
   icons: {
     icon: [
       { url: "/icons/favicon-96x96.png", sizes: "96x96", type: "image/png" },

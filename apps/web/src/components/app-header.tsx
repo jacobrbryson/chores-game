@@ -36,7 +36,7 @@ export async function AppHeader() {
           </span>
         </Link>
       </div>
-      <div className="nav-links">
+      <div className={`nav-links ${sessionUser ? "nav-links-auth" : "nav-links-guest"}`}>
         {sessionUser ? (
           <>
             <HeaderStoreLink visible />

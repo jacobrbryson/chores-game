@@ -11,6 +11,7 @@ type GoogleSignInButtonProps =
       loginUri: string;
       width?: number;
       includeScript?: boolean;
+      includeOnload?: boolean;
       wrapperClassName?: string;
     }
   | {
@@ -34,18 +35,20 @@ export function GoogleSignInButton(props: GoogleSignInButtonProps) {
         {props.includeScript !== false ? (
           <Script src="https://accounts.google.com/gsi/client" async defer />
         ) : null}
-        <div
-          id="g_id_onload"
-          data-client_id={props.clientId}
-          data-context="signin"
-          data-auto_prompt="false"
-          data-ux_mode="redirect"
-          data-login_uri={props.loginUri}
-          data-auto_select="false"
-          data-itp_support="true"
-          data-use_fedcm_for_prompt="false"
-          data-use_fedcm_for_button="false"
-        />
+        {props.includeOnload !== false ? (
+          <div
+            id="g_id_onload"
+            data-client_id={props.clientId}
+            data-context="signin"
+            data-auto_prompt="false"
+            data-ux_mode="redirect"
+            data-login_uri={props.loginUri}
+            data-auto_select="false"
+            data-itp_support="true"
+            data-use_fedcm_for_prompt="false"
+            data-use_fedcm_for_button="false"
+          />
+        ) : null}
         <div className={props.wrapperClassName ?? "google-signin-wrap"}>
           <div
             className="g_id_signin"
