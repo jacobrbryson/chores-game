@@ -19,15 +19,21 @@ import {
 import {
   isFamilyRewardImageId,
   isValidFamilyRewardCoinCost,
+  isValidFamilyRewardLimit,
+  MAX_FAMILY_REWARD_LIMIT,
   MAX_FAMILY_REWARD_DESCRIPTION_LENGTH,
   normalizeFamilyRewardCoinCost,
   normalizeFamilyRewardDescription,
+  normalizeFamilyRewardLimit,
 } from "@/lib/family/rewards";
 
 type UpdateRewardBody = {
   description?: unknown;
   coinCost?: unknown;
   imageId?: unknown;
+  individualLimit?: unknown;
+  familyLimit?: unknown;
+  disabled?: unknown;
 };
 
 type ViewerRole = "admin" | "player";
@@ -142,13 +148,26 @@ export async function PATCH(
   const hasDescription = typeof body.description === "string";
   const hasCoinCost = body.coinCost !== undefined;
   const hasImageId = typeof body.imageId === "string";
-  if (!hasDescription && !hasCoinCost && !hasImageId) {
+  const hasIndividualLimit = body.individualLimit !== undefined;
+  const hasFamilyLimit = body.familyLimit !== undefined;
+  const hasDisabled = body.disabled !== undefined;
+  if (
+    !hasDescription &&
+    !hasCoinCost &&
+    !hasImageId &&
+    !hasIndividualLimit &&
+    !hasFamilyLimit &&
+    !hasDisabled
+  ) {
     return NextResponse.json({ error: "update_values_required" }, { status: 400 });
   }
 
   const description = hasDescription ? normalizeFamilyRewardDescription(String(body.description)) : "";
   const coinCost = hasCoinCost ? normalizeFamilyRewardCoinCost(body.coinCost) : 0;
   const imageId = hasImageId ? String(body.imageId).trim() : "";
+  const individualLimit = hasIndividualLimit ? normalizeFamilyRewardLimit(body.individualLimit) : 0;
+  const familyLimit = hasFamilyLimit ? normalizeFamilyRewardLimit(body.familyLimit) : 0;
+  const disabled = hasDisabled ? body.disabled === true : false;
 
   if (hasDescription && !description) {
     return NextResponse.json({ error: "description_required" }, { status: 400 });
@@ -161,6 +180,18 @@ export async function PATCH(
   }
   if (hasImageId && !isFamilyRewardImageId(imageId)) {
     return NextResponse.json({ error: "invalid_image_id" }, { status: 400 });
+  }
+  if (hasIndividualLimit && !isValidFamilyRewardLimit(individualLimit)) {
+    return NextResponse.json(
+      { error: "invalid_individual_limit", max: MAX_FAMILY_REWARD_LIMIT },
+      { status: 400 },
+    );
+  }
+  if (hasFamilyLimit && !isValidFamilyRewardLimit(familyLimit)) {
+    return NextResponse.json(
+      { error: "invalid_family_limit", max: MAX_FAMILY_REWARD_LIMIT },
+      { status: 400 },
+    );
   }
 
   try {
@@ -194,10 +225,20 @@ export async function PATCH(
         const existingDescription = normalizeFamilyRewardDescription(readString(rewardDoc.fields, "description"));
         const existingCoinCost = normalizeFamilyRewardCoinCost(readInteger(rewardDoc.fields, "coinCost"));
         const existingImageId = readString(rewardDoc.fields, "imageId").trim();
+        const existingDisabled = readBoolean(rewardDoc.fields, "disabled");
+        const existingIndividualLimit = normalizeFamilyRewardLimit(
+          readInteger(rewardDoc.fields, "individualLimit"),
+        );
+        const existingFamilyLimit = normalizeFamilyRewardLimit(
+          readInteger(rewardDoc.fields, "familyLimit"),
+        );
 
         const nextDescription = hasDescription ? description : existingDescription;
         const nextCoinCost = hasCoinCost ? coinCost : existingCoinCost;
         const nextImageId = hasImageId ? imageId : existingImageId;
+        const nextDisabled = hasDisabled ? disabled : existingDisabled;
+        const nextIndividualLimit = hasIndividualLimit ? individualLimit : existingIndividualLimit;
+        const nextFamilyLimit = hasFamilyLimit ? familyLimit : existingFamilyLimit;
 
         if (!nextDescription) {
           return { kind: "description_required" as const };
@@ -208,6 +249,12 @@ export async function PATCH(
         if (!isFamilyRewardImageId(nextImageId)) {
           return { kind: "invalid_image_id" as const };
         }
+        if (!isValidFamilyRewardLimit(nextIndividualLimit)) {
+          return { kind: "invalid_individual_limit" as const };
+        }
+        if (!isValidFamilyRewardLimit(nextFamilyLimit)) {
+          return { kind: "invalid_family_limit" as const };
+        }
 
         const now = new Date().toISOString();
         await patchDocument(
@@ -216,10 +263,13 @@ export async function PATCH(
             description: stringField(nextDescription),
             coinCost: integerField(nextCoinCost),
             imageId: stringField(nextImageId),
+            individualLimit: integerField(nextIndividualLimit),
+            familyLimit: integerField(nextFamilyLimit),
+            disabled: boolField(nextDisabled),
             updatedAt: timestampField(now),
           },
           idToken,
-          ["description", "coinCost", "imageId", "updatedAt"],
+          ["description", "coinCost", "imageId", "individualLimit", "familyLimit", "disabled", "updatedAt"],
         );
 
         return {
@@ -229,6 +279,9 @@ export async function PATCH(
             description: nextDescription,
             coinCost: nextCoinCost,
             imageId: nextImageId,
+            individualLimit: nextIndividualLimit > 0 ? nextIndividualLimit : undefined,
+            familyLimit: nextFamilyLimit > 0 ? nextFamilyLimit : undefined,
+            disabled: nextDisabled,
           },
         };
       });
@@ -250,6 +303,18 @@ export async function PATCH(
     }
     if (data.kind === "invalid_image_id") {
       return NextResponse.json({ error: "invalid_image_id" }, { status: 400 });
+    }
+    if (data.kind === "invalid_individual_limit") {
+      return NextResponse.json(
+        { error: "invalid_individual_limit", max: MAX_FAMILY_REWARD_LIMIT },
+        { status: 400 },
+      );
+    }
+    if (data.kind === "invalid_family_limit") {
+      return NextResponse.json(
+        { error: "invalid_family_limit", max: MAX_FAMILY_REWARD_LIMIT },
+        { status: 400 },
+      );
     }
 
     const response = NextResponse.json({ reward: data.reward });
@@ -309,6 +374,9 @@ export async function DELETE(
         if (readBoolean(rewardDoc.fields, "deleted")) {
           return { kind: "reward_not_found" as const };
         }
+        if (!readBoolean(rewardDoc.fields, "disabled")) {
+          return { kind: "reward_must_be_disabled" as const };
+        }
 
         const now = new Date().toISOString();
         await patchDocument(
@@ -333,6 +401,9 @@ export async function DELETE(
     }
     if (data.kind === "reward_not_found") {
       return NextResponse.json({ error: "reward_not_found" }, { status: 404 });
+    }
+    if (data.kind === "reward_must_be_disabled") {
+      return NextResponse.json({ error: "reward_must_be_disabled" }, { status: 409 });
     }
 
     const response = NextResponse.json({ success: true });

@@ -12,6 +12,10 @@ export type FamilyReward = {
   description: string;
   coinCost: number;
   imageId: string;
+  individualLimit?: number;
+  familyLimit?: number;
+  familyRedeemedCount?: number;
+  disabled?: boolean;
 };
 
 export type FamilyRewardImageOption = {
@@ -35,6 +39,7 @@ export const FAMILY_REWARD_IMAGE_OPTIONS: FamilyRewardImageOption[] = [
 export const MAX_FAMILY_REWARD_DESCRIPTION_LENGTH = 120;
 export const MIN_FAMILY_REWARD_COIN_COST = 1;
 export const MAX_FAMILY_REWARD_COIN_COST = 10000;
+export const MAX_FAMILY_REWARD_LIMIT = 10000;
 
 const DEFAULT_FAMILY_REWARD_IMAGE_ID = FAMILY_REWARD_IMAGE_OPTIONS[0]?.id ?? "screen_time";
 const IMAGE_ID_SET = new Set(FAMILY_REWARD_IMAGE_OPTIONS.map((entry) => entry.id));
@@ -59,6 +64,21 @@ export function isValidFamilyRewardCoinCost(value: number) {
   );
 }
 
+export function normalizeFamilyRewardLimit(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return 0;
+  }
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) {
+    return -1;
+  }
+  return Math.floor(parsed);
+}
+
+export function isValidFamilyRewardLimit(value: number) {
+  return Number.isInteger(value) && value >= 0 && value <= MAX_FAMILY_REWARD_LIMIT;
+}
+
 export function isFamilyRewardImageId(value: string) {
   return IMAGE_ID_SET.has(value);
 }
@@ -74,24 +94,45 @@ export function findFamilyRewardImageOption(imageId: string) {
 
 export function parseFamilyRewards(
   docs: Array<{ name: string; fields?: Record<string, FirestoreValue> }>,
+  options?: { includeDisabled?: boolean },
 ): FamilyReward[] {
+  const includeDisabled = options?.includeDisabled === true;
   return docs
     .map((doc) => {
       const id = documentIdFromName(doc.name);
       const deleted = readBoolean(doc.fields, "deleted");
+      const disabled = readBoolean(doc.fields, "disabled");
       const description = normalizeFamilyRewardDescription(
         readString(doc.fields, "description"),
       ).slice(0, MAX_FAMILY_REWARD_DESCRIPTION_LENGTH);
       const coinCost = normalizeFamilyRewardCoinCost(readInteger(doc.fields, "coinCost"));
       const imageId = normalizeFamilyRewardImageId(readString(doc.fields, "imageId"));
-      return { id, deleted, description, coinCost, imageId };
+      const individualLimit = normalizeFamilyRewardLimit(readInteger(doc.fields, "individualLimit"));
+      const familyLimit = normalizeFamilyRewardLimit(readInteger(doc.fields, "familyLimit"));
+      const familyRedeemedCount = normalizeFamilyRewardLimit(
+        readInteger(doc.fields, "familyRedeemedCount"),
+      );
+      return {
+        id,
+        deleted,
+        disabled,
+        description,
+        coinCost,
+        imageId,
+        individualLimit,
+        familyLimit,
+        familyRedeemedCount,
+      };
     })
     .filter(
       (reward) =>
         !reward.deleted &&
+        (includeDisabled || !reward.disabled) &&
         Boolean(reward.id) &&
         Boolean(reward.description) &&
-        isValidFamilyRewardCoinCost(reward.coinCost),
+        isValidFamilyRewardCoinCost(reward.coinCost) &&
+        isValidFamilyRewardLimit(reward.individualLimit) &&
+        isValidFamilyRewardLimit(reward.familyLimit),
     )
     .sort((a, b) => a.description.localeCompare(b.description))
     .map((reward) => ({
@@ -99,10 +140,19 @@ export function parseFamilyRewards(
       description: reward.description,
       coinCost: reward.coinCost,
       imageId: reward.imageId,
+      individualLimit: reward.individualLimit > 0 ? reward.individualLimit : undefined,
+      familyLimit: reward.familyLimit > 0 ? reward.familyLimit : undefined,
+      familyRedeemedCount: reward.familyRedeemedCount > 0 ? reward.familyRedeemedCount : undefined,
+      disabled: reward.disabled === true,
     }));
 }
 
-export async function listFamilyRewards(familyId: string, idToken: string, pageSize = 300) {
+export async function listFamilyRewards(
+  familyId: string,
+  idToken: string,
+  pageSize = 300,
+  options?: { includeDisabled?: boolean },
+) {
   const docs = await listDocuments(`families/${familyId}/rewards`, idToken, pageSize);
-  return parseFamilyRewards(docs);
+  return parseFamilyRewards(docs, options);
 }

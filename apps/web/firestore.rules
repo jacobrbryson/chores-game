@@ -13,12 +13,19 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(uid)).data.familyIds[0];
     }
 
+    function userBelongsToFamily(uid, familyId) {
+      return exists(/databases/$(database)/documents/users/$(uid))
+        && get(/databases/$(database)/documents/users/$(uid)).data.familyIds is list
+        && get(/databases/$(database)/documents/users/$(uid)).data.familyIds.hasAny([familyId]);
+    }
+
     function canAdminManageUser(uid) {
+      let requesterFamilyId = primaryFamilyIdForUser(request.auth.uid);
       return isSignedIn()
-        && exists(/databases/$(database)/documents/users/$(uid))
-        && primaryFamilyIdForUser(uid) is string
-        && primaryFamilyIdForUser(uid) != ""
-        && isFamilyAdmin(primaryFamilyIdForUser(uid));
+        && requesterFamilyId is string
+        && requesterFamilyId != ""
+        && isFamilyAdmin(requesterFamilyId)
+        && userBelongsToFamily(uid, requesterFamilyId);
     }
 
     function memberDocPathByUid(familyId) {
@@ -103,6 +110,20 @@ service cloud.firestore {
     function isFamilyCreatorBootstrap(familyId) {
       return isSignedIn()
         && get(/databases/$(database)/documents/families/$(familyId)).data.createdBy == request.auth.uid;
+    }
+
+    function rewardRedeemedCount(data) {
+      return data.familyRedeemedCount is int ? data.familyRedeemedCount : 0;
+    }
+
+    function canRedeemFamilyReward(familyId) {
+      return isFamilyMember(familyId)
+        && resource.data.deleted != true
+        && resource.data.disabled != true
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["familyRedeemedCount", "updatedAt"])
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.familyRedeemedCount is int
+        && request.resource.data.familyRedeemedCount == rewardRedeemedCount(resource.data) + 1;
     }
 
     match /users/{uid} {
@@ -252,7 +273,8 @@ service cloud.firestore {
 
       match /rewards/{rewardId} {
         allow read: if isFamilyMember(familyId);
-        allow create, update, delete: if isFamilyAdmin(familyId);
+        allow create, delete: if isFamilyAdmin(familyId);
+        allow update: if isFamilyAdmin(familyId) || canRedeemFamilyReward(familyId);
       }
 
       match /notifications/{notificationId} {

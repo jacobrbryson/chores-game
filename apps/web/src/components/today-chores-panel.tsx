@@ -65,6 +65,11 @@ type CompletionStatsResponse = {
   trend?: CompletionSeries;
 };
 
+function getSafeHexColor(value: string | undefined) {
+  const normalized = value?.trim().toLowerCase() ?? "";
+  return /^#[0-9a-f]{6}$/.test(normalized) ? normalized : "";
+}
+
 function normalizeError(error: unknown, fallback: string) {
   if (error instanceof Error) {
     return error.message;
@@ -1091,6 +1096,7 @@ export function TodayChoresPanel({
               <ul className="completion-chart-list">
                 {completionCounts.map((entry, index) => {
                   const widthPercent = Math.max(0, Math.min(100, (entry.count / completionMax) * 100));
+                  const avatarPrimaryColor = getSafeHexColor(entry.color);
                   const style = {
                     "--bar-width": `${widthPercent}%`,
                     "--bar-delay": `${index * 60}ms`,
@@ -1132,6 +1138,9 @@ export function TodayChoresPanel({
                           name={entry.name}
                           avatarId={entry.avatarId}
                           photoUrl={entry.avatarPhotoUrl}
+                          primaryColor={avatarPrimaryColor || undefined}
+                          secondaryColor={avatarPrimaryColor || undefined}
+                          fallbackColor={avatarPrimaryColor ? "#ffffff" : undefined}
                           referrerPolicy="no-referrer"
                         />
                         <div className="completion-chart-content">

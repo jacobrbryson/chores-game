@@ -451,13 +451,19 @@ export function StorePageClient() {
                   {activeCategory.kind === "reward" && activeCategory.options.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-left">
                       {summary.viewerRole === "admin" ? (
-                        <p className="small">
-                          <Link href="/family" className="font-semibold text-sky-700 underline">
-                            Get started by adding rewards
-                          </Link>
-                        </p>
+                        <div className="small space-y-2">
+                          <p>No family awards are available right now.</p>
+                          <p>
+                            <Link href="/family" className="font-semibold text-sky-700 underline">
+                              Manage rewards
+                            </Link>
+                          </p>
+                        </div>
                       ) : (
-                        <p className="small">Ask a parent or guardian to add some custom rewards</p>
+                        <p className="small">
+                          No family awards are available right now. Ask a parent or guardian to add
+                          more rewards or raise the current limits.
+                        </p>
                       )}
                     </div>
                   ) : null}

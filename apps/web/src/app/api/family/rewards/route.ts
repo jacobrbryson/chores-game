@@ -19,16 +19,21 @@ import {
 import {
   isFamilyRewardImageId,
   isValidFamilyRewardCoinCost,
+  isValidFamilyRewardLimit,
   listFamilyRewards,
+  MAX_FAMILY_REWARD_LIMIT,
   MAX_FAMILY_REWARD_DESCRIPTION_LENGTH,
   normalizeFamilyRewardCoinCost,
   normalizeFamilyRewardDescription,
+  normalizeFamilyRewardLimit,
 } from "@/lib/family/rewards";
 
 type CreateRewardBody = {
   description?: unknown;
   coinCost?: unknown;
   imageId?: unknown;
+  individualLimit?: unknown;
+  familyLimit?: unknown;
 };
 
 type ViewerRole = "admin" | "player";
@@ -138,7 +143,7 @@ export async function GET(request: NextRequest) {
         }
         const [viewerRole, rewards] = await Promise.all([
           getViewerRole(familyId, session.uid, idToken),
-          listFamilyRewards(familyId, idToken),
+          listFamilyRewards(familyId, idToken, 300, { includeDisabled: true }),
         ]);
         return {
           noFamily: false,
@@ -180,6 +185,8 @@ export async function POST(request: NextRequest) {
     typeof body.description === "string" ? normalizeFamilyRewardDescription(body.description) : "";
   const coinCost = normalizeFamilyRewardCoinCost(body.coinCost);
   const imageId = typeof body.imageId === "string" ? body.imageId.trim() : "";
+  const individualLimit = normalizeFamilyRewardLimit(body.individualLimit);
+  const familyLimit = normalizeFamilyRewardLimit(body.familyLimit);
 
   if (!description) {
     return NextResponse.json({ error: "description_required" }, { status: 400 });
@@ -192,6 +199,18 @@ export async function POST(request: NextRequest) {
   }
   if (!isFamilyRewardImageId(imageId)) {
     return NextResponse.json({ error: "invalid_image_id" }, { status: 400 });
+  }
+  if (!isValidFamilyRewardLimit(individualLimit)) {
+    return NextResponse.json(
+      { error: "invalid_individual_limit", max: MAX_FAMILY_REWARD_LIMIT },
+      { status: 400 },
+    );
+  }
+  if (!isValidFamilyRewardLimit(familyLimit)) {
+    return NextResponse.json(
+      { error: "invalid_family_limit", max: MAX_FAMILY_REWARD_LIMIT },
+      { status: 400 },
+    );
   }
 
   try {
@@ -215,6 +234,10 @@ export async function POST(request: NextRequest) {
             description: stringField(description),
             coinCost: integerField(coinCost),
             imageId: stringField(imageId),
+            individualLimit: integerField(individualLimit),
+            familyLimit: integerField(familyLimit),
+            familyRedeemedCount: integerField(0),
+            disabled: boolField(false),
             deleted: boolField(false),
             createdBy: stringField(session.uid),
             createdAt: timestampField(now),
@@ -230,6 +253,10 @@ export async function POST(request: NextRequest) {
             description,
             coinCost,
             imageId,
+            individualLimit: individualLimit > 0 ? individualLimit : undefined,
+            familyLimit: familyLimit > 0 ? familyLimit : undefined,
+            familyRedeemedCount: undefined,
+            disabled: false,
           },
         };
       });

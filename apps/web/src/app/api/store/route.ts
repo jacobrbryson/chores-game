@@ -8,6 +8,7 @@ import {
   getDocument,
   patchDocument,
   findFirstFamilyIdByMemberUid,
+  integerField,
   readTimestamp,
   readInteger,
   readBoolean,
@@ -32,7 +33,7 @@ import {
   normalizeThemePalette,
   type StoreCategory,
 } from "@/lib/store/catalog";
-import { listFamilyRewards } from "@/lib/family/rewards";
+import { listFamilyRewards, type FamilyReward } from "@/lib/family/rewards";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 
 type StoreActionBody = {
@@ -143,6 +144,58 @@ function buildFamilyAwardsCategory(rewards: Awaited<ReturnType<typeof listFamily
       price: reward.coinCost,
     })),
   };
+}
+
+type RewardAvailability = {
+  rewards: FamilyReward[];
+  availableRewards: FamilyReward[];
+};
+
+async function resolveAvailableFamilyRewards(
+  familyId: string,
+  viewerUid: string,
+  idToken: string,
+  rewardsInput?: FamilyReward[],
+): Promise<RewardAvailability> {
+  const rewards = rewardsInput ?? await listFamilyRewards(familyId, idToken);
+  if (rewards.length === 0) {
+    return { rewards, availableRewards: rewards };
+  }
+
+  const viewerCountByRewardId = new Map<string, number>();
+  const rewardIds = new Set(rewards.map((reward) => reward.id));
+  try {
+    const viewerLedgerDocs = await listDocuments(`users/${viewerUid}/walletLedger`, idToken, 1000);
+    for (const ledgerDoc of viewerLedgerDocs) {
+      if (readString(ledgerDoc.fields, "reason") !== "store_purchase") {
+        continue;
+      }
+      const rewardId = readString(ledgerDoc.fields, "itemId").trim();
+      if (!rewardIds.has(rewardId)) {
+        continue;
+      }
+      viewerCountByRewardId.set(rewardId, (viewerCountByRewardId.get(rewardId) ?? 0) + 1);
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
+
+  const availableRewards = rewards.filter((reward) => {
+    const viewerCount = viewerCountByRewardId.get(reward.id) ?? 0;
+    const familyCount = reward.familyRedeemedCount ?? 0;
+    if (reward.individualLimit && viewerCount >= reward.individualLimit) {
+      return false;
+    }
+    if (reward.familyLimit && familyCount >= reward.familyLimit) {
+      return false;
+    }
+    return true;
+  });
+
+  return { rewards, availableRewards };
 }
 
 async function getPrimaryFamilyIdWithFallback(uid: string, idToken: string) {
@@ -279,8 +332,10 @@ async function getStoreSummary(uid: string, idToken: string) {
     }
   }
 
-  const familyRewards = familyId ? await listFamilyRewards(familyId, idToken) : [];
-  const familyAwardsCategory = buildFamilyAwardsCategory(familyRewards);
+  const familyRewardAvailability = familyId
+    ? await resolveAvailableFamilyRewards(familyId, uid, idToken)
+    : { rewards: [], availableRewards: [] };
+  const familyAwardsCategory = buildFamilyAwardsCategory(familyRewardAvailability.availableRewards);
 
   return {
     balance,
@@ -531,9 +586,13 @@ export async function POST(request: NextRequest) {
             if (!familyId) {
               return { kind: "family_not_found" as const };
             }
-            const familyRewards = await listFamilyRewards(familyId, idToken);
-            category = buildFamilyAwardsCategory(familyRewards);
+            const familyRewardAvailability = await resolveAvailableFamilyRewards(familyId, uid, idToken);
+            const rewardExists = familyRewardAvailability.rewards.some((reward) => reward.id === optionId);
+            category = buildFamilyAwardsCategory(familyRewardAvailability.availableRewards);
             option = category.options.find((entry) => entry.id === optionId) ?? null;
+            if (!option && rewardExists) {
+              return { kind: "reward_limit_reached" as const };
+            }
           }
 
           if (!category) {
@@ -572,6 +631,25 @@ export async function POST(request: NextRequest) {
           }
 
           if (category.kind === "reward") {
+            const familyId = await getPrimaryFamilyIdWithFallback(uid, idToken);
+            if (!familyId) {
+              return { kind: "family_not_found" as const };
+            }
+            const rewardDoc = await getDocument(`families/${familyId}/rewards/${option.id}`, idToken);
+            const now = new Date().toISOString();
+            const nextFamilyRedeemedCount = Math.max(
+              0,
+              (readInteger(rewardDoc.fields, "familyRedeemedCount") || 0) + 1,
+            );
+            await patchDocument(
+              `families/${familyId}/rewards/${option.id}`,
+              {
+                familyRedeemedCount: integerField(nextFamilyRedeemedCount),
+                updatedAt: timestampField(now),
+              },
+              idToken,
+              ["familyRedeemedCount", "updatedAt"],
+            );
             return { kind: "ok" as const };
           }
 
@@ -684,6 +762,9 @@ export async function POST(request: NextRequest) {
     }
     if (data.kind === "insufficient_funds") {
       return NextResponse.json({ error: "insufficient_funds" }, { status: 409 });
+    }
+    if (data.kind === "reward_limit_reached") {
+      return NextResponse.json({ error: "reward_limit_reached" }, { status: 409 });
     }
     if (data.kind === "missing_unlock") {
       return NextResponse.json({ error: "missing_unlock" }, { status: 403 });

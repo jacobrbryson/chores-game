@@ -391,7 +391,11 @@ Build a family chore game where:
   - Family Awards empty state in store options modal is role-aware:
     - `admin`: `Get started by adding rewards` link to `/family`.
     - `player`: `Ask a parent or guardian to add some custom rewards`.
-  - `/family` now includes admin `Manage Family Awards` controls for reward description, coin amount, and image selection from a predefined list.
+  - `/family` now includes admin `Manage Family Awards` controls for reward description, coin amount, image selection, and optional `individualLimit` / `familyLimit` redemption caps.
+  - Family Awards options are removed from `/store` once the signed-in user reaches the reward's `individualLimit` or the family reaches the reward's `familyLimit`; `POST /api/store` also blocks stale redemptions server-side when a cap has been reached.
+  - Family Awards on `/family` now use an add/edit modal plus per-award action menu:
+    - Active awards can be `Edit`ed or `Disable`d.
+    - Disabled awards stay visible to admins on `/family`, are hidden from `/store`, and must be disabled before they can be deleted.
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.
 - Chores module: CRUD, assignment, submission, approval pipeline.

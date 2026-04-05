@@ -970,6 +970,8 @@ export async function DELETE(
         const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
         const choreSource = readString(existingChoreDoc.fields, "source");
         const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
+        const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
+        const choreCoinValue = Math.max(0, readInteger(existingChoreDoc.fields, "coinValue") || 0);
         const now = new Date().toISOString();
         await patchDocument(
           `families/${familyId}/chores/${choreId}`,
@@ -982,6 +984,28 @@ export async function DELETE(
           idToken,
           ["deleted", "deletedAt", "status", "updatedAt"],
         );
+        if ((currentStatus === "Submitted" || currentStatus === "Approved") && choreCoinValue > 0) {
+          const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
+          if (assigneeUid) {
+            try {
+              await applyWalletDelta({
+                uid: assigneeUid,
+                idToken,
+                delta: -choreCoinValue,
+                reason: "chore_undo_complete",
+                choreId,
+              });
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (reason.includes("WALLET_NEGATIVE_BLOCKED")) {
+                return { kind: "wallet_negative_blocked" as const };
+              }
+              if (!reason.includes("FIRESTORE_HTTP_404")) {
+                throw error;
+              }
+            }
+          }
+        }
         await emitFamilyActivity({
           familyId,
           idToken,
@@ -1025,6 +1049,12 @@ export async function DELETE(
     }
     if (data.kind === "forbidden_action") {
       return NextResponse.json({ error: "forbidden_action" }, { status: 403 });
+    }
+    if (data.kind === "wallet_negative_blocked") {
+      return NextResponse.json(
+        { error: "wallet_negative_blocked", message: "Cannot delete completed chore after coins were spent." },
+        { status: 409 },
+      );
     }
 
     const response = NextResponse.json({ success: true });

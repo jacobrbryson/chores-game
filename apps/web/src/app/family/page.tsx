@@ -43,9 +43,17 @@ type RewardFormState = {
   description: string;
   coinCost: string;
   imageId: string;
+  individualLimit: string;
+  familyLimit: string;
 };
 
 type PendingRemoveReward = {
+  id: string;
+  description: string;
+  playerNames: string[];
+};
+
+type PendingDisableReward = {
   id: string;
   description: string;
 };
@@ -152,7 +160,20 @@ const initialRewardFormState: RewardFormState = {
   description: "",
   coinCost: "10",
   imageId: FAMILY_REWARD_IMAGE_OPTIONS[0]?.id ?? "screen_time",
+  individualLimit: "",
+  familyLimit: "",
 };
+
+function formatRewardLimitSummary(reward: FamilyReward) {
+  const parts: string[] = [];
+  if (reward.individualLimit) {
+    parts.push(`${reward.individualLimit} per person`);
+  }
+  if (reward.familyLimit) {
+    parts.push(`${reward.familyLimit} per family`);
+  }
+  return parts.length > 0 ? parts.join(" | ") : "Unlimited";
+}
 
 function memberRoleTone(role: string) {
   return role === "admin" ? "indigo" : "teal";
@@ -203,15 +224,18 @@ export default function FamilyPage() {
 
   const [rewards, setRewards] = useState<FamilyReward[]>([]);
   const [rewardLoadError, setRewardLoadError] = useState("");
-  const [showRewardManager, setShowRewardManager] = useState(false);
+  const [showRewardEditor, setShowRewardEditor] = useState(false);
   const [rewardForm, setRewardForm] = useState<RewardFormState>(initialRewardFormState);
   const [editingRewardId, setEditingRewardId] = useState("");
   const [rewardSaving, setRewardSaving] = useState(false);
   const [rewardActionLoading, setRewardActionLoading] = useState<{
     rewardId: string;
-    action: "delete";
+    action: "disable" | "enable" | "delete";
   } | null>(null);
   const [rewardError, setRewardError] = useState("");
+  const [openRewardMenuId, setOpenRewardMenuId] = useState("");
+  const [pendingDisableReward, setPendingDisableReward] =
+    useState<PendingDisableReward | null>(null);
   const [pendingRemoveReward, setPendingRemoveReward] =
     useState<PendingRemoveReward | null>(null);
 
@@ -415,6 +439,15 @@ export default function FamilyPage() {
     setEditingRewardId("");
     setRewardForm(initialRewardFormState);
     setRewardError("");
+    setShowRewardEditor(false);
+  }
+
+  function openAddRewardDialog() {
+    setEditingRewardId("");
+    setRewardForm(initialRewardFormState);
+    setRewardError("");
+    setShowRewardEditor(true);
+    setOpenRewardMenuId("");
   }
 
   function onEditReward(reward: FamilyReward) {
@@ -423,8 +456,12 @@ export default function FamilyPage() {
       description: reward.description,
       coinCost: String(reward.coinCost),
       imageId: reward.imageId,
+      individualLimit: reward.individualLimit ? String(reward.individualLimit) : "",
+      familyLimit: reward.familyLimit ? String(reward.familyLimit) : "",
     });
     setRewardError("");
+    setShowRewardEditor(true);
+    setOpenRewardMenuId("");
   }
 
   async function onSaveReward(event: FormEvent<HTMLFormElement>) {
@@ -436,6 +473,12 @@ export default function FamilyPage() {
     const description = rewardForm.description.trim().replace(/\s+/g, " " );
     const coinCost = normalizeFamilyRewardCoinCost(rewardForm.coinCost);
     const imageId = rewardForm.imageId.trim();
+    const individualLimit = rewardForm.individualLimit.trim() === ""
+      ? 0
+      : normalizeFamilyRewardCoinCost(rewardForm.individualLimit);
+    const familyLimit = rewardForm.familyLimit.trim() === ""
+      ? 0
+      : normalizeFamilyRewardCoinCost(rewardForm.familyLimit);
 
     if (!description) {
       setRewardError("description_required");
@@ -447,6 +490,14 @@ export default function FamilyPage() {
     }
     if (!isFamilyRewardImageId(imageId)) {
       setRewardError("invalid_image_id");
+      return;
+    }
+    if (!Number.isInteger(individualLimit) || individualLimit < 0) {
+      setRewardError("invalid_individual_limit");
+      return;
+    }
+    if (!Number.isInteger(familyLimit) || familyLimit < 0) {
+      setRewardError("invalid_family_limit");
       return;
     }
 
@@ -465,6 +516,8 @@ export default function FamilyPage() {
             description,
             coinCost,
             imageId,
+            individualLimit,
+            familyLimit,
           }),
         },
       );
@@ -504,6 +557,7 @@ export default function FamilyPage() {
       if (editingRewardId === pendingRemoveReward.id) {
         resetRewardEditor();
       }
+      setOpenRewardMenuId("");
       setPendingRemoveReward(null);
       await loadSummary();
     } catch (deleteError) {
@@ -515,9 +569,90 @@ export default function FamilyPage() {
     }
   }
 
+  async function onDisableReward() {
+    if (!pendingDisableReward || rewardActionLoading) {
+      return;
+    }
+
+    setRewardActionLoading({ rewardId: pendingDisableReward.id, action: "disable" });
+    setRewardError("");
+
+    try {
+      const response = await fetch(`/api/family/rewards/${pendingDisableReward.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disabled: true }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `REWARD_DISABLE_HTTP_${response.status}`);
+      }
+
+      if (editingRewardId === pendingDisableReward.id) {
+        resetRewardEditor();
+      }
+      setOpenRewardMenuId("");
+      setPendingDisableReward(null);
+      await loadSummary();
+    } catch (disableError) {
+      const message =
+        disableError instanceof Error ? disableError.message : "disable_reward_failed";
+      setRewardError(message);
+    } finally {
+      setRewardActionLoading(null);
+    }
+  }
+
+  async function onEnableReward(reward: FamilyReward) {
+    if (rewardActionLoading) {
+      return;
+    }
+
+    setRewardActionLoading({ rewardId: reward.id, action: "enable" });
+    setRewardError("");
+
+    try {
+      const response = await fetch(`/api/family/rewards/${reward.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disabled: false }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `REWARD_ENABLE_HTTP_${response.status}`);
+      }
+
+      setOpenRewardMenuId("");
+      await loadSummary();
+    } catch (enableError) {
+      const message =
+        enableError instanceof Error ? enableError.message : "enable_reward_failed";
+      setRewardError(message);
+    } finally {
+      setRewardActionLoading(null);
+    }
+  }
+
   const members = useMemo(() => summary?.members ?? [], [summary]);
   const categories = useMemo(() => summary?.categories ?? [], [summary]);
   const familyRewards = useMemo(() => rewards, [rewards]);
+  const orderedFamilyRewards = useMemo(
+    () =>
+      [...familyRewards].sort((a, b) => {
+        if (a.disabled === b.disabled) {
+          return a.description.localeCompare(b.description);
+        }
+        return a.disabled ? 1 : -1;
+      }),
+    [familyRewards],
+  );
+  const playerMemberNames = useMemo(
+    () =>
+      members
+        .filter((member) => member.role === "player" && member.status === "active")
+        .map((member) => member.name),
+    [members],
+  );
   const viewerMember =
     summary?.members.find(
       (member) => member.uid === summary.viewerUid || member.id === summary.viewerUid,
@@ -754,25 +889,24 @@ export default function FamilyPage() {
                           <Button
                             type="button"
                             className="btn btn-secondary"
-                            onClick={() => {
-                              setShowRewardManager(true);
-                              setRewardError("");
-                            }}>
-                            Manage Awards
+                            onClick={openAddRewardDialog}>
+                            Add Award
                           </Button>
                         ) : null}
                       </div>
                       {rewardLoadError ? (
                         <p className="small family-error">Could not load rewards: {rewardLoadError}</p>
                       ) : null}
-                      {familyRewards.length > 0 ? (
+                      {orderedFamilyRewards.length > 0 ? (
                         <div className="family-category-manage-list">
-                          {familyRewards.map((reward) => {
+                          {orderedFamilyRewards.map((reward) => {
                             const image = findFamilyRewardImageOption(reward.imageId);
                             return (
-                              <div key={reward.id} className="family-category-manage-item">
-                                <div className="flex items-center gap-3">
-                                  <div className="family-reward-chip-image-wrap">
+                              <div
+                                key={reward.id}
+                                className="family-category-manage-item">
+                                <div className={`flex items-center gap-3${reward.disabled ? " opacity-55" : ""}`}>
+                                  <div className={`family-reward-chip-image-wrap${reward.disabled ? " grayscale" : ""}`}>
                                     <Image
                                       src={
                                         image?.imagePath ??
@@ -786,10 +920,91 @@ export default function FamilyPage() {
                                     />
                                   </div>
                                   <div className="grid gap-0.5">
-                                    <strong className="text-slate-800">{reward.description}</strong>
-                                    <span className="small text-slate-600">{reward.coinCost} coins</span>
+                                    <strong className={reward.disabled ? "text-slate-500" : "text-slate-800"}>
+                                      {reward.description}
+                                    </strong>
+                                    <span className={`small ${reward.disabled ? "text-slate-400" : "text-slate-600"}`}>
+                                      {reward.coinCost} coins
+                                    </span>
+                                    <span className={`small ${reward.disabled ? "text-slate-400" : "text-slate-500"}`}>
+                                      {formatRewardLimitSummary(reward)}
+                                    </span>
+                                    {reward.disabled ? (
+                                      <span className="small font-medium text-amber-700">Disabled</span>
+                                    ) : null}
                                   </div>
                                 </div>
+                                {canManageMembers ? (
+                                  <div className="relative flex items-center self-stretch">
+                                    <Button
+                                      type="button"
+                                      className="btn btn-secondary member-action-btn"
+                                      disabled={Boolean(rewardActionLoading) || rewardSaving}
+                                      onClick={() =>
+                                        setOpenRewardMenuId((current) =>
+                                          current === reward.id ? "" : reward.id,
+                                        )
+                                      }
+                                      aria-haspopup="menu"
+                                      aria-expanded={openRewardMenuId === reward.id}
+                                      title="Reward actions">
+                                      ...
+                                    </Button>
+                                    {openRewardMenuId === reward.id ? (
+                                      <div className="absolute right-0 top-1/2 z-20 min-w-32 -translate-y-1/2 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
+                                        <Button
+                                          type="button"
+                                          className="block w-full rounded px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                                          onClick={() => onEditReward(reward)}>
+                                          Edit
+                                        </Button>
+                                        {reward.disabled ? (
+                                          <Button
+                                            type="button"
+                                            className="block w-full rounded px-3 py-2 text-left text-sm text-emerald-700 hover:bg-emerald-50"
+                                            onClick={() => void onEnableReward(reward)}>
+                                            {rewardActionLoading?.rewardId === reward.id &&
+                                            rewardActionLoading.action === "enable"
+                                              ? "Re-enabling..."
+                                              : "Re-enable"}
+                                          </Button>
+                                        ) : null}
+                                        {reward.disabled ? (
+                                          <Button
+                                            type="button"
+                                            className="block w-full rounded px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
+                                            onClick={() =>
+                                              {
+                                                setOpenRewardMenuId("");
+                                                setPendingRemoveReward({
+                                                  id: reward.id,
+                                                  description: reward.description,
+                                                  playerNames: playerMemberNames,
+                                                });
+                                              }
+                                            }>
+                                            Delete
+                                          </Button>
+                                        ) : (
+                                          <Button
+                                            type="button"
+                                            className="block w-full rounded px-3 py-2 text-left text-sm text-amber-700 hover:bg-amber-50"
+                                            onClick={() =>
+                                              {
+                                                setOpenRewardMenuId("");
+                                                setPendingDisableReward({
+                                                  id: reward.id,
+                                                  description: reward.description,
+                                                });
+                                              }
+                                            }>
+                                            Disable
+                                          </Button>
+                                        )}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
                               </div>
                             );
                           })}
@@ -953,14 +1168,14 @@ export default function FamilyPage() {
         </div>
       </ModalShell>
 
-      <ModalShell open={showRewardManager} onRequestClose={() => setShowRewardManager(false)}>
+      <ModalShell open={showRewardEditor} onRequestClose={resetRewardEditor}>
         <div className="family-modal-card">
           <div className="modal-dialog-title-row family-modal-title-row">
-          <h3 className="family-modal-title">Manage Family Awards</h3>
+          <h3 className="family-modal-title">{editingRewardId ? "Edit Family Award" : "Add Family Award"}</h3>
           <Button
             type="button"
             className="modal-close-button"
-            onClick={() => setShowRewardManager(false)}
+            onClick={resetRewardEditor}
             aria-label="Close dialog"
             title="Close dialog">
             X
@@ -999,6 +1214,38 @@ export default function FamilyPage() {
                 className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
               />
             </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex w-full flex-col gap-1.5">
+                <span className="text-sm font-medium text-slate-700">Per Person Limit</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={10000}
+                  value={rewardForm.individualLimit}
+                  onChange={(event) =>
+                    setRewardForm((current) => ({ ...current, individualLimit: event.target.value }))
+                  }
+                  placeholder="Unlimited"
+                  className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+                />
+                <span className="small text-slate-500">Use `0` or leave blank for unlimited.</span>
+              </label>
+              <label className="flex w-full flex-col gap-1.5">
+                <span className="text-sm font-medium text-slate-700">Family Limit</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={10000}
+                  value={rewardForm.familyLimit}
+                  onChange={(event) =>
+                    setRewardForm((current) => ({ ...current, familyLimit: event.target.value }))
+                  }
+                  placeholder="Unlimited"
+                  className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+                />
+                <span className="small text-slate-500">Use `0` or leave blank for unlimited.</span>
+              </label>
+            </div>
             <label className="flex w-full flex-col gap-1.5">
               <span className="text-sm font-medium text-slate-700">Reward Image</span>
               <div className="family-reward-image-grid" role="radiogroup" aria-label="Reward image">
@@ -1052,62 +1299,47 @@ export default function FamilyPage() {
               </Button>
             </div>
           </form>
+        </div>
+      </ModalShell>
 
-          <div className="family-category-manage-list">
-            {familyRewards.length === 0 ? (
-              <p className="small">No custom rewards yet.</p>
-            ) : (
-              familyRewards.map((reward) => {
-                const image = findFamilyRewardImageOption(reward.imageId);
-                return (
-                  <div key={reward.id} className="family-category-manage-item">
-                    <div className="flex items-center gap-3">
-                      <div className="family-reward-chip-image-wrap">
-                        <Image
-                          src={
-                            image?.imagePath ??
-                            FAMILY_REWARD_IMAGE_OPTIONS[0]?.imagePath ??
-                            "/rewards/screens.png"
-                          }
-                          alt={image?.label ?? "Reward image"}
-                          width={80}
-                          height={80}
-                          className="family-reward-chip-image"
-                        />
-                      </div>
-                      <div className="grid gap-0.5">
-                        <strong className="text-slate-800">{reward.description}</strong>
-                        <span className="small text-slate-600">{reward.coinCost} coins</span>
-                      </div>
-                    </div>
-                    <div className="member-actions">
-                      <Button
-                        type="button"
-                        className="btn btn-secondary member-action-btn"
-                        disabled={Boolean(rewardActionLoading) || rewardSaving}
-                        onClick={() => onEditReward(reward)}>
-                        Edit
-                      </Button>
-                      <Button
-                        type="button"
-                        className="btn member-action-remove"
-                        disabled={Boolean(rewardActionLoading) || rewardSaving}
-                        onClick={() =>
-                          setPendingRemoveReward({
-                            id: reward.id,
-                            description: reward.description,
-                          })
-                        }>
-                        {rewardActionLoading?.rewardId === reward.id
-                          ? "Working..."
-                          : "Delete"}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+      <ModalShell
+        open={Boolean(pendingDisableReward)}
+        onRequestClose={() => setPendingDisableReward(null)}>
+        <div className="family-modal-card">
+          {pendingDisableReward ? (
+            <>
+              <div className="modal-dialog-title-row family-modal-title-row">
+          <h3 className="family-modal-title">Disable Family Award</h3>
+          <Button
+            type="button"
+            className="modal-close-button"
+            onClick={() => setPendingDisableReward(null)}
+            aria-label="Close dialog"
+            title="Close dialog">
+            X
+          </Button>
+        </div>
+              <p className="mb-4 text-sm text-slate-600">
+                Disable <strong>{pendingDisableReward.description}</strong>? It will no longer be available for redemption.
+              </p>
+              <div className="family-modal-actions">
+                <Button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={Boolean(rewardActionLoading)}
+                  onClick={() => setPendingDisableReward(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="btn member-action-remove"
+                  disabled={Boolean(rewardActionLoading)}
+                  onClick={onDisableReward}>
+                  {rewardActionLoading?.action === "disable" ? "Disabling..." : "Disable"}
+                </Button>
+              </div>
+            </>
+          ) : null}
         </div>
       </ModalShell>
 
@@ -1129,7 +1361,12 @@ export default function FamilyPage() {
           </Button>
         </div>
               <p className="mb-4 text-sm text-slate-600">
-                Delete <strong>{pendingRemoveReward.description}</strong>?
+                Delete <strong>{pendingRemoveReward.description}</strong>? It will also remove the award from players{" "}
+                <strong>
+                  {pendingRemoveReward.playerNames.length > 0
+                    ? pendingRemoveReward.playerNames.join(", ")
+                    : "in this family"}
+                </strong>.
               </p>
               <div className="family-modal-actions">
                 <Button
