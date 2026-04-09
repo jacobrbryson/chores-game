@@ -362,6 +362,9 @@ export async function GET(request: NextRequest) {
                     role: inviter.role,
                     status: inviter.status,
                     lastSignInAt: inviter.lastSignInAt,
+                    dashboardPrimaryColor: resolveMemberPrimaryColor(inviter.dashboardPrimaryColor),
+                    avatarId: inviter.avatarId,
+                    avatarPhotoUrl: inviter.avatarPhotoUrl,
                   },
                 ]
               : [],
@@ -418,6 +421,9 @@ export async function GET(request: NextRequest) {
             role: member.role,
             status: member.status,
             lastSignInAt: member.lastSignInAt,
+            dashboardPrimaryColor: resolveMemberPrimaryColor(member.dashboardPrimaryColor),
+            avatarId: member.avatarId,
+            avatarPhotoUrl: member.avatarPhotoUrl,
           }))
           .slice(0, MAX_FAMILY_MEMBERS);
 

@@ -126,6 +126,40 @@ service cloud.firestore {
         && request.resource.data.familyRedeemedCount == rewardRedeemedCount(resource.data) + 1;
     }
 
+    function canCreateAwardClaim(familyId) {
+      return isFamilyMember(familyId)
+        && request.resource.data.rewardId is string
+        && request.resource.data.rewardDescription is string
+        && request.resource.data.rewardImageId is string
+        && request.resource.data.coinCost is int
+        && request.resource.data.purchaserUid == request.auth.uid
+        && request.resource.data.purchaserName is string
+        && request.resource.data.purchaserEmail is string
+        && request.resource.data.status == "unclaimed"
+        && request.resource.data.purchasedAt is timestamp
+        && request.resource.data.claimedByUid is string
+        && request.resource.data.claimedByName is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function canAdminClaimAward(familyId) {
+      return isFamilyAdmin(familyId)
+        && resource.data.status == "unclaimed"
+        && request.resource.data.status == "claimed"
+        && request.resource.data.claimedAt is timestamp
+        && request.resource.data.claimedByUid == request.auth.uid
+        && request.resource.data.claimedByName is string
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "status",
+          "claimedAt",
+          "claimedByUid",
+          "claimedByName",
+          "updatedAt"
+        ]);
+    }
+
     match /users/{uid} {
       allow read: if isSelf(uid);
       allow create: if isSelf(uid) && request.resource.data.uid == request.auth.uid;
@@ -200,7 +234,14 @@ service cloud.firestore {
             isSelf(memberId)
             && hasUidMemberDoc(familyId)
             && request.resource.data.uid == request.auth.uid
-            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["dashboardPrimaryColor", "avatarId", "avatarPhotoUrl", "updatedAt", "lastSignInAt"])
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              "dashboardPrimaryColor",
+              "avatarId",
+              "avatarPhotoUrl",
+              "selectedConfettiOptionId",
+              "updatedAt",
+              "lastSignInAt"
+            ])
           );
 
         allow delete: if isFamilyAdmin(familyId);
@@ -304,6 +345,13 @@ service cloud.firestore {
       match /choreUsage/{usageId} {
         allow read: if isFamilyMember(familyId);
         allow create, update, delete: if isFamilyAdmin(familyId);
+      }
+
+      match /awardClaims/{claimId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if canCreateAwardClaim(familyId);
+        allow update: if canAdminClaimAward(familyId);
+        allow delete: if false;
       }
     }
 

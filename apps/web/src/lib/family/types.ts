@@ -12,6 +12,9 @@ export type FamilySnapshotMember = {
   role: "admin" | "player";
   status: "active" | "invited";
   lastSignInAt?: string;
+  dashboardPrimaryColor?: string;
+  avatarId?: string;
+  avatarPhotoUrl?: string;
 };
 
 export type FamilyPendingInvite = {

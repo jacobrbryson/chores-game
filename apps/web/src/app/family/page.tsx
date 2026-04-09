@@ -1,7 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useMemo, useState } from "react";
+import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
@@ -188,6 +190,18 @@ function memberLastSignInLabel(member: FamilyMember) {
     return "-";
   }
   return new Date(member.lastSignInAt).toLocaleString();
+}
+
+function memberProfileHref(member: FamilyMember) {
+  return `/family/${encodeURIComponent(member.uid || member.id)}`;
+}
+
+function canLinkToMemberProfile(member: FamilyMember) {
+  return !(member.role === "player" && member.status !== "active");
+}
+
+function canReinviteMember(member: FamilyMember) {
+  return member.status !== "active";
 }
 
 function normalizeCategoryColor(value: string) {
@@ -723,7 +737,41 @@ export default function FamilyPage() {
                             ) : (
                               members.map((member) => (
                                 <tr key={member.id}>
-                                  <td>{member.name}</td>
+                                  <td>
+                                    {canLinkToMemberProfile(member) ? (
+                                      <Link href={memberProfileHref(member)} className="family-member-link table-assignee-cell">
+                                        <Avatar
+                                          className="completion-chart-avatar"
+                                          size={32}
+                                          borderWidth={1}
+                                          name={member.name}
+                                          avatarId={member.avatarId}
+                                          photoUrl={member.avatarPhotoUrl}
+                                          primaryColor={member.dashboardPrimaryColor}
+                                          secondaryColor={member.dashboardPrimaryColor}
+                                          fallbackColor={member.dashboardPrimaryColor ? "#ffffff" : undefined}
+                                          referrerPolicy="no-referrer"
+                                        />
+                                        <span className="family-member-link-label">{member.name}</span>
+                                      </Link>
+                                    ) : (
+                                      <span className="table-assignee-cell">
+                                        <Avatar
+                                          className="completion-chart-avatar"
+                                          size={32}
+                                          borderWidth={1}
+                                          name={member.name}
+                                          avatarId={member.avatarId}
+                                          photoUrl={member.avatarPhotoUrl}
+                                          primaryColor={member.dashboardPrimaryColor}
+                                          secondaryColor={member.dashboardPrimaryColor}
+                                          fallbackColor={member.dashboardPrimaryColor ? "#ffffff" : undefined}
+                                          referrerPolicy="no-referrer"
+                                        />
+                                        <span className="family-member-link-label">{member.name}</span>
+                                      </span>
+                                    )}
+                                  </td>
                                   <td>{member.email || "-"}</td>
                                   <td>
                                     <EnumChip
@@ -743,16 +791,18 @@ export default function FamilyPage() {
                                     member.id !== viewerUid &&
                                     member.uid !== viewerUid ? (
                                       <div className="member-actions">
-                                        <Button
-                                          type="button"
-                                          className="btn btn-secondary member-action-btn"
-                                          disabled={Boolean(memberActionLoading)}
-                                          onClick={() => onMemberAction(member.id, "reinvite")}>
-                                          {memberActionLoading?.memberId === member.id &&
-                                          memberActionLoading.action === "reinvite"
-                                            ? "Working..."
-                                            : "Re-invite"}
-                                        </Button>
+                                        {canReinviteMember(member) ? (
+                                          <Button
+                                            type="button"
+                                            className="btn btn-secondary member-action-btn"
+                                            disabled={Boolean(memberActionLoading)}
+                                            onClick={() => onMemberAction(member.id, "reinvite")}>
+                                            {memberActionLoading?.memberId === member.id &&
+                                            memberActionLoading.action === "reinvite"
+                                              ? "Working..."
+                                              : "Re-invite"}
+                                          </Button>
+                                        ) : null}
                                         <Button
                                           type="button"
                                           className="btn member-action-remove"
@@ -784,9 +834,31 @@ export default function FamilyPage() {
                           members.map((member) => (
                             <article key={member.id} className="family-member-card">
                               <div className="family-member-card-head">
-                                <div>
-                                  <h3 className="family-member-name">{member.name}</h3>
-                                  <p className="family-member-email">{member.email || "-"}</p>
+                                <div className="family-member-identity">
+                                  <Avatar
+                                    className="completion-chart-avatar"
+                                    size={32}
+                                    borderWidth={1}
+                                    name={member.name}
+                                    avatarId={member.avatarId}
+                                    photoUrl={member.avatarPhotoUrl}
+                                    primaryColor={member.dashboardPrimaryColor}
+                                    secondaryColor={member.dashboardPrimaryColor}
+                                    fallbackColor={member.dashboardPrimaryColor ? "#ffffff" : undefined}
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  <div>
+                                    <h3 className="family-member-name">
+                                      {canLinkToMemberProfile(member) ? (
+                                        <Link href={memberProfileHref(member)} className="family-member-link">
+                                          {member.name}
+                                        </Link>
+                                      ) : (
+                                        member.name
+                                      )}
+                                    </h3>
+                                    <p className="family-member-email">{member.email || "-"}</p>
+                                  </div>
                                 </div>
                                 <EnumChip
                                   label={humanizeEnum(member.status)}
@@ -810,16 +882,18 @@ export default function FamilyPage() {
                               member.id !== viewerUid &&
                               member.uid !== viewerUid ? (
                                 <div className="family-member-actions">
-                                  <Button
-                                    type="button"
-                                    className="btn btn-secondary member-action-btn"
-                                    disabled={Boolean(memberActionLoading)}
-                                    onClick={() => onMemberAction(member.id, "reinvite")}>
-                                    {memberActionLoading?.memberId === member.id &&
-                                    memberActionLoading.action === "reinvite"
-                                      ? "Working..."
-                                      : "Re-invite"}
-                                  </Button>
+                                  {canReinviteMember(member) ? (
+                                    <Button
+                                      type="button"
+                                      className="btn btn-secondary member-action-btn"
+                                      disabled={Boolean(memberActionLoading)}
+                                      onClick={() => onMemberAction(member.id, "reinvite")}>
+                                      {memberActionLoading?.memberId === member.id &&
+                                      memberActionLoading.action === "reinvite"
+                                        ? "Working..."
+                                        : "Re-invite"}
+                                    </Button>
+                                  ) : null}
                                   <Button
                                     type="button"
                                     className="btn member-action-remove"

@@ -11,6 +11,8 @@ const PROFILE_AVATAR_STORAGE_KEY_PREFIX = "profile_avatar_cache_v1";
 type StoredProfileAvatar = {
   avatarId: string;
   avatarPhotoUrl: string;
+  themePrimaryColor: string;
+  themeSecondaryColor: string;
 };
 
 function getProfileAvatarStorageKey(email: string) {
@@ -30,10 +32,18 @@ function readProfileAvatarFromStorage(email: string): StoredProfileAvatar | null
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as { avatarId?: unknown; avatarPhotoUrl?: unknown };
+    const parsed = JSON.parse(raw) as {
+      avatarId?: unknown;
+      avatarPhotoUrl?: unknown;
+      themePrimaryColor?: unknown;
+      themeSecondaryColor?: unknown;
+    };
     return {
       avatarId: typeof parsed.avatarId === "string" ? parsed.avatarId : "",
       avatarPhotoUrl: typeof parsed.avatarPhotoUrl === "string" ? parsed.avatarPhotoUrl : "",
+      themePrimaryColor: typeof parsed.themePrimaryColor === "string" ? parsed.themePrimaryColor : "",
+      themeSecondaryColor:
+        typeof parsed.themeSecondaryColor === "string" ? parsed.themeSecondaryColor : "",
     };
   } catch {
     return null;
@@ -72,6 +82,8 @@ export function ProfileMenu({ name, email, picture, initial }: ProfileMenuProps)
   const [unseenCount, setUnseenCount] = useState(0);
   const [selectedAvatarId, setSelectedAvatarId] = useState("");
   const [selectedAvatarPhotoUrl, setSelectedAvatarPhotoUrl] = useState("");
+  const [themePrimaryColor, setThemePrimaryColor] = useState("");
+  const [themeSecondaryColor, setThemeSecondaryColor] = useState("");
   const [googleTasksLinked, setGoogleTasksLinked] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const storageEmailRef = useRef(email);
@@ -97,13 +109,24 @@ export function ProfileMenu({ name, email, picture, initial }: ProfileMenuProps)
       if (!response.ok) {
         return;
       }
-      const payload = (await response.json()) as { avatarId?: string; avatarPhotoUrl?: string };
+      const payload = (await response.json()) as {
+        avatarId?: string;
+        avatarPhotoUrl?: string;
+        themePrimaryColor?: string;
+        themeSecondaryColor?: string;
+      };
       const avatar = {
         avatarId: typeof payload.avatarId === "string" ? payload.avatarId : "",
         avatarPhotoUrl: typeof payload.avatarPhotoUrl === "string" ? payload.avatarPhotoUrl : "",
+        themePrimaryColor:
+          typeof payload.themePrimaryColor === "string" ? payload.themePrimaryColor : "",
+        themeSecondaryColor:
+          typeof payload.themeSecondaryColor === "string" ? payload.themeSecondaryColor : "",
       };
       setSelectedAvatarId(avatar.avatarId);
       setSelectedAvatarPhotoUrl(avatar.avatarPhotoUrl);
+      setThemePrimaryColor(avatar.themePrimaryColor);
+      setThemeSecondaryColor(avatar.themeSecondaryColor || avatar.themePrimaryColor);
       writeProfileAvatarToStorage(storageEmailRef.current, avatar);
     } catch {
       // Ignore avatar refresh errors in menu UI.
@@ -129,6 +152,8 @@ export function ProfileMenu({ name, email, picture, initial }: ProfileMenuProps)
     if (storedAvatar) {
       setSelectedAvatarId(storedAvatar.avatarId);
       setSelectedAvatarPhotoUrl(storedAvatar.avatarPhotoUrl);
+      setThemePrimaryColor(storedAvatar.themePrimaryColor);
+      setThemeSecondaryColor(storedAvatar.themeSecondaryColor || storedAvatar.themePrimaryColor);
     }
     void loadUnseenCount();
     void loadProfileAvatar();
@@ -189,6 +214,9 @@ export function ProfileMenu({ name, email, picture, initial }: ProfileMenuProps)
             initial={initial}
             avatarId={selectedAvatarId}
             photoUrl={selectedAvatarPhotoUrl || picture || ""}
+            primaryColor={themePrimaryColor || undefined}
+            secondaryColor={(themeSecondaryColor || themePrimaryColor) || undefined}
+            fallbackColor={themePrimaryColor ? "#ffffff" : undefined}
             referrerPolicy="no-referrer"
             loading="eager"
             decoding="async"

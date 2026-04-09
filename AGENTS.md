@@ -396,6 +396,18 @@ Build a family chore game where:
   - Family Awards on `/family` now use an add/edit modal plus per-award action menu:
     - Active awards can be `Edit`ed or `Disable`d.
     - Disabled awards stay visible to admins on `/family`, are hidden from `/store`, and must be disabled before they can be deleted.
+- Family member profile + award claims update (2026-04-08):
+  - Family members list on `/family` now shows each member avatar next to their name and links each name to a dedicated family profile route at `/family/[uuid]`.
+  - Added member profile APIs:
+    - `GET /api/family/members/{memberId}/profile`
+    - `GET /api/family/members/{memberId}/awards`
+    - `PATCH /api/family/members/{memberId}/awards/{awardId}` for admin-only claim actions.
+  - `/family/[uuid]` now shows family-visible profile information for the selected member plus any unclaimed family awards redeemed by that member.
+  - Added `/family/[uuid]/awards` to show that member's claimed family-award history.
+  - Family-award purchases now create a family-scoped award-claim record at `families/{familyId}/awardClaims/{claimId}` with `status: "unclaimed" | "claimed"`.
+  - Only family admins can mark family-award claim records as claimed; players can view only their own member profile/award history, while admins can view any family member profile/award history.
+  - Confetti selections are now mirrored onto `families/{familyId}/members/{uid}.selectedConfettiOptionId` so family-visible profile routes can render the active confetti choice without reading private user docs.
+  - Family-award store availability now enforces `individualLimit` / `familyLimit` against outstanding `unclaimed` claim records only, so claimed awards become purchasable again when capacity opens up.
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.
 - Chores module: CRUD, assignment, submission, approval pipeline.

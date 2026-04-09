@@ -2,7 +2,6 @@ import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
 import type { ThemePalette } from "@/components/profile/profile-page.types";
-import type { ReactNode } from "react";
 
 type ProfileDetailsSectionProps = {
   displayName: string;
@@ -21,7 +20,6 @@ type ProfileDetailsSectionProps = {
   onOpenAvatarDialog: () => void;
   onOpenThemeDialog: () => void;
   onOpenConfettiDialog: () => void;
-  fallbackIcon: ReactNode;
 };
 
 export function ProfileDetailsSection({
@@ -41,7 +39,6 @@ export function ProfileDetailsSection({
   onOpenAvatarDialog,
   onOpenThemeDialog,
   onOpenConfettiDialog,
-  fallbackIcon,
 }: ProfileDetailsSectionProps) {
   return (
     <section className="profile-page-grid">
@@ -57,11 +54,10 @@ export function ProfileDetailsSection({
               avatarId={activeAvatarId}
               photoUrl={activeAvatarPhotoUrl || picture || ""}
               primaryColor={themePalette.primary}
-              secondaryColor={themePalette.secondary}
+              secondaryColor={themePalette.primary}
+              fallbackColor="#ffffff"
               referrerPolicy="no-referrer"
               loading="eager"
-              fallbackClassName="profile-page-avatar-fallback"
-              fallback={fallbackIcon}
             />
             <div className="profile-avatar-actions">
               <Button
@@ -120,11 +116,13 @@ export function ProfileDetailsSection({
                 {activeConfettiName}
                 {isDefaultConfettiActive ? " (default)" : ""}
               </span>
-              <span className="profile-page-theme-swatches" aria-hidden="true">
-                {activeConfettiColors.map((color, index) => (
-                  <span key={`${color}-${index}`} className="profile-theme-swatch" style={{ backgroundColor: color }} />
-                ))}
-              </span>
+              {!isDefaultConfettiActive && activeConfettiColors.length > 0 ? (
+                <span className="profile-page-theme-swatches" aria-hidden="true">
+                  {activeConfettiColors.map((color, index) => (
+                    <span key={`${color}-${index}`} className="profile-theme-swatch" style={{ backgroundColor: color }} />
+                  ))}
+                </span>
+              ) : null}
               <Button
                 type="button"
                 className="btn btn-secondary profile-theme-change-btn"

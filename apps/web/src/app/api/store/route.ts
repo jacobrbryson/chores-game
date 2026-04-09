@@ -1,9 +1,11 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
+import { randomUUID } from "node:crypto";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { applyWalletDelta, getPrimaryFamilyId, getWalletBalance } from "@/lib/economy/wallet";
 import {
+  createOrReplaceDocument,
   listDocuments,
   getDocument,
   patchDocument,
@@ -33,6 +35,7 @@ import {
   normalizeThemePalette,
   type StoreCategory,
 } from "@/lib/store/catalog";
+import { listFamilyAwardClaims } from "@/lib/family/award-claims";
 import { listFamilyRewards, type FamilyReward } from "@/lib/family/rewards";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 
@@ -162,19 +165,20 @@ async function resolveAvailableFamilyRewards(
     return { rewards, availableRewards: rewards };
   }
 
-  const viewerCountByRewardId = new Map<string, number>();
   const rewardIds = new Set(rewards.map((reward) => reward.id));
+  const viewerCountByRewardId = new Map<string, number>();
+  const familyCountByRewardId = new Map<string, number>();
+
   try {
-    const viewerLedgerDocs = await listDocuments(`users/${viewerUid}/walletLedger`, idToken, 1000);
-    for (const ledgerDoc of viewerLedgerDocs) {
-      if (readString(ledgerDoc.fields, "reason") !== "store_purchase") {
+    const awardClaims = await listFamilyAwardClaims(familyId, idToken);
+    for (const claim of awardClaims) {
+      if (claim.status !== "unclaimed" || !rewardIds.has(claim.rewardId)) {
         continue;
       }
-      const rewardId = readString(ledgerDoc.fields, "itemId").trim();
-      if (!rewardIds.has(rewardId)) {
-        continue;
+      familyCountByRewardId.set(claim.rewardId, (familyCountByRewardId.get(claim.rewardId) ?? 0) + 1);
+      if (claim.purchaserUid === viewerUid) {
+        viewerCountByRewardId.set(claim.rewardId, (viewerCountByRewardId.get(claim.rewardId) ?? 0) + 1);
       }
-      viewerCountByRewardId.set(rewardId, (viewerCountByRewardId.get(rewardId) ?? 0) + 1);
     }
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";
@@ -185,7 +189,7 @@ async function resolveAvailableFamilyRewards(
 
   const availableRewards = rewards.filter((reward) => {
     const viewerCount = viewerCountByRewardId.get(reward.id) ?? 0;
-    const familyCount = reward.familyRedeemedCount ?? 0;
+    const familyCount = familyCountByRewardId.get(reward.id) ?? 0;
     if (reward.individualLimit && viewerCount >= reward.individualLimit) {
       return false;
     }
@@ -254,6 +258,7 @@ async function getStoreSummary(uid: string, idToken: string) {
   let avatarPhotoUrl = "";
   const googlePhotoUrl = readString(userDoc.fields, "photoUrl");
   let selectedConfettiOptionId = readString(userDoc.fields, "selectedConfettiOptionId").trim();
+  let memberSelectedConfettiOptionId = "";
   let themeOptionId = readString(userDoc.fields, "preferencesThemeOptionId").trim();
   let themePrimaryColor = normalizeColor(readString(userDoc.fields, "preferencesThemePrimaryColor"));
   let themeSecondaryColor = normalizeColor(readString(userDoc.fields, "preferencesThemeSecondaryColor"));
@@ -267,6 +272,7 @@ async function getStoreSummary(uid: string, idToken: string) {
       dashboardPrimaryColor = normalizeColor(readString(memberDoc.fields, "dashboardPrimaryColor"));
       avatarId = readString(memberDoc.fields, "avatarId");
       avatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
+      memberSelectedConfettiOptionId = readString(memberDoc.fields, "selectedConfettiOptionId").trim();
     } catch (error) {
       const reason = error instanceof Error ? error.message : "";
       if (!reason.includes("FIRESTORE_HTTP_404")) {
@@ -298,11 +304,25 @@ async function getStoreSummary(uid: string, idToken: string) {
     }
   }
 
-  const selectedConfettiOption = selectedConfettiOptionId
-    ? findConfettiOptionById(selectedConfettiOptionId)
+  const effectiveConfettiOptionId = memberSelectedConfettiOptionId || selectedConfettiOptionId;
+  const selectedConfettiOption = effectiveConfettiOptionId
+    ? findConfettiOptionById(effectiveConfettiOptionId)
     : null;
   if (!selectedConfettiOption || !ownedOptionIds.has(selectedConfettiOption.id)) {
     selectedConfettiOptionId = DEFAULT_CONFETTI_OPTION_ID;
+  } else {
+    selectedConfettiOptionId = selectedConfettiOption.id;
+    if (selectedConfettiOptionId !== readString(userDoc.fields, "selectedConfettiOptionId").trim()) {
+      await patchDocument(
+        `users/${uid}`,
+        {
+          selectedConfettiOptionId: stringField(selectedConfettiOptionId),
+          storeUpdatedAt: timestampField(new Date().toISOString()),
+        },
+        idToken,
+        ["selectedConfettiOptionId", "storeUpdatedAt"],
+      );
+    }
   }
 
   const unlockedOptionDates: Record<string, string> = {};
@@ -635,20 +655,25 @@ export async function POST(request: NextRequest) {
             if (!familyId) {
               return { kind: "family_not_found" as const };
             }
-            const rewardDoc = await getDocument(`families/${familyId}/rewards/${option.id}`, idToken);
             const now = new Date().toISOString();
-            const nextFamilyRedeemedCount = Math.max(
-              0,
-              (readInteger(rewardDoc.fields, "familyRedeemedCount") || 0) + 1,
-            );
-            await patchDocument(
-              `families/${familyId}/rewards/${option.id}`,
+            await createOrReplaceDocument(
+              `families/${familyId}/awardClaims/${randomUUID()}`,
               {
-                familyRedeemedCount: integerField(nextFamilyRedeemedCount),
+                rewardId: stringField(option.id),
+                rewardDescription: stringField(option.label),
+                rewardImageId: stringField(option.value),
+                coinCost: integerField(optionPrice),
+                purchaserUid: stringField(uid),
+                purchaserName: stringField(session.name || session.email || "Family member"),
+                purchaserEmail: stringField(session.email || ""),
+                purchasedAt: timestampField(now),
+                status: stringField("unclaimed"),
+                claimedByUid: stringField(""),
+                claimedByName: stringField(""),
+                createdAt: timestampField(now),
                 updatedAt: timestampField(now),
               },
               idToken,
-              ["familyRedeemedCount", "updatedAt"],
             );
             return { kind: "ok" as const };
           }
@@ -723,15 +748,28 @@ export async function POST(request: NextRequest) {
           if (!ownedOptionIds.has(confettiOption.id)) {
             return { kind: "missing_unlock" as const };
           }
+          const familyId = await getPrimaryFamilyId(uid, idToken);
+          const now = new Date().toISOString();
           await patchDocument(
             `users/${uid}`,
             {
               selectedConfettiOptionId: stringField(confettiOption.id),
-              storeUpdatedAt: timestampField(new Date().toISOString()),
+              storeUpdatedAt: timestampField(now),
             },
             idToken,
             ["selectedConfettiOptionId", "storeUpdatedAt"],
           );
+          if (familyId) {
+            await patchDocument(
+              `families/${familyId}/members/${uid}`,
+              {
+                selectedConfettiOptionId: stringField(confettiOption.id),
+                updatedAt: timestampField(now),
+              },
+              idToken,
+              ["selectedConfettiOptionId", "updatedAt"],
+            );
+          }
           return { kind: "ok" as const };
         }
 

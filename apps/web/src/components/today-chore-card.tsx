@@ -79,9 +79,6 @@ export function TodayChoreCard({
   const assigneePrimaryColor = getSafeHexColor(chore.assigneePrimaryColor);
   const assigneeAvatarId = chore.assigneeAvatarId?.trim() || "";
   const assigneeAvatarPhotoUrl = chore.assigneeAvatarPhotoUrl?.trim() || "";
-  const assigneeAvatarSecondaryColor = assigneePrimaryColor
-    ? `color-mix(in srgb, ${assigneePrimaryColor} 22%, #ffffff)`
-    : "";
 
   function updateMenuPosition() {
     if (!triggerRef.current || typeof window === "undefined") {
@@ -208,7 +205,7 @@ export function TodayChoreCard({
               avatarId={assigneeAvatarId}
               photoUrl={assigneeAvatarPhotoUrl}
               primaryColor={assigneePrimaryColor || undefined}
-              secondaryColor={assigneeAvatarSecondaryColor || undefined}
+              secondaryColor={assigneePrimaryColor || undefined}
               fallbackColor={assigneePrimaryColor ? "#ffffff" : undefined}
               referrerPolicy="no-referrer"
             />

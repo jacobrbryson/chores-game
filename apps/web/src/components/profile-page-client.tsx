@@ -18,6 +18,7 @@ import type {
   StoreProfileSummary,
 } from "@/components/profile/profile-page.types";
 import { dispatchConfettiSelectionChanged } from "@/lib/confetti/party";
+import { readStoredConfettiOptionId } from "@/lib/confetti/party";
 import {
   DEFAULT_COLOR_THEME_OPTION_ID,
   DEFAULT_CONFETTI_OPTION_ID,
@@ -50,6 +51,7 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
   const [storeSummary, setStoreSummary] = useState<StoreProfileSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [storedConfettiOptionId, setStoredConfettiOptionId] = useState(DEFAULT_CONFETTI_OPTION_ID);
 
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [avatarActionPending, setAvatarActionPending] = useState("");
@@ -114,6 +116,10 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     void loadStoreSummary();
     void loadGoogleTasksSummary();
   }, [loadGoogleTasksSummary, loadStoreSummary]);
+
+  useEffect(() => {
+    setStoredConfettiOptionId(readStoredConfettiOptionId());
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -226,10 +232,15 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     [confettiCategory?.options, ownedSet],
   );
   const activeConfettiOptionId = storeSummary?.selectedConfettiOptionId?.trim() ?? "";
+  const effectiveConfettiOptionId =
+    storedConfettiOptionId &&
+    unlockedConfettiOptions.some((option) => option.id === storedConfettiOptionId)
+      ? storedConfettiOptionId
+      : activeConfettiOptionId;
   const activeConfettiOption = useMemo(() => {
     const options = confettiCategory?.options ?? [];
-    return options.find((option) => option.id === activeConfettiOptionId) ?? defaultConfettiOption ?? options[0] ?? null;
-  }, [activeConfettiOptionId, confettiCategory?.options, defaultConfettiOption]);
+    return options.find((option) => option.id === effectiveConfettiOptionId) ?? defaultConfettiOption ?? options[0] ?? null;
+  }, [confettiCategory?.options, defaultConfettiOption, effectiveConfettiOptionId]);
 
   const avatarCategory = useMemo(
     () => storeSummary?.categories?.find((entry) => entry.id === "customize_avatar") ?? null,
@@ -445,7 +456,6 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
           setConfettiActionError("");
           setConfettiDialogOpen(true);
         }}
-        fallbackIcon={<ProfileFallbackIcon />}
       />
 
       <ProfileGoogleLinkCard
