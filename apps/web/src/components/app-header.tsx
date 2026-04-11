@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
-import Link from "next/link";
-import Image from "next/image";
+import { AppBrand } from "@/components/app-brand";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { HeaderStoreLink } from "@/components/header-store-link";
 import { ProfileMenu } from "@/components/profile-menu";
@@ -21,20 +20,7 @@ export async function AppHeader() {
   return (
     <nav className="top-nav panel">
       <div className="top-nav-brand-row">
-        <Link href="/" className="brand brand-link">
-          <Image
-            src="/icons/web-app-manifest-192x192.png"
-            alt=""
-            width={36}
-            height={36}
-            className="brand-icon"
-            priority
-          />
-          <span className="brand-copy">
-            <span className="brand-title">Family Chores</span>
-            <span className="brand-tagline">Play. Help. Earn.</span>
-          </span>
-        </Link>
+        <AppBrand />
       </div>
       <div className={`nav-links ${sessionUser ? "nav-links-auth" : "nav-links-guest"}`}>
         {sessionUser ? (

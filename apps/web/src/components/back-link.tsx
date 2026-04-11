@@ -2,50 +2,68 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  buildNavigationHref,
+  isNavigableAppRoute,
+  readNavigationRouteStack,
+  writeNavigationRouteStack,
+} from "@/lib/navigation-history";
 
 type BackLinkProps = {
   className?: string;
   ariaLabel?: string;
+  fallbackHref?: string;
 };
 
-function resolveSafeBackTarget() {
+function resolveSafeBackTarget(fallbackHref: string) {
   if (typeof window === "undefined") {
-    return "/";
+    return {
+      nextStack: [fallbackHref],
+      target: fallbackHref,
+    };
   }
-  const referrer = document.referrer;
-  if (!referrer) {
-    return "/";
-  }
+
   try {
-    const referrerUrl = new URL(referrer);
-    if (referrerUrl.origin !== window.location.origin) {
-      return "/";
+    const currentRoute = buildNavigationHref(window.location.pathname, window.location.search);
+    const stack = readNavigationRouteStack();
+    if (stack.length > 1 && stack[stack.length - 1] === currentRoute) {
+      const nextStack = stack.slice(0, -1);
+      const target = nextStack[nextStack.length - 1];
+      if (isNavigableAppRoute(target) && target !== currentRoute) {
+        return { nextStack, target };
+      }
     }
-    const nextPath = `${referrerUrl.pathname}${referrerUrl.search}${referrerUrl.hash}` || "/";
-    if (nextPath.startsWith("/api/")) {
-      return "/";
-    }
-    if (nextPath === window.location.pathname + window.location.search + window.location.hash) {
-      return "/";
-    }
-    return nextPath;
   } catch {
-    return "/";
+    return {
+      nextStack: [fallbackHref],
+      target: fallbackHref,
+    };
   }
+
+  return {
+    nextStack: [fallbackHref],
+    target: fallbackHref,
+  };
 }
 
-export function BackLink({ className = "family-back-link", ariaLabel = "Go back" }: BackLinkProps) {
+export function BackLink({
+  className = "family-back-link",
+  ariaLabel = "Go back",
+  fallbackHref = "/",
+}: BackLinkProps) {
   const router = useRouter();
 
   return (
     <Link
-      href="/"
+      href={fallbackHref}
       className={className}
       aria-label={ariaLabel}
       title="Back"
       onClick={(event) => {
         event.preventDefault();
-        router.push(resolveSafeBackTarget());
+        const { nextStack, target } = resolveSafeBackTarget(fallbackHref);
+        writeNavigationRouteStack(nextStack);
+        router.replace(target);
       }}>
       <span className="back-link-icon" aria-hidden="true">&larr;</span>
     </Link>

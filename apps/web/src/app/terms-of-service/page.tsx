@@ -11,7 +11,7 @@ export default function TermsOfServicePage() {
     <main className="panel family-page legal-page">
       <div className="page-header-row">
         <div className="page-header-inline">
-          <BackLink className="page-back-link" ariaLabel="Go back" />
+          <BackLink className="page-back-link" ariaLabel="Go back" fallbackHref="/" />
           <h1>Terms of Service</h1>
         </div>
       </div>

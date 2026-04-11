@@ -1106,7 +1106,7 @@ export default function ChoresPage() {
           />
           <div className="page-header-row">
             <div className="page-header-inline">
-              <BackLink className="page-back-link" />
+              <BackLink className="page-back-link" fallbackHref="/" />
               <h1>All Chores</h1>
             </div>
           </div>

@@ -68,7 +68,7 @@ export function FamilyMemberAwardsPageClient({
     <main className="panel family-page">
       <div className="page-header-row">
         <div className="page-header-inline">
-          <BackLink className="page-back-link" />
+          <BackLink className="page-back-link" fallbackHref={`/family/${encodeURIComponent(memberId)}`} />
           <h1>{summary?.member.name ? `${summary.member.name} Awards` : "Claimed Awards"}</h1>
         </div>
       </div>

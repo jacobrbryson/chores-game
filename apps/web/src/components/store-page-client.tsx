@@ -352,7 +352,7 @@ export function StorePageClient() {
     <main className="panel family-page">
       <div className="page-header-row">
         <div className="page-header-inline">
-          <BackLink className="page-back-link" />
+          <BackLink className="page-back-link" fallbackHref="/" />
           <h1>Store</h1>
         </div>
       </div>

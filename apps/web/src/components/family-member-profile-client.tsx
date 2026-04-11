@@ -121,7 +121,7 @@ export function FamilyMemberProfileClient({
     <main className="panel family-page profile-page">
       <div className="page-header-row">
         <div className="page-header-inline">
-          <BackLink className="page-back-link" />
+          <BackLink className="page-back-link" fallbackHref="/family" />
           <h1>{profile?.member.name || "Family Profile"}</h1>
         </div>
       </div>

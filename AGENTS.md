@@ -408,6 +408,8 @@ Build a family chore game where:
   - Only family admins can mark family-award claim records as claimed; players can view only their own member profile/award history, while admins can view any family member profile/award history.
   - Confetti selections are now mirrored onto `families/{familyId}/members/{uid}.selectedConfettiOptionId` so family-visible profile routes can render the active confetti choice without reading private user docs.
   - Family-award store availability now enforces `individualLimit` / `familyLimit` against outstanding `unclaimed` claim records only, so claimed awards become purchasable again when capacity opens up.
+- Back navigation update (2026-04-09):
+  - Shared page back buttons now prefer the last in-app route visited in the current session and fall back to a page-specific root route when no prior in-app page is available.
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.
 - Chores module: CRUD, assignment, submission, approval pipeline.

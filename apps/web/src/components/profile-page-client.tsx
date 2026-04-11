@@ -422,7 +422,7 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     <main className="panel family-page profile-page">
       <div className="page-header-row">
         <div className="page-header-inline">
-          <BackLink className="page-back-link" />
+          <BackLink className="page-back-link" fallbackHref="/" />
           <h1>Profile</h1>
         </div>
       </div>

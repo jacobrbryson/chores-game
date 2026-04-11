@@ -1,7 +1,9 @@
 ﻿import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { AppFooter } from "@/components/app-footer";
 import { AppHeader } from "@/components/app-header";
+import { NavigationHistoryTracker } from "@/components/navigation-history-tracker";
 import { PartyConfettiOverlay } from "@/components/party-confetti-overlay";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
 
@@ -39,6 +41,9 @@ export default async function RootLayout({
         />
       </head>
       <body className="antialiased">
+        <Suspense fallback={null}>
+          <NavigationHistoryTracker />
+        </Suspense>
         <ThemePreferenceSync />
         <PartyConfettiOverlay />
         <div className="shell">
