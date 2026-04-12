@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { TodayChoresPanel } from "@/components/today-chores-panel";
 import type { FamilySnapshotChore, FamilySummaryResponse } from "@/lib/family/types";
@@ -252,18 +253,18 @@ export function FamilyCard() {
       {isLoading ? <p className="small">Loading family snapshot...</p> : null}
       {!isLoading && error ? (
         <div className="family-error-wrap">
-          <p className="small family-error">Could not load family snapshot: {error}</p>
+          <Alert>Could not load family snapshot: {error}</Alert>
           {firestoreNotConfigured ? (
-            <p className="small family-error">
+            <Alert>
               Firestore default database is missing. Open Firebase console and create
               Firestore for this project, then refresh.
-            </p>
+            </Alert>
           ) : null}
           {firestoreForbidden ? (
-            <p className="small family-error">
+            <Alert>
               Firestore rules are denying this user. Update your Firestore security
               rules to allow reads and writes for authenticated users in this app.
-            </p>
+            </Alert>
           ) : null}
           {needsReauth ? (
             <form action="/api/auth/logout" method="post">
@@ -305,11 +306,7 @@ export function FamilyCard() {
               ) : (
                 <p className="small">Inviter details are unavailable.</p>
               )}
-              {acceptInviteError ? (
-                <p className="small family-error">
-                  Could not accept invite: {acceptInviteError}
-                </p>
-              ) : null}
+              {acceptInviteError ? <Alert>Could not accept invite: {acceptInviteError}</Alert> : null}
               <div className="mt-3">
                 <Button
                   type="button"

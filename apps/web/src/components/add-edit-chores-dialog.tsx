@@ -3,6 +3,7 @@
 import { FormEvent, KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
@@ -12,7 +13,6 @@ import type { FamilyCategory } from "@/lib/family/types";
 type Suggestion = {
   description: string;
   familyCount: number;
-  globalCount: number;
 };
 
 type FamilyMemberOption = {
@@ -745,24 +745,9 @@ export function AddEditChoresDialog({
 
               {error ? (
                 isActiveChoreLimitError ? (
-                  <div
-                    role="alert"
-                    className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800">
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      className="h-5 w-5 shrink-0">
-                      <path
-                        fillRule="evenodd"
-                        d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm-.75-11a.75.75 0 0 1 1.5 0v4a.75.75 0 0 1-1.5 0V7Zm.75 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    <p className="text-sm leading-5">{errorMessage}</p>
-                  </div>
+                  <Alert tone="warning">{errorMessage}</Alert>
                 ) : (
-                  <p className="text-sm text-red-700">{errorMessage}</p>
+                  <Alert>{errorMessage}</Alert>
                 )
               ) : null}
 

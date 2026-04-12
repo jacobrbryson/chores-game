@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "@/components/alert";
 import { BackLink } from "@/components/back-link";
+import { Button } from "@/components/button";
+import { GoogleSignInButton } from "@/components/google-signin-button";
 import { ProfileCustomizationModals } from "@/components/profile/profile-customization-modals";
 import { ProfileDetailsSection } from "@/components/profile/profile-details-section";
 import { ProfileGoogleLinkCard } from "@/components/profile/profile-google-link-card";
@@ -47,7 +50,14 @@ function haveSameTaskListSelection(leftTaskListIds: string[], rightTaskListIds: 
   return left.every((taskListId, index) => taskListId === right[index]);
 }
 
-export function ProfilePageClient({ name, email, role, picture }: ProfilePageClientProps) {
+export function ProfilePageClient({
+  name,
+  email,
+  role,
+  picture,
+  isSwitched = false,
+  authenticatedName = "",
+}: ProfilePageClientProps) {
   const [storeSummary, setStoreSummary] = useState<StoreProfileSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -70,9 +80,16 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
   const [googleTasksError, setGoogleTasksError] = useState("");
   const [googleTasksActionPending, setGoogleTasksActionPending] = useState("");
   const [googleTasksRedirectError, setGoogleTasksRedirectError] = useState("");
+  const [googleAccountRedirectError, setGoogleAccountRedirectError] = useState("");
+  const [googleAccountLinkedMessage, setGoogleAccountLinkedMessage] = useState("");
   const [googleTaskListSelectionDraft, setGoogleTaskListSelectionDraft] = useState<string[] | null>(null);
   const singleTaskListAutoSyncRef = useRef("");
   const postLinkAutoSyncPendingRef = useRef(false);
+  const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [pinPending, setPinPending] = useState(false);
+  const [pinError, setPinError] = useState("");
+  const [pinSuccess, setPinSuccess] = useState("");
 
   const loadStoreSummary = useCallback(async () => {
     setIsLoading(true);
@@ -130,13 +147,23 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     if (redirectError) {
       setGoogleTasksRedirectError(redirectError);
     }
+    const googleAccountError = searchParams.get("googleAccountError")?.trim() ?? "";
+    if (googleAccountError) {
+      setGoogleAccountRedirectError(googleAccountError);
+    }
+    const googleAccountStatus = searchParams.get("googleAccount")?.trim() ?? "";
+    if (googleAccountStatus === "linked") {
+      setGoogleAccountLinkedMessage("Google account linked.");
+    }
     const linkedFlag = searchParams.get("googleTasks");
     if (linkedFlag === "linked") {
       postLinkAutoSyncPendingRef.current = true;
     }
-    if (redirectError || linkedFlag) {
+    if (redirectError || linkedFlag || googleAccountError || googleAccountStatus) {
       searchParams.delete("googleTasksError");
       searchParams.delete("googleTasks");
+      searchParams.delete("googleAccountError");
+      searchParams.delete("googleAccount");
       const nextQuery = searchParams.toString();
       const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}`;
       window.history.replaceState(null, "", nextUrl);
@@ -334,6 +361,10 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
     () => deriveGoogleTasksView(googleTasksSummary, formatDateTime),
     [googleTasksSummary],
   );
+  const googleAccountLinked = googleTasksSummary?.accountLinked === true;
+  const googleClientId =
+    typeof process !== "undefined" ? process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "" : "";
+  const googleAccountLinkUri = "/api/auth/google/gsi?intent=link_account";
 
   const selectedGoogleTaskListIds = useMemo(
     () => normalizeTaskListIds(googleTasksView.selectedGoogleTaskListIds),
@@ -418,6 +449,33 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
   const displayName = name || "Signed In User";
   const displayEmail = email || "-";
 
+  async function onSaveSwitchPin() {
+    if (pinPending) {
+      return;
+    }
+    setPinPending(true);
+    setPinError("");
+    setPinSuccess("");
+    try {
+      const response = await fetch("/api/account-switch/pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin, confirmPin }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? `PIN_SAVE_HTTP_${response.status}`);
+      }
+      setPin("");
+      setConfirmPin("");
+      setPinSuccess("PIN saved.");
+    } catch (errorValue) {
+      setPinError(errorValue instanceof Error ? errorValue.message : "pin_update_failed");
+    } finally {
+      setPinPending(false);
+    }
+  }
+
   return (
     <main className="panel family-page profile-page">
       <div className="page-header-row">
@@ -428,7 +486,13 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
       </div>
       <p className="small family-page-subhead">Your account details and personalization settings.</p>
 
-      {error ? <p className="small family-error">Could not load profile settings: {error}</p> : null}
+      {isSwitched ? (
+        <p className="small profile-switch-banner">
+          You are using this child profile through {authenticatedName || "the parent account"}. Logging out switches
+          back to the parent.
+        </p>
+      ) : null}
+      {error ? <Alert>Could not load profile settings: {error}</Alert> : null}
 
       <ProfileDetailsSection
         displayName={displayName}
@@ -458,51 +522,125 @@ export function ProfilePageClient({ name, email, role, picture }: ProfilePageCli
         }}
       />
 
-      <ProfileGoogleLinkCard
-        googleTasksRedirectError={googleTasksRedirectError}
-        googleTasksError={googleTasksError}
-        googleTasksLoading={googleTasksLoading}
-        googleTasksLinked={googleTasksView.googleTasksLinked}
-        selectedGoogleTaskListSummary={googleTasksView.selectedGoogleTaskListSummary}
-        googleTasksLastSyncedLabel={googleTasksView.googleTasksLastSyncedLabel}
-        googleTasksStatusLabel={googleTasksView.googleTasksStatusLabel}
-        googleTaskListsLength={googleTasksView.googleTaskListsLength}
-        googleTaskListOptions={googleTasksView.googleTaskListOptions}
-        selectedGoogleTaskListIds={effectiveGoogleTaskListSelection}
-        showGoogleTaskListPicker={showGoogleTaskListPicker}
-        showGoogleTasksSyncNow={showGoogleTasksSyncNow}
-        googleTasksActionPending={googleTasksActionPending}
-        googleTasksSummary={googleTasksSummary}
-        onGoogleTasksLinkStart={() => {
-          if (typeof window !== "undefined") {
-            window.location.assign("/api/auth/google/tasks/start");
-          }
-        }}
-        onGoogleTasksTaskListChange={(taskListIds) => {
-          const normalizedTaskListIds = normalizeTaskListIds(taskListIds);
-          if (normalizedTaskListIds.length === 0) {
-            setGoogleTasksError("Select at least one Google task list.");
-            return;
-          }
-          setGoogleTasksError("");
-          setGoogleTaskListSelectionDraft(normalizedTaskListIds);
-        }}
-        onGoogleTasksSyncNow={() => {
-          if (!hasGoogleTaskListSelectionChanged || !googleTaskListSelectionDraft) {
-            return;
-          }
-          void applyGoogleTasksAction(
-            { action: "set_task_list", taskListIds: googleTaskListSelectionDraft },
-            "sync_now",
-          );
-        }}
-        onGoogleTasksForceResync={() => {
-          void applyGoogleTasksAction({ action: "sync_now" }, "force_sync_now");
-        }}
-        onGoogleTasksUnlink={() => {
-          void applyGoogleTasksAction({ action: "unlink" }, "unlink");
-        }}
-      />
+      {googleTasksLoading && !googleTasksSummary ? (
+        <section className="profile-google-card-wrap">
+          <article className="profile-page-google-card">
+            <h2>Google Account</h2>
+            <p className="small">Loading Google account status...</p>
+          </article>
+        </section>
+      ) : !googleAccountLinked ? (
+        <section className="profile-google-card-wrap">
+          <article className="profile-page-google-card">
+            <h2>Google Account</h2>
+            {googleAccountRedirectError ? (
+              <Alert>Could not link Google account: {googleAccountRedirectError}</Alert>
+            ) : null}
+            {googleAccountLinkedMessage ? <p className="small">{googleAccountLinkedMessage}</p> : null}
+            <p className="small">
+              This profile is not linked to Google yet. Link it later when you want this child to sign in with Google
+              and unlock Google Tasks sync.
+            </p>
+            {googleClientId ? (
+              <GoogleSignInButton mode="gsi" clientId={googleClientId} loginUri={googleAccountLinkUri} width={260} />
+            ) : (
+              <Alert>Google sign-in is not configured for linking.</Alert>
+            )}
+          </article>
+        </section>
+      ) : (
+        <ProfileGoogleLinkCard
+          googleTasksRedirectError={googleTasksRedirectError}
+          googleTasksError={googleTasksError}
+          googleTasksLoading={googleTasksLoading}
+          googleTasksLinked={googleTasksView.googleTasksLinked}
+          selectedGoogleTaskListSummary={googleTasksView.selectedGoogleTaskListSummary}
+          googleTasksLastSyncedLabel={googleTasksView.googleTasksLastSyncedLabel}
+          googleTasksStatusLabel={googleTasksView.googleTasksStatusLabel}
+          googleTaskListsLength={googleTasksView.googleTaskListsLength}
+          googleTaskListOptions={googleTasksView.googleTaskListOptions}
+          selectedGoogleTaskListIds={effectiveGoogleTaskListSelection}
+          showGoogleTaskListPicker={showGoogleTaskListPicker}
+          showGoogleTasksSyncNow={showGoogleTasksSyncNow}
+          googleTasksActionPending={googleTasksActionPending}
+          googleTasksSummary={googleTasksSummary}
+          onGoogleTasksLinkStart={() => {
+            if (typeof window !== "undefined") {
+              window.location.assign("/api/auth/google/tasks/start");
+            }
+          }}
+          onGoogleTasksTaskListChange={(taskListIds) => {
+            const normalizedTaskListIds = normalizeTaskListIds(taskListIds);
+            if (normalizedTaskListIds.length === 0) {
+              setGoogleTasksError("Select at least one Google task list.");
+              return;
+            }
+            setGoogleTasksError("");
+            setGoogleTaskListSelectionDraft(normalizedTaskListIds);
+          }}
+          onGoogleTasksSyncNow={() => {
+            if (!hasGoogleTaskListSelectionChanged || !googleTaskListSelectionDraft) {
+              return;
+            }
+            void applyGoogleTasksAction(
+              { action: "set_task_list", taskListIds: googleTaskListSelectionDraft },
+              "sync_now",
+            );
+          }}
+          onGoogleTasksForceResync={() => {
+            void applyGoogleTasksAction({ action: "sync_now" }, "force_sync_now");
+          }}
+          onGoogleTasksUnlink={() => {
+            void applyGoogleTasksAction({ action: "unlink" }, "unlink");
+          }}
+        />
+      )}
+
+      {role === "admin" && !isSwitched ? (
+        <section className="profile-google-card-wrap">
+          <article className="profile-page-google-card">
+            <h2>Switch PIN</h2>
+            <p className="small">
+              Set a 4-digit PIN for switching into a child account and returning to your parent profile.
+            </p>
+            {pinError ? <Alert>Could not save PIN: {pinError}</Alert> : null}
+            {pinSuccess ? <p className="small">{pinSuccess}</p> : null}
+            <div className="profile-switch-pin-grid">
+              <label className="flex w-full flex-col gap-1.5">
+                <span className="text-sm font-medium text-slate-700">PIN</span>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="\d{4}"
+                  maxLength={4}
+                  autoComplete="new-password"
+                  value={pin}
+                  onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+                  className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+                />
+              </label>
+              <label className="flex w-full flex-col gap-1.5">
+                <span className="text-sm font-medium text-slate-700">Confirm PIN</span>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="\d{4}"
+                  maxLength={4}
+                  autoComplete="new-password"
+                  value={confirmPin}
+                  onChange={(event) => setConfirmPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+                  className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+                />
+              </label>
+            </div>
+            <div className="profile-google-actions">
+              <Button type="button" className="btn btn-primary" disabled={pinPending} onClick={onSaveSwitchPin}>
+                {pinPending ? "Saving..." : "Save PIN"}
+              </Button>
+            </div>
+          </article>
+        </section>
+      ) : null}
 
       <ProfileCustomizationModals
         avatarDialogOpen={avatarDialogOpen}

@@ -28,6 +28,20 @@ service cloud.firestore {
         && userBelongsToFamily(uid, requesterFamilyId);
     }
 
+    function canAdminBootstrapManagedUser(uid) {
+      let requesterFamilyId = primaryFamilyIdForUser(request.auth.uid);
+      return isSignedIn()
+        && requesterFamilyId is string
+        && requesterFamilyId != ""
+        && isFamilyAdmin(requesterFamilyId)
+        && exists(/databases/$(database)/documents/families/$(requesterFamilyId)/members/$(uid))
+        && get(/databases/$(database)/documents/families/$(requesterFamilyId)/members/$(uid)).data.deleted != true
+        && (
+          get(/databases/$(database)/documents/families/$(requesterFamilyId)/members/$(uid)).data.role == null
+          || get(/databases/$(database)/documents/families/$(requesterFamilyId)/members/$(uid)).data.role == "player"
+        );
+    }
+
     function memberDocPathByUid(familyId) {
       return /databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid);
     }
@@ -161,8 +175,12 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if isSelf(uid);
-      allow create: if isSelf(uid) && request.resource.data.uid == request.auth.uid;
+      allow read: if isSelf(uid) || canAdminManageUser(uid) || canAdminBootstrapManagedUser(uid);
+      allow create: if (isSelf(uid) && request.resource.data.uid == request.auth.uid)
+        || (canAdminBootstrapManagedUser(uid)
+          && request.resource.data.uid == uid
+          && request.resource.data.familyIds is list
+          && request.resource.data.familyIds.hasAny([primaryFamilyIdForUser(request.auth.uid)]));
       allow update: if isSelf(uid) || canAdminManageUser(uid);
       allow delete: if isSelf(uid);
 
@@ -322,7 +340,14 @@ service cloud.firestore {
         allow read: if isFamilyMember(familyId);
         allow create: if isFamilyMember(familyId)
           && request.resource.data.familyId == familyId
-          && request.resource.data.actorUid == request.auth.uid
+          && (
+            request.resource.data.actorUid == request.auth.uid
+            || (
+              isFamilyAdmin(familyId)
+              && request.resource.data.actorUid is string
+              && userBelongsToFamily(request.resource.data.actorUid, familyId)
+            )
+          )
           && request.resource.data.createdAt is timestamp
           && request.resource.data.relatedIds is list;
         allow update, delete: if false;

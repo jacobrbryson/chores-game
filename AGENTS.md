@@ -54,6 +54,7 @@ Build a family chore game where:
 - Keep business logic in shared/domain modules, not only UI handlers.
 - Validate all incoming API payloads.
 - Prefer explicit enums/constants for statuses and roles.
+- Use the shared Tailwind `Alert` component for all in-app alert/error/warning/info UI; do not introduce one-off alert markup or alert-specific CSS for new surfaces.
 - Keep source files small and focused. Target a max of ~400 lines per file; split large files by feature/component.
 - Add tests for workflow-critical behavior:
   - chore status transitions
@@ -99,7 +100,7 @@ Build a family chore game where:
 - New chores API:
   - `GET /api/chores` returns all chores for the signed-in user's primary family plus `viewerRole` for permission-aware UI actions.
   - `POST /api/chores` creates one or more chores from a list of titles (admin-only).
-  - `GET /api/chores/suggestions` returns up to 100 chore description suggestions ranked by family usage then global usage; with `q` (3+ chars), suggestions are filtered by character match.
+  - `GET /api/chores/suggestions` returns up to 100 chore description suggestions scoped to the signed-in user's family; with `q` (3+ chars), suggestions are filtered by character match.
   - `DELETE /api/chores/{choreId}` performs a soft delete (`deleted=true`, timestamped).
 - Add Chores dialog UX:
   - Primary required field is `Description` with autocomplete suggestions.
@@ -415,6 +416,21 @@ Build a family chore game where:
   - `users/{uid}.role` and the signed `session_user` cookie now stay aligned with the bootstrapped admin state at sign-in.
   - `GET /api/family/summary` now refreshes `session_user.role` from the resolved active family member record when it differs from the cookie.
   - Home and `/family` now show an explicit recovery/get-started path when a signed-in user still has `noFamily`, so legacy broken accounts can finish setup instead of landing in a dead end.
+- Managed child profiles and account switching update (2026-04-12):
+  - Parent admins can now create `player` family members without an email address; `admin` members still require email.
+  - Email-less child members are provisioned immediately as active managed local profiles instead of pending invites.
+  - Managed child creation now also writes a local `users/{uid}` record with starter theme/confetti ownership and zero wallet balance so the child can participate in player flows before Google linking.
+  - Parents can set a 4-digit account-switch PIN from `/profile`.
+  - `/family` now includes `Switch To` for active child/player members; switching requires the parent PIN.
+  - Switched sessions preserve the authenticated parent context in the signed `session_user` cookie while changing the active profile identity to the selected child.
+  - Returning from a switched child profile to the parent profile requires the same PIN; logging out always clears the switched state and returns the next sign-in to the parent.
+  - `/profile` now separates Google account linking from Google Tasks linking:
+    - Profiles not yet linked to Google show a Google-account link card.
+    - The Google Tasks card is only shown after the profile is linked to a Google account.
+  - Managed child profiles can be linked to Google later from `/profile`, which updates the family member to use the linked Google UID for future direct sign-in.
+- Alert UI standardization update (2026-04-12):
+  - Shared alert UI now uses a reusable Tailwind `Alert` component in `apps/web/src/components/alert.tsx`.
+  - Error, warning, and informational status messages should render through that component instead of `family-error` paragraphs or one-off alert wrappers.
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.
 - Chores module: CRUD, assignment, submission, approval pipeline.

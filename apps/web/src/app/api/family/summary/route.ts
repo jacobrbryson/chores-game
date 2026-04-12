@@ -332,6 +332,8 @@ export async function GET(request: NextRequest) {
         const normalizedSessionEmail = session.email.trim().toLowerCase();
         const viewerMember =
           rawMembers.find((member) => member.uid === session.uid) ||
+          rawMembers.find((member) => member.id === session.memberId) ||
+          rawMembers.find((member) => member.id === session.uid) ||
           rawMembers.find(
             (member) => !member.uid && member.email.trim().toLowerCase() === normalizedSessionEmail,
           );
@@ -515,11 +517,21 @@ export async function GET(request: NextRequest) {
 
     let nextSession = refreshedSession;
     let shouldSetSessionCookie = refreshed;
-    const resolvedViewerRole =
-      data.members.find((member) => member.uid === data.viewerUid || member.id === data.viewerUid)
-        ?.role ?? "player";
-    if (resolvedViewerRole !== refreshedSession.role) {
-      nextSession = { ...refreshedSession, role: resolvedViewerRole };
+    const resolvedViewerMember =
+      data.members.find(
+        (member) =>
+          member.uid === data.viewerUid ||
+          member.id === refreshedSession.memberId ||
+          member.id === data.viewerUid,
+      ) ?? null;
+    const resolvedViewerRole = resolvedViewerMember?.role ?? "player";
+    const resolvedViewerMemberId = resolvedViewerMember?.id ?? refreshedSession.memberId ?? refreshedSession.uid;
+    if (resolvedViewerRole !== refreshedSession.role || resolvedViewerMemberId !== refreshedSession.memberId) {
+      nextSession = {
+        ...refreshedSession,
+        role: resolvedViewerRole,
+        memberId: resolvedViewerMemberId,
+      };
       shouldSetSessionCookie = true;
     }
 

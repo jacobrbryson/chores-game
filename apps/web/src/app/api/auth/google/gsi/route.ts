@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  getAuthenticatedSessionIdentity,
+  isSessionSwitched,
+  switchSessionIdentity,
   type SessionUser,
 } from "@/lib/auth/session";
+import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { createFamilyForUser } from "@/lib/family/bootstrap";
 import {
+  boolField,
   findFirstFamilyIdByMemberEmail,
   getDocument,
+  listDocuments,
   patchDocument,
   readBoolean,
+  readInteger,
   readString,
   readStringArray,
   stringArrayField,
@@ -122,11 +129,11 @@ async function signInWithFirebase(googleIdToken: string, requestUri: string) {
   return (await response.json()) as FirebaseSession;
 }
 
-async function getActiveFamilyRole(
+async function resolveActiveFamilyMembership(
   familyId: string,
   uid: string,
   idToken: string,
-): Promise<SessionUser["role"] | null> {
+): Promise<{ memberId: string; role: SessionUser["role"] } | null> {
   try {
     const memberDoc = await getDocument(`families/${familyId}/members/${uid}`, idToken);
     if (readBoolean(memberDoc.fields, "deleted")) {
@@ -135,14 +142,34 @@ async function getActiveFamilyRole(
     if (readString(memberDoc.fields, "status") !== "active") {
       return null;
     }
-    return readString(memberDoc.fields, "role") === "admin" ? "admin" : "player";
+    return {
+      memberId: uid,
+      role: readString(memberDoc.fields, "role") === "admin" ? "admin" : "player",
+    };
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";
-    if (reason.includes("FIRESTORE_HTTP_404")) {
-      return null;
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
     }
-    throw error;
   }
+
+  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 200);
+  const matchedMember = memberDocs.find((doc) => {
+    if (readBoolean(doc.fields, "deleted")) {
+      return false;
+    }
+    if (readString(doc.fields, "status") !== "active") {
+      return false;
+    }
+    return readString(doc.fields, "uid") === uid;
+  });
+  if (!matchedMember) {
+    return null;
+  }
+  return {
+    memberId: matchedMember.name.split("/").pop() ?? uid,
+    role: readString(matchedMember.fields, "role") === "admin" ? "admin" : "player",
+  };
 }
 
 async function upsertFirebaseUser(
@@ -194,12 +221,12 @@ async function upsertFirebaseUser(
       idToken: session.idToken,
     });
   }
-  const linkedFamilyRole = linkedFamilyId
-    ? await getActiveFamilyRole(linkedFamilyId, session.localId, session.idToken)
+  const linkedFamilyMembership = linkedFamilyId
+    ? await resolveActiveFamilyMembership(linkedFamilyId, session.localId, session.idToken)
     : null;
   const effectiveRole: SessionUser["role"] = shouldBootstrapFamily
     ? "admin"
-    : linkedFamilyRole ?? (existingUserRole === "admin" ? "admin" : "player");
+    : linkedFamilyMembership?.role ?? (existingUserRole === "admin" ? "admin" : "player");
 
   const authFields = {
     uid: stringField(session.localId),
@@ -243,14 +270,137 @@ async function upsertFirebaseUser(
 
   return {
     role: effectiveRole,
+    memberId: linkedFamilyMembership?.memberId ?? session.localId,
   };
 }
 
+async function linkManagedChildToGoogleAccount(input: {
+  requestSession: SessionUser;
+  firebaseSession: FirebaseSession;
+  tokenInfo: GoogleTokenInfo;
+}) {
+  const now = new Date().toISOString();
+  const currentSession = input.requestSession;
+  const authenticated = getAuthenticatedSessionIdentity(currentSession);
+  if (!isSessionSwitched(currentSession) || authenticated.role !== "admin" || currentSession.role !== "player") {
+    throw new Error("GOOGLE_LINK_FORBIDDEN");
+  }
+
+  const localUid = currentSession.uid;
+  const memberId = currentSession.memberId || currentSession.uid;
+  const adminIdToken = currentSession.firebaseIdToken;
+  if (!adminIdToken) {
+    throw new Error("MISSING_FIREBASE_ID_TOKEN");
+  }
+  const normalizedEmail = (input.tokenInfo.email ?? input.firebaseSession.email ?? "").trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error("GOOGLE_LINK_EMAIL_REQUIRED");
+  }
+
+  const localUserDoc = await getDocument(`users/${localUid}`, adminIdToken);
+  const familyId = readStringArray(localUserDoc.fields, "familyIds")[0] ?? "";
+  if (!familyId) {
+    throw new Error("GOOGLE_LINK_FAMILY_NOT_FOUND");
+  }
+  const memberDoc = await getDocument(`families/${familyId}/members/${memberId}`, adminIdToken);
+  if (readBoolean(memberDoc.fields, "deleted")) {
+    throw new Error("GOOGLE_LINK_MEMBER_NOT_FOUND");
+  }
+  if (readString(memberDoc.fields, "role") !== "player") {
+    throw new Error("GOOGLE_LINK_PLAYER_ONLY");
+  }
+
+  await patchDocument(
+    `users/${input.firebaseSession.localId}`,
+    {
+      uid: stringField(input.firebaseSession.localId),
+      role: stringField("player"),
+      provider: stringField("google"),
+      email: stringField(normalizedEmail),
+      displayName: stringField(input.tokenInfo.name ?? input.firebaseSession.displayName ?? currentSession.name),
+      photoUrl: stringField(input.tokenInfo.picture ?? input.firebaseSession.photoUrl ?? ""),
+      familyIds: stringArrayField([familyId]),
+      walletBalance: { integerValue: String(readInteger(localUserDoc.fields, "walletBalance")) },
+      ownedStoreOptionIds: stringArrayField(readStringArray(localUserDoc.fields, "ownedStoreOptionIds")),
+      preferencesThemeOptionId: stringField(readString(localUserDoc.fields, "preferencesThemeOptionId")),
+      preferencesThemePrimaryColor: stringField(readString(localUserDoc.fields, "preferencesThemePrimaryColor")),
+      preferencesThemeSecondaryColor: stringField(readString(localUserDoc.fields, "preferencesThemeSecondaryColor")),
+      preferencesThemeTertiaryColor: stringField(readString(localUserDoc.fields, "preferencesThemeTertiaryColor")),
+      preferencesMyChoresOnly: boolField(readBoolean(localUserDoc.fields, "preferencesMyChoresOnly")),
+      preferencesCompletionWindow: stringField(readString(localUserDoc.fields, "preferencesCompletionWindow")),
+      selectedConfettiOptionId: stringField(readString(localUserDoc.fields, "selectedConfettiOptionId")),
+      storeUpdatedAt: timestampField(now),
+      preferencesUpdatedAt: timestampField(now),
+      lastFamilyUpdateAt: timestampField(now),
+      lastSignInAt: timestampField(now),
+    },
+    input.firebaseSession.idToken,
+    [
+      "uid",
+      "role",
+      "provider",
+      "email",
+      "displayName",
+      "photoUrl",
+      "familyIds",
+      "walletBalance",
+      "ownedStoreOptionIds",
+      "preferencesThemeOptionId",
+      "preferencesThemePrimaryColor",
+      "preferencesThemeSecondaryColor",
+      "preferencesThemeTertiaryColor",
+      "preferencesMyChoresOnly",
+      "preferencesCompletionWindow",
+      "selectedConfettiOptionId",
+      "storeUpdatedAt",
+      "preferencesUpdatedAt",
+      "lastFamilyUpdateAt",
+      "lastSignInAt",
+    ],
+  );
+
+  await patchDocument(
+    `families/${familyId}/members/${memberId}`,
+    {
+      uid: stringField(input.firebaseSession.localId),
+      email: stringField(normalizedEmail),
+      name: stringField(input.tokenInfo.name ?? readString(memberDoc.fields, "name") ?? currentSession.name),
+      status: stringField("active"),
+      lastSignInAt: timestampField(now),
+      updatedAt: timestampField(now),
+    },
+    adminIdToken,
+    ["uid", "email", "name", "status", "lastSignInAt", "updatedAt"],
+  );
+
+  await patchDocument(
+    `users/${localUid}`,
+    {
+      linkedGoogleUid: stringField(input.firebaseSession.localId),
+      linkedGoogleEmail: stringField(normalizedEmail),
+      linkedGoogleAt: timestampField(now),
+    },
+    adminIdToken,
+    ["linkedGoogleUid", "linkedGoogleEmail", "linkedGoogleAt"],
+  );
+
+  return switchSessionIdentity(currentSession, {
+    uid: input.firebaseSession.localId,
+    memberId,
+    role: "player",
+    email: normalizedEmail,
+    name: input.tokenInfo.name ?? currentSession.name,
+    picture: input.tokenInfo.picture ?? currentSession.picture,
+  });
+}
+
 export async function POST(request: NextRequest) {
+  const currentSession = getSessionFromRequest(request);
   const formData = await request.formData();
   const credential = formData.get("credential");
   const csrfBody = formData.get("g_csrf_token");
   const csrfCookie = request.cookies.get("g_csrf_token")?.value;
+  const intent = request.nextUrl.searchParams.get("intent")?.trim() ?? "";
 
   if (
     typeof csrfBody !== "string" ||
@@ -274,15 +424,31 @@ export async function POST(request: NextRequest) {
       publicOrigin,
     );
     const normalizedEmail = (tokenInfo.email ?? firebaseSession.email ?? "").trim().toLowerCase();
+    if (intent === "link_account") {
+      if (!currentSession) {
+        return redirectToPath(request, "/profile", { googleAccountError: "unauthorized" });
+      }
+      const nextSession = await linkManagedChildToGoogleAccount({
+        requestSession: currentSession,
+        firebaseSession,
+        tokenInfo,
+      });
+      const redirect = redirectToPath(request, "/profile", { googleAccount: "linked" });
+      setSessionUserCookie(redirect, nextSession);
+      return redirect;
+    }
     let resolvedRole: SessionUser["role"] = "player";
+    let resolvedMemberId = firebaseSession.localId;
     if (firebaseSession) {
       const result = await upsertFirebaseUser(firebaseSession, tokenInfo);
       resolvedRole = result.role;
+      resolvedMemberId = result.memberId;
     }
 
     const redirect = redirectToPath(request, "/");
     const sessionCookie: SessionUser = {
       uid: firebaseSession.localId,
+      memberId: resolvedMemberId,
       role: resolvedRole,
       email: normalizedEmail,
       name: tokenInfo.name ?? firebaseSession.displayName ?? "",
@@ -298,6 +464,9 @@ export async function POST(request: NextRequest) {
         ? error.message.slice(0, 120)
         : "unknown";
     console.error("[GSI_AUTH_ERROR]", reason);
+    if (intent === "link_account") {
+      return redirectToPath(request, "/profile", { googleAccountError: "link_failed" });
+    }
     return redirectToPath(request, "/", { error: "google_signin_failed" });
   }
 }

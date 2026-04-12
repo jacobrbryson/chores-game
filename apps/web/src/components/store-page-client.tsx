@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
+import { Alert } from "@/components/alert";
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
@@ -357,10 +358,10 @@ export function StorePageClient() {
         </div>
       </div>
       {isLoading ? <p className="small">Loading store...</p> : null}
-      {!isLoading && error ? <p className="small family-error">Could not load store: {error}</p> : null}
+      {!isLoading && error ? <Alert>Could not load store: {error}</Alert> : null}
       {!isLoading && !error && summary ? (
         <>
-          {actionError ? <p className="small family-error mb-3">Store update failed: {actionError}</p> : null}
+          {actionError ? <Alert className="mb-3">Store update failed: {actionError}</Alert> : null}
           <div className="store-grid">
             {summary.categories.map((category) => (
               <article key={category.id} className="store-card">

@@ -27,6 +27,7 @@ export type GoogleTasksUserLink = {
   familyId: string;
   email: string;
   displayName: string;
+  accountLinked: boolean;
   linked: boolean;
   linkedAt: string;
   refreshToken: string;
@@ -43,6 +44,7 @@ export type GoogleTasksUserLink = {
 };
 
 export type GoogleTasksProfileState = {
+  accountLinked: boolean;
   linked: boolean;
   linkedAt?: string;
   lastSyncedAt?: string;
@@ -169,6 +171,7 @@ export async function getGoogleTasksUserLink(uid: string, idToken: string): Prom
     familyId: readStringArray(userDoc.fields, "familyIds")[0] ?? "",
     email: readString(userDoc.fields, "email"),
     displayName: readString(userDoc.fields, "displayName") || readString(userDoc.fields, "name"),
+    accountLinked: readString(userDoc.fields, "provider") === "google",
     linked: readBoolean(userDoc.fields, "googleTasksLinked"),
     linkedAt: readTimestamp(userDoc.fields, "googleTasksLinkedAt") || "",
     refreshToken: readString(userDoc.fields, "googleTasksRefreshToken"),
@@ -480,6 +483,7 @@ export async function getGoogleTasksProfileState(uid: string, idToken: string): 
   const resolved = await resolveGoogleTaskListsForUser(uid, idToken);
   if (!resolved.link.linked) {
     return {
+      accountLinked: resolved.link.accountLinked,
       linked: false,
       lastSyncStatus: resolved.link.lastSyncStatus,
       lastSyncError: resolved.link.lastSyncError || undefined,
@@ -491,6 +495,7 @@ export async function getGoogleTasksProfileState(uid: string, idToken: string): 
   const selectedTaskListIds = resolved.selectedTaskLists.map((entry) => entry.id);
   const selectedTaskListTitles = resolved.selectedTaskLists.map((entry) => entry.title);
   return {
+    accountLinked: resolved.link.accountLinked,
     linked: true,
     linkedAt: resolved.link.linkedAt || undefined,
     lastSyncedAt: resolved.link.lastSyncedAt || undefined,

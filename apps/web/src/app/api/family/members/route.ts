@@ -7,6 +7,7 @@ import { createFamilyForUser } from "@/lib/family/bootstrap";
 import {
   boolField,
   createOrReplaceDocument,
+  integerField,
   findFirstFamilyIdByMemberUid,
   getDocument,
   listDocuments,
@@ -17,6 +18,11 @@ import {
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
+import {
+  DEFAULT_COLOR_THEME_OPTION_ID,
+  DEFAULT_CONFETTI_OPTION_ID,
+  findColorThemeOptionById,
+} from "@/lib/store/catalog";
 
 type AddMemberBody = {
   name?: string;
@@ -118,8 +124,12 @@ export async function POST(request: NextRequest) {
   if (email && !isLikelyEmail(email)) {
     return NextResponse.json({ error: "invalid_email" }, { status: 400 });
   }
+  if (role === "admin" && !email) {
+    return NextResponse.json({ error: "email_required_for_admin" }, { status: 400 });
+  }
 
-  try {    const { data, session: refreshedSession, refreshed } =
+  try {
+    const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
         let familyIds = await getUserFamilyIds(session.uid, idToken);
         let familyId = familyIds[0];
@@ -139,6 +149,12 @@ export async function POST(request: NextRequest) {
           familyIds = [familyId];
         }
 
+        const defaultTheme = findColorThemeOptionById(DEFAULT_COLOR_THEME_OPTION_ID)?.theme ?? {
+          primary: "#0072b2",
+          secondary: "#56b4e9",
+          tertiary: "#1b2a41",
+        };
+        const isManagedLocalPlayer = role === "player" && !email;
         const memberId = email || randomUUID();
         const existingMembers = await listDocuments(`families/${familyId}/members`, idToken, 300);
         const activeMemberCount = existingMembers.filter(
@@ -155,14 +171,45 @@ export async function POST(request: NextRequest) {
           {
             name: stringField(name),
             email: stringField(email),
+            uid: stringField(isManagedLocalPlayer ? memberId : ""),
             role: stringField(role),
-            status: stringField("invited"),
+            status: stringField(isManagedLocalPlayer ? "active" : "invited"),
             deleted: boolField(false),
+            dashboardPrimaryColor: stringField(defaultTheme.primary),
+            selectedConfettiOptionId: stringField(DEFAULT_CONFETTI_OPTION_ID),
             createdBy: stringField(session.uid),
             createdAt: timestampField(now),
           },
           idToken,
         );
+        if (isManagedLocalPlayer) {
+          await createOrReplaceDocument(
+            `users/${memberId}`,
+            {
+              uid: stringField(memberId),
+              role: stringField("player"),
+              provider: stringField("local"),
+              email: stringField(""),
+              displayName: stringField(name),
+              familyIds: stringArrayField([familyId]),
+              walletBalance: integerField(0),
+              ownedStoreOptionIds: stringArrayField([
+                DEFAULT_COLOR_THEME_OPTION_ID,
+                DEFAULT_CONFETTI_OPTION_ID,
+              ]),
+              preferencesThemeOptionId: stringField(DEFAULT_COLOR_THEME_OPTION_ID),
+              preferencesThemePrimaryColor: stringField(defaultTheme.primary),
+              preferencesThemeSecondaryColor: stringField(defaultTheme.secondary),
+              preferencesThemeTertiaryColor: stringField(defaultTheme.tertiary),
+              selectedConfettiOptionId: stringField(DEFAULT_CONFETTI_OPTION_ID),
+              createdAt: timestampField(now),
+              lastFamilyUpdateAt: timestampField(now),
+              storeUpdatedAt: timestampField(now),
+              preferencesUpdatedAt: timestampField(now),
+            },
+            idToken,
+          );
+        }
         if (email) {
           await createOrReplaceDocument(
             `inviteLookup/${email}`,
@@ -179,7 +226,13 @@ export async function POST(request: NextRequest) {
         return {
           kind: "ok" as const,
           familyId,
-          member: { id: memberId, name, email, role, status: "invited" },
+          member: {
+            id: memberId,
+            name,
+            email,
+            role,
+            status: isManagedLocalPlayer ? "active" : "invited",
+          },
         };
       });
 

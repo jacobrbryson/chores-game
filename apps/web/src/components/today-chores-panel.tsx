@@ -1,8 +1,9 @@
 ﻿"use client";
 
 import { AddEditChoresDialog, type AddEditChoreSavedResult } from "@/components/add-edit-chores-dialog";
-import { Avatar } from "@/components/avatar";
+import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
+import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import {
   CategoryScale,
@@ -990,9 +991,7 @@ export function TodayChoresPanel({
               ) : null}
             </div>
           </div>
-          {choreActionError ? (
-            <p className="small family-error mb-3">Chore update failed: {choreActionError}</p>
-          ) : null}
+          {choreActionError ? <Alert className="mb-3">Chore update failed: {choreActionError}</Alert> : null}
           {visibleChores.length === 0 ? (
             <div className="flex flex-col gap-3 pt-1">
               <p className="small">
@@ -1088,9 +1087,7 @@ export function TodayChoresPanel({
             />
           </div>
           {completionLoading ? <p className="small">Loading chart...</p> : null}
-          {!completionLoading && completionError ? (
-            <p className="small family-error">Could not load chart: {completionError}</p>
-          ) : null}
+          {!completionLoading && completionError ? <Alert>Could not load chart: {completionError}</Alert> : null}
           {!completionLoading && !completionError ? (
             <>
               <ul className="completion-chart-list">
@@ -1131,17 +1128,14 @@ export function TodayChoresPanel({
                           );
                         }}
                         aria-label={`View ${entry.name}'s completed chores in this range`}>
-                        <Avatar
+                        <FamilyMemberAvatar
                           className="completion-chart-avatar"
                           size={32}
                           borderWidth={1}
                           name={entry.name}
                           avatarId={entry.avatarId}
-                          photoUrl={entry.avatarPhotoUrl}
+                          avatarPhotoUrl={entry.avatarPhotoUrl}
                           primaryColor={avatarPrimaryColor || undefined}
-                          secondaryColor={avatarPrimaryColor || undefined}
-                          fallbackColor={avatarPrimaryColor ? "#ffffff" : undefined}
-                          referrerPolicy="no-referrer"
                         />
                         <div className="completion-chart-content">
                           <div className="completion-chart-meta">

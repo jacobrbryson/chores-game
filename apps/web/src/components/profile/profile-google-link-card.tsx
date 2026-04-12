@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
@@ -54,12 +55,8 @@ export function ProfileGoogleLinkCard({
         <h2>Link with Google</h2>
         <div className="profile-google-content-grid">
           <div className="profile-google-content-copy">
-            {googleTasksRedirectError ? (
-              <p className="small family-error">Could not finish Google link: {googleTasksRedirectError}</p>
-            ) : null}
-            {googleTasksError ? (
-              <p className="small family-error">Google Tasks update failed: {googleTasksError}</p>
-            ) : null}
+            {googleTasksRedirectError ? <Alert>Could not finish Google link: {googleTasksRedirectError}</Alert> : null}
+            {googleTasksError ? <Alert>Google Tasks update failed: {googleTasksError}</Alert> : null}
             {googleTasksLoading ? <p className="small">Loading Google link status...</p> : null}
             {!googleTasksLoading && !googleTasksLinked ? (
               <>
@@ -67,20 +64,10 @@ export function ProfileGoogleLinkCard({
                   Family Chores can link your profile to Google Tasks so your chore checklist stays in sync with the
                   Google tools your family already uses.
                 </p>
-                <p className="small profile-google-policy-alert">
-                  <span className="profile-google-policy-alert-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" focusable="false">
-                      <path
-                        d="M12 3.5 2.8 19.5a1 1 0 0 0 .87 1.5h16.66a1 1 0 0 0 .87-1.5L12 3.5Zm0 5.3a1 1 0 0 1 1 1v5.1a1 1 0 1 1-2 0V9.8a1 1 0 0 1 1-1Zm0 9a1.15 1.15 0 1 1 0 2.3 1.15 1.15 0 0 1 0-2.3Z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                  </span>
-                  <span>
-                    Syncing shares linked Google Tasks with all family members. Only guardians (admins) can
-                    complete another family member&apos;s tasks.
-                  </span>
-                </p>
+                <Alert tone="warning">
+                  Syncing shares linked Google Tasks with all family members. Only guardians (admins) can complete
+                  another family member&apos;s tasks.
+                </Alert>
                 <div className="profile-google-link-center-wrap">
                   <GoogleSignInButton
                     mode="action"
@@ -121,7 +108,7 @@ export function ProfileGoogleLinkCard({
                   </div>
                 ) : null}
                 {googleTasksSummary?.lastSyncError ? (
-                  <p className="small family-error">Last sync issue: {googleTasksSummary.lastSyncError}</p>
+                  <Alert>Last sync issue: {googleTasksSummary.lastSyncError}</Alert>
                 ) : null}
                 <div className="profile-google-actions">
                   {showGoogleTasksSyncNow ? (

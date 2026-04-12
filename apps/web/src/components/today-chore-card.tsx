@@ -3,10 +3,10 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
-import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { ChoreCategoriesChip } from "@/components/chore-categories-chip";
 import { CoinIcon } from "@/components/coin-icon";
+import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { ModalShell } from "@/components/modal-shell";
 import type { FamilySnapshotChore } from "@/lib/family/types";
 
@@ -198,16 +198,14 @@ export function TodayChoreCard({
       <div className="flex min-w-0 flex-col gap-3 rounded-lg">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
-            <Avatar
+            <FamilyMemberAvatar
               className="today-chore-avatar text-sm font-semibold"
-              size={40}
+              size={32}
+              borderWidth={1}
               name={chore.assigneeName}
               avatarId={assigneeAvatarId}
-              photoUrl={assigneeAvatarPhotoUrl}
+              avatarPhotoUrl={assigneeAvatarPhotoUrl}
               primaryColor={assigneePrimaryColor || undefined}
-              secondaryColor={assigneePrimaryColor || undefined}
-              fallbackColor={assigneePrimaryColor ? "#ffffff" : undefined}
-              referrerPolicy="no-referrer"
             />
             <div className="flex min-w-0 flex-col items-start gap-1">
               <span className="today-chore-title-row">

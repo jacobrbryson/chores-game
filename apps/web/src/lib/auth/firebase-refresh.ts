@@ -1,4 +1,4 @@
-import type { SessionUser } from "@/lib/auth/session";
+import { getAuthenticatedSessionIdentity, type SessionUser } from "@/lib/auth/session";
 
 type FirebaseRefreshResponse = {
   id_token: string;
@@ -14,6 +14,7 @@ function isFirestoreUnauthorizedError(error: unknown) {
 }
 
 async function refreshFirebaseSession(session: SessionUser) {
+  const authenticated = getAuthenticatedSessionIdentity(session);
   const apiKey = process.env.FIREBASE_WEB_API_KEY;
   if (!apiKey) {
     throw new Error("FIREBASE_API_KEY_MISSING");
@@ -48,7 +49,7 @@ async function refreshFirebaseSession(session: SessionUser) {
   }
 
   const refreshed = (await response.json()) as FirebaseRefreshResponse;
-  if (refreshed.user_id !== session.uid) {
+  if (refreshed.user_id !== authenticated.uid) {
     throw new Error("FIREBASE_REFRESH_UID_MISMATCH");
   }
 

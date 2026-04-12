@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
+import { Alert } from "@/components/alert";
 import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
@@ -1120,14 +1121,10 @@ export default function ChoresPage() {
             {hasShortSearch ? <p className="small">Type at least 3 characters to filter.</p> : null}
           </div>
           {isLoading ? <p className="small">Loading chores...</p> : null}
-          {!isLoading && loadError ? (
-            <p className="small family-error">Could not load chores: {loadError}</p>
-          ) : null}
+          {!isLoading && loadError ? <Alert>Could not load chores: {loadError}</Alert> : null}
           {!isLoading && !loadError ? (
             <>
-              {actionError ? (
-                <p className="small family-error mb-3">Chore update failed: {actionError}</p>
-              ) : null}
+              {actionError ? <Alert className="mb-3">Chore update failed: {actionError}</Alert> : null}
               {chores.length === 0 ? (
                 <div className="flex flex-col gap-3">
                   <p className="small">No chores found.</p>

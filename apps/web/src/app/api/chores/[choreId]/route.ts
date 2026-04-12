@@ -440,11 +440,11 @@ function readOptionalSortOrder(
   return normalized;
 }
 
-function isRequesterAssignee(choreAssigneeId: string, uid: string, email: string) {
+function isRequesterAssignee(choreAssigneeId: string, uid: string, memberId: string, email: string) {
   if (!choreAssigneeId) {
     return false;
   }
-  if (choreAssigneeId === uid) {
+  if (choreAssigneeId === uid || choreAssigneeId === memberId) {
     return true;
   }
   const normalizedAssignee = normalizeEmail(choreAssigneeId);
@@ -615,7 +615,7 @@ export async function PATCH(
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
           if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
             syncOwnerUid = choreGoogleTaskOwnerUid;
-          } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.email)) {
+          } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.memberId, session.email)) {
             syncOwnerUid = session.uid;
           }
           if (currentStatus !== "Open") {
@@ -624,6 +624,7 @@ export async function PATCH(
           const requesterOwnsChore = isRequesterAssignee(
             choreAssigneeId,
             session.uid,
+            session.memberId,
             session.email,
           );
           if (!requesterOwnsChore) {
@@ -702,7 +703,7 @@ export async function PATCH(
           const choreCoinValue = Math.max(0, readInteger(existingChoreDoc.fields, "coinValue") || 0);
           if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
             syncOwnerUid = choreGoogleTaskOwnerUid;
-          } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.email)) {
+          } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.memberId, session.email)) {
             syncOwnerUid = session.uid;
           }
           if (currentStatus !== "Submitted" && currentStatus !== "Approved") {
@@ -827,8 +828,8 @@ export async function PATCH(
           if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
             syncOwnerUid = choreGoogleTaskOwnerUid;
           } else if (
-            isRequesterAssignee(previousAssigneeId, session.uid, session.email) ||
-            isRequesterAssignee(assigneeId, session.uid, session.email)
+            isRequesterAssignee(previousAssigneeId, session.uid, session.memberId, session.email) ||
+            isRequesterAssignee(assigneeId, session.uid, session.memberId, session.email)
           ) {
             syncOwnerUid = session.uid;
           }
@@ -1032,7 +1033,7 @@ export async function DELETE(
             force: true,
             minIntervalSeconds: 0,
           });
-        } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.email)) {
+        } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.memberId, session.email)) {
           await syncGoogleTasksForUser({
             uid: session.uid,
             idToken,

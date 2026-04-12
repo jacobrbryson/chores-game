@@ -52,6 +52,10 @@ function resolveInitial(name?: string, initial?: string) {
   return "?";
 }
 
+function normalizeColorValue(value?: string) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
 export function Avatar({
   name,
   initial,
@@ -75,12 +79,18 @@ export function Avatar({
 }: AvatarProps) {
   const src = resolveAvatarSrc(avatarId, photoUrl);
   const fallbackText = resolveInitial(name, initial);
+  const normalizedPrimaryColor = normalizeColorValue(primaryColor);
+  const normalizedSecondaryColor = normalizeColorValue(secondaryColor);
+  const resolvedSecondaryColor =
+    !src && normalizedPrimaryColor && normalizedPrimaryColor === normalizedSecondaryColor
+      ? `color-mix(in srgb, ${primaryColor} 72%, white)`
+      : secondaryColor;
   const avatarStyle = {
     ...style,
     ...(size ? { "--avatar-size": `${size}px` } : {}),
     ...(borderWidth ? { "--avatar-border-width": `${borderWidth}px` } : {}),
     ...(primaryColor ? { "--avatar-primary": primaryColor } : {}),
-    ...(secondaryColor ? { "--avatar-secondary": secondaryColor } : {}),
+    ...(resolvedSecondaryColor ? { "--avatar-secondary": resolvedSecondaryColor } : {}),
     ...(fallbackColor ? { "--avatar-fallback-color": fallbackColor } : {}),
   } as CSSProperties;
 

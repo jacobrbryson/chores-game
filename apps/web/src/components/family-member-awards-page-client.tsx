@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
+import { Alert } from "@/components/alert";
 import { BackLink } from "@/components/back-link";
 import { formatDateTime } from "@/components/profile/profile-page.utils";
 import { findFamilyRewardImageOption } from "@/lib/family/rewards";
@@ -77,9 +78,7 @@ export function FamilyMemberAwardsPageClient({
       </p>
 
       {isLoading ? <p className="small">Loading awards...</p> : null}
-      {!isLoading && error ? (
-        <p className="small family-error">Could not load awards: {error}</p>
-      ) : null}
+      {!isLoading && error ? <Alert>Could not load awards: {error}</Alert> : null}
 
       {!isLoading && !error && summary ? (
         <section className="family-page-card family-member-awards-card" aria-label="Claimed family awards">

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { Alert } from "@/components/alert";
 import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
@@ -130,9 +131,7 @@ export function FamilyMemberProfileClient({
       </p>
 
       {isLoading ? <p className="small">Loading family profile...</p> : null}
-      {!isLoading && error ? (
-        <p className="small family-error">Could not load family profile: {error}</p>
-      ) : null}
+      {!isLoading && error ? <Alert>Could not load family profile: {error}</Alert> : null}
 
       {!isLoading && !error && profile ? (
         <>
@@ -252,9 +251,7 @@ export function FamilyMemberProfileClient({
               </Link>
             </div>
 
-            {claimError ? (
-              <p className="small family-error">Could not claim award: {claimError}</p>
-            ) : null}
+            {claimError ? <Alert>Could not claim award: {claimError}</Alert> : null}
 
             {profile.unclaimedAwards.length === 0 ? (
               <p className="small">

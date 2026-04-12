@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "@/components/alert";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
@@ -216,7 +217,7 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
 
           {isLoading ? <p className="small">Loading notifications...</p> : null}
           {!isLoading && error ? (
-            <p className="small family-error">Could not load notifications: {error}</p>
+            <Alert>Could not load notifications: {error}</Alert>
           ) : null}
           {!isLoading && !error ? (
             items.length === 0 ? (

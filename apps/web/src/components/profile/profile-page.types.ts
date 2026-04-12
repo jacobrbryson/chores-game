@@ -5,6 +5,8 @@ export type ProfilePageClientProps = {
   email: string;
   role: "admin" | "player";
   picture?: string;
+  isSwitched?: boolean;
+  authenticatedName?: string;
 };
 
 export type StoreProfileSummary = {
@@ -29,6 +31,7 @@ export type GoogleTasksTaskListOption = {
 };
 
 export type GoogleTasksProfileSummary = {
+  accountLinked?: boolean;
   linked: boolean;
   linkedAt?: string;
   lastSyncedAt?: string;

@@ -164,11 +164,11 @@ function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
 
-function isRequesterAssignee(assigneeId: string, uid: string, email: string) {
+function isRequesterAssignee(assigneeId: string, uid: string, memberId: string, email: string) {
   if (!assigneeId) {
     return false;
   }
-  if (assigneeId === uid) {
+  if (assigneeId === uid || assigneeId === memberId) {
     return true;
   }
   const normalizedEmail = normalizeEmail(email);
@@ -242,12 +242,11 @@ async function incrementUsageCount(
   path: string,
   description: string,
   idToken: string,
-  usageField: "familyCount" | "globalCount",
 ) {
   let currentCount = 0;
   try {
     const doc = await getDocument(path, idToken);
-    currentCount = readInteger(doc.fields, usageField);
+    currentCount = readInteger(doc.fields, "familyCount");
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";
     if (!reason.includes("FIRESTORE_HTTP_404")) {
@@ -261,7 +260,7 @@ async function incrementUsageCount(
     {
       description: stringField(description),
       normalized: stringField(description.toLowerCase()),
-      [usageField]: integerField(currentCount + 1),
+      familyCount: integerField(currentCount + 1),
       updatedAt: timestampField(now),
     },
     idToken,
@@ -1243,18 +1242,11 @@ export async function POST(request: NextRequest) {
               `families/${familyId}/choreUsage/${key}`,
               title,
               idToken,
-              "familyCount",
-            );
-            await incrementUsageCount(
-              `choreUsageGlobal/${key}`,
-              title,
-              idToken,
-              "globalCount",
             );
           }),
         );
 
-        if (isRequesterAssignee(assigneeId, session.uid, session.email)) {
+        if (isRequesterAssignee(assigneeId, session.uid, session.memberId, session.email)) {
           await syncGoogleTasksForUser({
             uid: session.uid,
             idToken,

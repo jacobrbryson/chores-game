@@ -3,7 +3,11 @@ import { AppBrand } from "@/components/app-brand";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { HeaderStoreLink } from "@/components/header-store-link";
 import { ProfileMenu } from "@/components/profile-menu";
-import { parseSessionToken } from "@/lib/auth/session";
+import {
+  getAuthenticatedSessionIdentity,
+  isSessionSwitched,
+  parseSessionToken,
+} from "@/lib/auth/session";
 
 export async function AppHeader() {
   const googleClientId =
@@ -12,6 +16,9 @@ export async function AppHeader() {
   const gsiLoginUri = appUrl ? `${appUrl}/api/auth/google/gsi` : undefined;
   const cookieStore = await cookies();
   const sessionUser = parseSessionToken(cookieStore.get("session_user")?.value);
+  const authenticatedIdentity = sessionUser
+    ? getAuthenticatedSessionIdentity(sessionUser)
+    : null;
   const profileInitial =
     sessionUser?.name?.trim().charAt(0).toUpperCase() ||
     sessionUser?.email?.trim().charAt(0).toUpperCase() ||
@@ -31,6 +38,8 @@ export async function AppHeader() {
               email={sessionUser.email}
               picture={sessionUser.picture}
               initial={profileInitial}
+              isSwitched={sessionUser ? isSessionSwitched(sessionUser) : false}
+              authenticatedName={authenticatedIdentity?.name || authenticatedIdentity?.email || ""}
             />
           </>
         ) : googleClientId && gsiLoginUri ? (

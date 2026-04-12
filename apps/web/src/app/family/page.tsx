@@ -3,6 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useMemo, useState } from "react";
+import { AccountSwitchModal } from "@/components/account-switch-modal";
+import { Alert } from "@/components/alert";
+import { AppMenu } from "@/components/app-menu";
 import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
@@ -24,6 +27,11 @@ type AddMemberState = {
 };
 
 type PendingRemoveMember = {
+  id: string;
+  name: string;
+};
+
+type PendingSwitchMember = {
   id: string;
   name: string;
 };
@@ -74,6 +82,7 @@ type AddMemberFieldsProps = {
 function AddMemberFields({ form, setForm }: AddMemberFieldsProps) {
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const roleLabel = form.role === "admin" ? "Parent (admin)" : "Child (player)";
+  const emailIsRequired = form.role === "admin";
 
   return (
     <>
@@ -95,14 +104,19 @@ function AddMemberFields({ form, setForm }: AddMemberFieldsProps) {
         <span className="text-sm font-medium text-slate-700">Email</span>
         <input
           type="email"
-          required
+          required={emailIsRequired}
           value={form.email}
           onChange={(event) =>
             setForm((current) => ({ ...current, email: event.target.value }))
           }
-          placeholder="avery@example.com"
+          placeholder={emailIsRequired ? "avery@example.com" : "Optional for children"}
           className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
         />
+        {form.role === "player" ? (
+          <span className="small text-slate-500">
+            Leave blank to create a managed child profile without Google sign-in for now.
+          </span>
+        ) : null}
       </label>
       <label className="flex w-full flex-col gap-1.5">
         <span className="text-sm font-medium text-slate-700">Role</span>
@@ -204,6 +218,24 @@ function canReinviteMember(member: FamilyMember) {
   return member.status !== "active";
 }
 
+function canSwitchToMember(member: FamilyMember) {
+  return member.role === "player";
+}
+
+function memberMenuKey(memberId: string, surface: "desktop" | "mobile") {
+  return `${surface}:${memberId}`;
+}
+
+function ActionMenuDots() {
+  return (
+    <span className="action-menu-dots" aria-hidden="true">
+      <span />
+      <span />
+      <span />
+    </span>
+  );
+}
+
 function normalizeCategoryColor(value: string) {
   const normalized = value.trim().toLowerCase();
   return /^#[0-9a-f]{6}$/.test(normalized) ? normalized : "";
@@ -222,6 +254,13 @@ export default function FamilyPage() {
   const [memberActionError, setMemberActionError] = useState("");
   const [pendingRemoveMember, setPendingRemoveMember] =
     useState<PendingRemoveMember | null>(null);
+  const [pendingSwitchMember, setPendingSwitchMember] = useState<PendingSwitchMember | null>(null);
+  const [switchPin, setSwitchPin] = useState("");
+  const [switchPinConfirm, setSwitchPinConfirm] = useState("");
+  const [switchPending, setSwitchPending] = useState(false);
+  const [switchError, setSwitchError] = useState("");
+  const [switchRequiresPinSetup, setSwitchRequiresPinSetup] = useState(false);
+  const [openMemberMenuId, setOpenMemberMenuId] = useState("");
   const [showAddMemberForm, setShowAddMemberForm] = useState(false);
 
   const [showCategoryManager, setShowCategoryManager] = useState(false);
@@ -454,6 +493,116 @@ export default function FamilyPage() {
     setRewardForm(initialRewardFormState);
     setRewardError("");
     setShowRewardEditor(false);
+  }
+
+  async function onSwitchAccount() {
+    if (!pendingSwitchMember || switchPending) {
+      return;
+    }
+    setSwitchPending(true);
+    setSwitchError("");
+    try {
+      const response = await fetch("/api/account-switch/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberId: pendingSwitchMember.id,
+          pin: switchPin,
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        if (body.error === "pin_not_configured") {
+          setSwitchRequiresPinSetup(true);
+          throw new Error("pin_not_configured");
+        }
+        throw new Error(body.error ?? `SWITCH_ACCOUNT_HTTP_${response.status}`);
+      }
+      if (typeof window !== "undefined") {
+        window.location.assign("/");
+      }
+    } catch (errorValue) {
+      setSwitchError(errorValue instanceof Error ? errorValue.message : "switch_account_failed");
+    } finally {
+      setSwitchPending(false);
+    }
+  }
+
+  async function onSetupPinAndSwitch() {
+    if (!pendingSwitchMember || switchPending) {
+      return;
+    }
+    setSwitchPending(true);
+    setSwitchError("");
+    try {
+      const pinResponse = await fetch("/api/account-switch/pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pin: switchPin,
+          confirmPin: switchPinConfirm,
+        }),
+      });
+      if (!pinResponse.ok) {
+        const body = (await pinResponse.json()) as { error?: string };
+        throw new Error(body.error ?? `PIN_SETUP_HTTP_${pinResponse.status}`);
+      }
+
+      const switchResponse = await fetch("/api/account-switch/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberId: pendingSwitchMember.id,
+          pin: switchPin,
+        }),
+      });
+      if (!switchResponse.ok) {
+        const body = (await switchResponse.json()) as { error?: string };
+        throw new Error(body.error ?? `SWITCH_ACCOUNT_HTTP_${switchResponse.status}`);
+      }
+
+      if (typeof window !== "undefined") {
+        window.location.assign("/");
+      }
+    } catch (errorValue) {
+      setSwitchError(errorValue instanceof Error ? errorValue.message : "switch_account_failed");
+    } finally {
+      setSwitchPending(false);
+    }
+  }
+
+  function openSwitchMemberModal(member: PendingSwitchMember) {
+    setPendingSwitchMember(member);
+    setSwitchPin("");
+    setSwitchPinConfirm("");
+    setSwitchError("");
+    setSwitchRequiresPinSetup(false);
+  }
+
+  function closeSwitchMemberModal() {
+    setPendingSwitchMember(null);
+    setSwitchPin("");
+    setSwitchPinConfirm("");
+    setSwitchError("");
+    setSwitchRequiresPinSetup(false);
+  }
+
+  function closeMemberMenu() {
+    setOpenMemberMenuId("");
+  }
+
+  function setMemberMenuOpen(memberId: string, open: boolean) {
+    setOpenMemberMenuId(open ? memberId : "");
+    if (open) {
+      setOpenRewardMenuId("");
+    }
+  }
+
+  function setRewardMenuOpen(rewardId: string, open: boolean) {
+    setOpenRewardMenuId(open ? rewardId : "");
+    if (open) {
+      setOpenMemberMenuId("");
+    }
   }
 
   function openAddRewardDialog() {
@@ -695,9 +844,7 @@ export default function FamilyPage() {
           </div>
 
           {isLoading ? <p className="small">Loading family members...</p> : null}
-          {!isLoading && error ? (
-            <p className="small family-error">Could not load members: {error}</p>
-          ) : null}
+          {!isLoading && error ? <Alert>Could not load members: {error}</Alert> : null}
           {!isLoading && !error ? (
             <>
               {summary?.pendingInvite ? (
@@ -712,9 +859,7 @@ export default function FamilyPage() {
                       app will create your family with you as the admin.
                     </p>
                   ) : null}
-                  {memberActionError ? (
-                    <p className="small family-error">Member update failed: {memberActionError}</p>
-                  ) : null}
+                  {memberActionError ? <Alert>Member update failed: {memberActionError}</Alert> : null}
                   <div className="family-page-grid">
                     <section className="family-page-card" aria-label="Family members">
                       <div className="family-page-card-header">
@@ -796,13 +941,40 @@ export default function FamilyPage() {
                                     {canManageMembers &&
                                     member.id !== viewerUid &&
                                     member.uid !== viewerUid ? (
-                                      <div className="member-actions">
+                                      <AppMenu
+                                        open={openMemberMenuId === memberMenuKey(member.id, "desktop")}
+                                        onOpenChange={(open) =>
+                                          setMemberMenuOpen(memberMenuKey(member.id, "desktop"), open)
+                                        }
+                                        wrapperClassName="flex items-center justify-end"
+                                        triggerClassName="btn btn-secondary member-action-btn"
+                                        triggerDisabled={Boolean(memberActionLoading) || switchPending}
+                                        triggerTitle="Member actions"
+                                        triggerAriaLabel={`Open actions for ${member.name}`}
+                                        panelClassName="app-menu-panel family-action-dropdown"
+                                        trigger={<ActionMenuDots />}>
+                                        {canSwitchToMember(member) ? (
+                                          <Button
+                                            type="button"
+                                            className="menu-action-link menu-action-link-full"
+                                            onClick={() => {
+                                              closeMemberMenu();
+                                              openSwitchMemberModal({
+                                                id: member.id,
+                                                name: member.name,
+                                              });
+                                            }}>
+                                            Switch To
+                                          </Button>
+                                        ) : null}
                                         {canReinviteMember(member) ? (
                                           <Button
                                             type="button"
-                                            className="btn btn-secondary member-action-btn"
-                                            disabled={Boolean(memberActionLoading)}
-                                            onClick={() => onMemberAction(member.id, "reinvite")}>
+                                            className="menu-action-link menu-action-link-full"
+                                            onClick={() => {
+                                              closeMemberMenu();
+                                              void onMemberAction(member.id, "reinvite");
+                                            }}>
                                             {memberActionLoading?.memberId === member.id &&
                                             memberActionLoading.action === "reinvite"
                                               ? "Working..."
@@ -811,20 +983,20 @@ export default function FamilyPage() {
                                         ) : null}
                                         <Button
                                           type="button"
-                                          className="btn member-action-remove"
-                                          disabled={Boolean(memberActionLoading)}
-                                          onClick={() =>
+                                          className="menu-action-link menu-action-link-full menu-action-link-danger"
+                                          onClick={() => {
+                                            closeMemberMenu();
                                             setPendingRemoveMember({
                                               id: member.id,
                                               name: member.name,
-                                            })
-                                          }>
+                                            });
+                                          }}>
                                           {memberActionLoading?.memberId === member.id &&
                                           memberActionLoading.action === "remove"
                                             ? "Working..."
                                             : "Remove"}
                                         </Button>
-                                      </div>
+                                      </AppMenu>
                                     ) : null}
                                   </td>
                                 </tr>
@@ -887,13 +1059,40 @@ export default function FamilyPage() {
                               {canManageMembers &&
                               member.id !== viewerUid &&
                               member.uid !== viewerUid ? (
-                                <div className="family-member-actions">
+                                <AppMenu
+                                  open={openMemberMenuId === memberMenuKey(member.id, "mobile")}
+                                  onOpenChange={(open) =>
+                                    setMemberMenuOpen(memberMenuKey(member.id, "mobile"), open)
+                                  }
+                                  wrapperClassName="flex justify-end"
+                                  triggerClassName="btn btn-secondary member-action-btn"
+                                  triggerDisabled={Boolean(memberActionLoading) || switchPending}
+                                  triggerTitle="Member actions"
+                                  triggerAriaLabel={`Open actions for ${member.name}`}
+                                  panelClassName="app-menu-panel family-action-dropdown"
+                                  trigger={<ActionMenuDots />}>
+                                  {canSwitchToMember(member) ? (
+                                    <Button
+                                      type="button"
+                                      className="menu-action-link menu-action-link-full"
+                                      onClick={() => {
+                                        closeMemberMenu();
+                                        openSwitchMemberModal({
+                                          id: member.id,
+                                          name: member.name,
+                                        });
+                                      }}>
+                                      Switch To
+                                    </Button>
+                                  ) : null}
                                   {canReinviteMember(member) ? (
                                     <Button
                                       type="button"
-                                      className="btn btn-secondary member-action-btn"
-                                      disabled={Boolean(memberActionLoading)}
-                                      onClick={() => onMemberAction(member.id, "reinvite")}>
+                                      className="menu-action-link menu-action-link-full"
+                                      onClick={() => {
+                                        closeMemberMenu();
+                                        void onMemberAction(member.id, "reinvite");
+                                      }}>
                                       {memberActionLoading?.memberId === member.id &&
                                       memberActionLoading.action === "reinvite"
                                         ? "Working..."
@@ -902,20 +1101,20 @@ export default function FamilyPage() {
                                   ) : null}
                                   <Button
                                     type="button"
-                                    className="btn member-action-remove"
-                                    disabled={Boolean(memberActionLoading)}
-                                    onClick={() =>
+                                    className="menu-action-link menu-action-link-full menu-action-link-danger"
+                                    onClick={() => {
+                                      closeMemberMenu();
                                       setPendingRemoveMember({
                                         id: member.id,
                                         name: member.name,
-                                      })
-                                    }>
+                                      });
+                                    }}>
                                     {memberActionLoading?.memberId === member.id &&
                                     memberActionLoading.action === "remove"
                                       ? "Working..."
                                       : "Remove"}
                                   </Button>
-                                </div>
+                                </AppMenu>
                               ) : null}
                             </article>
                           ))
@@ -974,9 +1173,7 @@ export default function FamilyPage() {
                           </Button>
                         ) : null}
                       </div>
-                      {rewardLoadError ? (
-                        <p className="small family-error">Could not load rewards: {rewardLoadError}</p>
-                      ) : null}
+                      {rewardLoadError ? <Alert>Could not load rewards: {rewardLoadError}</Alert> : null}
                       {orderedFamilyRewards.length > 0 ? (
                         <div className="family-category-manage-list">
                           {orderedFamilyRewards.map((reward) => {
@@ -1015,75 +1212,62 @@ export default function FamilyPage() {
                                   </div>
                                 </div>
                                 {canManageMembers ? (
-                                  <div className="relative flex items-center self-stretch">
+                                  <AppMenu
+                                    open={openRewardMenuId === reward.id}
+                                    onOpenChange={(open) => setRewardMenuOpen(reward.id, open)}
+                                    wrapperClassName="flex items-center self-stretch"
+                                    triggerClassName="btn btn-secondary member-action-btn"
+                                    triggerDisabled={Boolean(rewardActionLoading) || rewardSaving}
+                                    triggerTitle="Reward actions"
+                                    triggerAriaLabel={`Open actions for ${reward.description}`}
+                                    panelClassName="app-menu-panel family-action-dropdown"
+                                    trigger={<ActionMenuDots />}>
                                     <Button
                                       type="button"
-                                      className="btn btn-secondary member-action-btn"
-                                      disabled={Boolean(rewardActionLoading) || rewardSaving}
-                                      onClick={() =>
-                                        setOpenRewardMenuId((current) =>
-                                          current === reward.id ? "" : reward.id,
-                                        )
-                                      }
-                                      aria-haspopup="menu"
-                                      aria-expanded={openRewardMenuId === reward.id}
-                                      title="Reward actions">
-                                      ...
+                                      className="menu-action-link menu-action-link-full"
+                                      onClick={() => onEditReward(reward)}>
+                                      Edit
                                     </Button>
-                                    {openRewardMenuId === reward.id ? (
-                                      <div className="absolute right-0 top-1/2 z-20 min-w-32 -translate-y-1/2 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
-                                        <Button
-                                          type="button"
-                                          className="block w-full rounded px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                                          onClick={() => onEditReward(reward)}>
-                                          Edit
-                                        </Button>
-                                        {reward.disabled ? (
-                                          <Button
-                                            type="button"
-                                            className="block w-full rounded px-3 py-2 text-left text-sm text-emerald-700 hover:bg-emerald-50"
-                                            onClick={() => void onEnableReward(reward)}>
-                                            {rewardActionLoading?.rewardId === reward.id &&
-                                            rewardActionLoading.action === "enable"
-                                              ? "Re-enabling..."
-                                              : "Re-enable"}
-                                          </Button>
-                                        ) : null}
-                                        {reward.disabled ? (
-                                          <Button
-                                            type="button"
-                                            className="block w-full rounded px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
-                                            onClick={() =>
-                                              {
-                                                setOpenRewardMenuId("");
-                                                setPendingRemoveReward({
-                                                  id: reward.id,
-                                                  description: reward.description,
-                                                  playerNames: playerMemberNames,
-                                                });
-                                              }
-                                            }>
-                                            Delete
-                                          </Button>
-                                        ) : (
-                                          <Button
-                                            type="button"
-                                            className="block w-full rounded px-3 py-2 text-left text-sm text-amber-700 hover:bg-amber-50"
-                                            onClick={() =>
-                                              {
-                                                setOpenRewardMenuId("");
-                                                setPendingDisableReward({
-                                                  id: reward.id,
-                                                  description: reward.description,
-                                                });
-                                              }
-                                            }>
-                                            Disable
-                                          </Button>
-                                        )}
-                                      </div>
+                                    {reward.disabled ? (
+                                      <Button
+                                        type="button"
+                                        className="menu-action-link menu-action-link-full menu-action-link-success"
+                                        onClick={() => void onEnableReward(reward)}>
+                                        {rewardActionLoading?.rewardId === reward.id &&
+                                        rewardActionLoading.action === "enable"
+                                          ? "Re-enabling..."
+                                          : "Re-enable"}
+                                      </Button>
                                     ) : null}
-                                  </div>
+                                    {reward.disabled ? (
+                                      <Button
+                                        type="button"
+                                        className="menu-action-link menu-action-link-full menu-action-link-danger"
+                                        onClick={() => {
+                                          setOpenRewardMenuId("");
+                                          setPendingRemoveReward({
+                                            id: reward.id,
+                                            description: reward.description,
+                                            playerNames: playerMemberNames,
+                                          });
+                                        }}>
+                                        Delete
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        type="button"
+                                        className="menu-action-link menu-action-link-full menu-action-link-warning"
+                                        onClick={() => {
+                                          setOpenRewardMenuId("");
+                                          setPendingDisableReward({
+                                            id: reward.id,
+                                            description: reward.description,
+                                          });
+                                        }}>
+                                        Disable
+                                      </Button>
+                                    )}
+                                  </AppMenu>
                                 ) : null}
                               </div>
                             );
@@ -1183,7 +1367,7 @@ export default function FamilyPage() {
                 />
               </div>
             </label>
-            {categoryError ? <p className="small family-error">Category update failed: {categoryError}</p> : null}
+            {categoryError ? <Alert>Category update failed: {categoryError}</Alert> : null}
             <div className="family-modal-actions">
               {editingCategoryId ? (
                 <Button
@@ -1356,7 +1540,7 @@ export default function FamilyPage() {
                 })}
               </div>
             </label>
-            {rewardError ? <p className="small family-error">Reward update failed: {rewardError}</p> : null}
+            {rewardError ? <Alert>Reward update failed: {rewardError}</Alert> : null}
             <div className="family-modal-actions">
               {editingRewardId ? (
                 <Button
@@ -1422,6 +1606,20 @@ export default function FamilyPage() {
           ) : null}
         </div>
       </ModalShell>
+
+      <AccountSwitchModal
+        open={Boolean(pendingSwitchMember)}
+        onRequestClose={closeSwitchMemberModal}
+        memberName={pendingSwitchMember?.name ?? ""}
+        pin={switchPin}
+        onPinChange={setSwitchPin}
+        confirmPin={switchPinConfirm}
+        onConfirmPinChange={setSwitchPinConfirm}
+        pending={switchPending}
+        error={switchError}
+        requiresPinSetup={switchRequiresPinSetup}
+        onConfirm={switchRequiresPinSetup ? onSetupPinAndSwitch : onSwitchAccount}
+      />
 
       <ModalShell
         open={Boolean(pendingRemoveReward)}

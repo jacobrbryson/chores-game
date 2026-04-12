@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Alert } from "@/components/alert";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
@@ -94,7 +95,7 @@ export function ProfileCustomizationModals({
               X
             </Button>
           </header>
-          {avatarActionError ? <p className="small family-error">Could not update avatar: {avatarActionError}</p> : null}
+          {avatarActionError ? <Alert>Could not update avatar: {avatarActionError}</Alert> : null}
           <div className="profile-avatar-option-list">
             <article className="profile-avatar-option-card">
               <Avatar
@@ -176,7 +177,7 @@ export function ProfileCustomizationModals({
               X
             </Button>
           </header>
-          {themeActionError ? <p className="small family-error">Could not update theme: {themeActionError}</p> : null}
+          {themeActionError ? <Alert>Could not update theme: {themeActionError}</Alert> : null}
           <div className="profile-avatar-option-list">
             {defaultThemeOption ? (
               <article className="profile-avatar-option-card">
@@ -259,9 +260,7 @@ export function ProfileCustomizationModals({
               X
             </Button>
           </header>
-          {confettiActionError ? (
-            <p className="small family-error">Could not update confetti: {confettiActionError}</p>
-          ) : null}
+          {confettiActionError ? <Alert>Could not update confetti: {confettiActionError}</Alert> : null}
           <div className="profile-avatar-option-list">
             {defaultConfettiOption ? (
               <article className="profile-avatar-option-card">

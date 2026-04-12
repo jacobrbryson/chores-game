@@ -14,7 +14,6 @@ import {
 type Suggestion = {
   description: string;
   familyCount: number;
-  globalCount: number;
 };
 
 const MAX_SUGGESTIONS = 100;
@@ -67,7 +66,6 @@ function upsertSuggestion(map: Map<string, Suggestion>, next: Suggestion) {
   map.set(key, {
     description: existing.description,
     familyCount: Math.max(existing.familyCount, next.familyCount),
-    globalCount: Math.max(existing.globalCount, next.globalCount),
   });
 }
 
@@ -84,9 +82,6 @@ function rankSuggestions(entries: Suggestion[]) {
     .sort((a, b) => {
       if (b.familyCount !== a.familyCount) {
         return b.familyCount - a.familyCount;
-      }
-      if (b.globalCount !== a.globalCount) {
-        return b.globalCount - a.globalCount;
       }
       return a.description.localeCompare(b.description);
     })
@@ -146,33 +141,20 @@ export async function GET(request: NextRequest) {
           throw error;
         }
 
-        const [familyUsageDocs, globalUsageDocs] = await Promise.all([
-          (async () => {
-            if (!familyId) {
+        const familyUsageDocs = await (async () => {
+          if (!familyId) {
+            return [];
+          }
+          try {
+            return await listDocuments(`families/${familyId}/choreUsage`, idToken, 500);
+          } catch (error) {
+            const reason = error instanceof Error ? error.message : "";
+            if (isForbiddenOrMissing(reason)) {
               return [];
             }
-            try {
-              return await listDocuments(`families/${familyId}/choreUsage`, idToken, 500);
-            } catch (error) {
-              const reason = error instanceof Error ? error.message : "";
-              if (isForbiddenOrMissing(reason)) {
-                return [];
-              }
-              throw error;
-            }
-          })(),
-          (async () => {
-            try {
-              return await listDocuments("choreUsageGlobal", idToken, 500);
-            } catch (error) {
-              const reason = error instanceof Error ? error.message : "";
-              if (isForbiddenOrMissing(reason)) {
-                return [];
-              }
-              throw error;
-            }
-          })(),
-        ]);
+            throw error;
+          }
+        })();
 
         const familyChoreDocs = familyId
           ? await (async () => {
@@ -221,19 +203,6 @@ export async function GET(request: NextRequest) {
           upsertSuggestion(suggestionsMap, {
             description,
             familyCount: readInteger(doc.fields, "familyCount"),
-            globalCount: 0,
-          });
-        }
-
-        for (const doc of globalUsageDocs) {
-          const description = readString(doc.fields, "description");
-          if (!description || !matchesQuery(description, useQuery)) {
-            continue;
-          }
-          upsertSuggestion(suggestionsMap, {
-            description,
-            familyCount: suggestionsMap.get(description.toLowerCase())?.familyCount ?? 0,
-            globalCount: readInteger(doc.fields, "globalCount"),
           });
         }
 
@@ -257,7 +226,6 @@ export async function GET(request: NextRequest) {
             upsertSuggestion(suggestionsMap, {
               description: existing.description,
               familyCount: Math.max(existing.familyCount, count),
-              globalCount: existing.globalCount,
             });
             continue;
           }
@@ -268,7 +236,6 @@ export async function GET(request: NextRequest) {
           upsertSuggestion(suggestionsMap, {
             description: title,
             familyCount: count,
-            globalCount: 0,
           });
         }
 
