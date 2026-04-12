@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
+import { createFamilyForUser } from "@/lib/family/bootstrap";
 import {
   boolField,
   createOrReplaceDocument,
@@ -73,54 +74,6 @@ async function getUserFamilyIds(uid: string, idToken: string) {
   }
 }
 
-async function createFamilyForUser(
-  uid: string,
-  userName: string,
-  userEmail: string,
-  idToken: string,
-) {
-  const familyId = randomUUID();
-  const now = new Date().toISOString();
-
-  await createOrReplaceDocument(
-    `families/${familyId}`,
-    {
-      name: stringField(`${userName || "My"} Family`),
-      createdBy: stringField(uid),
-      createdAt: timestampField(now),
-    },
-    idToken,
-  );
-
-  await createOrReplaceDocument(
-    `families/${familyId}/members/${uid}`,
-    {
-      name: stringField(userName || "Parent"),
-      email: stringField(userEmail),
-      role: stringField("admin"),
-      status: stringField("active"),
-      deleted: boolField(false),
-      uid: stringField(uid),
-      createdAt: timestampField(now),
-      lastSignInAt: timestampField(now),
-    },
-    idToken,
-  );
-
-  await patchDocument(
-    `users/${uid}`,
-    {
-      uid: stringField(uid),
-      familyIds: stringArrayField([familyId]),
-      lastFamilyUpdateAt: timestampField(now),
-    },
-    idToken,
-    ["familyIds", "lastFamilyUpdateAt", "uid"],
-  );
-
-  return familyId;
-}
-
 async function relinkUserPrimaryFamily(uid: string, familyId: string, idToken: string) {
   const now = new Date().toISOString();
   await patchDocument(
@@ -176,12 +129,12 @@ export async function POST(request: NextRequest) {
             familyId = recoveredFamilyId;
             await relinkUserPrimaryFamily(session.uid, familyId, idToken);
           } else {
-            familyId = await createFamilyForUser(
-              session.uid,
-              session.name,
-              session.email,
+            familyId = await createFamilyForUser({
+              uid: session.uid,
+              userName: session.name,
+              userEmail: session.email,
               idToken,
-            );
+            });
           }
           familyIds = [familyId];
         }

@@ -3,10 +3,12 @@ import {
   type SessionUser,
 } from "@/lib/auth/session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
+import { createFamilyForUser } from "@/lib/family/bootstrap";
 import {
   findFirstFamilyIdByMemberEmail,
   getDocument,
   patchDocument,
+  readBoolean,
   readString,
   readStringArray,
   stringArrayField,
@@ -120,6 +122,29 @@ async function signInWithFirebase(googleIdToken: string, requestUri: string) {
   return (await response.json()) as FirebaseSession;
 }
 
+async function getActiveFamilyRole(
+  familyId: string,
+  uid: string,
+  idToken: string,
+): Promise<SessionUser["role"] | null> {
+  try {
+    const memberDoc = await getDocument(`families/${familyId}/members/${uid}`, idToken);
+    if (readBoolean(memberDoc.fields, "deleted")) {
+      return null;
+    }
+    if (readString(memberDoc.fields, "status") !== "active") {
+      return null;
+    }
+    return readString(memberDoc.fields, "role") === "admin" ? "admin" : "player";
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (reason.includes("FIRESTORE_HTTP_404")) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 async function upsertFirebaseUser(
   session: FirebaseSession,
   tokenInfo: GoogleTokenInfo,
@@ -127,9 +152,13 @@ async function upsertFirebaseUser(
   const now = new Date().toISOString();
   const normalizedEmail = (tokenInfo.email ?? session.email ?? "").trim().toLowerCase();
   let existingFamilyIds: string[] = [];
+  let existingUserRole: SessionUser["role"] = "player";
+  let hasExistingUserDoc = false;
   try {
     const existingUserDoc = await getDocument(`users/${session.localId}`, session.idToken);
+    hasExistingUserDoc = true;
     existingFamilyIds = readStringArray(existingUserDoc.fields, "familyIds");
+    existingUserRole = readString(existingUserDoc.fields, "role") === "admin" ? "admin" : "player";
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";
     if (!reason.includes("FIRESTORE_HTTP_404")) {
@@ -156,10 +185,25 @@ async function upsertFirebaseUser(
   if (!linkedFamilyId && normalizedEmail) {
     linkedFamilyId = await findFirstFamilyIdByMemberEmail(normalizedEmail, session.idToken);
   }
+  const shouldBootstrapFamily = !hasExistingUserDoc && !linkedFamilyId;
+  if (shouldBootstrapFamily) {
+    linkedFamilyId = await createFamilyForUser({
+      uid: session.localId,
+      userName: tokenInfo.name ?? session.displayName ?? "",
+      userEmail: normalizedEmail,
+      idToken: session.idToken,
+    });
+  }
+  const linkedFamilyRole = linkedFamilyId
+    ? await getActiveFamilyRole(linkedFamilyId, session.localId, session.idToken)
+    : null;
+  const effectiveRole: SessionUser["role"] = shouldBootstrapFamily
+    ? "admin"
+    : linkedFamilyRole ?? (existingUserRole === "admin" ? "admin" : "player");
 
   const authFields = {
     uid: stringField(session.localId),
-    role: stringField("player"),
+    role: stringField(effectiveRole),
     email: stringField(normalizedEmail),
     displayName: stringField(tokenInfo.name ?? session.displayName ?? ""),
     photoUrl: stringField(tokenInfo.picture ?? session.photoUrl ?? ""),
@@ -197,7 +241,9 @@ async function upsertFirebaseUser(
     }
   }
 
-  return true;
+  return {
+    role: effectiveRole,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -228,14 +274,16 @@ export async function POST(request: NextRequest) {
       publicOrigin,
     );
     const normalizedEmail = (tokenInfo.email ?? firebaseSession.email ?? "").trim().toLowerCase();
+    let resolvedRole: SessionUser["role"] = "player";
     if (firebaseSession) {
-      await upsertFirebaseUser(firebaseSession, tokenInfo);
+      const result = await upsertFirebaseUser(firebaseSession, tokenInfo);
+      resolvedRole = result.role;
     }
 
     const redirect = redirectToPath(request, "/");
     const sessionCookie: SessionUser = {
       uid: firebaseSession.localId,
-      role: "player",
+      role: resolvedRole,
       email: normalizedEmail,
       name: tokenInfo.name ?? firebaseSession.displayName ?? "",
       picture: tokenInfo.picture ?? firebaseSession.photoUrl ?? "",

@@ -672,7 +672,7 @@ export default function FamilyPage() {
       (member) => member.uid === summary.viewerUid || member.id === summary.viewerUid,
     ) ?? null;
   const viewerUid = summary?.viewerUid ?? "";
-  const canManageMembers = viewerMember?.role === "admin";
+  const canManageMembers = Boolean(summary?.noFamily) || viewerMember?.role === "admin";
 
   return (
     <>
@@ -706,6 +706,12 @@ export default function FamilyPage() {
                 </p>
               ) : (
                 <>
+                  {summary?.noFamily ? (
+                    <p className="small">
+                      No family is linked to this account yet. Add your first family member and the
+                      app will create your family with you as the admin.
+                    </p>
+                  ) : null}
                   {memberActionError ? (
                     <p className="small family-error">Member update failed: {memberActionError}</p>
                   ) : null}

@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
 import { TodayChoresPanel } from "@/components/today-chores-panel";
@@ -275,7 +276,20 @@ export function FamilyCard() {
       ) : null}
       {!isLoading && !error && summary ? (
         <>
-          {summary.pendingInvite ? (
+          {summary.noFamily ? (
+            <article className="family-panel">
+              <h3>Get Started</h3>
+              <p className="small">
+                Your account is signed in, but no family is linked yet. Finish setup to create
+                your family and invite the first member.
+              </p>
+              <div className="mt-3">
+                <Link href="/family" className="btn btn-primary">
+                  Finish Family Setup
+                </Link>
+              </div>
+            </article>
+          ) : summary.pendingInvite ? (
             <article className="family-panel">
               <h3>Invitation Pending</h3>
               <p className="small">

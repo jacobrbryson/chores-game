@@ -410,6 +410,11 @@ Build a family chore game where:
   - Family-award store availability now enforces `individualLimit` / `familyLimit` against outstanding `unclaimed` claim records only, so claimed awards become purchasable again when capacity opens up.
 - Back navigation update (2026-04-09):
   - Shared page back buttons now prefer the last in-app route visited in the current session and fall back to a page-specific root route when no prior in-app page is available.
+- New-user bootstrap and role sync update (2026-04-12):
+  - First-time Google sign-in with no linked family now auto-creates a family and bootstraps the signer as an active `admin`.
+  - `users/{uid}.role` and the signed `session_user` cookie now stay aligned with the bootstrapped admin state at sign-in.
+  - `GET /api/family/summary` now refreshes `session_user.role` from the resolved active family member record when it differs from the cookie.
+  - Home and `/family` now show an explicit recovery/get-started path when a signed-in user still has `noFamily`, so legacy broken accounts can finish setup instead of landing in a dead end.
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.
 - Chores module: CRUD, assignment, submission, approval pipeline.

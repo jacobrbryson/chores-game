@@ -513,9 +513,19 @@ export async function GET(request: NextRequest) {
         } satisfies FamilySummaryResponse;
       });
 
+    let nextSession = refreshedSession;
+    let shouldSetSessionCookie = refreshed;
+    const resolvedViewerRole =
+      data.members.find((member) => member.uid === data.viewerUid || member.id === data.viewerUid)
+        ?.role ?? "player";
+    if (resolvedViewerRole !== refreshedSession.role) {
+      nextSession = { ...refreshedSession, role: resolvedViewerRole };
+      shouldSetSessionCookie = true;
+    }
+
     const response = NextResponse.json(data);
-    if (refreshed) {
-      setSessionUserCookie(response, refreshedSession);
+    if (shouldSetSessionCookie) {
+      setSessionUserCookie(response, nextSession);
     }
     return response;
   } catch (error) {
