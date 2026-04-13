@@ -11,7 +11,9 @@ type ActivityKind =
   | "chore_edited"
   | "chore_deleted"
   | "chore_completed"
-  | "chore_undo_completed";
+  | "chore_undo_completed"
+  | "chore_approved"
+  | "chore_rejected";
 
 type EmitFamilyActivityInput = {
   familyId: string;

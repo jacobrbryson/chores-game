@@ -189,6 +189,11 @@ export function TodayChoreCard({
           dueDate: chore.dueDate,
           details: chore.details,
           categoryIds: chore.categoryIds,
+          coinValue: chore.coinValue,
+          requireApproval: chore.requireApproval,
+          recurrenceType: chore.recurrenceType,
+          recurrenceInterval: chore.recurrenceInterval,
+          recurrenceUnit: chore.recurrenceUnit,
         }}
         onSaved={onEdited}
         open={editDialogOpen}

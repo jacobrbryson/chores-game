@@ -27,6 +27,15 @@ import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
 import { GOOGLE_TASKS_CHORE_SOURCE, syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
 import {
+  type ChoreRecurrenceType,
+  type ChoreRecurrenceUnit,
+  normalizeCoinValue,
+  normalizeRecurrenceConfig,
+  parseCoinValue,
+  parseRequireApproval,
+  recurrenceLabel,
+} from "@/lib/chores/recurrence";
+import {
   buildCategoryMap,
   hasAllCategoryIds,
   listFamilyCategories,
@@ -43,6 +52,11 @@ type CreateChoresBody = {
   titles?: unknown;
   dueDate?: unknown;
   categoryIds?: unknown;
+  coinValue?: unknown;
+  requireApproval?: unknown;
+  recurrenceType?: unknown;
+  recurrenceInterval?: unknown;
+  recurrenceUnit?: unknown;
 };
 
 type ReorderChoresBody = {
@@ -66,6 +80,10 @@ type ChoreRow = {
   categories: FamilyCategory[];
   completedAt?: string;
   coinValue: number;
+  requireApproval: boolean;
+  recurrenceType: ChoreRecurrenceType;
+  recurrenceInterval?: number;
+  recurrenceUnit?: ChoreRecurrenceUnit;
   deleted: boolean;
   createdAt?: string;
   submittedAt?: string;
@@ -84,7 +102,7 @@ type ChoreSortBy =
   | "dueDate"
   | "completedAt"
   | "coinValue";
-type ChoreStatusFilter = "" | "completed";
+type ChoreStatusFilter = "" | "completed" | "needs_approval";
 type CompletionWindowRange = {
   startMillis: number;
   endMillis: number;
@@ -292,7 +310,16 @@ function normalizeChoreDoc(doc: {
     categories: [],
     submittedAt: readTimestamp(doc.fields, "submittedAt") || undefined,
     updatedAt: readTimestamp(doc.fields, "updatedAt") || undefined,
-    coinValue: readInteger(doc.fields, "coinValue") || 10,
+    coinValue: normalizeCoinValue(readInteger(doc.fields, "coinValue")),
+    requireApproval: readBoolean(doc.fields, "requireApproval"),
+    recurrenceType: normalizeRecurrenceConfig({
+      recurrenceType: readString(doc.fields, "recurrenceType"),
+      recurrenceInterval: readInteger(doc.fields, "recurrenceInterval"),
+      recurrenceUnit: readString(doc.fields, "recurrenceUnit"),
+    }).recurrenceType,
+    recurrenceInterval: readInteger(doc.fields, "recurrenceInterval") || undefined,
+    recurrenceUnit:
+      (readString(doc.fields, "recurrenceUnit") as ChoreRecurrenceUnit | "") || undefined,
     deleted: readBoolean(doc.fields, "deleted"),
     createdAt: readTimestamp(doc.fields, "createdAt") || undefined,
   };
@@ -405,7 +432,10 @@ function normalizeOrderedChoreIds(value: unknown) {
 }
 
 function parseStatusFilter(value: string | null): ChoreStatusFilter {
-  return value === "completed" ? "completed" : "";
+  if (value === "completed" || value === "needs_approval") {
+    return value;
+  }
+  return "";
 }
 
 function parseAssigneeFilter(value: string | null) {
@@ -870,10 +900,13 @@ export async function GET(request: NextRequest) {
             return !isFutureDueDate(doc.dueDate, todayIsoDate);
           })
           .filter((doc) => {
-            if (statusFilter !== "completed") {
+            if (statusFilter === "") {
               return true;
             }
-            return isCompletedStatus(doc.status);
+            if (statusFilter === "completed") {
+              return isCompletedStatus(doc.status);
+            }
+            return doc.status === "Submitted" && doc.requireApproval;
           })
           .filter((doc) => {
             if (!targetAssigneeId) {
@@ -933,6 +966,10 @@ export async function GET(request: NextRequest) {
                 ? doc.submittedAt || doc.updatedAt || undefined
                 : undefined,
             coinValue: doc.coinValue,
+            requireApproval: doc.requireApproval,
+            recurrenceType: doc.recurrenceType,
+            recurrenceInterval: doc.recurrenceInterval,
+            recurrenceUnit: doc.recurrenceUnit,
             createdAt: doc.createdAt,
           }));
 
@@ -1115,6 +1152,13 @@ export async function POST(request: NextRequest) {
       ? body.assigneeId.trim()
       : "";
   const categoryIds = normalizeCategoryIds(body.categoryIds);
+  const coinValue = parseCoinValue(body.coinValue);
+  const requireApproval = parseRequireApproval(body.requireApproval);
+  const recurrence = normalizeRecurrenceConfig({
+    recurrenceType: body.recurrenceType,
+    recurrenceInterval: body.recurrenceInterval,
+    recurrenceUnit: body.recurrenceUnit,
+  });
   const descriptionFromSingle =
     typeof body.description === "string" ? normalizeDescription(body.description) : "";
   const titlesInput = Array.isArray(body.titles) ? body.titles : [];
@@ -1131,6 +1175,9 @@ export async function POST(request: NextRequest) {
 
   if (titles.some((title) => title.length > 160)) {
     return NextResponse.json({ error: "description_too_long" }, { status: 400 });
+  }
+  if (coinValue === null) {
+    return NextResponse.json({ error: "invalid_coin_value" }, { status: 400 });
   }
 
   try {
@@ -1196,7 +1243,11 @@ export async function POST(request: NextRequest) {
                 details: stringField(details),
                 categoryIds: stringArrayField(categoryIds),
                 dueDate: stringField(dueDate),
-                coinValue: integerField(10),
+                coinValue: integerField(coinValue),
+                requireApproval: boolField(requireApproval),
+                recurrenceType: stringField(recurrence.recurrenceType),
+                recurrenceInterval: integerField(recurrence.recurrenceInterval ?? 0),
+                recurrenceUnit: stringField(recurrence.recurrenceUnit ?? ""),
                 deleted: boolField(false),
                 createdBy: stringField(session.uid),
                 createdAt: timestampField(now),
@@ -1217,7 +1268,7 @@ export async function POST(request: NextRequest) {
               actorEmail: session.email,
               actorName: session.name || session.email,
               title: "Chore added",
-              message: `${session.name || "Someone"} added "${chore.title}".`,
+              message: `${session.name || "Someone"} added "${chore.title}" (${coinValue} coins${requireApproval ? ", approval required" : ""}${recurrence.recurrenceType !== "none" ? `, ${recurrenceLabel(recurrence).toLowerCase()}` : ""}).`,
               choreId: chore.id,
               choreTitle: chore.title,
               relatedIds: assigneeId ? [assigneeId] : [],

@@ -9,7 +9,11 @@ import { ProfileCustomizationModals } from "@/components/profile/profile-customi
 import { ProfileDetailsSection } from "@/components/profile/profile-details-section";
 import { ProfileGoogleLinkCard } from "@/components/profile/profile-google-link-card";
 import { deriveGoogleTasksView } from "@/components/profile/profile-google-tasks.utils";
-import { postGoogleTasksAction, postStoreAction } from "@/components/profile/profile-page.api";
+import {
+  patchProfileAction,
+  postGoogleTasksAction,
+  postStoreAction,
+} from "@/components/profile/profile-page.api";
 import {
   ProfileFallbackIcon,
   formatDateTime,
@@ -90,6 +94,11 @@ export function ProfilePageClient({
   const [pinPending, setPinPending] = useState(false);
   const [pinError, setPinError] = useState("");
   const [pinSuccess, setPinSuccess] = useState("");
+  const [displayName, setDisplayName] = useState(name || "Signed In User");
+  const [editedName, setEditedName] = useState(name || "");
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [namePending, setNamePending] = useState(false);
+  const [nameError, setNameError] = useState("");
 
   const loadStoreSummary = useCallback(async () => {
     setIsLoading(true);
@@ -446,8 +455,53 @@ export function ProfilePageClient({
     selectedGoogleTaskListIds,
   ]);
 
-  const displayName = name || "Signed In User";
   const displayEmail = email || "-";
+
+  useEffect(() => {
+    const nextName = name || "Signed In User";
+    setDisplayName(nextName);
+    setEditedName(name || "");
+    setIsEditingName(false);
+    setNameError("");
+  }, [name]);
+
+  async function onSaveNameEdit() {
+    const trimmedName = editedName.trim();
+    if (trimmedName.length < 2 || trimmedName.length > 80) {
+      setNameError("Name must be between 2 and 80 characters.");
+      return;
+    }
+    if (trimmedName === displayName.trim()) {
+      setIsEditingName(false);
+      setNameError("");
+      setEditedName(trimmedName);
+      return;
+    }
+
+    setNamePending(true);
+    setNameError("");
+    try {
+      const payload = await patchProfileAction({ name: trimmedName });
+      const savedName = payload.name?.trim() || trimmedName;
+      setDisplayName(savedName);
+      setEditedName(savedName);
+      setIsEditingName(false);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("profile-name:refresh", { detail: { name: savedName } }));
+      }
+    } catch (errorValue) {
+      const message = errorValue instanceof Error ? errorValue.message : "name_update_failed";
+      setNameError(
+        message === "name_must_be_between_2_and_80_chars"
+          ? "Name must be between 2 and 80 characters."
+          : message === "not_allowed"
+            ? "Only admins can change their own names."
+            : "Could not save your name.",
+      );
+    } finally {
+      setNamePending(false);
+    }
+  }
 
   async function onSaveSwitchPin() {
     if (pinPending) {
@@ -499,6 +553,11 @@ export function ProfilePageClient({
         displayEmail={displayEmail}
         role={role}
         isLoading={isLoading}
+        canEditName={role === "admin" && !isSwitched}
+        isEditingName={isEditingName}
+        editedName={editedName}
+        namePending={namePending}
+        nameError={nameError}
         picture={picture}
         activeAvatarId={activeAvatarId}
         activeAvatarPhotoUrl={activeAvatarPhotoUrl}
@@ -508,6 +567,23 @@ export function ProfilePageClient({
         activeConfettiName={activeConfettiName}
         isDefaultConfettiActive={isDefaultConfettiActive}
         activeConfettiColors={activeConfettiColors}
+        onNameDraftChange={(value) => {
+          setEditedName(value);
+          setNameError("");
+        }}
+        onStartNameEdit={() => {
+          setEditedName(displayName);
+          setNameError("");
+          setIsEditingName(true);
+        }}
+        onCancelNameEdit={() => {
+          setEditedName(displayName);
+          setNameError("");
+          setIsEditingName(false);
+        }}
+        onSaveNameEdit={() => {
+          void onSaveNameEdit();
+        }}
         onOpenAvatarDialog={() => {
           setAvatarActionError("");
           setAvatarDialogOpen(true);

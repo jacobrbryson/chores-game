@@ -431,6 +431,22 @@ Build a family chore game where:
 - Alert UI standardization update (2026-04-12):
   - Shared alert UI now uses a reusable Tailwind `Alert` component in `apps/web/src/components/alert.tsx`.
   - Error, warning, and informational status messages should render through that component instead of `family-error` paragraphs or one-off alert wrappers.
+- Chore creation options update (2026-04-12):
+  - Add/Edit Chores advanced options now support configurable `coinValue`, `requireApproval`, and recurrence settings.
+  - Recurrence options are `Instant`, `Daily`, `Weekly`, `Monthly`, and `Custom`; custom recurrence currently supports an integer interval with unit `days`, `weeks`, or `months`.
+  - Completing a chore with `requireApproval == false` now marks it `Approved` immediately and pays coins right away.
+  - Completing a chore with `requireApproval == true` now marks it `Submitted`, removes it from open lists, and emits the existing in-app family notification activity without paying coins yet.
+  - Manual recurring chores now create the next open occurrence automatically on completion while keeping the completed chore as historical record.
+  - Undo completion for recurring chores also removes the newly spawned next occurrence when it is still untouched/open.
+- Approval queue update (2026-04-12):
+  - `/chores` admins can now filter to `Needs Approval` to view only `Submitted` chores that were completed with `requireApproval == true`.
+  - Admin row actions now include `Approve` and `Reject` for approval-required submitted chores.
+  - `Approve` moves the chore from `Submitted` to `Approved` and pays the configured coins at approval time.
+  - `Reject` moves the chore from `Submitted` to `Rejected` and stores optional rejection feedback on the chore record.
+  - Admins can reopen `Submitted`, `Approved`, or `Rejected` chores back to `Open` via the existing undo-completion path.
+- Profile self-name edit update (2026-04-12):
+  - Added `PATCH /api/profile` so signed-in admins can update their own display name from `/profile`.
+  - Profile self-name edits now update the signed session cookie, `users/{uid}`, and the current family member doc so the new name propagates across profile and family-visible surfaces.
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.
 - Chores module: CRUD, assignment, submission, approval pipeline.

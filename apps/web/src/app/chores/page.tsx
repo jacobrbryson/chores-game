@@ -13,6 +13,10 @@ import { EnumChip } from "@/components/enum-chip";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
 import type { TailwindSelectOption } from "@/components/tailwind-select";
+import type {
+  ChoreRecurrenceType,
+  ChoreRecurrenceUnit,
+} from "@/lib/chores/recurrence";
 import { parseCompletionWindow } from "@/lib/preferences/completion-window";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
 
@@ -37,6 +41,10 @@ type ChoreRow = {
   categories?: ChoreCategory[];
   completedAt?: string;
   coinValue: number;
+  requireApproval?: boolean;
+  recurrenceType?: ChoreRecurrenceType;
+  recurrenceInterval?: number;
+  recurrenceUnit?: ChoreRecurrenceUnit;
   createdAt?: string;
 };
 
@@ -129,11 +137,14 @@ function sortChoreRows(rows: ChoreRow[], sortBy: ChoreSortBy, sortDir: "asc" | "
   });
 }
 
-function getStatusLabel(status: string) {
-  if (status === "Submitted") {
+function getStatusLabel(chore: Pick<ChoreRow, "status" | "requireApproval">) {
+  if (chore.status === "Submitted" && chore.requireApproval) {
+    return "Awaiting Approval";
+  }
+  if (chore.status === "Submitted" || chore.status === "Approved") {
     return "Completed";
   }
-  return status;
+  return chore.status;
 }
 
 function statusTone(status: string) {
@@ -177,7 +188,7 @@ function parseTimezoneOffsetMinutes(value: string | null) {
 
 type RouteFilterState = {
   assigneeId: string;
-  status: "" | "completed";
+  status: "" | "completed" | "needs_approval";
   completedWindow: ReturnType<typeof parseCompletionWindow>;
   tzOffsetMinutes: number | null;
 };
@@ -186,7 +197,12 @@ function parseRouteFilters(search: string): RouteFilterState {
   const params = new URLSearchParams(search);
   return {
     assigneeId: (params.get("assigneeId") ?? "").trim(),
-    status: params.get("status") === "completed" ? "completed" : "",
+    status:
+      params.get("status") === "completed"
+        ? "completed"
+        : params.get("status") === "needs_approval"
+          ? "needs_approval"
+          : "",
     completedWindow: parseCompletionWindow(params.get("completedWindow")),
     tzOffsetMinutes: parseTimezoneOffsetMinutes(params.get("tzOffsetMinutes")),
   };
@@ -194,16 +210,17 @@ function parseRouteFilters(search: string): RouteFilterState {
 
 type RowActionState = {
   choreId: string;
-  action: "delete" | "undo_complete";
+  action: "delete" | "undo_complete" | "approve" | "reject";
 };
 type BulkActionState = {
-  action: "delete" | "undo_complete" | "set_categories";
+  action: "delete" | "undo_complete" | "set_categories" | "approve";
   total: number;
   completed: number;
 };
 
 type SelectedChoreState = {
   canUndoCompletion: boolean;
+  canApprove: boolean;
 };
 
 function normalizeAssigneeAlias(value?: string) {
@@ -211,17 +228,23 @@ function normalizeAssigneeAlias(value?: string) {
 }
 
 function canUndoCompletion(status: string) {
-  return status === "Submitted" || status === "Approved";
+  return status === "Submitted" || status === "Approved" || status === "Rejected";
+}
+
+function canApproveChore(chore: Pick<ChoreRow, "status" | "requireApproval">) {
+  return chore.status === "Submitted" && Boolean(chore.requireApproval);
 }
 
 type ChoreActionsMenuProps = {
   chore: ChoreRow;
   canManageActions: boolean;
-  busyAction: "" | "delete" | "undo_complete";
+  busyAction: "" | "delete" | "undo_complete" | "approve" | "reject";
   disabled: boolean;
   onEdit: (chore: ChoreRow) => void;
   onDeleteRequested: (chore: ChoreRow) => void;
   onUndoCompletion: (choreId: string) => Promise<void> | void;
+  onApprove: (choreId: string) => Promise<void> | void;
+  onRejectRequested: (chore: ChoreRow) => void;
 };
 
 function ChoreActionsMenu({
@@ -232,6 +255,8 @@ function ChoreActionsMenu({
   onEdit,
   onDeleteRequested,
   onUndoCompletion,
+  onApprove,
+  onRejectRequested,
 }: ChoreActionsMenuProps) {
   if (!canManageActions) {
     return null;
@@ -245,6 +270,8 @@ function ChoreActionsMenu({
     left: number;
   } | null>(null);
   const canUndoCompletion = chore.status === "Submitted" || chore.status === "Approved";
+  const canApprove = chore.status === "Submitted" && Boolean(chore.requireApproval);
+  const canReject = chore.status === "Submitted" && Boolean(chore.requireApproval);
 
   const updateMenuPosition = useCallback(() => {
     if (!triggerRef.current || typeof window === "undefined") {
@@ -325,6 +352,26 @@ function ChoreActionsMenu({
               <Button
                 type="button"
                 className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!canApprove || disabled}
+                onClick={() => {
+                  setMenuOpen(false);
+                  void onApprove(chore.id);
+                }}>
+                {busyAction === "approve" ? "Approving..." : "Approve"}
+              </Button>
+              <Button
+                type="button"
+                className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!canReject || disabled}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onRejectRequested(chore);
+                }}>
+                {busyAction === "reject" ? "Rejecting..." : "Reject"}
+              </Button>
+              <Button
+                type="button"
+                className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!canUndoCompletion || disabled}
                 onClick={() => {
                   setMenuOpen(false);
@@ -354,9 +401,11 @@ function ChoreActionsMenu({
 type BulkActionsMenuProps = {
   disabled: boolean;
   selectedUndoCount: number;
-  busyAction: "" | "delete" | "undo_complete" | "set_categories";
+  selectedApproveCount: number;
+  busyAction: "" | "delete" | "undo_complete" | "set_categories" | "approve";
   onDeleteRequested: () => void;
   onUndoCompletion: () => void;
+  onApprove: () => void;
   canSetCategories: boolean;
   onSetCategoriesRequested: () => void;
 };
@@ -364,9 +413,11 @@ type BulkActionsMenuProps = {
 function BulkActionsMenu({
   disabled,
   selectedUndoCount,
+  selectedApproveCount,
   busyAction,
   onDeleteRequested,
   onUndoCompletion,
+  onApprove,
   canSetCategories,
   onSetCategoriesRequested,
 }: BulkActionsMenuProps) {
@@ -458,6 +509,16 @@ function BulkActionsMenu({
               <Button
                 type="button"
                 className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={disabled || selectedApproveCount <= 0}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onApprove();
+                }}>
+                {busyAction === "approve" ? "Approving..." : "Approve"}
+              </Button>
+              <Button
+                type="button"
+                className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={disabled || selectedUndoCount <= 0}
                 onClick={() => {
                   setMenuOpen(false);
@@ -490,6 +551,8 @@ export default function ChoresPage() {
   const [rowActionState, setRowActionState] = useState<RowActionState | null>(null);
   const [editingChore, setEditingChore] = useState<ChoreRow | null>(null);
   const [pendingDeleteChore, setPendingDeleteChore] = useState<ChoreRow | null>(null);
+  const [pendingRejectChore, setPendingRejectChore] = useState<ChoreRow | null>(null);
+  const [rejectFeedback, setRejectFeedback] = useState("");
   const [pendingBulkDeleteOpen, setPendingBulkDeleteOpen] = useState(false);
   const [pendingBulkSetCategoriesOpen, setPendingBulkSetCategoriesOpen] = useState(false);
   const [bulkCategoryIds, setBulkCategoryIds] = useState<string[]>([]);
@@ -549,6 +612,10 @@ export default function ChoresPage() {
   const selectedCount = selectedChoreIds.length;
   const selectedUndoCount = useMemo(
     () => Object.values(selectedChoreStateById).filter((entry) => entry.canUndoCompletion).length,
+    [selectedChoreStateById],
+  );
+  const selectedApproveCount = useMemo(
+    () => Object.values(selectedChoreStateById).filter((entry) => entry.canApprove).length,
     [selectedChoreStateById],
   );
   const categorySelectOptions = useMemo<TailwindSelectOption[]>(
@@ -618,6 +685,9 @@ export default function ChoresPage() {
       }
       if (statusFilter === "completed") {
         params.set("status", "completed");
+      }
+      if (statusFilter === "needs_approval") {
+        params.set("status", "needs_approval");
       }
       params.set("tzOffsetMinutes", String(completionFilterTimezoneOffset));
       if (completedWindowFilter) {
@@ -807,8 +877,12 @@ export default function ChoresPage() {
           continue;
         }
         const nextCanUndo = canUndoCompletion(chore.status);
-        if (next[chore.id].canUndoCompletion !== nextCanUndo) {
-          next[chore.id] = { canUndoCompletion: nextCanUndo };
+        const nextCanApprove = canApproveChore(chore);
+        if (
+          next[chore.id].canUndoCompletion !== nextCanUndo ||
+          next[chore.id].canApprove !== nextCanApprove
+        ) {
+          next[chore.id] = { canUndoCompletion: nextCanUndo, canApprove: nextCanApprove };
           changed = true;
         }
       }
@@ -828,6 +902,27 @@ export default function ChoresPage() {
       sortBy === column ? (currentDir === "asc" ? "desc" : "asc") : "asc",
     );
     setSortBy(column);
+  }
+
+  function updateStatusRouteFilter(nextStatus: RouteFilterState["status"]) {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (nextStatus) {
+      params.set("status", nextStatus);
+    } else {
+      params.delete("status");
+    }
+    if (nextStatus !== "completed") {
+      params.delete("completedWindow");
+      params.delete("tzOffsetMinutes");
+    }
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
+    window.history.pushState({}, "", nextUrl);
+    setRouteFilters(parseRouteFilters(window.location.search));
+    setPage(1);
   }
 
   async function onRemoveChore(choreId: string) {
@@ -887,6 +982,7 @@ export default function ChoresPage() {
           ...current,
           [choreId]: {
             canUndoCompletion: false,
+            canApprove: false,
           },
         };
       });
@@ -897,6 +993,87 @@ export default function ChoresPage() {
       const message =
         undoError instanceof Error ? undoError.message : "undo_complete_failed";
       setActionError(message);
+    } finally {
+      setRowActionState(null);
+    }
+  }
+
+  async function onApproveChore(choreId: string) {
+    if (hasBusyAction) {
+      return;
+    }
+    setRowActionState({ choreId, action: "approve" });
+    setActionError("");
+    try {
+      const response = await fetch(`/api/chores/${choreId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve" }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `APPROVE_HTTP_${response.status}`);
+      }
+      await loadChores({ silent: true });
+      setSelectedChoreStateById((current) => {
+        if (!current[choreId]) {
+          return current;
+        }
+        return {
+          ...current,
+          [choreId]: {
+            canUndoCompletion: true,
+            canApprove: false,
+          },
+        };
+      });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("wallet:refresh"));
+      }
+    } catch (approveError) {
+      const message =
+        approveError instanceof Error ? approveError.message : "approve_chore_failed";
+      setActionError(message);
+    } finally {
+      setRowActionState(null);
+    }
+  }
+
+  async function onRejectChore(choreId: string, feedback: string) {
+    if (hasBusyAction) {
+      return false;
+    }
+    setRowActionState({ choreId, action: "reject" });
+    setActionError("");
+    try {
+      const response = await fetch(`/api/chores/${choreId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reject", feedback }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `REJECT_HTTP_${response.status}`);
+      }
+      await loadChores({ silent: true });
+      setSelectedChoreStateById((current) => {
+        if (!current[choreId]) {
+          return current;
+        }
+        return {
+          ...current,
+          [choreId]: {
+            canUndoCompletion: true,
+            canApprove: false,
+          },
+        };
+      });
+      return true;
+    } catch (rejectError) {
+      const message =
+        rejectError instanceof Error ? rejectError.message : "reject_chore_failed";
+      setActionError(message);
+      return false;
     } finally {
       setRowActionState(null);
     }
@@ -916,7 +1093,10 @@ export default function ChoresPage() {
       }
       const next = { ...current };
       if (nextChecked) {
-        next[chore.id] = { canUndoCompletion: canUndoCompletion(chore.status) };
+        next[chore.id] = {
+          canUndoCompletion: canUndoCompletion(chore.status),
+          canApprove: canApproveChore(chore),
+        };
       } else {
         delete next[chore.id];
       }
@@ -934,7 +1114,10 @@ export default function ChoresPage() {
         }
         const isSelected = Boolean(next[chore.id]);
         if (nextChecked && !isSelected) {
-          next[chore.id] = { canUndoCompletion: canUndoCompletion(chore.status) };
+          next[chore.id] = {
+            canUndoCompletion: canUndoCompletion(chore.status),
+            canApprove: canApproveChore(chore),
+          };
           changed = true;
         } else if (!nextChecked && isSelected) {
           delete next[chore.id];
@@ -945,7 +1128,7 @@ export default function ChoresPage() {
     });
   }
 
-  async function onBulkAction(action: "delete" | "undo_complete", choreIds: string[]) {
+  async function onBulkAction(action: "delete" | "undo_complete" | "approve", choreIds: string[]) {
     if (hasBusyAction || choreIds.length === 0) {
       return;
     }
@@ -965,7 +1148,7 @@ export default function ChoresPage() {
             const body = (await response.json()) as { error?: string };
             throw new Error(body.error ?? `REMOVE_CHORE_HTTP_${response.status}`);
           }
-        } else {
+        } else if (action === "undo_complete") {
           const response = await fetch(`/api/chores/${choreId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -974,6 +1157,16 @@ export default function ChoresPage() {
           if (!response.ok) {
             const body = (await response.json()) as { error?: string };
             throw new Error(body.error ?? `UNDO_COMPLETE_HTTP_${response.status}`);
+          }
+        } else {
+          const response = await fetch(`/api/chores/${choreId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "approve" }),
+          });
+          if (!response.ok) {
+            const body = (await response.json()) as { error?: string };
+            throw new Error(body.error ?? `APPROVE_HTTP_${response.status}`);
           }
         }
         completedCount += 1;
@@ -1006,14 +1199,14 @@ export default function ChoresPage() {
         return changed ? next : current;
       });
     } else {
-      const undoneIds = new Set(choreIds);
+      const changedIds = new Set(choreIds);
       setSelectedChoreStateById((current) => {
         let changed = false;
         const next: Record<string, SelectedChoreState> = {};
         for (const [choreId, value] of Object.entries(current)) {
-          if (undoneIds.has(choreId)) {
-            next[choreId] = { canUndoCompletion: false };
-            if (value.canUndoCompletion) {
+          if (changedIds.has(choreId)) {
+            next[choreId] = { canUndoCompletion: action === "approve", canApprove: false };
+            if (value.canUndoCompletion || value.canApprove) {
               changed = true;
             }
             continue;
@@ -1031,7 +1224,9 @@ export default function ChoresPage() {
       setActionError(
         action === "delete"
           ? `bulk_delete_failed_${failedCount}`
-          : `bulk_undo_complete_failed_${failedCount}`,
+          : action === "undo_complete"
+            ? `bulk_undo_complete_failed_${failedCount}`
+            : `bulk_approve_failed_${failedCount}`,
       );
     }
     setBulkActionState(null);
@@ -1093,6 +1288,11 @@ export default function ChoresPage() {
                     dueDate: editingChore.dueDate,
                     details: editingChore.details,
                     categoryIds: editingChore.categoryIds,
+                    coinValue: editingChore.coinValue,
+                    requireApproval: editingChore.requireApproval,
+                    recurrenceType: editingChore.recurrenceType,
+                    recurrenceInterval: editingChore.recurrenceInterval,
+                    recurrenceUnit: editingChore.recurrenceUnit,
                   }
                 : undefined
             }
@@ -1118,6 +1318,28 @@ export default function ChoresPage() {
               placeholder="Search chores (3+ chars)"
               className="table-search-input"
             />
+            {viewerRole === "admin" ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  className={statusFilter === "" ? "btn btn-primary" : "btn btn-secondary"}
+                  onClick={() => updateStatusRouteFilter("")}>
+                  All
+                </Button>
+                <Button
+                  type="button"
+                  className={statusFilter === "needs_approval" ? "btn btn-primary" : "btn btn-secondary"}
+                  onClick={() => updateStatusRouteFilter("needs_approval")}>
+                  Needs Approval
+                </Button>
+                <Button
+                  type="button"
+                  className={statusFilter === "completed" ? "btn btn-primary" : "btn btn-secondary"}
+                  onClick={() => updateStatusRouteFilter("completed")}>
+                  Completed
+                </Button>
+              </div>
+            ) : null}
             {hasShortSearch ? <p className="small">Type at least 3 characters to filter.</p> : null}
           </div>
           {isLoading ? <p className="small">Loading chores...</p> : null}
@@ -1149,6 +1371,7 @@ export default function ChoresPage() {
                         <BulkActionsMenu
                           disabled={hasBusyAction}
                           selectedUndoCount={selectedUndoCount}
+                          selectedApproveCount={selectedApproveCount}
                           busyAction={bulkActionState?.action ?? ""}
                           onDeleteRequested={() => setPendingBulkDeleteOpen(true)}
                           onUndoCompletion={() =>
@@ -1156,6 +1379,14 @@ export default function ChoresPage() {
                               "undo_complete",
                               Object.entries(selectedChoreStateById)
                                 .filter(([, entry]) => entry.canUndoCompletion)
+                                .map(([choreId]) => choreId),
+                            )
+                          }
+                          onApprove={() =>
+                            void onBulkAction(
+                              "approve",
+                              Object.entries(selectedChoreStateById)
+                                .filter(([, entry]) => entry.canApprove)
                                 .map(([choreId]) => choreId),
                             )
                           }
@@ -1237,7 +1468,7 @@ export default function ChoresPage() {
                             </td>
                             <td>
                               <EnumChip
-                                label={getStatusLabel(chore.status)}
+                                label={getStatusLabel(chore)}
                                 tone={statusTone(chore.status)}
                               />
                             </td>
@@ -1275,6 +1506,11 @@ export default function ChoresPage() {
                                 onEdit={(selectedChore) => setEditingChore(selectedChore)}
                                 onDeleteRequested={(selectedChore) => setPendingDeleteChore(selectedChore)}
                                 onUndoCompletion={onUndoCompletion}
+                                onApprove={onApproveChore}
+                                onRejectRequested={(selectedChore) => {
+                                  setRejectFeedback("");
+                                  setPendingRejectChore(selectedChore);
+                                }}
                               />
                             </td>
                           </tr>
@@ -1314,6 +1550,65 @@ export default function ChoresPage() {
             </>
           ) : null}
       </main>
+      <ModalShell
+        open={Boolean(pendingRejectChore)}
+        onRequestClose={() => setPendingRejectChore(null)}>
+        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+          {pendingRejectChore ? (
+            <>
+              <div className="modal-dialog-title-row mb-2">
+                <h3 className="text-lg font-bold text-slate-800">Reject Chore</h3>
+                <Button
+                  type="button"
+                  className="modal-close-button"
+                  onClick={() => setPendingRejectChore(null)}
+                  aria-label="Close dialog"
+                  title="Close dialog">
+                  X
+                </Button>
+              </div>
+              <p className="mb-3 text-sm text-slate-600">
+                Reject <strong>{pendingRejectChore.title}</strong>? Feedback is optional.
+              </p>
+              <label className="mb-4 flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-slate-700">Feedback</span>
+                <textarea
+                  rows={4}
+                  value={rejectFeedback}
+                  onChange={(event) => setRejectFeedback(event.target.value)}
+                  placeholder="Tell them what needs to be fixed..."
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+                />
+              </label>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+                  disabled={hasBusyAction}
+                  onClick={() => setPendingRejectChore(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700"
+                  disabled={hasBusyAction}
+                  onClick={async () => {
+                    const rejected = await onRejectChore(pendingRejectChore.id, rejectFeedback);
+                    if (rejected) {
+                      setPendingRejectChore(null);
+                      setRejectFeedback("");
+                    }
+                  }}>
+                  {rowActionState?.choreId === pendingRejectChore.id &&
+                  rowActionState.action === "reject"
+                    ? "Rejecting..."
+                    : "Reject"}
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </ModalShell>
       <ModalShell
         open={Boolean(pendingDeleteChore)}
         onRequestClose={() => setPendingDeleteChore(null)}>

@@ -8,6 +8,13 @@ import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
+import {
+  DEFAULT_CHORE_COIN_VALUE,
+  DEFAULT_RECURRENCE_INTERVAL,
+  MAX_CHORE_COIN_VALUE,
+  type ChoreRecurrenceType,
+  type ChoreRecurrenceUnit,
+} from "@/lib/chores/recurrence";
 import type { FamilyCategory } from "@/lib/family/types";
 
 type Suggestion = {
@@ -29,6 +36,11 @@ type EditableChore = {
   dueDate?: string;
   details?: string;
   categoryIds?: string[];
+  coinValue?: number;
+  requireApproval?: boolean;
+  recurrenceType?: ChoreRecurrenceType;
+  recurrenceInterval?: number;
+  recurrenceUnit?: ChoreRecurrenceUnit;
 };
 
 export type AddEditChoreSavedResult = {
@@ -45,6 +57,11 @@ export type AddEditChoreSavedResult = {
     details?: string;
     categoryIds?: string[];
     categories?: FamilyCategory[];
+    coinValue: number;
+    requireApproval: boolean;
+    recurrenceType: ChoreRecurrenceType;
+    recurrenceInterval?: number;
+    recurrenceUnit?: ChoreRecurrenceUnit;
   };
   error?: string;
 };
@@ -63,6 +80,19 @@ type AddEditChoresDialogProps = {
 
 const LAST_ASSIGNEE_STORAGE_KEY = "chores_last_assignee_id";
 const ADDITIONAL_OPTIONS_STORAGE_KEY = "chores_additional_options_open_v2";
+const RECURRENCE_OPTIONS: TailwindSelectOption<ChoreRecurrenceType>[] = [
+  { value: "none", label: "Does not repeat" },
+  { value: "instant", label: "Instant" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "custom", label: "Custom" },
+];
+const CUSTOM_RECURRENCE_UNIT_OPTIONS: TailwindSelectOption<ChoreRecurrenceUnit>[] = [
+  { value: "day", label: "Days" },
+  { value: "week", label: "Weeks" },
+  { value: "month", label: "Months" },
+];
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
@@ -135,6 +165,13 @@ export function AddEditChoresDialog({
   const [dueDate, setDueDate] = useState(todayIsoDate());
   const [details, setDetails] = useState("");
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [coinValue, setCoinValue] = useState(String(DEFAULT_CHORE_COIN_VALUE));
+  const [requireApproval, setRequireApproval] = useState(false);
+  const [recurrenceType, setRecurrenceType] = useState<ChoreRecurrenceType>("none");
+  const [recurrenceInterval, setRecurrenceInterval] = useState(
+    String(DEFAULT_RECURRENCE_INTERVAL),
+  );
+  const [recurrenceUnit, setRecurrenceUnit] = useState<ChoreRecurrenceUnit>("day");
   const [showAdditionalOptions, setShowAdditionalOptions] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -284,6 +321,11 @@ export function AddEditChoresDialog({
     setDueDate(chore?.dueDate || todayIsoDate());
     setDetails(chore?.details ?? "");
     setCategoryIds(chore?.categoryIds ?? []);
+    setCoinValue(String(chore?.coinValue ?? DEFAULT_CHORE_COIN_VALUE));
+    setRequireApproval(Boolean(chore?.requireApproval));
+    setRecurrenceType(chore?.recurrenceType ?? "none");
+    setRecurrenceInterval(String(chore?.recurrenceInterval ?? DEFAULT_RECURRENCE_INTERVAL));
+    setRecurrenceUnit(chore?.recurrenceUnit ?? "day");
     setShowAdditionalOptions(preferredOpen);
   }
 
@@ -404,6 +446,52 @@ export function AddEditChoresDialog({
       : isEditMode
         ? fallbackCategoryIds
         : [];
+    const parsedCoinValue = Number(coinValue);
+    if (
+      !Number.isFinite(parsedCoinValue) ||
+      !Number.isInteger(parsedCoinValue) ||
+      Math.trunc(parsedCoinValue) < 0 ||
+      Math.trunc(parsedCoinValue) > MAX_CHORE_COIN_VALUE
+    ) {
+      setError(`coin_value_must_be_whole_number_0_to_${MAX_CHORE_COIN_VALUE}`);
+      return;
+    }
+    const resolvedCoinValue = showAdditionalOptions
+      ? Math.trunc(parsedCoinValue)
+      : isEditMode
+        ? chore?.coinValue ?? DEFAULT_CHORE_COIN_VALUE
+        : DEFAULT_CHORE_COIN_VALUE;
+    const parsedRecurrenceInterval = Number(recurrenceInterval);
+    if (
+      showAdditionalOptions &&
+      recurrenceType === "custom" &&
+      (!Number.isFinite(parsedRecurrenceInterval) || Math.trunc(parsedRecurrenceInterval) < 1)
+    ) {
+      setError("custom_recurrence_interval_required");
+      return;
+    }
+    const resolvedRequireApproval = showAdditionalOptions
+      ? requireApproval
+      : isEditMode
+        ? Boolean(chore?.requireApproval)
+        : false;
+    const resolvedRecurrenceType = showAdditionalOptions
+      ? recurrenceType
+      : isEditMode
+        ? chore?.recurrenceType ?? "none"
+        : "none";
+    const resolvedRecurrenceInterval =
+      resolvedRecurrenceType === "custom"
+        ? showAdditionalOptions
+          ? Math.trunc(parsedRecurrenceInterval)
+          : chore?.recurrenceInterval ?? DEFAULT_RECURRENCE_INTERVAL
+        : undefined;
+    const resolvedRecurrenceUnit =
+      resolvedRecurrenceType === "custom"
+        ? showAdditionalOptions
+          ? recurrenceUnit
+          : chore?.recurrenceUnit ?? "day"
+        : undefined;
     const resolvedCategories = resolvedCategoryIds
       .map((categoryId) => categories.find((category) => category.id === categoryId))
       .filter((category): category is FamilyCategory => Boolean(category));
@@ -427,6 +515,11 @@ export function AddEditChoresDialog({
       setDueDate(todayIsoDate());
       setDetails("");
       setCategoryIds([]);
+      setCoinValue(String(DEFAULT_CHORE_COIN_VALUE));
+      setRequireApproval(false);
+      setRecurrenceType("none");
+      setRecurrenceInterval(String(DEFAULT_RECURRENCE_INTERVAL));
+      setRecurrenceUnit("day");
       setShowAdditionalOptions(false);
       if (onSaved) {
         await onSaved({
@@ -443,6 +536,11 @@ export function AddEditChoresDialog({
             details: resolvedDetails,
             categoryIds: resolvedCategoryIds,
             categories: resolvedCategories,
+            coinValue: resolvedCoinValue,
+            requireApproval: resolvedRequireApproval,
+            recurrenceType: resolvedRecurrenceType,
+            recurrenceInterval: resolvedRecurrenceInterval,
+            recurrenceUnit: resolvedRecurrenceUnit,
           },
         });
       }
@@ -463,6 +561,11 @@ export function AddEditChoresDialog({
                   dueDate: resolvedDueDate,
                   details: resolvedDetails,
                   categoryIds: resolvedCategoryIds,
+                  coinValue: resolvedCoinValue,
+                  requireApproval: resolvedRequireApproval,
+                  recurrenceType: resolvedRecurrenceType,
+                  recurrenceInterval: resolvedRecurrenceInterval,
+                  recurrenceUnit: resolvedRecurrenceUnit,
                 }
               : {
                   description: normalizedDescription,
@@ -470,6 +573,11 @@ export function AddEditChoresDialog({
                   dueDate: showAdditionalOptions ? dueDate : undefined,
                   details: resolvedDetails,
                   categoryIds: resolvedCategoryIds,
+                  coinValue: resolvedCoinValue,
+                  requireApproval: resolvedRequireApproval,
+                  recurrenceType: resolvedRecurrenceType,
+                  recurrenceInterval: resolvedRecurrenceInterval,
+                  recurrenceUnit: resolvedRecurrenceUnit,
                 },
           ),
         },
@@ -511,6 +619,11 @@ export function AddEditChoresDialog({
         setDueDate(todayIsoDate());
         setDetails("");
         setCategoryIds([]);
+        setCoinValue(String(DEFAULT_CHORE_COIN_VALUE));
+        setRequireApproval(false);
+        setRecurrenceType("none");
+        setRecurrenceInterval(String(DEFAULT_RECURRENCE_INTERVAL));
+        setRecurrenceUnit("day");
         setShowAdditionalOptions(false);
       }
       if (onSaved) {
@@ -574,8 +687,13 @@ export function AddEditChoresDialog({
   }
 
   const isActiveChoreLimitError = error === "active_chore_limit_reached";
+  const isCoinValueError = error.startsWith("coin_value_must_be_whole_number_0_to_");
   const errorMessage = isActiveChoreLimitError
     ? `This assignee has reached the maximum number of open chores (${maxActiveChores ?? 100}). Complete or remove an open chore before adding another.`
+    : isCoinValueError
+      ? `Coin value must be a whole number between 0 and ${MAX_CHORE_COIN_VALUE}.`
+      : error === "custom_recurrence_interval_required"
+        ? "Custom recurrence needs an interval of at least 1."
     : error;
 
   const descriptionSuggestionMenuNode =
@@ -699,6 +817,82 @@ export function AddEditChoresDialog({
                       onChange={(event) => setDueDate(event.target.value)}
                       className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800"
                     />
+                  </label>
+
+                  <label className="flex w-full flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">Coin Value</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={MAX_CHORE_COIN_VALUE}
+                      step={1}
+                      value={coinValue}
+                      disabled={!showAdditionalOptions}
+                      onChange={(event) => setCoinValue(event.target.value)}
+                      className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800"
+                    />
+                  </label>
+
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+                    <label className="flex w-full flex-col gap-1.5">
+                      <span className="text-sm font-medium text-slate-700">Recurrence</span>
+                      <TailwindSelect
+                        ariaLabel="Recurrence"
+                        value={recurrenceType}
+                        onChange={(value) => setRecurrenceType(value as ChoreRecurrenceType)}
+                        options={RECURRENCE_OPTIONS}
+                        className="w-full"
+                        buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                        menuClassName="border-slate-300"
+                        disabled={!showAdditionalOptions}
+                      />
+                    </label>
+                    {recurrenceType === "custom" ? (
+                      <div className="grid gap-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)]">
+                        <label className="flex w-full flex-col gap-1.5">
+                          <span className="text-sm font-medium text-slate-700">Every</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={365}
+                            step={1}
+                            value={recurrenceInterval}
+                            disabled={!showAdditionalOptions}
+                            onChange={(event) => setRecurrenceInterval(event.target.value)}
+                            className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800"
+                          />
+                        </label>
+                        <label className="flex w-full flex-col gap-1.5">
+                          <span className="text-sm font-medium text-slate-700">Unit</span>
+                          <TailwindSelect
+                            ariaLabel="Custom recurrence unit"
+                            value={recurrenceUnit}
+                            onChange={(value) => setRecurrenceUnit(value as ChoreRecurrenceUnit)}
+                            options={CUSTOM_RECURRENCE_UNIT_OPTIONS}
+                            className="w-full"
+                            buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                            menuClassName="border-slate-300"
+                            disabled={!showAdditionalOptions}
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <label className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={requireApproval}
+                      disabled={!showAdditionalOptions}
+                      onChange={(event) => setRequireApproval(event.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#1f69b7]"
+                    />
+                    <span className="flex flex-col gap-1">
+                      <span className="text-sm font-medium text-slate-700">Require Parent Approval</span>
+                      <span className="text-xs text-slate-500">
+                        Completed chores leave the open list, notify parents, and wait for approval before coins are paid out.
+                      </span>
+                    </span>
                   </label>
 
                   <label className="flex w-full flex-col gap-1.5">

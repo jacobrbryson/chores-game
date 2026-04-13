@@ -14,6 +14,7 @@ export function FamilyCard() {
   const [error, setError] = useState("");
   const [acceptingInvite, setAcceptingInvite] = useState(false);
   const [acceptInviteError, setAcceptInviteError] = useState("");
+  const [completionStatsReloadKey, setCompletionStatsReloadKey] = useState(0);
 
   const needsReauth =
     error === "reauth_required" ||
@@ -26,10 +27,12 @@ export function FamilyCard() {
     summary?.members.find((member) => member.uid === viewerUid || member.id === viewerUid)
       ?.role ?? "player";
   const viewerAssigneeIds =
+    summary?.viewerAssigneeAliases?.filter((value) => value.trim().length > 0) ??
     summary?.members
       .filter((member) => member.uid === viewerUid || member.id === viewerUid)
-      .flatMap((member) => [member.id, member.uid ?? ""])
-      .filter((value) => value.length > 0) ?? [viewerUid].filter(Boolean);
+      .flatMap((member) => [member.id, member.uid ?? "", member.email.trim().toLowerCase()])
+      .filter((value) => value.length > 0) ??
+    [viewerUid].filter(Boolean);
   const familyId = summary?.family?.id ?? "";
 
   function toFamilySnapshotStatus(value: string): FamilySnapshotChore["status"] {
@@ -116,6 +119,10 @@ export function FamilyCard() {
           categoryIds?: string[];
           categories?: { id: string; name: string; color: string }[];
           coinValue: number;
+          requireApproval?: boolean;
+          recurrenceType?: FamilySnapshotChore["recurrenceType"];
+          recurrenceInterval?: number;
+          recurrenceUnit?: FamilySnapshotChore["recurrenceUnit"];
           createdAt?: string;
         };
       };
@@ -137,7 +144,11 @@ export function FamilyCard() {
         details: chore.details,
         categoryIds: Array.isArray(chore.categoryIds) ? chore.categoryIds : [],
         categories: Array.isArray(chore.categories) ? chore.categories : [],
-        coinValue: chore.coinValue || 10,
+        coinValue: chore.coinValue,
+        requireApproval: Boolean(chore.requireApproval),
+        recurrenceType: chore.recurrenceType,
+        recurrenceInterval: chore.recurrenceInterval,
+        recurrenceUnit: chore.recurrenceUnit,
         createdAt: chore.createdAt,
         source: chore.source,
         status: toFamilySnapshotStatus(chore.status),
@@ -198,6 +209,13 @@ export function FamilyCard() {
         return;
       }
       if (
+        event.type === "chore_completed" ||
+        event.type === "chore_deleted" ||
+        event.type === "chore_updated"
+      ) {
+        setCompletionStatsReloadKey((current) => current + 1);
+      }
+      if (
         event.type === "theme_changed" ||
         event.type === "avatar_changed" ||
         event.type === "chore_reordered"
@@ -209,6 +227,7 @@ export function FamilyCard() {
         if (event.choreId) {
           removeTodayChore(event.choreId);
         }
+        void loadSummary({ silent: true });
       } else if (event.choreId) {
         void refreshTodayChoreFromApi(event.choreId);
       }
@@ -321,7 +340,9 @@ export function FamilyCard() {
             <TodayChoresPanel
               chores={summary.choresToday}
               viewerAssigneeIds={viewerAssigneeIds}
-              viewerRole={viewerRole}              onReload={() => loadSummary({ silent: true })}
+              viewerRole={viewerRole}
+              onReload={() => loadSummary({ silent: true })}
+              completionStatsReloadKey={completionStatsReloadKey}
             />
           )}
         </>

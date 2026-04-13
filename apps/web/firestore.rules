@@ -185,7 +185,7 @@ service cloud.firestore {
       allow delete: if isSelf(uid);
 
       match /walletLedger/{entryId} {
-        allow read: if isSelf(uid);
+        allow read: if isSelf(uid) || canAdminManageUser(uid);
         allow create: if (isSelf(uid) || canAdminManageUser(uid))
           && request.resource.data.uid == uid
           && request.resource.data.reason is string

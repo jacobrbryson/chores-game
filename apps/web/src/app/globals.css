@@ -3559,6 +3559,44 @@ white-space: nowrap;
   text-align: right;
 }
 
+.profile-page-name-line {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.profile-name-edit-wrap {
+  width: min(100%, 280px);
+  display: grid;
+  gap: 8px;
+  justify-items: stretch;
+}
+
+.profile-name-input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #c4d8f5;
+  border-radius: 10px;
+  padding: 0 12px;
+  font: inherit;
+  color: #1b3f6b;
+  background: #ffffff;
+}
+
+.profile-name-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.profile-name-error {
+  color: #b42318;
+  font-size: 0.82rem;
+}
+
 .profile-page-style-fields {
   width: 100%;
   border-top: 1px solid #d6e4f9;
@@ -4255,6 +4293,18 @@ white-space: nowrap;
   .profile-page-basic-fields div {
     justify-items: start;
     text-align: left;
+  }
+
+  .profile-page-name-line {
+    justify-content: flex-start;
+  }
+
+  .profile-name-edit-wrap {
+    width: 100%;
+  }
+
+  .profile-name-actions {
+    justify-content: flex-start;
   }
 
   .profile-theme-change-btn {

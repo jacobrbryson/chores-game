@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
@@ -5,8 +6,10 @@ import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import {
   documentIdFromName,
   boolField,
+  createOrReplaceDocument,
   type FirestoreValue,
   getDocument,
+  integerField,
   listDocuments,
   patchDocument,
   readBoolean,
@@ -24,6 +27,15 @@ import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
 import { GOOGLE_TASKS_CHORE_SOURCE, syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
 import {
+  DEFAULT_CHORE_COIN_VALUE,
+  nextRecurringDueDate,
+  normalizeCoinValue,
+  normalizeRecurrenceConfig,
+  parseCoinValue,
+  parseRequireApproval,
+  recurrenceLabel,
+} from "@/lib/chores/recurrence";
+import {
   buildCategoryMap,
   hasAllCategoryIds,
   listFamilyCategories,
@@ -39,6 +51,12 @@ type UpdateChoreBody = {
   dueDate?: unknown;
   details?: unknown;
   categoryIds?: unknown;
+  coinValue?: unknown;
+  requireApproval?: unknown;
+  recurrenceType?: unknown;
+  recurrenceInterval?: unknown;
+  recurrenceUnit?: unknown;
+  feedback?: unknown;
 };
 const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
 
@@ -81,6 +99,44 @@ function asValidDate(value: unknown) {
     return value;
   }
   return "";
+}
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function removeSpawnedRecurringChoreIfPossible(
+  familyId: string,
+  spawnedNextChoreId: string,
+  idToken: string,
+  now: string,
+) {
+  if (!spawnedNextChoreId) {
+    return { kind: "ok" as const };
+  }
+  const spawnedDoc = await getDocument(
+    `families/${familyId}/chores/${spawnedNextChoreId}`,
+    idToken,
+  );
+  if (readBoolean(spawnedDoc.fields, "deleted")) {
+    return { kind: "ok" as const };
+  }
+  const status = readString(spawnedDoc.fields, "status") || "Open";
+  if (status !== "Open") {
+    return { kind: "recurring_successor_locked" as const };
+  }
+  await patchDocument(
+    `families/${familyId}/chores/${spawnedNextChoreId}`,
+    {
+      deleted: boolField(true),
+      deletedAt: timestampField(now),
+      status: stringField("Deleted"),
+      updatedAt: timestampField(now),
+    },
+    idToken,
+    ["deleted", "deletedAt", "status", "updatedAt"],
+  );
+  return { kind: "ok" as const };
 }
 
 async function getFamilyMemberName(
@@ -380,7 +436,15 @@ export async function GET(
                   readTimestamp(choreDoc.fields, "updatedAt") ||
                   undefined
                 : undefined,
-            coinValue: readInteger(choreDoc.fields, "coinValue") || 10,
+            coinValue: normalizeCoinValue(readInteger(choreDoc.fields, "coinValue")),
+            requireApproval: readBoolean(choreDoc.fields, "requireApproval"),
+            recurrenceType: normalizeRecurrenceConfig({
+              recurrenceType: readString(choreDoc.fields, "recurrenceType"),
+              recurrenceInterval: readInteger(choreDoc.fields, "recurrenceInterval"),
+              recurrenceUnit: readString(choreDoc.fields, "recurrenceUnit"),
+            }).recurrenceType,
+            recurrenceInterval: readInteger(choreDoc.fields, "recurrenceInterval") || undefined,
+            recurrenceUnit: readString(choreDoc.fields, "recurrenceUnit") || undefined,
             createdAt: readTimestamp(choreDoc.fields, "createdAt") || undefined,
           },
           viewerRole: requester.role,
@@ -560,7 +624,14 @@ export async function PATCH(
   }
 
   const action = typeof body.action === "string" ? body.action : "edit";
-  if (action !== "edit" && action !== "complete" && action !== "undo_complete" && action !== "set_categories") {
+  if (
+    action !== "edit" &&
+    action !== "complete" &&
+    action !== "undo_complete" &&
+    action !== "set_categories" &&
+    action !== "approve" &&
+    action !== "reject"
+  ) {
     return NextResponse.json({ error: "invalid_action" }, { status: 400 });
   }
 
@@ -574,6 +645,17 @@ export async function PATCH(
   const details =
     typeof body.details === "string" && body.details.trim().length > 0
       ? body.details.trim().slice(0, 2000)
+      : "";
+  const coinValue = parseCoinValue(body.coinValue);
+  const requireApproval = parseRequireApproval(body.requireApproval);
+  const recurrence = normalizeRecurrenceConfig({
+    recurrenceType: body.recurrenceType,
+    recurrenceInterval: body.recurrenceInterval,
+    recurrenceUnit: body.recurrenceUnit,
+  });
+  const feedback =
+    typeof body.feedback === "string" && body.feedback.trim().length > 0
+      ? body.feedback.trim().slice(0, 500)
       : "";
   const hasCategoryIds = Array.isArray(body.categoryIds);
   const categoryIds = normalizeCategoryIds(body.categoryIds);
@@ -591,6 +673,9 @@ export async function PATCH(
     }
     if (!dueDate) {
       return NextResponse.json({ error: "due_date_required" }, { status: 400 });
+    }
+    if (coinValue === null) {
+      return NextResponse.json({ error: "invalid_coin_value" }, { status: 400 });
     }
   }
 
@@ -611,7 +696,16 @@ export async function PATCH(
           const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
           const choreSource = readString(existingChoreDoc.fields, "source");
           const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
-          const choreCoinValue = Math.max(0, readInteger(existingChoreDoc.fields, "coinValue") || 0);
+          const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
+          const choreDueDate = readString(existingChoreDoc.fields, "dueDate") || todayIsoDate();
+          const choreDetails = readString(existingChoreDoc.fields, "details") || "";
+          const choreCategoryIds = readChoreCategoryIds(existingChoreDoc.fields);
+          const choreRequireApproval = readBoolean(existingChoreDoc.fields, "requireApproval");
+          const choreRecurrence = normalizeRecurrenceConfig({
+            recurrenceType: readString(existingChoreDoc.fields, "recurrenceType"),
+            recurrenceInterval: readInteger(existingChoreDoc.fields, "recurrenceInterval"),
+            recurrenceUnit: readString(existingChoreDoc.fields, "recurrenceUnit"),
+          });
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
           if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
             syncOwnerUid = choreGoogleTaskOwnerUid;
@@ -638,18 +732,71 @@ export async function PATCH(
               return { kind: "forbidden_action" as const };
             }
           }
+          let spawnedNextChoreId = "";
+          const nextStatus = choreRequireApproval ? "Submitted" : "Approved";
+          if (choreRecurrence.recurrenceType !== "none") {
+            const nextDueDate = nextRecurringDueDate(
+              choreDueDate,
+              choreRecurrence,
+              todayIsoDate(),
+            );
+            const allChoreDocs = await listDocuments(`families/${familyId}/chores`, idToken, 1000);
+            const openChores = allChoreDocs.filter((doc) => {
+              if (readBoolean(doc.fields, "deleted")) {
+                return false;
+              }
+              return readString(doc.fields, "status") === "Open";
+            });
+            const nextSortOrder =
+              openChores.reduce((maxValue, doc) => {
+                const value = doc.fields?.sortOrder;
+                const raw =
+                  value && "integerValue" in value
+                    ? Number(value.integerValue)
+                    : value && "stringValue" in value
+                      ? Number(value.stringValue)
+                      : Number.NaN;
+                return Number.isFinite(raw) ? Math.max(maxValue, Math.trunc(raw)) : maxValue;
+              }, -1) + 1;
+            spawnedNextChoreId = randomUUID();
+            await createOrReplaceDocument(
+              `families/${familyId}/chores/${spawnedNextChoreId}`,
+              {
+                title: stringField(choreTitle),
+                status: stringField("Open"),
+                assigneeId: stringField(choreAssigneeId),
+                assigneeName: stringField(readString(existingChoreDoc.fields, "assigneeName") || "Unassigned"),
+                details: stringField(choreDetails),
+                categoryIds: stringArrayField(choreCategoryIds),
+                dueDate: stringField(nextDueDate),
+                coinValue: integerField(choreCoinValue),
+                requireApproval: boolField(choreRequireApproval),
+                recurrenceType: stringField(choreRecurrence.recurrenceType),
+                recurrenceInterval: integerField(choreRecurrence.recurrenceInterval ?? 0),
+                recurrenceUnit: stringField(choreRecurrence.recurrenceUnit ?? ""),
+                recurrenceParentChoreId: stringField(choreId),
+                deleted: boolField(false),
+                createdBy: stringField(session.uid),
+                createdAt: timestampField(now),
+                sortOrder: integerField(nextSortOrder),
+                source: stringField("manual"),
+              },
+              idToken,
+            );
+          }
           await patchDocument(
             `families/${familyId}/chores/${choreId}`,
             {
-              status: stringField("Submitted"),
+              status: stringField(nextStatus),
               submittedAt: timestampField(now),
               updatedAt: timestampField(now),
+              spawnedNextChoreId: stringField(spawnedNextChoreId),
             },
             idToken,
-            ["status", "submittedAt", "updatedAt"],
+            ["status", "submittedAt", "updatedAt", "spawnedNextChoreId"],
           );
           const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
-          if (assigneeUid && choreCoinValue > 0) {
+          if (!choreRequireApproval && assigneeUid && choreCoinValue > 0) {
             try {
               await applyWalletDelta({
                 uid: assigneeUid,
@@ -672,8 +819,10 @@ export async function PATCH(
             actorUid: session.uid,
             actorEmail: session.email,
             actorName,
-            title: "Chore completed",
-            message: `${actorName} marked "${choreTitle}" complete.`,
+            title: choreRequireApproval ? "Chore submitted for approval" : "Chore completed",
+            message: choreRequireApproval
+              ? `${actorName} completed "${choreTitle}" and it is waiting for parent approval.`
+              : `${actorName} marked "${choreTitle}" complete and earned ${choreCoinValue} coins.${choreRecurrence.recurrenceType !== "none" ? ` ${recurrenceLabel(choreRecurrence)}.` : ""}`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
@@ -700,26 +849,43 @@ export async function PATCH(
           const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
           const choreSource = readString(existingChoreDoc.fields, "source");
           const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
-          const choreCoinValue = Math.max(0, readInteger(existingChoreDoc.fields, "coinValue") || 0);
+          const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
+          const choreRequireApproval = readBoolean(existingChoreDoc.fields, "requireApproval");
+          const spawnedNextChoreId = readString(existingChoreDoc.fields, "spawnedNextChoreId");
           if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
             syncOwnerUid = choreGoogleTaskOwnerUid;
           } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.memberId, session.email)) {
             syncOwnerUid = session.uid;
           }
-          if (currentStatus !== "Submitted" && currentStatus !== "Approved") {
+          if (
+            currentStatus !== "Submitted" &&
+            currentStatus !== "Approved" &&
+            currentStatus !== "Rejected"
+          ) {
             return { kind: "invalid_transition" as const };
+          }
+          const removeSpawnedResult = await removeSpawnedRecurringChoreIfPossible(
+            familyId,
+            spawnedNextChoreId,
+            idToken,
+            now,
+          );
+          if (removeSpawnedResult.kind === "recurring_successor_locked") {
+            return { kind: "recurring_successor_locked" as const };
           }
           await patchDocument(
             `families/${familyId}/chores/${choreId}`,
             {
               status: stringField("Open"),
               updatedAt: timestampField(now),
+              spawnedNextChoreId: stringField(""),
+              rejectionFeedback: stringField(""),
             },
             idToken,
-            ["status", "updatedAt"],
+            ["status", "updatedAt", "spawnedNextChoreId", "rejectionFeedback"],
           );
           const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
-          if (assigneeUid && choreCoinValue > 0) {
+          if (currentStatus === "Approved" && !choreRequireApproval && assigneeUid && choreCoinValue > 0) {
             try {
               await applyWalletDelta({
                 uid: assigneeUid,
@@ -746,7 +912,120 @@ export async function PATCH(
             actorEmail: session.email,
             actorName,
             title: "Completion undone",
-            message: `${actorName} moved "${choreTitle}" back to open.`,
+            message: `${actorName} moved "${choreTitle}" back to open.${spawnedNextChoreId ? " The next recurring copy was removed." : ""}`,
+            choreId,
+            choreTitle,
+            relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
+          });
+          await publishFamilyActivity({
+            type: "chore_updated",
+            familyId,
+            choreId,
+            occurredAt: now,
+          });
+        } else if (action === "approve") {
+          const requester = await getRequesterContext(
+            familyId,
+            session.uid,
+            session.email,
+            idToken,
+          );
+          if (requester.role !== "admin") {
+            return { kind: "forbidden_action" as const };
+          }
+          const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
+          const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
+          const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
+          const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
+          const choreRequireApproval = readBoolean(existingChoreDoc.fields, "requireApproval");
+          if (currentStatus !== "Submitted" || !choreRequireApproval) {
+            return { kind: "invalid_transition" as const };
+          }
+          await patchDocument(
+            `families/${familyId}/chores/${choreId}`,
+            {
+              status: stringField("Approved"),
+              updatedAt: timestampField(now),
+            },
+            idToken,
+            ["status", "updatedAt"],
+          );
+          const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
+          if (assigneeUid && choreCoinValue > 0) {
+            try {
+              await applyWalletDelta({
+                uid: assigneeUid,
+                idToken,
+                delta: choreCoinValue,
+                reason: "chore_complete",
+                choreId,
+              });
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (!reason.includes("FIRESTORE_HTTP_404")) {
+                throw error;
+              }
+            }
+          }
+          await emitFamilyActivity({
+            familyId,
+            idToken,
+            kind: "chore_approved",
+            actorUid: session.uid,
+            actorEmail: session.email,
+            actorName,
+            title: "Chore approved",
+            message: `${actorName} approved "${choreTitle}"${choreCoinValue > 0 ? ` and paid ${choreCoinValue} coins` : ""}.`,
+            choreId,
+            choreTitle,
+            relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
+          });
+          await publishFamilyActivity({
+            type: "chore_updated",
+            familyId,
+            choreId,
+            occurredAt: now,
+          });
+        } else if (action === "reject") {
+          const requester = await getRequesterContext(
+            familyId,
+            session.uid,
+            session.email,
+            idToken,
+          );
+          if (requester.role !== "admin") {
+            return { kind: "forbidden_action" as const };
+          }
+          const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
+          const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
+          const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
+          const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const choreRequireApproval = readBoolean(existingChoreDoc.fields, "requireApproval");
+          if (currentStatus !== "Submitted" || !choreRequireApproval) {
+            return { kind: "invalid_transition" as const };
+          }
+          await patchDocument(
+            `families/${familyId}/chores/${choreId}`,
+            {
+              status: stringField("Rejected"),
+              rejectionFeedback: stringField(feedback),
+              updatedAt: timestampField(now),
+            },
+            idToken,
+            ["status", "rejectionFeedback", "updatedAt"],
+          );
+          await emitFamilyActivity({
+            familyId,
+            idToken,
+            kind: "chore_rejected",
+            actorUid: session.uid,
+            actorEmail: session.email,
+            actorName,
+            title: "Chore rejected",
+            message: feedback
+              ? `${actorName} rejected "${choreTitle}": ${feedback}`
+              : `${actorName} rejected "${choreTitle}".`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
@@ -856,10 +1135,28 @@ export async function PATCH(
               dueDate: stringField(dueDate),
               details: stringField(details),
               categoryIds: stringArrayField(nextCategoryIds),
+              coinValue: integerField(coinValue ?? DEFAULT_CHORE_COIN_VALUE),
+              requireApproval: boolField(requireApproval),
+              recurrenceType: stringField(recurrence.recurrenceType),
+              recurrenceInterval: integerField(recurrence.recurrenceInterval ?? 0),
+              recurrenceUnit: stringField(recurrence.recurrenceUnit ?? ""),
               updatedAt: timestampField(now),
             },
             idToken,
-            ["title", "assigneeId", "assigneeName", "dueDate", "details", "categoryIds", "updatedAt"],
+            [
+              "title",
+              "assigneeId",
+              "assigneeName",
+              "dueDate",
+              "details",
+              "categoryIds",
+              "coinValue",
+              "requireApproval",
+              "recurrenceType",
+              "recurrenceInterval",
+              "recurrenceUnit",
+              "updatedAt",
+            ],
           );
           await emitFamilyActivity({
             familyId,
@@ -869,7 +1166,7 @@ export async function PATCH(
             actorEmail: session.email,
             actorName,
             title: "Chore updated",
-            message: `${actorName} updated "${normalizedDescription || previousTitle}".`,
+            message: `${actorName} updated "${normalizedDescription || previousTitle}" (${coinValue ?? DEFAULT_CHORE_COIN_VALUE} coins${requireApproval ? ", approval required" : ""}${recurrence.recurrenceType !== "none" ? `, ${recurrenceLabel(recurrence).toLowerCase()}` : ""}).`,
             choreId,
             choreTitle: normalizedDescription || previousTitle,
             relatedIds: [assigneeId, previousAssigneeId].filter(Boolean),
@@ -906,6 +1203,15 @@ export async function PATCH(
     if (data.kind === "wallet_negative_blocked") {
       return NextResponse.json(
         { error: "wallet_negative_blocked", message: "Cannot undo completion after coins were spent." },
+        { status: 409 },
+      );
+    }
+    if (data.kind === "recurring_successor_locked") {
+      return NextResponse.json(
+        {
+          error: "recurring_successor_locked",
+          message: "Cannot undo this completed recurring chore because the next occurrence already changed.",
+        },
         { status: 409 },
       );
     }
@@ -972,7 +1278,8 @@ export async function DELETE(
         const choreSource = readString(existingChoreDoc.fields, "source");
         const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
         const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
-        const choreCoinValue = Math.max(0, readInteger(existingChoreDoc.fields, "coinValue") || 0);
+        const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
+        const choreRequireApproval = readBoolean(existingChoreDoc.fields, "requireApproval");
         const now = new Date().toISOString();
         await patchDocument(
           `families/${familyId}/chores/${choreId}`,
@@ -985,7 +1292,11 @@ export async function DELETE(
           idToken,
           ["deleted", "deletedAt", "status", "updatedAt"],
         );
-        if ((currentStatus === "Submitted" || currentStatus === "Approved") && choreCoinValue > 0) {
+        if (
+          currentStatus === "Approved" &&
+          !choreRequireApproval &&
+          choreCoinValue > 0
+        ) {
           const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
           if (assigneeUid) {
             try {

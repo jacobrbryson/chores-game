@@ -95,6 +95,7 @@ export function ProfileMenu({
   authenticatedName = "",
 }: ProfileMenuProps) {
   const [open, setOpen] = useState(false);
+  const [displayName, setDisplayName] = useState(name);
   const [unseenCount, setUnseenCount] = useState(0);
   const [selectedAvatarId, setSelectedAvatarId] = useState("");
   const [selectedAvatarPhotoUrl, setSelectedAvatarPhotoUrl] = useState("");
@@ -116,6 +117,7 @@ export function ProfileMenu({
   const [switchError, setSwitchError] = useState("");
   const [switchRequiresPinSetup, setSwitchRequiresPinSetup] = useState(false);
   const storageEmailRef = useRef(email);
+  const notificationsHref = unseenCount > 0 ? "/notifications?unseen=true" : "/notifications";
 
   async function loadUnseenCount() {
     try {
@@ -206,6 +208,10 @@ export function ProfileMenu({
   }
 
   useEffect(() => {
+    setDisplayName(name);
+  }, [name]);
+
+  useEffect(() => {
     storageEmailRef.current = email;
     const storedAvatar = readProfileAvatarFromStorage(storageEmailRef.current);
     if (storedAvatar) {
@@ -236,6 +242,20 @@ export function ProfileMenu({
     window.addEventListener("profile-avatar:refresh", onProfileAvatarRefresh);
     return () => {
       window.removeEventListener("profile-avatar:refresh", onProfileAvatarRefresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    function onProfileNameRefresh(event: Event) {
+      const detail =
+        event instanceof CustomEvent && typeof event.detail?.name === "string" ? event.detail.name : "";
+      if (detail.trim()) {
+        setDisplayName(detail.trim());
+      }
+    }
+    window.addEventListener("profile-name:refresh", onProfileNameRefresh);
+    return () => {
+      window.removeEventListener("profile-name:refresh", onProfileNameRefresh);
     };
   }, []);
 
@@ -389,7 +409,7 @@ export function ProfileMenu({
           <span className="profile-avatar-wrap">
             <Avatar
               className="profile-avatar"
-              name={name || "User profile"}
+              name={displayName || "User profile"}
               initial={initial}
               avatarId={selectedAvatarId}
               photoUrl={selectedAvatarPhotoUrl || picture || ""}
@@ -404,7 +424,7 @@ export function ProfileMenu({
           </span>
         }>
         <div className="profile-name-row">
-          <p className="profile-name">{name || "Signed In"}</p>
+          <p className="profile-name">{displayName || "Signed In"}</p>
           {googleTasksLinked ? (
             <GoogleTaskSyncIndicator className="profile-menu-sync-indicator" label="Synced" />
           ) : null}
@@ -416,7 +436,7 @@ export function ProfileMenu({
           </p>
         ) : null}
         <MenuActionLink
-          href="/notifications?unseen=true"
+          href={notificationsHref}
           fullWidth
           onClick={() => setOpen(false)}
           badgeCount={unseenCount}>

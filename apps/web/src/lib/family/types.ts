@@ -1,3 +1,8 @@
+import type {
+  ChoreRecurrenceType,
+  ChoreRecurrenceUnit,
+} from "@/lib/chores/recurrence";
+
 export type FamilyCategory = {
   id: string;
   name: string;
@@ -46,10 +51,15 @@ export type FamilySnapshotChore = {
   categoryIds?: string[];
   categories?: FamilyCategory[];
   coinValue: number;
+  requireApproval?: boolean;
+  recurrenceType?: ChoreRecurrenceType;
+  recurrenceInterval?: number;
+  recurrenceUnit?: ChoreRecurrenceUnit;
 };
 
 export type FamilySummaryResponse = {
   viewerUid: string;
+  viewerAssigneeAliases?: string[];
   viewerGoogleTasksLinked?: boolean;
   wsAuthToken?: string;
   noFamily: boolean;

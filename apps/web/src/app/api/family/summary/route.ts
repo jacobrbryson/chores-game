@@ -29,6 +29,10 @@ import {
   resolveChoreCategories,
 } from "@/lib/family/categories";
 import { syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
+import {
+  normalizeCoinValue,
+  normalizeRecurrenceConfig,
+} from "@/lib/chores/recurrence";
 
 export const dynamic = "force-dynamic";
 const MAX_FAMILY_MEMBERS = 100;
@@ -127,6 +131,42 @@ function toMemberStatus(value: string | undefined): FamilySnapshotMember["status
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
+}
+
+function buildViewerAssigneeAliases(
+  memberDocs: Array<{ name: string; fields?: Record<string, FirestoreValue> }>,
+  uid: string,
+  email: string,
+) {
+  const aliases = new Set<string>();
+  aliases.add(uid);
+  const normalizedEmail = normalizeEmail(email);
+  if (normalizedEmail) {
+    aliases.add(normalizedEmail);
+  }
+
+  for (const memberDoc of memberDocs) {
+    if (readBoolean(memberDoc.fields, "deleted")) {
+      continue;
+    }
+    const memberId = documentIdFromName(memberDoc.name);
+    const memberUid = readString(memberDoc.fields, "uid");
+    const memberEmail = normalizeEmail(readString(memberDoc.fields, "email"));
+    const matchesUid = memberId === uid || memberUid === uid;
+    const matchesEmail = Boolean(normalizedEmail) && memberEmail === normalizedEmail;
+    if (!matchesUid && !matchesEmail) {
+      continue;
+    }
+    aliases.add(memberId);
+    if (memberUid) {
+      aliases.add(memberUid);
+    }
+    if (memberEmail) {
+      aliases.add(memberEmail);
+    }
+  }
+
+  return Array.from(aliases);
 }
 
 function emptySummary(viewerUid: string, viewerGoogleTasksLinked = false): FamilySummaryResponse {
@@ -273,6 +313,11 @@ export async function GET(request: NextRequest) {
           listDocuments(`families/${familyId}/chores`, idToken, MAX_SUMMARY_CHORES),
           listFamilyCategories(familyId, idToken),
         ]);
+        const viewerAssigneeAliases = buildViewerAssigneeAliases(
+          memberDocs,
+          session.uid,
+          session.email,
+        );
         const categoryMap = buildCategoryMap(categories);
 
         const rawMemberCount = memberDocs.length;
@@ -431,6 +476,7 @@ export async function GET(request: NextRequest) {
 
         return {
           viewerUid: session.uid,
+          viewerAssigneeAliases,
           viewerGoogleTasksLinked,
           wsAuthToken: createFamilySocketAuthToken({
             uid: session.uid,
@@ -472,7 +518,13 @@ export async function GET(request: NextRequest) {
               details: readString(doc.fields, "details") || undefined,
               categoryIds: readChoreCategoryIds(doc.fields),
               deleted: readBoolean(doc.fields, "deleted"),
-              coinValue: readInteger(doc.fields, "coinValue") || 10,
+              coinValue: normalizeCoinValue(readInteger(doc.fields, "coinValue")),
+              requireApproval: readBoolean(doc.fields, "requireApproval"),
+              recurrence: normalizeRecurrenceConfig({
+                recurrenceType: readString(doc.fields, "recurrenceType"),
+                recurrenceInterval: readInteger(doc.fields, "recurrenceInterval"),
+                recurrenceUnit: readString(doc.fields, "recurrenceUnit"),
+              }),
               source:
                 readString(doc.fields, "source") === "google_tasks"
                   ? ("google_tasks" as const)
@@ -502,6 +554,10 @@ export async function GET(request: NextRequest) {
               categoryIds: chore.categoryIds,
               categories: resolveChoreCategories(chore.categoryIds, categoryMap),
               coinValue: chore.coinValue,
+              requireApproval: chore.requireApproval,
+              recurrenceType: chore.recurrence.recurrenceType,
+              recurrenceInterval: chore.recurrence.recurrenceInterval,
+              recurrenceUnit: chore.recurrence.recurrenceUnit,
               source: chore.source,
               status:
                 chore.status === "Open" ||

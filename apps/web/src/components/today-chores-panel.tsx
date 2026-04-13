@@ -32,7 +32,9 @@ import { triggerPartyConfetti } from "@/lib/confetti/party";
 type TodayChoresPanelProps = {
   chores: FamilySnapshotChore[];
   viewerAssigneeIds: string[];
-  viewerRole: "admin" | "player";  onReload: () => Promise<void> | void;
+  viewerRole: "admin" | "player";
+  onReload: () => Promise<void> | void;
+  completionStatsReloadKey?: number;
 };
 
 type CompletionTrendInterval = "hour" | "day" | "week";
@@ -76,6 +78,10 @@ function normalizeError(error: unknown, fallback: string) {
     return error.message;
   }
   return fallback;
+}
+
+function normalizeAssigneeAlias(value?: string) {
+  return (value ?? "").trim().toLowerCase();
 }
 
 const MY_CHORES_ONLY_STORAGE_KEY = "today_chores_my_only";
@@ -231,7 +237,9 @@ function reorderChoreIds(
 export function TodayChoresPanel({
   chores,
   viewerAssigneeIds,
-  viewerRole,  onReload,
+  viewerRole,
+  onReload,
+  completionStatsReloadKey = 0,
 }: TodayChoresPanelProps) {
   const canCreateChores = viewerRole === "admin";
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
@@ -336,7 +344,7 @@ export function TodayChoresPanel({
     return () => {
       cancelled = true;
     };
-  }, [completionWindow, completionStatsRefreshTick]);
+  }, [completionStatsReloadKey, completionWindow, completionStatsRefreshTick]);
 
   useEffect(() => {
     setOptimisticallyCompletedIds((current) => {
@@ -444,7 +452,15 @@ export function TodayChoresPanel({
     );
   }, [completionSeries.series]);
 
-  const viewerAssigneeIdSet = useMemo(() => new Set(viewerAssigneeIds), [viewerAssigneeIds]);
+  const viewerAssigneeIdSet = useMemo(
+    () =>
+      new Set(
+        viewerAssigneeIds
+          .map((value) => normalizeAssigneeAlias(value))
+          .filter(Boolean),
+      ),
+    [viewerAssigneeIds],
+  );
   const pendingCreateChores = useMemo(
     () => Object.values(pendingCreateChoresByRequestId),
     [pendingCreateChoresByRequestId],
@@ -492,7 +508,8 @@ export function TodayChoresPanel({
   const myChoreCount = useMemo(
     () =>
       openChores.filter(
-        (chore) => chore.assigneeId && viewerAssigneeIdSet.has(chore.assigneeId),
+        (chore) =>
+          chore.assigneeId && viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId)),
       ).length,
     [openChores, viewerAssigneeIdSet],
   );
@@ -501,7 +518,8 @@ export function TodayChoresPanel({
       return openChores;
     }
     return openChores.filter(
-      (chore) => chore.assigneeId && viewerAssigneeIdSet.has(chore.assigneeId),
+      (chore) =>
+        chore.assigneeId && viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId)),
     );
   }, [openChores, myChoresOnly, viewerAssigneeIdSet]);
   const hasBusyChoreAction = Object.keys(busyActionsById).length > 0;
@@ -716,7 +734,11 @@ export function TodayChoresPanel({
             details: pendingChore.details,
             categoryIds: pendingChore.categoryIds,
             categories: pendingChore.categories,
-            coinValue: 10,
+            coinValue: pendingChore.coinValue,
+            requireApproval: pendingChore.requireApproval,
+            recurrenceType: pendingChore.recurrenceType,
+            recurrenceInterval: pendingChore.recurrenceInterval,
+            recurrenceUnit: pendingChore.recurrenceUnit,
             source: "manual",
             createdAt: new Date().toISOString(),
           },
@@ -1015,7 +1037,10 @@ export function TodayChoresPanel({
                     canComplete={
                       !pendingCreateChoreIdSet.has(chore.id) &&
                       (viewerRole === "admin" ||
-                        Boolean(chore.assigneeId && viewerAssigneeIdSet.has(chore.assigneeId)))
+                        Boolean(
+                          chore.assigneeId &&
+                            viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId)),
+                        ))
                     }
                     canReorder={canReorderChores && !reorderBusy}
                     isDragging={draggingChoreId === chore.id}
