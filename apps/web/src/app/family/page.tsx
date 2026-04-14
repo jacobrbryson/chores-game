@@ -9,6 +9,7 @@ import { AppMenu } from "@/components/app-menu";
 import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
+import { CoinIcon } from "@/components/coin-icon";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
 import { ModalShell } from "@/components/modal-shell";
 import type { FamilySummaryResponse } from "@/lib/family/types";
@@ -204,6 +205,39 @@ function memberLastSignInLabel(member: FamilyMember) {
     return "-";
   }
   return new Date(member.lastSignInAt).toLocaleString();
+}
+
+function formatWholeNumber(value: number) {
+  return Math.max(0, Math.trunc(value)).toLocaleString();
+}
+
+function FamilyMemberStats({ member, compact = false }: { member: FamilyMember; compact?: boolean }) {
+  const statsClassName = compact ? "family-member-stats family-member-stats-compact" : "family-member-stats";
+
+  return (
+    <div className={statsClassName}>
+      <div className="family-member-stat">
+        <span className="family-member-stat-label">Lifetime Chores Completed</span>
+        <strong className="family-member-stat-value">
+          {formatWholeNumber(member.stats.lifetimeChoresCompleted)}
+        </strong>
+      </div>
+      <div className="family-member-stat family-member-stat-coins">
+        <span className="family-member-stat-label">Lifetime Coins Earned</span>
+        <strong className="family-member-stat-value">
+          <CoinIcon size={14} className="family-member-stat-icon" />
+          {formatWholeNumber(member.stats.lifetimeCoinsEarned)}
+        </strong>
+      </div>
+      <div className="family-member-stat family-member-stat-current">
+        <span className="family-member-stat-label">Current Coins</span>
+        <strong className="family-member-stat-value">
+          <CoinIcon size={14} className="family-member-stat-icon" />
+          {formatWholeNumber(member.stats.currentCoins)}
+        </strong>
+      </div>
+    </div>
+  );
 }
 
 function memberProfileHref(member: FamilyMember) {
@@ -876,6 +910,7 @@ export default function FamilyPage() {
                               <th>Email</th>
                               <th>Role</th>
                               <th>Status</th>
+                              <th>Game Stats</th>
                               <th>Last Sign In</th>
                               <th />
                             </tr>
@@ -883,7 +918,7 @@ export default function FamilyPage() {
                           <tbody>
                             {members.length === 0 ? (
                               <tr>
-                                <td colSpan={6}>No family members found.</td>
+                                <td colSpan={7}>No family members found.</td>
                               </tr>
                             ) : (
                               members.map((member) => (
@@ -935,6 +970,9 @@ export default function FamilyPage() {
                                       label={humanizeEnum(member.status)}
                                       tone={memberStatusTone(member.status)}
                                     />
+                                  </td>
+                                  <td className="family-member-stats-cell">
+                                    <FamilyMemberStats member={member} compact />
                                   </td>
                                   <td>{memberLastSignInLabel(member)}</td>
                                   <td>
@@ -1053,9 +1091,10 @@ export default function FamilyPage() {
                                 </div>
                                 <div className="family-member-meta-item">
                                   <span>Last Sign In</span>
-                                  <strong>{memberLastSignInLabel(member)}</strong>
+                                    <strong>{memberLastSignInLabel(member)}</strong>
                                 </div>
                               </div>
+                              <FamilyMemberStats member={member} />
                               {canManageMembers &&
                               member.id !== viewerUid &&
                               member.uid !== viewerUid ? (

@@ -5,12 +5,16 @@ import { Alert } from "@/components/alert";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { GoogleSignInButton } from "@/components/google-signin-button";
+import { ProfileAdminNotificationsCard } from "@/components/profile/profile-admin-notifications-card";
 import { ProfileCustomizationModals } from "@/components/profile/profile-customization-modals";
 import { ProfileDetailsSection } from "@/components/profile/profile-details-section";
 import { ProfileGoogleLinkCard } from "@/components/profile/profile-google-link-card";
 import { deriveGoogleTasksView } from "@/components/profile/profile-google-tasks.utils";
 import {
+  getPushNotificationsSummary,
   patchProfileAction,
+  patchPushNotificationsAction,
+  postPushNotificationSample,
   postGoogleTasksAction,
   postStoreAction,
 } from "@/components/profile/profile-page.api";
@@ -22,10 +26,20 @@ import {
 import type {
   GoogleTasksProfileSummary,
   ProfilePageClientProps,
+  PushNotificationSampleType,
+  PushNotificationToggleKey,
+  PushNotificationsProfileSummary,
   StoreProfileSummary,
 } from "@/components/profile/profile-page.types";
 import { dispatchConfettiSelectionChanged } from "@/lib/confetti/party";
 import { readStoredConfettiOptionId } from "@/lib/confetti/party";
+import {
+  browserSupportsPushNotifications,
+  ensureBrowserPushSubscription,
+  getCurrentBrowserPushSubscription,
+  getRegisteredPushServiceWorker,
+} from "@/lib/push/browser";
+import { hasAnyPushNotificationEnabled } from "@/lib/push/constants";
 import {
   DEFAULT_COLOR_THEME_OPTION_ID,
   DEFAULT_CONFETTI_OPTION_ID,
@@ -94,6 +108,13 @@ export function ProfilePageClient({
   const [pinPending, setPinPending] = useState(false);
   const [pinError, setPinError] = useState("");
   const [pinSuccess, setPinSuccess] = useState("");
+  const [pushSummary, setPushSummary] = useState<PushNotificationsProfileSummary | null>(null);
+  const [pushLoading, setPushLoading] = useState(role === "admin" && !isSwitched);
+  const [pushSaving, setPushSaving] = useState(false);
+  const [pushSamplePending, setPushSamplePending] = useState("");
+  const [pushError, setPushError] = useState("");
+  const [pushSuccess, setPushSuccess] = useState("");
+  const [pushBrowserReady, setPushBrowserReady] = useState(false);
   const [displayName, setDisplayName] = useState(name || "Signed In User");
   const [editedName, setEditedName] = useState(name || "");
   const [isEditingName, setIsEditingName] = useState(false);
@@ -138,10 +159,65 @@ export function ProfilePageClient({
     }
   }, []);
 
+  const loadPushNotificationSummary = useCallback(async () => {
+    if (role !== "admin" || isSwitched) {
+      setPushSummary(null);
+      setPushLoading(false);
+      return;
+    }
+    setPushLoading(true);
+    setPushError("");
+    try {
+      const payload = await getPushNotificationsSummary();
+      setPushSummary(payload);
+    } catch (errorValue) {
+      setPushSummary(null);
+      setPushError(errorValue instanceof Error ? errorValue.message : "push_notifications_unavailable");
+    } finally {
+      setPushLoading(false);
+    }
+  }, [isSwitched, role]);
+
   useEffect(() => {
     void loadStoreSummary();
     void loadGoogleTasksSummary();
   }, [loadGoogleTasksSummary, loadStoreSummary]);
+
+  useEffect(() => {
+    void loadPushNotificationSummary();
+  }, [loadPushNotificationSummary]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkBrowserPushReadiness() {
+      if (role !== "admin" || isSwitched || !browserSupportsPushNotifications()) {
+        if (!cancelled) {
+          setPushBrowserReady(false);
+        }
+        return;
+      }
+
+      try {
+        const [registration, subscription] = await Promise.all([
+          getRegisteredPushServiceWorker(),
+          getCurrentBrowserPushSubscription(),
+        ]);
+        if (!cancelled) {
+          setPushBrowserReady(Boolean(registration?.active) && Boolean(subscription));
+        }
+      } catch {
+        if (!cancelled) {
+          setPushBrowserReady(false);
+        }
+      }
+    }
+
+    void checkBrowserPushReadiness();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSwitched, pushSummary?.hasStoredSubscription, role]);
 
   useEffect(() => {
     setStoredConfettiOptionId(readStoredConfettiOptionId());
@@ -530,6 +606,190 @@ export function ProfilePageClient({
     }
   }
 
+  const pushBrowserStatus = useMemo(() => {
+    if (role !== "admin" || isSwitched) {
+      return "";
+    }
+    if (!browserSupportsPushNotifications()) {
+      return "This browser does not support push notifications.";
+    }
+    const permission =
+      typeof Notification !== "undefined"
+        ? Notification.permission
+        : (pushSummary?.permission ?? "default");
+    if (permission === "denied") {
+      return "Browser notifications are blocked for this site.";
+    }
+    if (permission === "granted") {
+      return pushSummary?.hasStoredSubscription
+        ? "Push notifications are connected on this browser."
+        : "Permission granted. Save to connect this browser.";
+    }
+    return "Notifications are off until you allow this site in your browser.";
+  }, [isSwitched, pushSummary?.hasStoredSubscription, pushSummary?.permission, role]);
+
+  function onPushNotificationToggle(key: PushNotificationToggleKey, checked: boolean) {
+    setPushError("");
+    setPushSuccess("");
+    setPushSummary((current) => {
+      const next = current ?? {
+        configured: false,
+        permission: "default" as const,
+        settings: {
+          choreCompleted: false,
+          rewardClaimed: false,
+          choreApprovalRequired: false,
+        },
+        hasStoredSubscription: false,
+        subscriptionCount: 0,
+        vapidPublicKey: "",
+      };
+      return {
+        ...next,
+        settings:
+          key === "all"
+            ? {
+                choreCompleted: checked,
+                rewardClaimed: checked,
+                choreApprovalRequired: checked,
+              }
+            : {
+                ...next.settings,
+                [key]: checked,
+              },
+      };
+    });
+  }
+
+  async function onSavePushNotifications() {
+    if (pushSaving || !pushSummary) {
+      return;
+    }
+
+    setPushSaving(true);
+    setPushError("");
+    setPushSuccess("");
+
+    try {
+      const settings = pushSummary.settings;
+      const hasEnabledNotifications = hasAnyPushNotificationEnabled(settings);
+      let permission =
+        typeof Notification !== "undefined" ? Notification.permission : pushSummary.permission;
+      let unsubscribeEndpoint = "";
+
+      if (!hasEnabledNotifications) {
+        if (browserSupportsPushNotifications()) {
+          const existingSubscription = await getCurrentBrowserPushSubscription();
+          if (existingSubscription) {
+            unsubscribeEndpoint = existingSubscription.endpoint;
+            try {
+              await existingSubscription.unsubscribe();
+            } catch {
+              // Best effort only.
+            }
+          }
+          permission = Notification.permission;
+        }
+
+        await patchPushNotificationsAction({
+          settings,
+          permission,
+          unsubscribeEndpoint,
+        });
+        setPushSuccess("Notifications turned off.");
+        await loadPushNotificationSummary();
+        setPushBrowserReady(false);
+        return;
+      }
+
+      if (!browserSupportsPushNotifications()) {
+        throw new Error("push_not_supported");
+      }
+
+      if (permission === "default") {
+        permission = await Notification.requestPermission();
+      }
+      if (permission !== "granted") {
+        throw new Error(permission === "denied" ? "push_permission_denied" : "push_permission_required");
+      }
+
+      const publicKey = pushSummary.vapidPublicKey?.trim() ?? "";
+      if (!publicKey) {
+        throw new Error("push_not_configured");
+      }
+
+      const subscription = await ensureBrowserPushSubscription(publicKey);
+      const subscriptionJson = subscription.toJSON();
+      if (!subscriptionJson.endpoint || !subscriptionJson.keys?.auth || !subscriptionJson.keys?.p256dh) {
+        throw new Error("push_subscription_invalid");
+      }
+
+      await patchPushNotificationsAction({
+        settings,
+        permission,
+        subscription: subscriptionJson,
+      });
+      setPushSuccess("Notifications saved.");
+      await loadPushNotificationSummary();
+      setPushBrowserReady(true);
+    } catch (errorValue) {
+      const message = errorValue instanceof Error ? errorValue.message : "push_notifications_update_failed";
+      setPushError(
+        message === "push_not_supported"
+          ? "This browser does not support push notifications."
+          : message === "push_permission_denied"
+            ? "Notifications are blocked for this site."
+            : message === "push_permission_required"
+              ? "Allow browser notifications to turn this on."
+              : message === "push_not_configured"
+                ? "Push notifications are not configured on the server."
+                : "Could not save push notification settings.",
+      );
+    } finally {
+      setPushSaving(false);
+    }
+  }
+
+  async function onSendPushSample(type: PushNotificationSampleType) {
+    if (pushSamplePending) {
+      return;
+    }
+    setPushSamplePending(type);
+    setPushError("");
+    setPushSuccess("");
+    try {
+      const payload = await postPushNotificationSample({ action: "send_test", type });
+      setPushSuccess(
+        payload.recipientCount && payload.recipientCount > 0
+          ? "Sample notification sent."
+          : "No matching browser subscription was found for this sample.",
+      );
+    } catch (errorValue) {
+      setPushError(errorValue instanceof Error ? errorValue.message : "push_notifications_test_failed");
+    } finally {
+      setPushSamplePending("");
+    }
+  }
+
+  const canSendPushSample = useMemo(() => {
+    if (!pushSummary?.configured) {
+      return false;
+    }
+    if (!browserSupportsPushNotifications()) {
+      return false;
+    }
+    if ((typeof Notification !== "undefined" ? Notification.permission : pushSummary.permission) !== "granted") {
+      return false;
+    }
+    if (!pushBrowserReady) {
+      return false;
+    }
+    if (!pushSummary.hasStoredSubscription) {
+      return false;
+    }
+    return true;
+  }, [pushBrowserReady, pushSummary]);
+
   return (
     <main className="panel family-page profile-page">
       <div className="page-header-row">
@@ -673,49 +933,69 @@ export function ProfilePageClient({
       )}
 
       {role === "admin" && !isSwitched ? (
-        <section className="profile-google-card-wrap">
-          <article className="profile-page-google-card">
-            <h2>Switch PIN</h2>
-            <p className="small">
-              Set a 4-digit PIN for switching into a child account and returning to your parent profile.
-            </p>
-            {pinError ? <Alert>Could not save PIN: {pinError}</Alert> : null}
-            {pinSuccess ? <p className="small">{pinSuccess}</p> : null}
-            <div className="profile-switch-pin-grid">
-              <label className="flex w-full flex-col gap-1.5">
-                <span className="text-sm font-medium text-slate-700">PIN</span>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  pattern="\d{4}"
-                  maxLength={4}
-                  autoComplete="new-password"
-                  value={pin}
-                  onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
-                />
-              </label>
-              <label className="flex w-full flex-col gap-1.5">
-                <span className="text-sm font-medium text-slate-700">Confirm PIN</span>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  pattern="\d{4}"
-                  maxLength={4}
-                  autoComplete="new-password"
-                  value={confirmPin}
-                  onChange={(event) => setConfirmPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
-                />
-              </label>
-            </div>
-            <div className="profile-google-actions">
-              <Button type="button" className="btn btn-primary" disabled={pinPending} onClick={onSaveSwitchPin}>
-                {pinPending ? "Saving..." : "Save PIN"}
-              </Button>
-            </div>
-          </article>
-        </section>
+        <>
+          <section className="profile-google-card-wrap">
+            <article className="profile-page-google-card">
+              <h2>Switch PIN</h2>
+              <p className="small">
+                Set a 4-digit PIN for switching into a child account and returning to your parent profile.
+              </p>
+              {pinError ? <Alert>Could not save PIN: {pinError}</Alert> : null}
+              {pinSuccess ? <p className="small">{pinSuccess}</p> : null}
+              <div className="profile-switch-pin-grid">
+                <label className="flex w-full flex-col gap-1.5">
+                  <span className="text-sm font-medium text-slate-700">PIN</span>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    pattern="\d{4}"
+                    maxLength={4}
+                    autoComplete="new-password"
+                    value={pin}
+                    onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+                    className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+                  />
+                </label>
+                <label className="flex w-full flex-col gap-1.5">
+                  <span className="text-sm font-medium text-slate-700">Confirm PIN</span>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    pattern="\d{4}"
+                    maxLength={4}
+                    autoComplete="new-password"
+                    value={confirmPin}
+                    onChange={(event) => setConfirmPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+                    className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+                  />
+                </label>
+              </div>
+              <div className="profile-google-actions">
+                <Button type="button" className="btn btn-primary" disabled={pinPending} onClick={onSaveSwitchPin}>
+                  {pinPending ? "Saving..." : "Save PIN"}
+                </Button>
+              </div>
+            </article>
+          </section>
+
+          <ProfileAdminNotificationsCard
+            summary={pushSummary}
+            loading={pushLoading}
+            saving={pushSaving}
+            error={pushError}
+            success={pushSuccess}
+            browserStatus={pushBrowserStatus}
+            samplePending={pushSamplePending}
+            sampleDisabled={!canSendPushSample}
+            onToggle={onPushNotificationToggle}
+            onSave={() => {
+              void onSavePushNotifications();
+            }}
+            onSendSample={(type) => {
+              void onSendPushSample(type);
+            }}
+          />
+        </>
       ) : null}
 
       <ProfileCustomizationModals

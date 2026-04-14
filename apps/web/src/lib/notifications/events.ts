@@ -5,6 +5,8 @@ import {
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
+import { sendFamilyPushNotifications } from "@/lib/push/delivery";
+import type { PushNotificationType } from "@/lib/push/constants";
 
 type ActivityKind =
   | "chore_created"
@@ -13,7 +15,8 @@ type ActivityKind =
   | "chore_completed"
   | "chore_undo_completed"
   | "chore_approved"
-  | "chore_rejected";
+  | "chore_rejected"
+  | "reward_claimed";
 
 type EmitFamilyActivityInput = {
   familyId: string;
@@ -27,6 +30,7 @@ type EmitFamilyActivityInput = {
   choreId?: string;
   choreTitle?: string;
   relatedIds?: string[];
+  pushType?: PushNotificationType;
 };
 
 function normalizeId(value: string) {
@@ -65,4 +69,20 @@ export async function emitFamilyActivity(input: EmitFamilyActivityInput) {
     },
     input.idToken,
   );
+
+  if (input.pushType) {
+    try {
+      await sendFamilyPushNotifications({
+        familyId: input.familyId,
+        idToken: input.idToken,
+        actorUid: input.actorUid,
+        type: input.pushType,
+        title: input.title,
+        body: input.message,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "unknown";
+      console.error("[PUSH_NOTIFICATION_SEND_ERROR]", reason);
+    }
+  }
 }

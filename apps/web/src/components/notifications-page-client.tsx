@@ -57,6 +57,9 @@ function notificationKindTone(kind: string) {
   if (kind === "chore_deleted") {
     return "rose";
   }
+  if (kind === "reward_claimed") {
+    return "amber";
+  }
   return "slate";
 }
 

@@ -72,3 +72,20 @@ env:
     secret: SESSION_SECRET
     availability:
       - RUNTIME
+  - variable: NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    secret: NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: VAPID_PRIVATE_KEY
+    secret: VAPID_PRIVATE_KEY
+    availability:
+      - RUNTIME
+  - variable: VAPID_SUBJECT
+    secret: VAPID_SUBJECT
+    availability:
+      - RUNTIME
+  - variable: PUSH_SUBSCRIPTION_SECRET
+    secret: PUSH_SUBSCRIPTION_SECRET
+    availability:
+      - RUNTIME

@@ -20,6 +20,11 @@ export type FamilySnapshotMember = {
   dashboardPrimaryColor?: string;
   avatarId?: string;
   avatarPhotoUrl?: string;
+  stats: {
+    lifetimeChoresCompleted: number;
+    lifetimeCoinsEarned: number;
+    currentCoins: number;
+  };
 };
 
 export type FamilyPendingInvite = {

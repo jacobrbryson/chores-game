@@ -133,6 +133,22 @@ function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
 
+function createEmptyMemberStats() {
+  return {
+    lifetimeChoresCompleted: 0,
+    lifetimeCoinsEarned: 0,
+    currentCoins: 0,
+  };
+}
+
+function resolveMemberStatsKey(member: {
+  id: string;
+  uid?: string;
+  email: string;
+}) {
+  return member.uid || normalizeEmail(member.email) || member.id;
+}
+
 function buildViewerAssigneeAliases(
   memberDocs: Array<{ name: string; fields?: Record<string, FirestoreValue> }>,
   uid: string,
@@ -341,6 +357,101 @@ export async function GET(request: NextRequest) {
           }))
           .filter((member) => !member.deleted);
 
+        const normalizedSessionEmail = session.email.trim().toLowerCase();
+        const viewerMember =
+          rawMembers.find((member) => member.uid === session.uid) ||
+          rawMembers.find((member) => member.id === session.memberId) ||
+          rawMembers.find((member) => member.id === session.uid) ||
+          rawMembers.find(
+            (member) => !member.uid && member.email.trim().toLowerCase() === normalizedSessionEmail,
+          );
+        const viewerRole = viewerMember?.role ?? "player";
+
+        const memberStatsByKey = new Map<
+          string,
+          ReturnType<typeof createEmptyMemberStats>
+        >();
+        const memberStatsKeyByAlias = new Map<string, string>();
+        const memberUserDocByUid = new Map<
+          string,
+          Awaited<ReturnType<typeof getDocument>> | null
+        >();
+
+        for (const member of rawMembers) {
+          const statsKey = resolveMemberStatsKey(member);
+          memberStatsByKey.set(statsKey, createEmptyMemberStats());
+          memberStatsKeyByAlias.set(member.id, statsKey);
+          if (member.uid) {
+            memberStatsKeyByAlias.set(member.uid, statsKey);
+          }
+          if (member.email) {
+            memberStatsKeyByAlias.set(normalizeEmail(member.email), statsKey);
+          }
+        }
+
+        await Promise.all(
+          rawMembers.map(async (member) => {
+            if (!member.uid) {
+              return;
+            }
+            if (viewerRole !== "admin" && member.uid !== session.uid) {
+              return;
+            }
+            try {
+              const currentUserDoc =
+                member.uid === session.uid
+                  ? userDoc
+                  : await getDocument(`users/${member.uid}`, idToken);
+              memberUserDocByUid.set(member.uid, currentUserDoc);
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (reason.includes("FIRESTORE_HTTP_404")) {
+                memberUserDocByUid.set(member.uid, null);
+                return;
+              }
+              throw error;
+            }
+          }),
+        );
+
+        for (const member of rawMembers) {
+          const statsKey = resolveMemberStatsKey(member);
+          const currentStats = memberStatsByKey.get(statsKey);
+          if (!currentStats || !member.uid) {
+            continue;
+          }
+          currentStats.currentCoins = readInteger(
+            memberUserDocByUid.get(member.uid)?.fields,
+            "walletBalance",
+          );
+        }
+
+        for (const doc of choreDocs) {
+          if (readBoolean(doc.fields, "deleted")) {
+            continue;
+          }
+          const assigneeId = readString(doc.fields, "assigneeId");
+          const statsKey =
+            memberStatsKeyByAlias.get(assigneeId) ||
+            memberStatsKeyByAlias.get(normalizeEmail(assigneeId));
+          if (!statsKey) {
+            continue;
+          }
+          const currentStats = memberStatsByKey.get(statsKey);
+          if (!currentStats) {
+            continue;
+          }
+          const choreStatus = readString(doc.fields, "status");
+          if (choreStatus === "Submitted" || choreStatus === "Approved") {
+            currentStats.lifetimeChoresCompleted += 1;
+          }
+          if (choreStatus === "Approved") {
+            currentStats.lifetimeCoinsEarned += normalizeCoinValue(
+              readInteger(doc.fields, "coinValue"),
+            );
+          }
+        }
+
         const assigneeColorByAlias = new Map<string, string>();
         const assigneeAvatarByAlias = new Map<string, string>();
         const assigneeAvatarPhotoByAlias = new Map<string, string>();
@@ -373,15 +484,6 @@ export async function GET(request: NextRequest) {
             }
           }
         }
-
-        const normalizedSessionEmail = session.email.trim().toLowerCase();
-        const viewerMember =
-          rawMembers.find((member) => member.uid === session.uid) ||
-          rawMembers.find((member) => member.id === session.memberId) ||
-          rawMembers.find((member) => member.id === session.uid) ||
-          rawMembers.find(
-            (member) => !member.uid && member.email.trim().toLowerCase() === normalizedSessionEmail,
-          );
         if (viewerMember?.status === "invited") {
           const inviter =
             rawMembers.find(
@@ -412,6 +514,9 @@ export async function GET(request: NextRequest) {
                     dashboardPrimaryColor: resolveMemberPrimaryColor(inviter.dashboardPrimaryColor),
                     avatarId: inviter.avatarId,
                     avatarPhotoUrl: inviter.avatarPhotoUrl,
+                    stats:
+                      memberStatsByKey.get(resolveMemberStatsKey(inviter)) ??
+                      createEmptyMemberStats(),
                   },
                 ]
               : [],
@@ -471,6 +576,9 @@ export async function GET(request: NextRequest) {
             dashboardPrimaryColor: resolveMemberPrimaryColor(member.dashboardPrimaryColor),
             avatarId: member.avatarId,
             avatarPhotoUrl: member.avatarPhotoUrl,
+            stats:
+              memberStatsByKey.get(resolveMemberStatsKey(member)) ??
+              createEmptyMemberStats(),
           }))
           .slice(0, MAX_FAMILY_MEMBERS);
 

@@ -49,3 +49,27 @@ export type ThemePalette = {
   secondary: string;
   tertiary: string;
 };
+
+export type PushNotificationSettings = {
+  choreCompleted: boolean;
+  rewardClaimed: boolean;
+  choreApprovalRequired: boolean;
+};
+
+export type PushNotificationsProfileSummary = {
+  configured: boolean;
+  permission: "default" | "denied" | "granted";
+  settings: PushNotificationSettings;
+  hasStoredSubscription: boolean;
+  subscriptionCount: number;
+  vapidPublicKey?: string;
+};
+
+export type PushNotificationToggleKey =
+  | "all"
+  | keyof PushNotificationSettings;
+
+export type PushNotificationSampleType =
+  | "chore_completed"
+  | "reward_claimed"
+  | "chore_approval_required";

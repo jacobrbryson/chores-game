@@ -826,6 +826,7 @@ export async function PATCH(
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
+            pushType: choreRequireApproval ? "chore_approval_required" : "chore_completed",
           });
           await publishFamilyActivity({
             type: "chore_completed",

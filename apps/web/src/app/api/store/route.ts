@@ -37,6 +37,7 @@ import {
 } from "@/lib/store/catalog";
 import { listFamilyAwardClaims } from "@/lib/family/award-claims";
 import { listFamilyRewards, type FamilyReward } from "@/lib/family/rewards";
+import { emitFamilyActivity } from "@/lib/notifications/events";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 
 type StoreActionBody = {
@@ -656,8 +657,9 @@ export async function POST(request: NextRequest) {
               return { kind: "family_not_found" as const };
             }
             const now = new Date().toISOString();
+            const awardClaimId = randomUUID();
             await createOrReplaceDocument(
-              `families/${familyId}/awardClaims/${randomUUID()}`,
+              `families/${familyId}/awardClaims/${awardClaimId}`,
               {
                 rewardId: stringField(option.id),
                 rewardDescription: stringField(option.label),
@@ -675,6 +677,18 @@ export async function POST(request: NextRequest) {
               },
               idToken,
             );
+            await emitFamilyActivity({
+              familyId,
+              idToken,
+              kind: "reward_claimed",
+              actorUid: session.uid,
+              actorEmail: session.email,
+              actorName: session.name || session.email || "Family member",
+              title: "Prize claimed",
+              message: `${session.name || "Someone"} claimed "${option.label}" for ${optionPrice} coins.`,
+              relatedIds: [session.uid, session.email],
+              pushType: "reward_claimed",
+            });
             return { kind: "ok" as const };
           }
 

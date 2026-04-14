@@ -116,6 +116,43 @@ service cloud.firestore {
         );
     }
 
+    function canPlayerCreateRecurringSuccessor(familyId) {
+      let parentId = request.resource.data.recurrenceParentChoreId;
+      let parentPath = /databases/$(database)/documents/families/$(familyId)/chores/$(parentId);
+      return isFamilyMember(familyId)
+        && request.resource.data.source == "manual"
+        && request.resource.data.status == "Open"
+        && request.resource.data.deleted == false
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.assigneeName is string
+        && request.resource.data.assigneeId is string
+        && isRequesterAssigneeId(request.resource.data.assigneeId)
+        && request.resource.data.details is string
+        && request.resource.data.categoryIds is list
+        && request.resource.data.dueDate is string
+        && request.resource.data.coinValue is int
+        && request.resource.data.requireApproval is bool
+        && request.resource.data.recurrenceType is string
+        && request.resource.data.recurrenceInterval is int
+        && request.resource.data.recurrenceUnit is string
+        && request.resource.data.recurrenceParentChoreId is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.sortOrder is int
+        && exists(parentPath)
+        && get(parentPath).data.deleted != true
+        && get(parentPath).data.source == "manual"
+        && get(parentPath).data.recurrenceType != "none"
+        && get(parentPath).data.assigneeId == request.resource.data.assigneeId
+        && get(parentPath).data.title == request.resource.data.title
+        && get(parentPath).data.details == request.resource.data.details
+        && get(parentPath).data.coinValue == request.resource.data.coinValue
+        && get(parentPath).data.requireApproval == request.resource.data.requireApproval
+        && get(parentPath).data.recurrenceType == request.resource.data.recurrenceType
+        && get(parentPath).data.recurrenceInterval == request.resource.data.recurrenceInterval
+        && get(parentPath).data.recurrenceUnit == request.resource.data.recurrenceUnit;
+    }
+
     function isFamilyAdmin(familyId) {
       return hasUidMemberDoc(familyId)
         && get(memberDocPathByUid(familyId)).data.role == "admin";
@@ -257,6 +294,11 @@ service cloud.firestore {
               "avatarId",
               "avatarPhotoUrl",
               "selectedConfettiOptionId",
+              "pushNotifyChoreCompleted",
+              "pushNotifyRewardClaimed",
+              "pushNotifyChoreApprovalRequired",
+              "pushNotificationPermission",
+              "pushNotificationsUpdatedAt",
               "updatedAt",
               "lastSignInAt"
             ])
@@ -284,17 +326,31 @@ service cloud.firestore {
             && request.resource.data.googleTaskListId is string
             && request.resource.data.assigneeName is string
             && request.resource.data.title is string
-          );
+          )
+          || canPlayerCreateRecurringSuccessor(familyId);
         allow delete: if isFamilyAdmin(familyId);
         allow update: if isFamilyAdmin(familyId)
           || (
             isFamilyMember(familyId)
             && isRequesterAssigneeId(resource.data.assigneeId)
             && resource.data.status == "Open"
-            && request.resource.data.status == "Submitted"
+            && request.resource.data.status in ["Submitted", "Approved"]
+            && (
+              (request.resource.data.status == "Submitted" && resource.data.requireApproval == true)
+              || (request.resource.data.status == "Approved" && resource.data.requireApproval != true)
+            )
             && request.resource.data.submittedAt is timestamp
             && request.resource.data.updatedAt is timestamp
-            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status", "submittedAt", "updatedAt"])
+            && (
+              !("spawnedNextChoreId" in request.resource.data)
+              || request.resource.data.spawnedNextChoreId is string
+            )
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              "status",
+              "submittedAt",
+              "updatedAt",
+              "spawnedNextChoreId"
+            ])
           )
           || (
             isFamilyMember(familyId)
@@ -365,6 +421,34 @@ service cloud.firestore {
           && request.resource.data.notificationId == resource.data.notificationId
           && request.resource.data.seenAt is timestamp;
         allow delete: if isFamilyMember(familyId) && resource.data.uid == request.auth.uid;
+      }
+
+      match /pushSubscriptions/{subscriptionId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isFamilyAdmin(familyId)
+          && request.resource.data.familyId == familyId
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.subscriptionCiphertext is string
+          && request.resource.data.endpointHash is string
+          && request.resource.data.permission is string
+          && request.resource.data.pushNotifyChoreCompleted is bool
+          && request.resource.data.pushNotifyRewardClaimed is bool
+          && request.resource.data.pushNotifyChoreApprovalRequired is bool
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp;
+        allow update: if isFamilyAdmin(familyId)
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.familyId == familyId
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.subscriptionCiphertext is string
+          && request.resource.data.endpointHash is string
+          && request.resource.data.permission is string
+          && request.resource.data.pushNotifyChoreCompleted is bool
+          && request.resource.data.pushNotifyRewardClaimed is bool
+          && request.resource.data.pushNotifyChoreApprovalRequired is bool
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp;
+        allow delete: if isFamilyAdmin(familyId) && resource.data.uid == request.auth.uid;
       }
 
       match /choreUsage/{usageId} {

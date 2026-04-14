@@ -84,6 +84,10 @@ Build a family chore game where:
   - `FIREBASE_PROJECT_ID`
   - `FIREBASE_WEB_API_KEY`
   - `SESSION_SECRET` (>= 32 chars)
+  - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (required for browser push notifications)
+  - `VAPID_PRIVATE_KEY` (required for browser push notifications)
+  - `VAPID_SUBJECT` (recommended; contact URI for VAPID, e.g. `mailto:...`)
+  - `PUSH_SUBSCRIPTION_SECRET` (optional; falls back to `SESSION_SECRET` when omitted)
 - Homepage view split by auth state:
   - Logged out users see the marketing hero + "How it works".
   - Logged in users see a "My Family" dashboard card instead of the hero.
@@ -320,6 +324,15 @@ Build a family chore game where:
   - Multi-list sync now processes all selected Google task lists for the linked user.
   - Firestore rules now include a restricted self-service path for creating/updating self-owned Google-synced chores (`coinValue == 0`) so player-linked sync flows can persist safely.
   - Added runtime secret expectation: `GOOGLE_CLIENT_SECRET` (web backend).
+- Admin web-push notifications update (2026-04-13):
+  - `/profile` now includes an admin-only Notifications card under Switch PIN.
+  - Admins can opt into browser push notifications for:
+    - chore completions
+    - prize claims
+    - chores submitted for approval
+  - Push delivery uses the browser Push API + service worker with VAPID keys.
+  - Per-admin push preferences are stored on the family member doc; encrypted browser subscriptions are stored under `families/{familyId}/pushSubscriptions`.
+  - Chore completion, approval-required submissions, and reward claims now emit push delivery for opted-in admins in addition to in-app notifications.
 - Victory confetti celebration update (2026-02-25):
   - Added a global full-screen `PartyConfettiOverlay` effect in app layout that can be triggered by event with configurable parameters (`optionId`, `particleCount`, `durationMs`, `intensity`, `spread`).
   - Chore `Mark as Complete` now triggers the overlay celebration effect without blocking pointer interactions (`pointer-events: none`) and with animation duration capped at 1 second.
