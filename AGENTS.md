@@ -81,6 +81,7 @@ Build a family chore game where:
   - `GOOGLE_CLIENT_ID`
   - `GOOGLE_CLIENT_SECRET` (required for Google Tasks OAuth code exchange)
   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+  - `NEXT_PUBLIC_APP_URL` (required canonical web app origin for auth and OAuth redirects)
   - `FIREBASE_PROJECT_ID`
   - `FIREBASE_WEB_API_KEY`
   - `SESSION_SECRET` (>= 32 chars)
@@ -460,6 +461,25 @@ Build a family chore game where:
 - Profile self-name edit update (2026-04-12):
   - Added `PATCH /api/profile` so signed-in admins can update their own display name from `/profile`.
   - Profile self-name edits now update the signed session cookie, `users/{uid}`, and the current family member doc so the new name propagates across profile and family-visible surfaces.
+- Wallet audit repair update (2026-04-14):
+  - `users/{uid}/walletLedger` remains the source-of-truth ledger for coin-affecting credits/debits.
+  - New ledger entries now also write explicit `entryType`, `creditAmount`, `debitAmount`, and `countsTowardBalance` fields to make audits easier.
+  - Added `scripts/rebuild-wallet-balances.mjs` to recalculate stored `walletBalance` values from each user's ledger totals.
+  - Repair runs can target one user with `--uid=<uid>` or all users, support dry-run by default, and apply fixes with `--apply`.
+  - Applied repairs are logged to `users/{uid}/walletBalanceAudit` so balance resets are auditable without altering the ledger projection basis.
+- Wallet ledger rules hardening update (2026-04-14):
+  - `users/{uid}` self-writes are now restricted to explicit allowlisted preference/profile/store/task-sync shapes instead of unrestricted document updates.
+  - `users/{uid}/walletLedger` create rules now validate reason-specific ledger shapes, consistent debit/credit math, and current `walletBalance` alignment.
+  - Chore payout/undo ledger docs now use deterministic IDs (`chore_complete_<choreId>`, `chore_undo_complete_<choreId>`) to block duplicate creates for the same chore event.
+- Firestore chore-usage rules cleanup (2026-04-16):
+  - Removed the explicit top-level `choreUsageGlobal` rule so global chore-usage documents now fall through to the default deny-all rule.
+  - Family-scoped `families/{familyId}/choreUsage` remains the only allowed chore-usage storage path.
+- App Hosting deploy config update (2026-04-17):
+  - Firebase App Hosting backends remain split per app:
+    - `apps/web/firebase.json` deploys `api-chores-game`
+    - `apps/ws/firebase.json` deploys `ws-chores-game`
+  - Each App Hosting backend requires its own app-local `package-lock.json` in the deployed app root.
+  - The workspace root `package-lock.json` remains in place for monorepo development, but App Hosting local-source deploys should be run from each app directory so runtime dependencies are packaged correctly.
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.
 - Chores module: CRUD, assignment, submission, approval pipeline.

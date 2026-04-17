@@ -2,28 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
+import { getCanonicalAppOrigin } from "@/lib/app-origin";
 import { exchangeGoogleTasksAuthCode, listGoogleTaskLists } from "@/lib/google/tasks-api";
 import { persistGoogleTasksOAuthLink } from "@/lib/google/tasks-link";
 
 const OAUTH_STATE_COOKIE_NAME = "google_tasks_oauth_state";
 
-function resolvePublicOrigin(request: NextRequest) {
-  const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  if (configured) {
-    return configured;
-  }
-
-  const forwardedProto = request.headers.get("x-forwarded-proto");
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  if (forwardedProto && forwardedHost) {
-    return `${forwardedProto}://${forwardedHost}`;
-  }
-
-  return request.nextUrl.origin;
-}
-
 function profileRedirect(request: NextRequest, params: Record<string, string>) {
-  const url = new URL("/profile", resolvePublicOrigin(request));
+  const url = new URL("/profile", getCanonicalAppOrigin());
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
@@ -72,7 +58,7 @@ export async function GET(request: NextRequest) {
     const { session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
-        const redirectUri = `${resolvePublicOrigin(request)}/api/auth/google/tasks/callback`;
+        const redirectUri = `${getCanonicalAppOrigin()}/api/auth/google/tasks/callback`;
         const token = await exchangeGoogleTasksAuthCode({
           code,
           redirectUri,

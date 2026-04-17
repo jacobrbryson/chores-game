@@ -9,7 +9,8 @@
 		"dev": "npm run dev --workspaces --if-present --parallel",
 		"dev:web": "npm run dev -w @apps/web",
 		"dev:ws": "npm run dev -w @apps/ws",
-		"build": "npm run build --workspaces --if-present"
+		"build": "npm run build --workspaces --if-present",
+		"wallet:rebuild": "node scripts/rebuild-wallet-balances.mjs"
 	},
 	"overrides": {
 		"minimatch": "^10.2.1"

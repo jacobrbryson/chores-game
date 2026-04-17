@@ -211,24 +211,370 @@ service cloud.firestore {
         ]);
     }
 
+    function requestedUserHasPrimaryFamily() {
+      return request.resource.data.familyIds is list
+        && request.resource.data.familyIds.size() == 1
+        && request.resource.data.familyIds[0] is string
+        && request.resource.data.familyIds[0] != "";
+    }
+
+    function requestedUserPrimaryFamilyId() {
+      return request.resource.data.familyIds[0];
+    }
+
+    function requestedUserPrimaryFamilyMemberPath(uid) {
+      return /databases/$(database)/documents/families/$(requestedUserPrimaryFamilyId())/members/$(uid);
+    }
+
+    function requestedUserRoleMatchesMembership(uid) {
+      return requestedUserHasPrimaryFamily()
+        && exists(requestedUserPrimaryFamilyMemberPath(uid))
+        && get(requestedUserPrimaryFamilyMemberPath(uid)).data.deleted != true
+        && get(requestedUserPrimaryFamilyMemberPath(uid)).data.status == "active"
+        && request.resource.data.role is string
+        && request.resource.data.role in ["admin", "player"]
+        && request.resource.data.role == get(requestedUserPrimaryFamilyMemberPath(uid)).data.role;
+    }
+
+    function isValidSelfUserAuthSync(uid) {
+      return request.resource.data.uid == uid
+        && request.resource.data.displayName is string
+        && request.resource.data.photoUrl is string
+        && request.resource.data.provider == "google"
+        && request.resource.data.lastSignInAt is timestamp
+        && request.resource.data.email is string
+        && (
+          request.auth.token.email == null
+          || request.resource.data.email.lower() == request.auth.token.email.lower()
+        )
+        && (
+          !("familyIds" in request.resource.data)
+          ? request.resource.data.role == "player"
+          : (
+              requestedUserHasPrimaryFamily()
+              && request.resource.data.lastFamilyUpdateAt is timestamp
+              && requestedUserRoleMatchesMembership(uid)
+            )
+        );
+    }
+
+    function isValidSelfUserCreate(uid) {
+      return isSelf(uid)
+        && request.resource.data.keys().hasOnly([
+          "uid",
+          "role",
+          "email",
+          "displayName",
+          "photoUrl",
+          "provider",
+          "lastSignInAt",
+          "familyIds",
+          "lastFamilyUpdateAt"
+        ])
+        && isValidSelfUserAuthSync(uid);
+    }
+
+    function isValidSelfUserProfileUpdate(uid) {
+      return isSelf(uid)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "name",
+          "displayName",
+          "updatedAt"
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.displayName is string
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function isValidSelfUserPreferencesUpdate(uid) {
+      return isSelf(uid)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "preferencesMyChoresOnly",
+          "preferencesCompletionWindow",
+          "preferencesChoreAdvancedOptionsOpenV2",
+          "preferencesThemeOptionId",
+          "preferencesThemePrimaryColor",
+          "preferencesThemeSecondaryColor",
+          "preferencesThemeTertiaryColor",
+          "preferencesUpdatedAt",
+          "storeUpdatedAt"
+        ])
+        && (
+          !("preferencesMyChoresOnly" in request.resource.data)
+          || request.resource.data.preferencesMyChoresOnly is bool
+        )
+        && (
+          !("preferencesCompletionWindow" in request.resource.data)
+          || request.resource.data.preferencesCompletionWindow is string
+        )
+        && (
+          !("preferencesChoreAdvancedOptionsOpenV2" in request.resource.data)
+          || request.resource.data.preferencesChoreAdvancedOptionsOpenV2 is bool
+        )
+        && (
+          !("preferencesThemeOptionId" in request.resource.data)
+          || request.resource.data.preferencesThemeOptionId is string
+        )
+        && (
+          !("preferencesThemePrimaryColor" in request.resource.data)
+          || request.resource.data.preferencesThemePrimaryColor is string
+        )
+        && (
+          !("preferencesThemeSecondaryColor" in request.resource.data)
+          || request.resource.data.preferencesThemeSecondaryColor is string
+        )
+        && (
+          !("preferencesThemeTertiaryColor" in request.resource.data)
+          || request.resource.data.preferencesThemeTertiaryColor is string
+        )
+        && (
+          !("preferencesUpdatedAt" in request.resource.data)
+          || request.resource.data.preferencesUpdatedAt is timestamp
+        )
+        && (
+          !("storeUpdatedAt" in request.resource.data)
+          || request.resource.data.storeUpdatedAt is timestamp
+        );
+    }
+
+    function isValidSelfUserStoreUpdate(uid) {
+      return isSelf(uid)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "ownedStoreOptionIds",
+          "selectedConfettiOptionId",
+          "storeUpdatedAt"
+        ])
+        && (
+          !("ownedStoreOptionIds" in request.resource.data)
+          || request.resource.data.ownedStoreOptionIds is list
+        )
+        && (
+          !("selectedConfettiOptionId" in request.resource.data)
+          || request.resource.data.selectedConfettiOptionId is string
+        )
+        && (
+          !("storeUpdatedAt" in request.resource.data)
+          || request.resource.data.storeUpdatedAt is timestamp
+        );
+    }
+
+    function isValidSelfUserGoogleTasksUpdate(uid) {
+      return isSelf(uid)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "googleTasksLinked",
+          "googleTasksRefreshToken",
+          "googleTasksAccessToken",
+          "googleTasksAccessTokenExpiresAt",
+          "googleTasksScope",
+          "googleTasksLinkedAt",
+          "googleTasksSelectedTaskListIds",
+          "googleTasksSelectedTaskListTitles",
+          "googleTasksSelectedTaskListId",
+          "googleTasksSelectedTaskListTitle",
+          "googleTasksLastSyncStatus",
+          "googleTasksLastSyncError",
+          "googleTasksLastSyncedAt",
+          "googleTasksUpdatedAt"
+        ])
+        && (
+          !("googleTasksLinked" in request.resource.data)
+          || request.resource.data.googleTasksLinked is bool
+        )
+        && (
+          !("googleTasksRefreshToken" in request.resource.data)
+          || request.resource.data.googleTasksRefreshToken is string
+        )
+        && (
+          !("googleTasksAccessToken" in request.resource.data)
+          || request.resource.data.googleTasksAccessToken is string
+        )
+        && (
+          !("googleTasksAccessTokenExpiresAt" in request.resource.data)
+          || request.resource.data.googleTasksAccessTokenExpiresAt is string
+          || request.resource.data.googleTasksAccessTokenExpiresAt is timestamp
+        )
+        && (
+          !("googleTasksScope" in request.resource.data)
+          || request.resource.data.googleTasksScope is string
+        )
+        && (
+          !("googleTasksLinkedAt" in request.resource.data)
+          || request.resource.data.googleTasksLinkedAt is timestamp
+        )
+        && (
+          !("googleTasksSelectedTaskListIds" in request.resource.data)
+          || request.resource.data.googleTasksSelectedTaskListIds is list
+        )
+        && (
+          !("googleTasksSelectedTaskListTitles" in request.resource.data)
+          || request.resource.data.googleTasksSelectedTaskListTitles is list
+        )
+        && (
+          !("googleTasksSelectedTaskListId" in request.resource.data)
+          || request.resource.data.googleTasksSelectedTaskListId is string
+        )
+        && (
+          !("googleTasksSelectedTaskListTitle" in request.resource.data)
+          || request.resource.data.googleTasksSelectedTaskListTitle is string
+        )
+        && (
+          !("googleTasksLastSyncStatus" in request.resource.data)
+          || request.resource.data.googleTasksLastSyncStatus is string
+        )
+        && (
+          !("googleTasksLastSyncError" in request.resource.data)
+          || request.resource.data.googleTasksLastSyncError is string
+        )
+        && (
+          !("googleTasksLastSyncedAt" in request.resource.data)
+          || request.resource.data.googleTasksLastSyncedAt is timestamp
+        )
+        && (
+          !("googleTasksUpdatedAt" in request.resource.data)
+          || request.resource.data.googleTasksUpdatedAt is timestamp
+        );
+    }
+
+    function isValidSelfUserUpdate(uid) {
+      return isValidSelfUserProfileUpdate(uid)
+        || isValidSelfUserPreferencesUpdate(uid)
+        || isValidSelfUserStoreUpdate(uid)
+        || isValidSelfUserGoogleTasksUpdate(uid)
+        || (
+          isSelf(uid)
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "uid",
+            "role",
+            "email",
+            "displayName",
+            "photoUrl",
+            "provider",
+            "lastSignInAt",
+            "familyIds",
+            "lastFamilyUpdateAt"
+          ])
+          && isValidSelfUserAuthSync(uid)
+        );
+    }
+
+    function isWalletLedgerAmountShapeValid() {
+      return request.resource.data.delta is int
+        && request.resource.data.balanceAfter is int
+        && request.resource.data.entryType is string
+        && request.resource.data.creditAmount is int
+        && request.resource.data.debitAmount is int
+        && request.resource.data.countsTowardBalance == true
+        && (
+          (
+            request.resource.data.delta > 0
+            && request.resource.data.entryType == "credit"
+            && request.resource.data.creditAmount == request.resource.data.delta
+            && request.resource.data.debitAmount == 0
+          )
+          || (
+            request.resource.data.delta < 0
+            && request.resource.data.entryType == "debit"
+            && request.resource.data.creditAmount == 0
+            && request.resource.data.debitAmount == (0 - request.resource.data.delta)
+          )
+        );
+    }
+
+    function isWalletLedgerCreateBaseValid(uid) {
+      return request.resource.data.uid == uid
+        && request.resource.data.reason is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.choreId is string
+        && request.resource.data.itemId is string
+        && isWalletLedgerAmountShapeValid()
+        && request.resource.data.balanceAfter == get(/databases/$(database)/documents/users/$(uid)).data.walletBalance;
+    }
+
+    function userPrimaryFamilyHasChore(uid, choreId) {
+      let familyId = primaryFamilyIdForUser(uid);
+      return familyId is string
+        && familyId != ""
+        && exists(/databases/$(database)/documents/families/$(familyId)/chores/$(choreId));
+    }
+
+    function userPrimaryFamilyChore(uid, choreId) {
+      return get(/databases/$(database)/documents/families/$(primaryFamilyIdForUser(uid))/chores/$(choreId)).data;
+    }
+
+    function isValidChoreCompleteLedgerCreate(uid, actorIsAdmin) {
+      return request.resource.data.reason == "chore_complete"
+        && request.resource.data.choreId != ""
+        && request.resource.data.itemId == ""
+        && request.resource.data.delta > 0
+        && request.resource.data.balanceAfter >= request.resource.data.delta
+        && entryId == "chore_complete_" + request.resource.data.choreId
+        && userPrimaryFamilyHasChore(uid, request.resource.data.choreId)
+        && userPrimaryFamilyChore(uid, request.resource.data.choreId).deleted != true
+        && userPrimaryFamilyChore(uid, request.resource.data.choreId).coinValue == request.resource.data.delta
+        && userPrimaryFamilyChore(uid, request.resource.data.choreId).status in ["Submitted", "Approved"]
+        && (
+          actorIsAdmin
+          || isRequesterAssigneeId(userPrimaryFamilyChore(uid, request.resource.data.choreId).assigneeId)
+        );
+    }
+
+    function isValidChoreUndoLedgerCreate(uid, actorIsAdmin) {
+      return request.resource.data.reason == "chore_undo_complete"
+        && request.resource.data.choreId != ""
+        && request.resource.data.itemId == ""
+        && request.resource.data.delta < 0
+        && entryId == "chore_undo_complete_" + request.resource.data.choreId
+        && userPrimaryFamilyHasChore(uid, request.resource.data.choreId)
+        && userPrimaryFamilyChore(uid, request.resource.data.choreId).deleted != true
+        && userPrimaryFamilyChore(uid, request.resource.data.choreId).coinValue == (0 - request.resource.data.delta)
+        && userPrimaryFamilyChore(uid, request.resource.data.choreId).status in ["Open", "Deleted"]
+        && (
+          actorIsAdmin
+          || isRequesterAssigneeId(userPrimaryFamilyChore(uid, request.resource.data.choreId).assigneeId)
+        );
+    }
+
+    function isValidStorePurchaseLedgerCreate(uid) {
+      return request.resource.data.reason == "store_purchase"
+        && request.resource.data.itemId != ""
+        && request.resource.data.choreId == ""
+        && request.resource.data.delta < 0;
+    }
+
+    function canSelfCreateWalletLedger(uid) {
+      return isSelf(uid)
+        && isWalletLedgerCreateBaseValid(uid)
+        && (
+          isValidChoreCompleteLedgerCreate(uid, false)
+          || isValidChoreUndoLedgerCreate(uid, false)
+          || isValidStorePurchaseLedgerCreate(uid)
+        );
+    }
+
+    function canAdminCreateWalletLedger(uid) {
+      return canAdminManageUser(uid)
+        && isWalletLedgerCreateBaseValid(uid)
+        && (
+          request.resource.data.reason == "manual_adjustment"
+          || isValidChoreCompleteLedgerCreate(uid, true)
+          || isValidChoreUndoLedgerCreate(uid, true)
+          || isValidStorePurchaseLedgerCreate(uid)
+        );
+    }
+
     match /users/{uid} {
       allow read: if isSelf(uid) || canAdminManageUser(uid) || canAdminBootstrapManagedUser(uid);
-      allow create: if (isSelf(uid) && request.resource.data.uid == request.auth.uid)
+      allow create: if isValidSelfUserCreate(uid)
         || (canAdminBootstrapManagedUser(uid)
           && request.resource.data.uid == uid
           && request.resource.data.familyIds is list
           && request.resource.data.familyIds.hasAny([primaryFamilyIdForUser(request.auth.uid)]));
-      allow update: if isSelf(uid) || canAdminManageUser(uid);
-      allow delete: if isSelf(uid);
+      allow update: if isValidSelfUserUpdate(uid) || canAdminManageUser(uid);
+      allow delete: if false;
 
       match /walletLedger/{entryId} {
         allow read: if isSelf(uid) || canAdminManageUser(uid);
-        allow create: if (isSelf(uid) || canAdminManageUser(uid))
-          && request.resource.data.uid == uid
-          && request.resource.data.reason is string
-          && request.resource.data.delta is int
-          && request.resource.data.balanceAfter is int
-          && request.resource.data.createdAt is timestamp;
+        allow create: if canSelfCreateWalletLedger(uid) || canAdminCreateWalletLedger(uid);
         allow update, delete: if false;
       }
     }
@@ -476,11 +822,6 @@ service cloud.firestore {
       allow delete: if isSignedIn()
         && resource.data.familyId is string
         && isFamilyAdmin(resource.data.familyId);
-    }
-
-    match /choreUsageGlobal/{usageId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
     }
 
     match /{document=**} {

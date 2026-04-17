@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth/session";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
+import { getCanonicalAppOrigin } from "@/lib/app-origin";
 import { createFamilyForUser } from "@/lib/family/bootstrap";
 import {
   boolField,
@@ -41,27 +42,12 @@ type FirebaseSession = {
   photoUrl?: string;
 };
 
-function resolvePublicOrigin(request: NextRequest) {
-  const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  if (configured) {
-    return configured;
-  }
-
-  const proto = request.headers.get("x-forwarded-proto");
-  const host = request.headers.get("x-forwarded-host");
-  if (proto && host) {
-    return `${proto}://${host}`;
-  }
-
-  return request.nextUrl.origin;
-}
-
 function redirectToPath(
   request: NextRequest,
   path: string,
   params: Record<string, string> = {},
 ) {
-  const url = new URL(path, resolvePublicOrigin(request));
+  const url = new URL(path, getCanonicalAppOrigin());
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
@@ -418,7 +404,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const tokenInfo = await verifyGoogleCredential(credential);
-    const publicOrigin = resolvePublicOrigin(request);
+    const publicOrigin = getCanonicalAppOrigin();
     const firebaseSession = await signInWithFirebase(
       credential,
       publicOrigin,

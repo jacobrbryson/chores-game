@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  boolField,
   createOrReplaceDocument,
   getDocument,
   integerField,
@@ -23,6 +24,13 @@ type ApplyWalletDeltaInput = {
   choreId?: string;
   itemId?: string;
 };
+
+function ledgerEntryId(input: ApplyWalletDeltaInput) {
+  if ((input.reason === "chore_complete" || input.reason === "chore_undo_complete") && input.choreId) {
+    return `${input.reason}_${input.choreId}`;
+  }
+  return randomUUID();
+}
 
 export async function getWalletBalance(uid: string, idToken: string) {
   const userDoc = await getDocument(`users/${uid}`, idToken);
@@ -53,12 +61,16 @@ export async function applyWalletDelta(input: ApplyWalletDeltaInput) {
   );
 
   await createOrReplaceDocument(
-    `users/${input.uid}/walletLedger/${randomUUID()}`,
+    `users/${input.uid}/walletLedger/${ledgerEntryId(input)}`,
     {
       uid: stringField(input.uid),
       reason: stringField(input.reason),
       delta: signedIntegerField(input.delta),
+      entryType: stringField(input.delta < 0 ? "debit" : "credit"),
+      creditAmount: integerField(input.delta > 0 ? input.delta : 0),
+      debitAmount: integerField(input.delta < 0 ? Math.abs(input.delta) : 0),
       balanceAfter: integerField(nextBalance),
+      countsTowardBalance: boolField(true),
       choreId: stringField(input.choreId ?? ""),
       itemId: stringField(input.itemId ?? ""),
       createdAt: timestampField(now),
