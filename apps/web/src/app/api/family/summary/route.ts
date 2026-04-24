@@ -442,14 +442,27 @@ export async function GET(request: NextRequest) {
             continue;
           }
           const choreStatus = readString(doc.fields, "status");
+          const choreRequireApproval = readBoolean(doc.fields, "requireApproval");
           if (choreStatus === "Submitted" || choreStatus === "Approved") {
             currentStats.lifetimeChoresCompleted += 1;
           }
-          if (choreStatus === "Approved") {
+          if (choreStatus === "Approved" || (choreStatus === "Submitted" && !choreRequireApproval)) {
             currentStats.lifetimeCoinsEarned += normalizeCoinValue(
               readInteger(doc.fields, "coinValue"),
             );
           }
+        }
+
+        for (const member of rawMembers) {
+          const statsKey = resolveMemberStatsKey(member);
+          const currentStats = memberStatsByKey.get(statsKey);
+          if (!currentStats) {
+            continue;
+          }
+          currentStats.lifetimeCoinsEarned = Math.max(
+            currentStats.lifetimeCoinsEarned,
+            currentStats.currentCoins,
+          );
         }
 
         const assigneeColorByAlias = new Map<string, string>();

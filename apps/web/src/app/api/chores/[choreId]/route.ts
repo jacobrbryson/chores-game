@@ -697,7 +697,6 @@ export async function PATCH(
           const choreSource = readString(existingChoreDoc.fields, "source");
           const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
           const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
-          const choreDueDate = readString(existingChoreDoc.fields, "dueDate") || todayIsoDate();
           const choreDetails = readString(existingChoreDoc.fields, "details") || "";
           const choreCategoryIds = readChoreCategoryIds(existingChoreDoc.fields);
           const choreRequireApproval = readBoolean(existingChoreDoc.fields, "requireApproval");
@@ -721,24 +720,24 @@ export async function PATCH(
             session.memberId,
             session.email,
           );
-          if (!requesterOwnsChore) {
-            const requester = await getRequesterContext(
-              familyId,
-              session.uid,
-              session.email,
-              idToken,
-            );
-            if (requester.role !== "admin") {
-              return { kind: "forbidden_action" as const };
-            }
+          const requester = await getRequesterContext(
+            familyId,
+            session.uid,
+            session.email,
+            idToken,
+          );
+          if (!requesterOwnsChore && requester.role !== "admin") {
+            return { kind: "forbidden_action" as const };
           }
           let spawnedNextChoreId = "";
-          const nextStatus = choreRequireApproval ? "Submitted" : "Approved";
+          const completionNeedsApproval = choreRequireApproval && requester.role !== "admin";
+          const nextStatus = completionNeedsApproval ? "Submitted" : "Approved";
+          const completionDate = now.slice(0, 10);
           if (choreRecurrence.recurrenceType !== "none") {
             const nextDueDate = nextRecurringDueDate(
-              choreDueDate,
+              completionDate,
               choreRecurrence,
-              todayIsoDate(),
+              completionDate,
             );
             const allChoreDocs = await listDocuments(`families/${familyId}/chores`, idToken, 1000);
             const openChores = allChoreDocs.filter((doc) => {
@@ -796,7 +795,7 @@ export async function PATCH(
             ["status", "submittedAt", "updatedAt", "spawnedNextChoreId"],
           );
           const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
-          if (!choreRequireApproval && assigneeUid && choreCoinValue > 0) {
+          if (nextStatus === "Approved" && assigneeUid && choreCoinValue > 0) {
             try {
               await applyWalletDelta({
                 uid: assigneeUid,
@@ -819,14 +818,14 @@ export async function PATCH(
             actorUid: session.uid,
             actorEmail: session.email,
             actorName,
-            title: choreRequireApproval ? "Chore submitted for approval" : "Chore completed",
-            message: choreRequireApproval
+            title: completionNeedsApproval ? "Chore submitted for approval" : "Chore completed",
+            message: completionNeedsApproval
               ? `${actorName} completed "${choreTitle}" and it is waiting for parent approval.`
               : `${actorName} marked "${choreTitle}" complete and earned ${choreCoinValue} coins.${choreRecurrence.recurrenceType !== "none" ? ` ${recurrenceLabel(choreRecurrence)}.` : ""}`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
-            pushType: choreRequireApproval ? "chore_approval_required" : "chore_completed",
+            pushType: completionNeedsApproval ? "chore_approval_required" : "chore_completed",
           });
           await publishFamilyActivity({
             type: "chore_completed",
@@ -851,7 +850,6 @@ export async function PATCH(
           const choreSource = readString(existingChoreDoc.fields, "source");
           const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
           const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
-          const choreRequireApproval = readBoolean(existingChoreDoc.fields, "requireApproval");
           const spawnedNextChoreId = readString(existingChoreDoc.fields, "spawnedNextChoreId");
           if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
             syncOwnerUid = choreGoogleTaskOwnerUid;
@@ -886,7 +884,7 @@ export async function PATCH(
             ["status", "updatedAt", "spawnedNextChoreId", "rejectionFeedback"],
           );
           const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
-          if (currentStatus === "Approved" && !choreRequireApproval && assigneeUid && choreCoinValue > 0) {
+          if (currentStatus === "Approved" && assigneeUid && choreCoinValue > 0) {
             try {
               await applyWalletDelta({
                 uid: assigneeUid,
@@ -1280,7 +1278,6 @@ export async function DELETE(
         const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
         const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
         const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
-        const choreRequireApproval = readBoolean(existingChoreDoc.fields, "requireApproval");
         const now = new Date().toISOString();
         await patchDocument(
           `families/${familyId}/chores/${choreId}`,
@@ -1293,11 +1290,7 @@ export async function DELETE(
           idToken,
           ["deleted", "deletedAt", "status", "updatedAt"],
         );
-        if (
-          currentStatus === "Approved" &&
-          !choreRequireApproval &&
-          choreCoinValue > 0
-        ) {
+        if (currentStatus === "Approved" && choreCoinValue > 0) {
           const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
           if (assigneeUid) {
             try {
