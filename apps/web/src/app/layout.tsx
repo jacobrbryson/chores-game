@@ -1,11 +1,14 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { Suspense } from "react";
 import "./globals.css";
 import { AppFooter } from "@/components/app-footer";
 import { AppHeader } from "@/components/app-header";
+import { DashboardTabs } from "@/components/dashboard-tabs";
 import { NavigationHistoryTracker } from "@/components/navigation-history-tracker";
 import { PartyConfettiOverlay } from "@/components/party-confetti-overlay";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
+import { parseSessionToken } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Family Chores",
@@ -30,6 +33,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const sessionUser = parseSessionToken(cookieStore.get("session_user")?.value);
+
   return (
     <html lang="en">
       <head>
@@ -50,6 +56,7 @@ export default async function RootLayout({
           <div className="container app-layout">
             <div className="app-main">
               <AppHeader />
+              <DashboardTabs visible={Boolean(sessionUser)} />
               {children}
             </div>
             <AppFooter />
