@@ -50,33 +50,63 @@ export async function applyWalletDelta(input: ApplyWalletDeltaInput) {
     throw new Error("WALLET_NEGATIVE_BLOCKED");
   }
 
-  await patchDocument(
-    `users/${input.uid}`,
-    {
-      walletBalance: integerField(nextBalance),
-      walletUpdatedAt: timestampField(now),
-    },
-    input.idToken,
-    ["walletBalance", "walletUpdatedAt"],
-  );
+  try {
+    await patchDocument(
+      `users/${input.uid}`,
+      {
+        walletBalance: integerField(nextBalance),
+        walletUpdatedAt: timestampField(now),
+      },
+      input.idToken,
+      ["walletBalance", "walletUpdatedAt"],
+    );
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown";
+    console.error("[WALLET_DELTA_USER_PATCH_ERROR]", {
+      uid: input.uid,
+      reason: input.reason,
+      delta: input.delta,
+      currentBalance,
+      nextBalance,
+      choreId: input.choreId ?? "",
+      itemId: input.itemId ?? "",
+      firestoreReason: reason.slice(0, 220),
+    });
+    throw error;
+  }
 
-  await createOrReplaceDocument(
-    `users/${input.uid}/walletLedger/${ledgerEntryId(input)}`,
-    {
-      uid: stringField(input.uid),
-      reason: stringField(input.reason),
-      delta: signedIntegerField(input.delta),
-      entryType: stringField(input.delta < 0 ? "debit" : "credit"),
-      creditAmount: integerField(input.delta > 0 ? input.delta : 0),
-      debitAmount: integerField(input.delta < 0 ? Math.abs(input.delta) : 0),
-      balanceAfter: integerField(nextBalance),
-      countsTowardBalance: boolField(true),
-      choreId: stringField(input.choreId ?? ""),
-      itemId: stringField(input.itemId ?? ""),
-      createdAt: timestampField(now),
-    },
-    input.idToken,
-  );
+  try {
+    await createOrReplaceDocument(
+      `users/${input.uid}/walletLedger/${ledgerEntryId(input)}`,
+      {
+        uid: stringField(input.uid),
+        reason: stringField(input.reason),
+        delta: signedIntegerField(input.delta),
+        entryType: stringField(input.delta < 0 ? "debit" : "credit"),
+        creditAmount: integerField(input.delta > 0 ? input.delta : 0),
+        debitAmount: integerField(input.delta < 0 ? Math.abs(input.delta) : 0),
+        balanceAfter: integerField(nextBalance),
+        countsTowardBalance: boolField(true),
+        choreId: stringField(input.choreId ?? ""),
+        itemId: stringField(input.itemId ?? ""),
+        createdAt: timestampField(now),
+      },
+      input.idToken,
+    );
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown";
+    console.error("[WALLET_DELTA_LEDGER_CREATE_ERROR]", {
+      uid: input.uid,
+      reason: input.reason,
+      delta: input.delta,
+      currentBalance,
+      nextBalance,
+      choreId: input.choreId ?? "",
+      itemId: input.itemId ?? "",
+      firestoreReason: reason.slice(0, 220),
+    });
+    throw error;
+  }
 
   return nextBalance;
 }

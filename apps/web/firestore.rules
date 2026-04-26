@@ -14,9 +14,14 @@ service cloud.firestore {
     }
 
     function userBelongsToFamily(uid, familyId) {
+      let memberDocPath = /databases/$(database)/documents/families/$(familyId)/members/$(uid);
       return exists(/databases/$(database)/documents/users/$(uid))
         && get(/databases/$(database)/documents/users/$(uid)).data.familyIds is list
-        && get(/databases/$(database)/documents/users/$(uid)).data.familyIds.hasAny([familyId]);
+        && get(/databases/$(database)/documents/users/$(uid)).data.familyIds.hasAny([familyId])
+        || (
+          exists(memberDocPath)
+          && get(memberDocPath).data.deleted != true
+        );
     }
 
     function canAdminManageUser(uid) {
@@ -193,6 +198,12 @@ service cloud.firestore {
 
     function canCreateAwardClaim(familyId) {
       let purchaserUid = request.resource.data.purchaserUid;
+      let purchaserMemberDocPath = /databases/$(database)/documents/families/$(familyId)/members/$(purchaserUid);
+      let purchaserIsFamilyMember = userBelongsToFamily(purchaserUid, familyId)
+        || (
+          exists(purchaserMemberDocPath)
+          && get(purchaserMemberDocPath).data.deleted != true
+        );
       return isFamilyMember(familyId)
         && request.resource.data.rewardId is string
         && request.resource.data.rewardDescription is string
@@ -203,7 +214,7 @@ service cloud.firestore {
           purchaserUid == request.auth.uid
           || (
             isFamilyAdmin(familyId)
-            && userBelongsToFamily(purchaserUid, familyId)
+            && purchaserIsFamilyMember
           )
         )
         && request.resource.data.purchaserName is string
@@ -380,6 +391,17 @@ service cloud.firestore {
         );
     }
 
+    function isValidSelfUserWalletUpdate(uid) {
+      return isSelf(uid)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "walletBalance",
+          "walletUpdatedAt"
+        ])
+        && request.resource.data.walletBalance is int
+        && request.resource.data.walletBalance >= 0
+        && request.resource.data.walletUpdatedAt is timestamp;
+    }
+
     function isValidSelfUserGoogleTasksUpdate(uid) {
       return isSelf(uid)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
@@ -461,6 +483,7 @@ service cloud.firestore {
       return isValidSelfUserProfileUpdate(uid)
         || isValidSelfUserPreferencesUpdate(uid)
         || isValidSelfUserStoreUpdate(uid)
+        || isValidSelfUserWalletUpdate(uid)
         || isValidSelfUserGoogleTasksUpdate(uid)
         || (
           isSelf(uid)

@@ -826,6 +826,13 @@ export function TodayChoresPanel({
     setQuickSortMenuOpen(false);
   }
 
+  function onQuickSortMenuOpenChange(next: boolean) {
+    setQuickSortMenuOpen(next);
+    if (next) {
+      setMobileActionsOpen(false);
+    }
+  }
+
   function quickSortDirectionLabel(key: QuickSortKey, direction: QuickSortDirection) {
     if (key === "coin_value") {
       return direction === "asc" ? "Low to high" : "High to low";
@@ -1063,7 +1070,7 @@ export function TodayChoresPanel({
             <div className="today-chores-actions-shell today-chores-actions-desktop">
               <AppMenu
                 open={quickSortMenuOpen}
-                onOpenChange={setQuickSortMenuOpen}
+                onOpenChange={onQuickSortMenuOpenChange}
                 wrapperClassName="today-chores-sort-menu-wrap"
                 triggerClassName={`today-chores-action-link today-chores-action-link-divider today-chores-action-sort-trigger${
                   quickSortState ? " today-chores-action-sort-trigger-active" : ""
@@ -1136,6 +1143,57 @@ export function TodayChoresPanel({
               ) : null}
             </div>
             <div className="today-chores-actions-mobile" ref={mobileActionsRef}>
+              <AppMenu
+                open={quickSortMenuOpen}
+                onOpenChange={onQuickSortMenuOpenChange}
+                wrapperClassName="today-chores-sort-menu-wrap"
+                triggerClassName={`today-chores-actions-mobile-trigger today-chores-actions-mobile-sort-trigger${
+                  quickSortState ? " today-chores-action-sort-trigger-active" : ""
+                }`}
+                triggerTitle="Quick Sorting Options"
+                triggerAriaLabel="Quick sorting options"
+                panelClassName="app-menu-panel profile-dropdown today-chores-sort-menu"
+                trigger={
+                  <span className="today-chores-sort-icon" aria-hidden="true">
+                    <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-a" />
+                    <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-b" />
+                    <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-c" />
+                  </span>
+                }>
+                <MenuActionButton
+                  fullWidth
+                  onClick={() => onSelectQuickSort("coin_value")}
+                  trailing={
+                    quickSortState?.key === "coin_value"
+                      ? quickSortDirectionLabel("coin_value", quickSortState.direction)
+                      : null
+                  }
+                  trailingClassName="today-chores-sort-menu-direction">
+                  Coin Value
+                </MenuActionButton>
+                <MenuActionButton
+                  fullWidth
+                  onClick={() => onSelectQuickSort("frequency")}
+                  trailing={
+                    quickSortState?.key === "frequency"
+                      ? quickSortDirectionLabel("frequency", quickSortState.direction)
+                      : null
+                  }
+                  trailingClassName="today-chores-sort-menu-direction">
+                  Frequency
+                </MenuActionButton>
+                <MenuActionButton
+                  fullWidth
+                  onClick={() => onSelectQuickSort("alphabetical")}
+                  trailing={
+                    quickSortState?.key === "alphabetical"
+                      ? quickSortDirectionLabel("alphabetical", quickSortState.direction)
+                      : null
+                  }
+                  trailingClassName="today-chores-sort-menu-direction">
+                  Alphabetical
+                </MenuActionButton>
+              </AppMenu>
               <Button
                 type="button"
                 aria-label="Chores actions"

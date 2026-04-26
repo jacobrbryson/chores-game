@@ -598,6 +598,13 @@ export async function POST(request: NextRequest) {
         if (action === "purchase_option") {
           const categoryId = typeof body.categoryId === "string" ? body.categoryId.trim() : "";
           const optionId = typeof body.optionId === "string" ? body.optionId.trim() : "";
+          console.log("[STORE_PURCHASE_ATTEMPT]", {
+            uid,
+            authUid: session.authUid || session.uid,
+            switched: Boolean(session.authUid && session.authUid !== session.uid),
+            categoryId,
+            optionId,
+          });
 
           let category = findStoreCategoryById(categoryId);
           let option = category?.options.find((entry) => entry.id === optionId) ?? null;
@@ -645,6 +652,12 @@ export async function POST(request: NextRequest) {
             });
           } catch (error) {
             const reason = error instanceof Error ? error.message : "";
+            console.error("[STORE_PURCHASE_WALLET_ERROR]", {
+              uid,
+              categoryId,
+              optionId: option.id,
+              reason: reason.slice(0, 220),
+            });
             if (reason.includes("WALLET_NEGATIVE_BLOCKED")) {
               return { kind: "insufficient_funds" as const };
             }
@@ -653,42 +666,71 @@ export async function POST(request: NextRequest) {
 
           if (category.kind === "reward") {
             const familyId = await getPrimaryFamilyIdWithFallback(uid, idToken);
+            console.log("[STORE_PURCHASE_REWARD_CONTEXT]", {
+              uid,
+              categoryId,
+              optionId: option.id,
+              familyId: familyId || "(missing)",
+            });
             if (!familyId) {
               return { kind: "family_not_found" as const };
             }
             const now = new Date().toISOString();
             const awardClaimId = randomUUID();
-            await createOrReplaceDocument(
-              `families/${familyId}/awardClaims/${awardClaimId}`,
-              {
-                rewardId: stringField(option.id),
-                rewardDescription: stringField(option.label),
-                rewardImageId: stringField(option.value),
-                coinCost: integerField(optionPrice),
-                purchaserUid: stringField(uid),
-                purchaserName: stringField(session.name || session.email || "Family member"),
-                purchaserEmail: stringField(session.email || ""),
-                purchasedAt: timestampField(now),
-                status: stringField("unclaimed"),
-                claimedByUid: stringField(""),
-                claimedByName: stringField(""),
-                createdAt: timestampField(now),
-                updatedAt: timestampField(now),
-              },
-              idToken,
-            );
-            await emitFamilyActivity({
-              familyId,
-              idToken,
-              kind: "reward_claimed",
-              actorUid: session.uid,
-              actorEmail: session.email,
-              actorName: session.name || session.email || "Family member",
-              title: "Prize claimed",
-              message: `${session.name || "Someone"} claimed "${option.label}" for ${optionPrice} coins.`,
-              relatedIds: [session.uid, session.email],
-              pushType: "reward_claimed",
-            });
+            try {
+              await createOrReplaceDocument(
+                `families/${familyId}/awardClaims/${awardClaimId}`,
+                {
+                  rewardId: stringField(option.id),
+                  rewardDescription: stringField(option.label),
+                  rewardImageId: stringField(option.value),
+                  coinCost: integerField(optionPrice),
+                  purchaserUid: stringField(uid),
+                  purchaserName: stringField(session.name || session.email || "Family member"),
+                  purchaserEmail: stringField(session.email || ""),
+                  purchasedAt: timestampField(now),
+                  status: stringField("unclaimed"),
+                  claimedByUid: stringField(""),
+                  claimedByName: stringField(""),
+                  createdAt: timestampField(now),
+                  updatedAt: timestampField(now),
+                },
+                idToken,
+              );
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              console.error("[STORE_PURCHASE_AWARD_CLAIM_ERROR]", {
+                uid,
+                familyId,
+                awardClaimId,
+                optionId: option.id,
+                reason: reason.slice(0, 220),
+              });
+              throw error;
+            }
+            try {
+              await emitFamilyActivity({
+                familyId,
+                idToken,
+                kind: "reward_claimed",
+                actorUid: session.uid,
+                actorEmail: session.email,
+                actorName: session.name || session.email || "Family member",
+                title: "Prize claimed",
+                message: `${session.name || "Someone"} claimed "${option.label}" for ${optionPrice} coins.`,
+                relatedIds: [session.uid, session.email],
+                pushType: "reward_claimed",
+              });
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              console.error("[STORE_PURCHASE_ACTIVITY_ERROR]", {
+                uid,
+                familyId,
+                optionId: option.id,
+                reason: reason.slice(0, 220),
+              });
+              throw error;
+            }
             return { kind: "ok" as const };
           }
 

@@ -3440,6 +3440,7 @@ white-space: nowrap;
   display: none;
   position: relative;
   flex-shrink: 0;
+  gap: 8px;
 }
 
 .today-chores-actions-mobile-trigger {
@@ -3461,6 +3462,10 @@ white-space: nowrap;
 .today-chores-actions-mobile-trigger:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 42%, transparent);
+}
+
+.today-chores-actions-mobile-sort-trigger {
+  padding: 0;
 }
 
 .today-chores-kebab {
@@ -5223,7 +5228,6 @@ white-space: nowrap;
   flex-shrink: 0;
   color: currentColor;
 }
-
 
 
 

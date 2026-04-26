@@ -316,6 +316,13 @@ export function StorePageClient() {
         await applyOption(category, option, true);
       }
     } catch (purchaseError) {
+      if (typeof window !== "undefined") {
+        console.error("[STORE_PURCHASE_CLIENT_ERROR]", {
+          categoryId: category.id,
+          optionId: option.id,
+          error: purchaseError instanceof Error ? purchaseError.message : "purchase_failed",
+        });
+      }
       setActionError(purchaseError instanceof Error ? purchaseError.message : "purchase_failed");
     } finally {
       setPendingOptionId("");
@@ -370,6 +377,8 @@ export function StorePageClient() {
                   alt=""
                   width={640}
                   height={320}
+                  loading={category.imagePath === "/store3/avatar.png" ? "eager" : "lazy"}
+                  priority={category.imagePath === "/store3/avatar.png"}
                   className="store-card-image"
                 />
                 <h3>{category.name}</h3>

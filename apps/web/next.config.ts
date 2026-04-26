@@ -7,6 +7,7 @@ const workspaceRoot = path.resolve(currentDir, "../..");
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  outputFileTracingRoot: workspaceRoot,
   turbopack: {
     root: workspaceRoot,
   },
