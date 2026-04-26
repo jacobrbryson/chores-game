@@ -33,7 +33,7 @@ export const FAMILY_REWARD_IMAGE_OPTIONS: FamilyRewardImageOption[] = [
   { id: "museum_trip", label: "Museum Trip", imagePath: "/rewards/museum.png" },
   { id: "vacation", label: "Vacation", imagePath: "/rewards/vacation.png" },
   { id: "movie_night", label: "Movie Night", imagePath: "/rewards/movie.png" },
-  { id: "sleepover", label: "Sleepover", imagePath: "/rewards/sleep.png" },
+  { id: "sleepover", label: "Custom", imagePath: "/custom.png" },
 ];
 
 export const MAX_FAMILY_REWARD_DESCRIPTION_LENGTH = 120;

@@ -136,6 +136,7 @@ function ensureStandaloneArtifacts(targetRoot) {
 
   const rootStandaloneServer = path.join(targetRoot, ".next", "standalone", "server.js");
   const nestedStandaloneServer = findNestedStandaloneServer(standaloneDir);
+  const nestedAppRoot = path.join(standaloneDir, "apps", "web");
   if (!existsSync(rootStandaloneServer) && nestedStandaloneServer) {
     mkdirSync(path.dirname(rootStandaloneServer), { recursive: true });
     const relativeTarget = path
@@ -153,6 +154,33 @@ function ensureStandaloneArtifacts(targetRoot) {
     console.warn(
       `[ensure-standalone-routes-manifest] Could not create standalone/server.js at ${targetRoot}: nested source missing.`,
     );
+  }
+
+  if (existsSync(path.join(nestedAppRoot, "server.js"))) {
+    const staticSource = findFirstExisting([
+      path.join(targetRoot, ".next", "static"),
+      path.join(projectRoot, ".next", "static"),
+    ]);
+    if (staticSource) {
+      const staticDest = path.join(nestedAppRoot, ".next", "static");
+      mkdirSync(path.dirname(staticDest), { recursive: true });
+      cpSync(staticSource, staticDest, { recursive: true, force: true });
+      console.log(
+        `[ensure-standalone-routes-manifest] Mirrored static assets ${staticSource} -> ${staticDest}.`,
+      );
+    }
+
+    const publicSource = findFirstExisting([
+      path.join(targetRoot, "public"),
+      path.join(projectRoot, "public"),
+    ]);
+    if (publicSource) {
+      const publicDest = path.join(nestedAppRoot, "public");
+      cpSync(publicSource, publicDest, { recursive: true, force: true });
+      console.log(
+        `[ensure-standalone-routes-manifest] Mirrored public assets ${publicSource} -> ${publicDest}.`,
+      );
+    }
   }
 }
 

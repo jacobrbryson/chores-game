@@ -661,6 +661,14 @@ export default function FamilyPage() {
     setOpenRewardMenuId("");
   }
 
+  function onSelectRewardImage(option: (typeof FAMILY_REWARD_IMAGE_OPTIONS)[number]) {
+    setRewardForm((current) => ({
+      ...current,
+      imageId: option.id,
+      description: option.label,
+    }));
+  }
+
   async function onSaveReward(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (rewardSaving) {
@@ -1489,6 +1497,30 @@ export default function FamilyPage() {
             ice cream, candy, soda, zoo trips, museum trips, vacations.
           </p>
           <form className="flex w-full flex-col gap-3" onSubmit={onSaveReward}>
+            <div className="family-reward-image-grid" role="radiogroup" aria-label="Reward image">
+              {FAMILY_REWARD_IMAGE_OPTIONS.map((option) => {
+                const isSelected = rewardForm.imageId === option.id;
+                return (
+                  <Button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    className={`family-reward-image-option${isSelected ? " is-selected" : ""}`}
+                    onClick={() => onSelectRewardImage(option)}>
+                    <span className="family-reward-image-option-media">
+                      <Image
+                        src={option.imagePath}
+                        alt={option.label}
+                        width={120}
+                        height={120}
+                        className="family-reward-image-option-img"
+                      />
+                    </span>
+                  </Button>
+                );
+              })}
+            </div>
             <label className="flex w-full flex-col gap-1.5">
               <span className="text-sm font-medium text-slate-700">Description</span>
               <input
@@ -1549,36 +1581,6 @@ export default function FamilyPage() {
                 <span className="small text-slate-500">Use `0` or leave blank for unlimited.</span>
               </label>
             </div>
-            <label className="flex w-full flex-col gap-1.5">
-              <span className="text-sm font-medium text-slate-700">Reward Image</span>
-              <div className="family-reward-image-grid" role="radiogroup" aria-label="Reward image">
-                {FAMILY_REWARD_IMAGE_OPTIONS.map((option) => {
-                  const isSelected = rewardForm.imageId === option.id;
-                  return (
-                    <Button
-                      key={option.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={isSelected}
-                      className={`family-reward-image-option${isSelected ? " is-selected" : ""}`}
-                      onClick={() =>
-                        setRewardForm((current) => ({ ...current, imageId: option.id }))
-                      }>
-                      <span className="family-reward-image-option-media">
-                        <Image
-                          src={option.imagePath}
-                          alt={option.label}
-                          width={120}
-                          height={120}
-                          className="family-reward-image-option-img"
-                        />
-                      </span>
-                      <span className="family-reward-image-option-label">{option.label}</span>
-                    </Button>
-                  );
-                })}
-              </div>
-            </label>
             {rewardError ? <Alert>Reward update failed: {rewardError}</Alert> : null}
             <div className="family-modal-actions">
               {editingRewardId ? (

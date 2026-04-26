@@ -624,7 +624,6 @@ export function StorePageClient() {
                           {isRewardOption ? (
                             <>
                               <CoinIcon size={14} /> {optionPrice} coins
-                              {rewardImage ? ` - ${rewardImage.label}` : ""}
                             </>
                           ) : owned || isDefaultConfettiOption ? (
                             "Owned"
