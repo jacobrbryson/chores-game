@@ -418,6 +418,7 @@ export function StorePageClient() {
                     </Button>
                   </div>
                 </header>
+                {actionError ? <Alert className="mb-3">Store update failed: {actionError}</Alert> : null}
                 <div className="store-options-grid">
                   {activeCategory.kind === "avatar" && summary.googlePhotoUrl ? (
                     <article className="store-option-card">

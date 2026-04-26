@@ -192,12 +192,20 @@ service cloud.firestore {
     }
 
     function canCreateAwardClaim(familyId) {
+      let purchaserUid = request.resource.data.purchaserUid;
       return isFamilyMember(familyId)
         && request.resource.data.rewardId is string
         && request.resource.data.rewardDescription is string
         && request.resource.data.rewardImageId is string
         && request.resource.data.coinCost is int
-        && request.resource.data.purchaserUid == request.auth.uid
+        && purchaserUid is string
+        && (
+          purchaserUid == request.auth.uid
+          || (
+            isFamilyAdmin(familyId)
+            && userBelongsToFamily(purchaserUid, familyId)
+          )
+        )
         && request.resource.data.purchaserName is string
         && request.resource.data.purchaserEmail is string
         && request.resource.data.status == "unclaimed"
