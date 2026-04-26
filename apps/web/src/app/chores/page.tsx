@@ -1285,6 +1285,8 @@ export default function ChoresPage() {
                     id: editingChore.id,
                     title: editingChore.title,
                     assigneeId: editingChore.assigneeId,
+                    assigneeName: editingChore.assigneeName,
+                    source: editingChore.source,
                     dueDate: editingChore.dueDate,
                     details: editingChore.details,
                     categoryIds: editingChore.categoryIds,

@@ -188,6 +188,8 @@ export function TodayChoreCard({
           id: chore.id,
           title: chore.title,
           assigneeId: chore.assigneeId,
+          assigneeName: chore.assigneeName,
+          source: chore.source,
           dueDate: chore.dueDate,
           details: chore.details,
           categoryIds: chore.categoryIds,

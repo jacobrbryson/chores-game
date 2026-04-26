@@ -33,6 +33,8 @@ type EditableChore = {
   id: string;
   title: string;
   assigneeId?: string;
+  assigneeName?: string;
+  source?: "manual" | "google_tasks";
   dueDate?: string;
   details?: string;
   categoryIds?: string[];
@@ -218,6 +220,15 @@ export function AddEditChoresDialog({
       })),
     [categories],
   );
+  const hasGoogleTaskAssigneeChangeWarning =
+    isEditMode &&
+    chore?.source === "google_tasks" &&
+    assigneeHydrated &&
+    assigneeId !== (chore?.assigneeId ?? "");
+  const previousGoogleTasksOwnerName =
+    members.find((member) => member.id === (chore?.assigneeId ?? ""))?.name ||
+    chore?.assigneeName ||
+    "this user";
 
   const filteredSuggestions = useMemo(() => {
     const query = description.trim().toLowerCase();
@@ -790,6 +801,11 @@ export function AddEditChoresDialog({
                   buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                   menuClassName="border-slate-300"
                 />
+                {hasGoogleTaskAssigneeChangeWarning ? (
+                  <Alert tone="warning">
+                    This task will be removed from {previousGoogleTasksOwnerName}&apos;s Google Tasks.
+                  </Alert>
+                ) : null}
               </label>
 
               <Button
