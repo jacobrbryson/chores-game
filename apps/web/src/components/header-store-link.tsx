@@ -8,6 +8,19 @@ type HeaderStoreLinkProps = {
 	visible: boolean;
 };
 
+function formatCompactBalance(value: number) {
+	if (value < 1000) {
+		return `${value}`;
+	}
+	if (value < 1_000_000) {
+		return `${(value / 1000).toFixed(1)}k`;
+	}
+	if (value < 1_000_000_000) {
+		return `${(value / 1_000_000).toFixed(1)}m`;
+	}
+	return `${(value / 1_000_000_000).toFixed(1)}b`;
+}
+
 export function HeaderStoreLink({ visible }: HeaderStoreLinkProps) {
 	const [balance, setBalance] = useState(0);
 
@@ -52,10 +65,9 @@ export function HeaderStoreLink({ visible }: HeaderStoreLinkProps) {
 	}
 
 	return (
-		<Link href="/store" className="store-link-chip" aria-label="Store" title="Store">
-			<span className="store-link-label jim-nightshade-regular">Store</span>
-			<CoinIcon size={18} />
-			<span className="store-link-balance">{balance}</span>
+		<Link href="/store" className="store-link-chip" aria-label="Open store" title="Store">
+			<CoinIcon size={11} />
+			<span className="store-link-balance">{formatCompactBalance(balance)}</span>
 		</Link>
 	);
 }

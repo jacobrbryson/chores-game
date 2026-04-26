@@ -71,6 +71,23 @@ body {
     );
 }
 
+.top-nav-auth {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.top-nav-auth .top-nav-brand-row {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+}
+
+.top-nav-auth .nav-links {
+  align-self: center;
+  flex: 0 0 auto;
+}
+
 .top-nav::after {
   content: "";
   position: absolute;
@@ -260,24 +277,26 @@ body {
 .store-link-chip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  min-height: 42px;
+  justify-content: center;
+  gap: 3px;
+  min-height: 11px;
   border: 1px solid color-mix(in srgb, #f59e0b 40%, #ffffff);
   border-radius: 999px;
   background: linear-gradient(180deg, #fff7df, #ffe8ad);
   color: #845205;
   text-decoration: none;
-  font-weight: 700;
-  font-size: 0.86rem;
-  padding: 8px 13px;
-  box-shadow: 0 6px 14px rgba(217, 119, 6, 0.2);
+  font-weight: 800;
+  font-size: 0.62rem;
+  line-height: 1;
+  padding: 2px 7px;
+  box-shadow: 0 3px 9px rgba(217, 119, 6, 0.2);
   transition: transform 130ms ease, box-shadow 130ms ease, background-color 130ms ease;
 }
 
 
 .store-link-chip:hover {
   background: linear-gradient(180deg, #fff1ca, #ffdf99);
-  box-shadow: 0 10px 16px rgba(217, 119, 6, 0.24);
+  box-shadow: 0 5px 10px rgba(217, 119, 6, 0.24);
   transform: translateY(-1px);
 }
 
@@ -305,7 +324,7 @@ body {
 
 
 .store-link-balance {
-  min-width: 1.5ch;
+  min-width: 1.2ch;
   text-align: right;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -377,6 +396,27 @@ body {
   align-self: center;
 }
 
+.avatar-store-stack {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+}
+
+.avatar-store-stack .store-link-chip {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  margin-top: -12px;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+.avatar-store-stack .store-link-chip:hover {
+  transform: translateX(-50%) translateY(-1px);
+}
+
 .profile-menu-trigger {
   display: inline-flex;
   align-items: center;
@@ -396,9 +436,45 @@ body {
 }
 
 .profile-avatar-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.profile-avatar-anchor {
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+}
+
+.profile-avatar-store-chip {
+  position: static;
+  margin-top: -4px;
+  transform: none;
+  z-index: 1;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 11px;
+  border: 1px solid color-mix(in srgb, #f59e0b 40%, #ffffff);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fff7df, #ffe8ad);
+  color: #845205;
+  font-weight: 800;
+  font-size: 0.62rem;
+  line-height: 1;
+  padding: 2px 7px;
+  box-shadow: 0 3px 9px rgba(217, 119, 6, 0.2);
+}
+
+.profile-avatar-store-balance {
+  min-width: 1.2ch;
+  text-align: right;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .profile-avatar {
@@ -419,6 +495,20 @@ body {
     0 0 0 2px color-mix(in srgb, #f59e0b 42%, #ffffff),
     0 0 16px rgba(245, 158, 11, 0.46),
     0 10px 18px rgba(180, 83, 9, 0.22);
+}
+
+.profile-menu-trigger:hover .profile-avatar-store-chip,
+.profile-menu-trigger:focus-visible .profile-avatar-store-chip,
+.profile-menu:focus-within .profile-avatar-store-chip {
+  background: linear-gradient(180deg, #fff1ca, #ffdf99);
+  box-shadow: 0 5px 10px rgba(217, 119, 6, 0.24);
+}
+
+.profile-menu-trigger:hover .profile-avatar-store-chip .coin-icon,
+.profile-menu-trigger:focus-visible .profile-avatar-store-chip .coin-icon,
+.profile-menu:focus-within .profile-avatar-store-chip .coin-icon {
+  animation: coin-icon-spin-y 860ms cubic-bezier(0.42, 0, 0.58, 1) infinite;
+  filter: drop-shadow(0 5px 10px rgba(180, 83, 9, 0.36));
 }
 
 .profile-dropdown {
@@ -4633,6 +4723,20 @@ white-space: nowrap;
     gap: 8px;
   }
 
+  .avatar-store-stack {
+    padding-bottom: 7px;
+  }
+
+  .avatar-store-stack .store-link-chip {
+    left: 50%;
+    margin-top: -12px;
+    transform: translateX(-50%);
+  }
+
+  .avatar-store-stack .store-link-chip:hover {
+    transform: translateX(-50%) translateY(-1px);
+  }
+
   .google-signin-wrap {
     width: 100%;
   }
@@ -5071,19 +5175,6 @@ white-space: nowrap;
   flex-shrink: 0;
   color: currentColor;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 import { AppBrand } from "@/components/app-brand";
 import { GoogleSignInButton } from "@/components/google-signin-button";
-import { HeaderStoreLink } from "@/components/header-store-link";
 import { ProfileMenu } from "@/components/profile-menu";
 import {
   getAuthenticatedSessionIdentity,
@@ -25,23 +24,20 @@ export async function AppHeader() {
     "U";
 
   return (
-    <nav className="top-nav panel">
+    <nav className={`top-nav panel ${sessionUser ? "top-nav-auth" : "top-nav-guest"}`}>
       <div className="top-nav-brand-row">
         <AppBrand />
       </div>
       <div className={`nav-links ${sessionUser ? "nav-links-auth" : "nav-links-guest"}`}>
         {sessionUser ? (
-          <>
-            <HeaderStoreLink visible />
-            <ProfileMenu
-              name={sessionUser.name || ""}
-              email={sessionUser.email}
-              picture={sessionUser.picture}
-              initial={profileInitial}
-              isSwitched={sessionUser ? isSessionSwitched(sessionUser) : false}
-              authenticatedName={authenticatedIdentity?.name || authenticatedIdentity?.email || ""}
-            />
-          </>
+          <ProfileMenu
+            name={sessionUser.name || ""}
+            email={sessionUser.email}
+            picture={sessionUser.picture}
+            initial={profileInitial}
+            isSwitched={sessionUser ? isSessionSwitched(sessionUser) : false}
+            authenticatedName={authenticatedIdentity?.name || authenticatedIdentity?.email || ""}
+          />
         ) : googleClientId && gsiLoginUri ? (
           <GoogleSignInButton mode="gsi" clientId={googleClientId} loginUri={gsiLoginUri} />
         ) : (

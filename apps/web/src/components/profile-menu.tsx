@@ -6,6 +6,7 @@ import { Alert } from "@/components/alert";
 import { AppMenu } from "@/components/app-menu";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
+import { CoinIcon } from "@/components/coin-icon";
 import { GoogleTaskSyncIndicator } from "@/components/google-task-sync-indicator";
 import { MenuActionLink } from "@/components/menu-action-link";
 import { ModalShell } from "@/components/modal-shell";
@@ -86,6 +87,19 @@ type ProfileMenuProps = {
 
 type SwitchableMember = FamilySummaryResponse["members"][number];
 
+function formatCompactBalance(value: number) {
+  if (value < 1000) {
+    return `${value}`;
+  }
+  if (value < 1_000_000) {
+    return `${(value / 1000).toFixed(1)}k`;
+  }
+  if (value < 1_000_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}m`;
+  }
+  return `${(value / 1_000_000_000).toFixed(1)}b`;
+}
+
 export function ProfileMenu({
   name,
   email,
@@ -99,6 +113,7 @@ export function ProfileMenu({
   const [unseenCount, setUnseenCount] = useState(0);
   const [selectedAvatarId, setSelectedAvatarId] = useState("");
   const [selectedAvatarPhotoUrl, setSelectedAvatarPhotoUrl] = useState("");
+  const [headerCoinBalance, setHeaderCoinBalance] = useState(0);
   const [themePrimaryColor, setThemePrimaryColor] = useState("");
   const [themeSecondaryColor, setThemeSecondaryColor] = useState("");
   const [googleTasksLinked, setGoogleTasksLinked] = useState(false);
@@ -131,6 +146,21 @@ export function ProfileMenu({
       );
     } catch {
       // Ignore count refresh errors in menu UI.
+    }
+  }
+
+  async function loadHeaderCoinBalance() {
+    try {
+      const response = await fetch("/api/store?brief=1", { cache: "no-store" });
+      if (!response.ok) {
+        return;
+      }
+      const payload = (await response.json()) as { balance?: number };
+      setHeaderCoinBalance(
+        typeof payload.balance === "number" ? Math.max(0, payload.balance) : 0,
+      );
+    } catch {
+      // Ignore coin refresh errors in menu UI.
     }
   }
 
@@ -221,6 +251,7 @@ export function ProfileMenu({
       setThemeSecondaryColor(storedAvatar.themeSecondaryColor || storedAvatar.themePrimaryColor);
     }
     void loadUnseenCount();
+    void loadHeaderCoinBalance();
     void loadProfileAvatar();
     void loadGoogleTasksLinkState();
   }, []);
@@ -232,6 +263,16 @@ export function ProfileMenu({
     window.addEventListener("notifications:refresh", onNotificationsRefresh);
     return () => {
       window.removeEventListener("notifications:refresh", onNotificationsRefresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    function onWalletRefresh() {
+      void loadHeaderCoinBalance();
+    }
+    window.addEventListener("wallet:refresh", onWalletRefresh);
+    return () => {
+      window.removeEventListener("wallet:refresh", onWalletRefresh);
     };
   }, []);
 
@@ -264,6 +305,7 @@ export function ProfileMenu({
       return;
     }
     void loadUnseenCount();
+    void loadHeaderCoinBalance();
     void loadGoogleTasksLinkState();
   }, [open]);
 
@@ -407,20 +449,28 @@ export function ProfileMenu({
         panelClassName="app-menu-panel profile-dropdown"
         trigger={
           <span className="profile-avatar-wrap">
-            <Avatar
-              className="profile-avatar"
-              name={displayName || "User profile"}
-              initial={initial}
-              avatarId={selectedAvatarId}
-              photoUrl={selectedAvatarPhotoUrl || picture || ""}
-              primaryColor={themePrimaryColor || undefined}
-              secondaryColor={(themeSecondaryColor || themePrimaryColor) || undefined}
-              fallbackColor={themePrimaryColor ? "#ffffff" : undefined}
-              referrerPolicy="no-referrer"
-              loading="eager"
-              decoding="async"
-            />
-            {unseenCount > 0 ? <span className="notification-badge">{unseenCount}</span> : null}
+            <span className="profile-avatar-anchor">
+              <Avatar
+                className="profile-avatar"
+                name={displayName || "User profile"}
+                initial={initial}
+                avatarId={selectedAvatarId}
+                photoUrl={selectedAvatarPhotoUrl || picture || ""}
+                primaryColor={themePrimaryColor || undefined}
+                secondaryColor={(themeSecondaryColor || themePrimaryColor) || undefined}
+                fallbackColor={themePrimaryColor ? "#ffffff" : undefined}
+                referrerPolicy="no-referrer"
+                loading="eager"
+                decoding="async"
+              />
+              {unseenCount > 0 ? <span className="notification-badge">{unseenCount}</span> : null}
+            </span>
+            <span className="profile-avatar-store-chip" aria-hidden="true">
+              <CoinIcon size={11} />
+              <span className="profile-avatar-store-balance">
+                {formatCompactBalance(headerCoinBalance)}
+              </span>
+            </span>
           </span>
         }>
         <div className="profile-name-row">
