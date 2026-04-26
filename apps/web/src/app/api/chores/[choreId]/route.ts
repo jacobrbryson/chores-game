@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+﻿import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
@@ -529,6 +529,7 @@ async function getRequesterContext(
   const aliases = new Set<string>([uid]);
   let role: "admin" | "player" = "player";
   let roleResolved = false;
+  let emailMatchedRole: "admin" | "player" | null = null;
   const normalizedEmail = normalizeEmail(email);
 
   async function mergeMemberDoc(memberDocId: string) {
@@ -592,8 +593,14 @@ async function getRequesterContext(
       if (uidMatch) {
         role = toRole(readString(doc.fields, "role"));
         roleResolved = true;
+      } else if (emailMatch && !emailMatchedRole) {
+        emailMatchedRole = toRole(readString(doc.fields, "role"));
       }
     }
+  }
+
+  if (!roleResolved && emailMatchedRole) {
+    role = emailMatchedRole;
   }
 
   return { role, assigneeAliases: aliases };
@@ -795,6 +802,7 @@ export async function PATCH(
             ["status", "submittedAt", "updatedAt", "spawnedNextChoreId"],
           );
           const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
+          let payoutApplied = false;
           if (nextStatus === "Approved" && assigneeUid && choreCoinValue > 0) {
             try {
               await applyWalletDelta({
@@ -804,9 +812,10 @@ export async function PATCH(
                 reason: "chore_complete",
                 choreId,
               });
+              payoutApplied = true;
             } catch (error) {
               const reason = error instanceof Error ? error.message : "";
-              if (!reason.includes("FIRESTORE_HTTP_404")) {
+              if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
                 throw error;
               }
             }
@@ -821,7 +830,7 @@ export async function PATCH(
             title: completionNeedsApproval ? "Chore submitted for approval" : "Chore completed",
             message: completionNeedsApproval
               ? `${actorName} completed "${choreTitle}" and it is waiting for parent approval.`
-              : `${actorName} marked "${choreTitle}" complete and earned ${choreCoinValue} coins.${choreRecurrence.recurrenceType !== "none" ? ` ${recurrenceLabel(choreRecurrence)}.` : ""}`,
+              : `${actorName} marked "${choreTitle}" complete${payoutApplied ? ` and earned ${choreCoinValue} coins` : ""}.${choreRecurrence.recurrenceType !== "none" ? ` ${recurrenceLabel(choreRecurrence)}.` : ""}`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
@@ -898,7 +907,7 @@ export async function PATCH(
               if (reason.includes("WALLET_NEGATIVE_BLOCKED")) {
                 return { kind: "wallet_negative_blocked" as const };
               }
-              if (!reason.includes("FIRESTORE_HTTP_404")) {
+              if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
                 throw error;
               }
             }
@@ -951,6 +960,7 @@ export async function PATCH(
             ["status", "updatedAt"],
           );
           const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
+          let payoutApplied = false;
           if (assigneeUid && choreCoinValue > 0) {
             try {
               await applyWalletDelta({
@@ -960,9 +970,10 @@ export async function PATCH(
                 reason: "chore_complete",
                 choreId,
               });
+              payoutApplied = true;
             } catch (error) {
               const reason = error instanceof Error ? error.message : "";
-              if (!reason.includes("FIRESTORE_HTTP_404")) {
+              if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
                 throw error;
               }
             }
@@ -975,7 +986,7 @@ export async function PATCH(
             actorEmail: session.email,
             actorName,
             title: "Chore approved",
-            message: `${actorName} approved "${choreTitle}"${choreCoinValue > 0 ? ` and paid ${choreCoinValue} coins` : ""}.`,
+            message: `${actorName} approved "${choreTitle}"${payoutApplied ? ` and paid ${choreCoinValue} coins` : ""}.`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
@@ -1306,7 +1317,7 @@ export async function DELETE(
               if (reason.includes("WALLET_NEGATIVE_BLOCKED")) {
                 return { kind: "wallet_negative_blocked" as const };
               }
-              if (!reason.includes("FIRESTORE_HTTP_404")) {
+              if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
                 throw error;
               }
             }

@@ -1031,7 +1031,9 @@ export function TodayChoresPanel({
                 {visibleChores.map((chore) => (
                   <TodayChoreCard
                     key={chore.id}
-                    chore={chore}                    canManageActions={
+                    chore={chore}
+                    isAdminViewer={viewerRole === "admin"}
+                    canManageActions={
                       viewerRole === "admin" && !pendingCreateChoreIdSet.has(chore.id)
                     }
                     canComplete={

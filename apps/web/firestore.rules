@@ -154,8 +154,22 @@ service cloud.firestore {
     }
 
     function isFamilyAdmin(familyId) {
-      return hasUidMemberDoc(familyId)
-        && get(memberDocPathByUid(familyId)).data.role == "admin";
+      return (
+        hasUidMemberDoc(familyId)
+        && get(memberDocPathByUid(familyId)).data.role == "admin"
+        && (
+          get(memberDocPathByUid(familyId)).data.status == null
+          || get(memberDocPathByUid(familyId)).data.status == "active"
+        )
+      )
+        || (
+          hasEmailMemberDoc(familyId)
+          && get(memberDocPathByEmail(familyId)).data.role == "admin"
+          && (
+            get(memberDocPathByEmail(familyId)).data.status == null
+            || get(memberDocPathByEmail(familyId)).data.status == "active"
+          )
+        );
     }
 
     function isFamilyCreatorBootstrap(familyId) {

@@ -300,6 +300,27 @@ async function resolveAssigneeUid(familyId: string, assigneeId: string, idToken:
     throw error;
   }
 }
+
+async function unlinkGoogleTaskMapping(
+  familyId: string,
+  choreId: string,
+  idToken: string,
+  updatedAtIso: string,
+) {
+  await patchDocument(
+    `families/${familyId}/chores/${choreId}`,
+    {
+      source: stringField("manual"),
+      googleTaskOwnerUid: stringField(""),
+      googleTaskListId: stringField(""),
+      googleTaskId: stringField(""),
+      updatedAt: timestampField(updatedAtIso),
+    },
+    idToken,
+    ["source", "googleTaskOwnerUid", "googleTaskListId", "googleTaskId", "updatedAt"],
+  );
+}
+
 function isGoogleTaskNotFound(error: unknown) {
   if (!(error instanceof GoogleTasksHttpError)) {
     return false;
@@ -520,6 +541,37 @@ export async function syncGoogleTasksForUser(
           metadataUpdateMask,
         );
       }
+
+      if (localChore.assigneeId !== options.uid) {
+        let canUnlink = remoteTask.deleted;
+        if (!remoteTask.deleted) {
+          try {
+            await deleteGoogleTask(link.accessToken, remoteTaskListId, remoteTask.id);
+            canUnlink = true;
+            pushedCount += 1;
+          } catch (error) {
+            if (isGoogleTaskNotFound(error)) {
+              canUnlink = true;
+            } else if (isGoogleTaskForbidden(error)) {
+              continue;
+            } else {
+              throw error;
+            }
+          }
+        }
+        if (canUnlink) {
+          await unlinkGoogleTaskMapping(link.familyId, localChore.id, options.idToken, now);
+          await publishFamilyActivity({
+            type: "chore_updated",
+            familyId: link.familyId,
+            choreId: localChore.id,
+            occurredAt: now,
+          });
+          updatedCount += 1;
+        }
+        continue;
+      }
+
       const localUpdatedMillis = localAuthorityMillis(localChore);
       if (remoteUpdatedMillis > localUpdatedMillis + LOCAL_REMOTE_AUTHORITY_TOLERANCE_MILLIS) {
         if (remoteTask.deleted) {
@@ -568,14 +620,6 @@ export async function syncGoogleTasksForUser(
         if (statusChanged) {
           patchFields.status = stringField(nextStatus);
           updateMask.push("status");
-        }
-        if (localChore.assigneeId !== options.uid) {
-          patchFields.assigneeId = stringField(options.uid);
-          updateMask.push("assigneeId");
-        }
-        if (localChore.assigneeName !== assigneeName) {
-          patchFields.assigneeName = stringField(assigneeName);
-          updateMask.push("assigneeName");
         }
         if (localChore.deleted) {
           patchFields.deleted = boolField(false);
@@ -704,6 +748,17 @@ export async function syncGoogleTasksForUser(
     for (const localChore of localByTaskKey.values()) {
       const remoteTaskKey = `${localChore.googleTaskListId}:${localChore.googleTaskId}`;
       if (seenRemoteTaskKeys.has(remoteTaskKey)) {
+        continue;
+      }
+      if (localChore.assigneeId !== options.uid) {
+        await unlinkGoogleTaskMapping(link.familyId, localChore.id, options.idToken, now);
+        await publishFamilyActivity({
+          type: "chore_updated",
+          familyId: link.familyId,
+          choreId: localChore.id,
+          occurredAt: now,
+        });
+        updatedCount += 1;
         continue;
       }
       if (localChore.deleted || localChore.status === "Deleted") {

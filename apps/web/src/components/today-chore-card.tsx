@@ -12,6 +12,7 @@ import type { FamilySnapshotChore } from "@/lib/family/types";
 
 type TodayChoreCardProps = {
   chore: FamilySnapshotChore;
+  isAdminViewer: boolean;
   canManageActions: boolean;
   canComplete: boolean;
   canReorder?: boolean;
@@ -48,6 +49,7 @@ function getSafeHexColor(value: string | undefined) {
 
 export function TodayChoreCard({
   chore,
+  isAdminViewer,
   canManageActions,
   canComplete,
   canReorder = false,
@@ -332,7 +334,9 @@ export function TodayChoreCard({
           {busyAction === "complete"
             ? "Marking..."
             : canComplete
-              ? "Mark as Complete"
+              ? chore.requireApproval && isAdminViewer
+                ? "Complete and Approve"
+                : "Mark as Complete"
               : "Only assignee can complete"}
         </Button>
       </div>
