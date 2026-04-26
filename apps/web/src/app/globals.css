@@ -3428,6 +3428,10 @@ white-space: nowrap;
   box-shadow: 0 1px 3px color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 14%, transparent);
 }
 
+.today-chores-sort-menu-wrap {
+  display: inline-flex;
+}
+
 .today-chores-actions-desktop {
   display: inline-flex;
 }
@@ -3528,6 +3532,39 @@ white-space: nowrap;
   cursor: pointer;
 }
 
+.today-chores-action-sort-trigger {
+  min-width: 44px;
+  padding: 0;
+}
+
+.today-chores-action-sort-trigger-active {
+  background: color-mix(in srgb, var(--brand) 20%, #ffffff);
+}
+
+.today-chores-sort-icon {
+  display: inline-grid;
+  gap: 3px;
+}
+
+.today-chores-sort-icon-bar {
+  display: block;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 84%, var(--accent) 16%);
+}
+
+.today-chores-sort-icon-bar-a {
+  width: 16px;
+}
+
+.today-chores-sort-icon-bar-b {
+  width: 12px;
+}
+
+.today-chores-sort-icon-bar-c {
+  width: 8px;
+}
+
 .today-chores-action-link:hover,
 .today-chores-action-add:hover {
   background: color-mix(in srgb, var(--accent) 24%, #ffffff);
@@ -3558,6 +3595,17 @@ white-space: nowrap;
   font-size: 1.125rem;
   font-weight: 700;
   line-height: 1;
+}
+
+.today-chores-sort-menu {
+  min-width: 220px;
+  padding: 12px;
+}
+
+.today-chores-sort-menu-direction {
+  color: #2d5f95;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .notifications-list {
@@ -5175,8 +5223,6 @@ white-space: nowrap;
   flex-shrink: 0;
   color: currentColor;
 }
-
-
 
 
 

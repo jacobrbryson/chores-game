@@ -304,17 +304,61 @@ async function resolveAssigneeUid(
   if (!assigneeId) {
     return "";
   }
+  const normalizedAssignee = normalizeEmail(assigneeId);
+  let matchedEmail = "";
   try {
     const memberDoc = await getDocument(`families/${familyId}/members/${assigneeId}`, idToken);
+    if (readBoolean(memberDoc.fields, "deleted")) {
+      return "";
+    }
     const memberUid = readString(memberDoc.fields, "uid");
-    return memberUid || assigneeId;
+    if (memberUid) {
+      return memberUid;
+    }
+    matchedEmail = normalizeEmail(readString(memberDoc.fields, "email"));
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";
-    if (reason.includes("FIRESTORE_HTTP_404")) {
-      return assigneeId;
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
     }
-    throw error;
   }
+
+  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 100);
+  for (const memberDoc of memberDocs) {
+    if (readBoolean(memberDoc.fields, "deleted")) {
+      continue;
+    }
+    const memberId = documentIdFromName(memberDoc.name);
+    const memberUid = readString(memberDoc.fields, "uid");
+    const memberEmail = normalizeEmail(readString(memberDoc.fields, "email"));
+    const aliasMatch =
+      memberId === assigneeId ||
+      (memberUid && memberUid === assigneeId) ||
+      (normalizedAssignee !== "" && memberEmail === normalizedAssignee);
+    if (aliasMatch) {
+      if (memberUid) {
+        return memberUid;
+      }
+      if (!matchedEmail && memberEmail) {
+        matchedEmail = memberEmail;
+      }
+    }
+  }
+
+  if (matchedEmail) {
+    for (const memberDoc of memberDocs) {
+      if (readBoolean(memberDoc.fields, "deleted")) {
+        continue;
+      }
+      const memberUid = readString(memberDoc.fields, "uid");
+      const memberEmail = normalizeEmail(readString(memberDoc.fields, "email"));
+      if (memberUid && memberEmail === matchedEmail) {
+        return memberUid;
+      }
+    }
+  }
+
+  return "";
 }
 
 async function countActiveChoresForAssignee(

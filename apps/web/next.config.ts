@@ -3,11 +3,12 @@ import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const workspaceRoot = path.resolve(currentDir, "../..");
 
 const nextConfig: NextConfig = {
   output: "standalone",
   turbopack: {
-    root: currentDir,
+    root: workspaceRoot,
   },
   images: {
     // Prevent Next image optimizer cache from serving stale local assets

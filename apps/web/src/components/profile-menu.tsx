@@ -8,6 +8,7 @@ import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { GoogleTaskSyncIndicator } from "@/components/google-task-sync-indicator";
+import { MenuActionButton } from "@/components/menu-action-button";
 import { MenuActionLink } from "@/components/menu-action-link";
 import { ModalShell } from "@/components/modal-shell";
 import type { FamilySummaryResponse } from "@/lib/family/types";
@@ -499,20 +500,18 @@ export function ProfileMenu({
           Manage Family
         </MenuActionLink>
         {!isSwitched ? (
-          <Button
-            type="button"
-            className="menu-action-link menu-action-link-full"
+          <MenuActionButton
+            fullWidth
             onClick={() => {
               setOpen(false);
               openSwitchPicker();
             }}>
             Switch To...
-          </Button>
+          </MenuActionButton>
         ) : null}
         {isSwitched ? (
-          <Button
-            type="button"
-            className="menu-action-link menu-action-link-full"
+          <MenuActionButton
+            fullWidth
             onClick={() => {
               setOpen(false);
               setRestorePin("");
@@ -520,13 +519,13 @@ export function ProfileMenu({
               setRestoreModalOpen(true);
             }}>
             Return to Parent
-          </Button>
+          </MenuActionButton>
         ) : null}
         <div className="profile-divider" />
         <form action="/api/auth/logout" method="post">
-          <Button type="submit" className="menu-action-link menu-action-link-full">
+          <MenuActionButton fullWidth type="submit">
             Logout
-          </Button>
+          </MenuActionButton>
         </form>
       </AppMenu>
       <ModalShell open={switchPickerOpen} onRequestClose={closeSwitchPicker}>

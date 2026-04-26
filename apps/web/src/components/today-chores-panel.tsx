@@ -2,8 +2,10 @@
 
 import { AddEditChoresDialog, type AddEditChoreSavedResult } from "@/components/add-edit-chores-dialog";
 import { Alert } from "@/components/alert";
+import { AppMenu } from "@/components/app-menu";
 import { Button } from "@/components/button";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
+import { MenuActionButton } from "@/components/menu-action-button";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import {
   CategoryScale,
@@ -62,6 +64,14 @@ type CompletionSeries = {
   series: CompletionSeriesMember[];
 };
 
+type QuickSortKey = "coin_value" | "frequency" | "alphabetical";
+type QuickSortDirection = "asc" | "desc";
+
+type QuickSortState = {
+  key: QuickSortKey;
+  direction: QuickSortDirection;
+};
+
 type CompletionStatsResponse = {
   window: CompletionWindow;
   counts: CompletionCount[];
@@ -84,8 +94,13 @@ function normalizeAssigneeAlias(value?: string) {
   return (value ?? "").trim().toLowerCase();
 }
 
+function normalizeChoreTitle(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 const MY_CHORES_ONLY_STORAGE_KEY = "today_chores_my_only";
 const COMPLETION_WINDOW_STORAGE_KEY = "today_chores_completion_window";
+const QUICK_SORT_STORAGE_KEY = "today_chores_quick_sort";
 const EMPTY_COMPLETION_SERIES: CompletionSeries = {
   interval: "day",
   labels: [],
@@ -110,6 +125,13 @@ const COMPLETION_WINDOW_OPTIONS: TailwindSelectOption<CompletionWindow>[] = [
   { value: "year", label: "This Year" },
 ];
 const CHORE_EXIT_ANIMATION_MS = 160;
+const QUICK_SORT_DEFAULT_DIRECTION: Record<QuickSortKey, QuickSortDirection> = {
+  coin_value: "desc",
+  frequency: "desc",
+  alphabetical: "asc",
+};
+const QUICK_SORT_KEYS: QuickSortKey[] = ["coin_value", "frequency", "alphabetical"];
+const QUICK_SORT_DIRECTIONS: QuickSortDirection[] = ["asc", "desc"];
 
 
 ChartJS.register(
@@ -153,6 +175,45 @@ function readCompletionWindow(): CompletionWindow {
 function writeCompletionWindow(next: CompletionWindow) {
   try {
     window.localStorage.setItem(COMPLETION_WINDOW_STORAGE_KEY, next);
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+function readQuickSortState(): QuickSortState | null {
+  try {
+    const raw = window.localStorage.getItem(QUICK_SORT_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as {
+      key?: unknown;
+      direction?: unknown;
+    };
+    if (
+      typeof parsed.key === "string" &&
+      QUICK_SORT_KEYS.includes(parsed.key as QuickSortKey) &&
+      typeof parsed.direction === "string" &&
+      QUICK_SORT_DIRECTIONS.includes(parsed.direction as QuickSortDirection)
+    ) {
+      return {
+        key: parsed.key as QuickSortKey,
+        direction: parsed.direction as QuickSortDirection,
+      };
+    }
+  } catch {
+    // Ignore storage/parse errors.
+  }
+  return null;
+}
+
+function writeQuickSortState(next: QuickSortState | null) {
+  try {
+    if (!next) {
+      window.localStorage.removeItem(QUICK_SORT_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(QUICK_SORT_STORAGE_KEY, JSON.stringify(next));
   } catch {
     // Ignore storage errors.
   }
@@ -243,6 +304,8 @@ export function TodayChoresPanel({
 }: TodayChoresPanelProps) {
   const canCreateChores = viewerRole === "admin";
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const [quickSortMenuOpen, setQuickSortMenuOpen] = useState(false);
+  const [quickSortState, setQuickSortState] = useState<QuickSortState | null>(readQuickSortState);
   const [mobileAddDialogOpen, setMobileAddDialogOpen] = useState(false);
   const [busyActionsById, setBusyActionsById] = useState<Record<string, "delete" | "complete">>({});
   const [exitingChoreIds, setExitingChoreIds] = useState<Record<string, true>>({});
@@ -501,27 +564,58 @@ export function TodayChoresPanel({
     }
     return reordered;
   }, [baseOpenChores, localOpenOrderIds]);
+  const quickSortCountsByTitle = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (quickSortState?.key !== "frequency") {
+      return counts;
+    }
+    for (const chore of openChores) {
+      const normalizedTitle = normalizeChoreTitle(chore.title || "");
+      if (!normalizedTitle) {
+        continue;
+      }
+      counts.set(normalizedTitle, (counts.get(normalizedTitle) ?? 0) + 1);
+    }
+    return counts;
+  }, [openChores, quickSortState]);
+  const sortedOpenChores = useMemo(() => {
+    if (!quickSortState) {
+      return openChores;
+    }
+    const indexById = new Map(openChores.map((chore, index) => [chore.id, index] as const));
+    const directionMultiplier = quickSortState.direction === "asc" ? 1 : -1;
+    return [...openChores].sort((a, b) => {
+      let valueComparison = 0;
+      if (quickSortState.key === "coin_value") {
+        valueComparison = (a.coinValue ?? 0) - (b.coinValue ?? 0);
+      } else if (quickSortState.key === "frequency") {
+        const aFrequency = quickSortCountsByTitle.get(normalizeChoreTitle(a.title || "")) ?? 0;
+        const bFrequency = quickSortCountsByTitle.get(normalizeChoreTitle(b.title || "")) ?? 0;
+        valueComparison = aFrequency - bFrequency;
+      } else {
+        valueComparison = (a.title || "").localeCompare(b.title || "", undefined, {
+          sensitivity: "base",
+        });
+      }
+      if (valueComparison !== 0) {
+        return valueComparison * directionMultiplier;
+      }
+      return (indexById.get(a.id) ?? 0) - (indexById.get(b.id) ?? 0);
+    });
+  }, [openChores, quickSortCountsByTitle, quickSortState]);
   const pendingCreateChoreIdSet = useMemo(
     () => new Set(Object.values(pendingCreateChoresByRequestId).map((chore) => chore.id)),
     [pendingCreateChoresByRequestId],
   );
-  const myChoreCount = useMemo(
-    () =>
-      openChores.filter(
-        (chore) =>
-          chore.assigneeId && viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId)),
-      ).length,
-    [openChores, viewerAssigneeIdSet],
-  );
   const visibleChores = useMemo(() => {
     if (!myChoresOnly) {
-      return openChores;
+      return sortedOpenChores;
     }
-    return openChores.filter(
+    return sortedOpenChores.filter(
       (chore) =>
         chore.assigneeId && viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId)),
     );
-  }, [openChores, myChoresOnly, viewerAssigneeIdSet]);
+  }, [sortedOpenChores, myChoresOnly, viewerAssigneeIdSet]);
   const hasBusyChoreAction = Object.keys(busyActionsById).length > 0;
   const hasPendingCreates = Object.keys(pendingCreateChoresByRequestId).length > 0;
   const hasPendingDeletes = Object.keys(pendingDeleteChoreIds).length > 0;
@@ -529,7 +623,8 @@ export function TodayChoresPanel({
     viewerRole === "admin" &&
     !hasBusyChoreAction &&
     !hasPendingCreates &&
-    !hasPendingDeletes;
+    !hasPendingDeletes &&
+    quickSortState === null;
   useEffect(() => {
     if (canReorderChores) {
       return;
@@ -715,6 +810,30 @@ export function TodayChoresPanel({
     }).catch(() => {
       // Keep local value; retry will happen on next selection.
     });
+  }
+
+  function onSelectQuickSort(nextKey: QuickSortKey) {
+    setQuickSortState((current) => {
+      let next: QuickSortState;
+      if (!current || current.key !== nextKey) {
+        next = { key: nextKey, direction: QUICK_SORT_DEFAULT_DIRECTION[nextKey] };
+      } else {
+        next = { key: nextKey, direction: current.direction === "asc" ? "desc" : "asc" };
+      }
+      writeQuickSortState(next);
+      return next;
+    });
+    setQuickSortMenuOpen(false);
+  }
+
+  function quickSortDirectionLabel(key: QuickSortKey, direction: QuickSortDirection) {
+    if (key === "coin_value") {
+      return direction === "asc" ? "Low to high" : "High to low";
+    }
+    if (key === "frequency") {
+      return direction === "asc" ? "Least common first" : "Most common first";
+    }
+    return direction === "asc" ? "A to Z" : "Z to A";
   }
 
   async function onChoreSaved(result: AddEditChoreSavedResult) {
@@ -939,13 +1058,60 @@ export function TodayChoresPanel({
               />
               <span className="small today-chores-toggle-copy">
                 <span>My Chores</span>
-                <span className="today-chores-toggle-count">
-                  {" "}
-                  ({myChoreCount}) out of ({openChores.length})
-                </span>
               </span>
             </label>
             <div className="today-chores-actions-shell today-chores-actions-desktop">
+              <AppMenu
+                open={quickSortMenuOpen}
+                onOpenChange={setQuickSortMenuOpen}
+                wrapperClassName="today-chores-sort-menu-wrap"
+                triggerClassName={`today-chores-action-link today-chores-action-link-divider today-chores-action-sort-trigger${
+                  quickSortState ? " today-chores-action-sort-trigger-active" : ""
+                }`}
+                triggerTitle="Quick Sorting Options"
+                triggerAriaLabel="Quick sorting options"
+                panelClassName="app-menu-panel profile-dropdown today-chores-sort-menu"
+                trigger={
+                  <span className="today-chores-sort-icon" aria-hidden="true">
+                    <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-a" />
+                    <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-b" />
+                    <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-c" />
+                  </span>
+                }>
+                <MenuActionButton
+                  fullWidth
+                  onClick={() => onSelectQuickSort("coin_value")}
+                  trailing={
+                    quickSortState?.key === "coin_value"
+                      ? quickSortDirectionLabel("coin_value", quickSortState.direction)
+                      : null
+                  }
+                  trailingClassName="today-chores-sort-menu-direction">
+                  Coin Value
+                </MenuActionButton>
+                <MenuActionButton
+                  fullWidth
+                  onClick={() => onSelectQuickSort("frequency")}
+                  trailing={
+                    quickSortState?.key === "frequency"
+                      ? quickSortDirectionLabel("frequency", quickSortState.direction)
+                      : null
+                  }
+                  trailingClassName="today-chores-sort-menu-direction">
+                  Frequency
+                </MenuActionButton>
+                <MenuActionButton
+                  fullWidth
+                  onClick={() => onSelectQuickSort("alphabetical")}
+                  trailing={
+                    quickSortState?.key === "alphabetical"
+                      ? quickSortDirectionLabel("alphabetical", quickSortState.direction)
+                      : null
+                  }
+                  trailingClassName="today-chores-sort-menu-direction">
+                  Alphabetical
+                </MenuActionButton>
+              </AppMenu>
               <Link
                 href="/chores"
                 className={`today-chores-action-link ${
