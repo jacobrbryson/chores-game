@@ -304,7 +304,8 @@ export function TodayChoresPanel({
 }: TodayChoresPanelProps) {
   const canCreateChores = viewerRole === "admin";
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
-  const [quickSortMenuOpen, setQuickSortMenuOpen] = useState(false);
+  const [desktopQuickSortMenuOpen, setDesktopQuickSortMenuOpen] = useState(false);
+  const [mobileQuickSortMenuOpen, setMobileQuickSortMenuOpen] = useState(false);
   const [quickSortState, setQuickSortState] = useState<QuickSortState | null>(readQuickSortState);
   const [mobileAddDialogOpen, setMobileAddDialogOpen] = useState(false);
   const [busyActionsById, setBusyActionsById] = useState<Record<string, "delete" | "complete">>({});
@@ -823,12 +824,21 @@ export function TodayChoresPanel({
       writeQuickSortState(next);
       return next;
     });
-    setQuickSortMenuOpen(false);
+    setDesktopQuickSortMenuOpen(false);
+    setMobileQuickSortMenuOpen(false);
   }
 
-  function onQuickSortMenuOpenChange(next: boolean) {
-    setQuickSortMenuOpen(next);
+  function onDesktopQuickSortMenuOpenChange(next: boolean) {
+    setDesktopQuickSortMenuOpen(next);
     if (next) {
+      setMobileQuickSortMenuOpen(false);
+    }
+  }
+
+  function onMobileQuickSortMenuOpenChange(next: boolean) {
+    setMobileQuickSortMenuOpen(next);
+    if (next) {
+      setDesktopQuickSortMenuOpen(false);
       setMobileActionsOpen(false);
     }
   }
@@ -1069,8 +1079,8 @@ export function TodayChoresPanel({
             </label>
             <div className="today-chores-actions-shell today-chores-actions-desktop">
               <AppMenu
-                open={quickSortMenuOpen}
-                onOpenChange={onQuickSortMenuOpenChange}
+                open={desktopQuickSortMenuOpen}
+                onOpenChange={onDesktopQuickSortMenuOpenChange}
                 wrapperClassName="today-chores-sort-menu-wrap"
                 triggerClassName={`today-chores-action-link today-chores-action-link-divider today-chores-action-sort-trigger${
                   quickSortState ? " today-chores-action-sort-trigger-active" : ""
@@ -1144,8 +1154,8 @@ export function TodayChoresPanel({
             </div>
             <div className="today-chores-actions-mobile" ref={mobileActionsRef}>
               <AppMenu
-                open={quickSortMenuOpen}
-                onOpenChange={onQuickSortMenuOpenChange}
+                open={mobileQuickSortMenuOpen}
+                onOpenChange={onMobileQuickSortMenuOpenChange}
                 wrapperClassName="today-chores-sort-menu-wrap"
                 triggerClassName={`today-chores-actions-mobile-trigger today-chores-actions-mobile-sort-trigger${
                   quickSortState ? " today-chores-action-sort-trigger-active" : ""
