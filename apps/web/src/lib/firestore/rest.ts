@@ -10,9 +10,11 @@ type FirestoreMap = { mapValue: { fields?: Record<string, FirestoreValue> } };
 
 export type FirestoreValue = FirestorePrimitive | FirestoreArray | FirestoreMap;
 
-type FirestoreDocument = {
+export type FirestoreDocument = {
   name: string;
   fields?: Record<string, FirestoreValue>;
+  createTime?: string;
+  updateTime?: string;
 };
 
 type FirestoreRunQueryResult = {
@@ -33,6 +35,14 @@ function getBasePath() {
 
 function getRunQueryPath() {
   return `https://firestore.googleapis.com/v1/projects/${getProjectId()}/databases/(default)/documents:runQuery`;
+}
+
+function getCommitPath() {
+  return `https://firestore.googleapis.com/v1/projects/${getProjectId()}/databases/(default)/documents:commit`;
+}
+
+function toDocumentName(path: string) {
+  return `projects/${getProjectId()}/databases/(default)/documents/${path}`;
 }
 
 async function requestFirestore<T>(path: string, idToken: string, init?: RequestInit) {
@@ -114,6 +124,54 @@ export async function deleteDocument(path: string, idToken: string) {
     headers: {
       Authorization: `Bearer ${idToken}`,
     },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const json = (await response.json()) as { error?: { message?: string } };
+      detail = json.error?.message ?? "";
+    } catch {
+      detail = await response.text();
+    }
+    throw new Error(`FIRESTORE_HTTP_${response.status}${detail ? `_${detail}` : ""}`);
+  }
+}
+
+type CommitWrite = {
+  update: {
+    path: string;
+    fields: Record<string, FirestoreValue>;
+    updateMask?: string[];
+    currentDocument?: {
+      exists?: boolean;
+      updateTime?: string;
+    };
+  };
+};
+
+export async function commitWrites(writes: CommitWrite[], idToken: string) {
+  const payload = {
+    writes: writes.map((write) => ({
+      update: {
+        name: toDocumentName(write.update.path),
+        fields: write.update.fields,
+      },
+      updateMask: write.update.updateMask
+        ? { fieldPaths: write.update.updateMask }
+        : undefined,
+      currentDocument: write.update.currentDocument,
+    })),
+  };
+
+  const response = await fetch(getCommitPath(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify(payload),
     cache: "no-store",
   });
 
@@ -357,6 +415,22 @@ export function stringArrayField(values: string[]): FirestoreValue {
   return {
     arrayValue: {
       values: values.map((value) => ({ stringValue: value })),
+    },
+  };
+}
+
+export function mapField(fields: Record<string, FirestoreValue>): FirestoreValue {
+  return {
+    mapValue: {
+      fields,
+    },
+  };
+}
+
+export function arrayField(values: FirestoreValue[]): FirestoreValue {
+  return {
+    arrayValue: {
+      values,
     },
   };
 }

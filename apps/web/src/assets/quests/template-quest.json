@@ -1,0 +1,442 @@
+{
+	"id": "template-quest-001",
+	"slug": "the-missing-sock-portal",
+	"title": "The Missing Sock Portal",
+	"subtitle": "A choose-your-own-adventure chore quest",
+	"author": "Family Chores Game",
+	"illustrator": "AI-generated artwork placeholder",
+	"narrator": "Text-to-speech placeholder",
+	"publisher": "Family Chores Game",
+	"copyright": "© 2026 Family Chores Game",
+	"version": "1.0.0",
+	"difficulty": "easy",
+	"coverImage": "/quests/pages/the-missing-sock-portal.png",
+	"summary": "A mysterious glowing sock appears in the laundry basket, pulling the hero into a strange world of missing clothes, mischievous lint creatures, and heroic household choices.",
+	"ageRange": "6-12",
+	"readingLevel": "Early reader with parent help",
+	"estimatedMinutes": 8,
+	"themes": [
+		"Responsibility",
+		"Problem solving",
+		"Household teamwork",
+		"Humor"
+	],
+	"contentWarnings": [],
+	"tags": ["template", "laundry", "starter", "funny"],
+	"meta": {
+		"totalNodes": 11,
+		"totalEndings": 4,
+		"replayEnabled": true
+	},
+	"credits": {
+		"story": "Family Chores Game",
+		"artDirection": "Premium kid-friendly storybook style",
+		"audio": "Placeholder narration files",
+		"notes": "Replace placeholder images and audio with generated assets before production."
+	},
+	"startNodeId": "start_laundry_basket",
+	"globalRewards": {
+		"firstCompletion": {
+			"coins": 25,
+			"items": [],
+			"achievements": []
+		},
+		"allEndingsDiscovered": {
+			"coins": 100,
+			"items": ["sock-portal-master-badge"],
+			"achievements": ["found-every-sock-ending"]
+		}
+	},
+	"nodes": [
+		{
+			"id": "start_laundry_basket",
+			"type": "story",
+			"title": "The Basket Begins to Glow",
+			"image": "/assets/quests/template/images/laundry-basket-glow.png",
+			"audio": "/assets/quests/template/audio/start-laundry-basket.mp3",
+			"text": "You are folding laundry when one lonely striped sock begins to glow bright blue. The basket shakes. A tiny voice squeaks, “Help! The Sock Kingdom is in terrible trouble!” A swirling portal opens between the towels.",
+			"choices": [
+				{
+					"id": "choice_flashlight",
+					"label": "Shine the flashlight into the portal",
+					"description": "Use light to see what is waiting on the other side.",
+					"requiredItemId": "flashlight",
+					"requiredItemName": "Flashlight",
+					"requiredItemImage": "/quests/pages/the-missing-sock-portal-flashlight.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "lint_cavern",
+					"unavailableText": "You need a flashlight to safely peek into the portal."
+				},
+				{
+					"id": "choice_rope",
+					"label": "Tie a rope to the laundry basket",
+					"description": "Make sure you can find your way back home.",
+					"requiredItemId": "rope",
+					"requiredItemName": "Rope",
+					"requiredItemImage": "/assets/items/rope.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "towel_bridge",
+					"unavailableText": "You need rope before climbing into a mysterious laundry portal."
+				},
+				{
+					"id": "choice_snack",
+					"label": "Offer the glowing sock a snack",
+					"description": "Maybe magical socks get hungry too.",
+					"requiredItemId": "snack-pack",
+					"requiredItemName": "Snack Pack",
+					"requiredItemImage": "/assets/items/snack-pack.png",
+					"consumeItem": true,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "sock_friend",
+					"unavailableText": "You need a snack pack to try this very scientific plan."
+				}
+			]
+		},
+		{
+			"id": "lint_cavern",
+			"type": "story",
+			"title": "The Lint Cavern",
+			"image": "/quests/pages/the-missing-sock-portal-flashlight.png",
+			"audio": "/assets/quests/template/audio/lint-cavern.mp3",
+			"text": "Your flashlight beam reveals a cavern made of dryer lint. Tiny lint creatures freeze in place. One wears a crown made from a lost button. “No chores beyond this point!” it squeaks.",
+			"choices": [
+				{
+					"id": "choice_button",
+					"label": "Return the shiny button",
+					"description": "Show the lint king you came in peace.",
+					"requiredItemId": "spare-button",
+					"requiredItemName": "Spare Button",
+					"requiredItemImage": "/assets/items/spare-button.png",
+					"consumeItem": true,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "lint_king_ally",
+					"unavailableText": "A spare button would make an excellent peace offering."
+				},
+				{
+					"id": "choice_broom",
+					"label": "Sweep a path through the lint",
+					"description": "Clear the way with a trusty broom.",
+					"requiredItemId": "broom",
+					"requiredItemName": "Broom",
+					"requiredItemImage": "/assets/items/broom.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "dryer_gate",
+					"unavailableText": "You need a broom to clear the lint safely."
+				}
+			]
+		},
+		{
+			"id": "towel_bridge",
+			"type": "story",
+			"title": "The Wobbly Towel Bridge",
+			"image": "/assets/quests/template/images/towel-bridge.png",
+			"audio": "/assets/quests/template/audio/towel-bridge.mp3",
+			"text": "The rope keeps you steady as you step onto a bridge woven from bath towels. Below, mismatched socks tumble like leaves in a storm. Across the bridge stands a giant washing machine door.",
+			"choices": [
+				{
+					"id": "choice_clothespins",
+					"label": "Clip the bridge with clothespins",
+					"description": "Stabilize the towel bridge before crossing.",
+					"requiredItemId": "clothespins",
+					"requiredItemName": "Clothespins",
+					"requiredItemImage": "/assets/items/clothespins.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "dryer_gate",
+					"unavailableText": "You need clothespins to secure the bridge."
+				},
+				{
+					"id": "choice_magnet",
+					"label": "Use a magnet to pull the zipper path closer",
+					"description": "A clever shortcut appears in the fabric.",
+					"requiredItemId": "magnet",
+					"requiredItemName": "Magnet",
+					"requiredItemImage": "/assets/items/magnet.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "zipper_shortcut",
+					"unavailableText": "You need a magnet to pull the zipper path closer."
+				}
+			]
+		},
+		{
+			"id": "sock_friend",
+			"type": "story",
+			"title": "A Very Hungry Sock",
+			"image": "/assets/quests/template/images/sock-friend.png",
+			"audio": "/assets/quests/template/audio/sock-friend.mp3",
+			"text": "The glowing sock happily accepts the snack. “Finally! Someone with manners.” It wiggles into the shape of an arrow and points toward a secret tunnel behind the dryer sheets.",
+			"choices": [
+				{
+					"id": "choice_map",
+					"label": "Follow the sock map",
+					"description": "Trust the snack-loving sock’s directions.",
+					"requiredItemId": "paper-map",
+					"requiredItemName": "Paper Map",
+					"requiredItemImage": "/assets/items/paper-map.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "zipper_shortcut",
+					"unavailableText": "You need a paper map to copy the sock’s directions."
+				},
+				{
+					"id": "choice_gloves",
+					"label": "Put on gloves and open the dryer sheet tunnel",
+					"description": "Some portals are static-y.",
+					"requiredItemId": "gloves",
+					"requiredItemName": "Gloves",
+					"requiredItemImage": "/assets/items/gloves.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "dryer_gate",
+					"unavailableText": "You need gloves before touching the static tunnel."
+				}
+			]
+		},
+		{
+			"id": "lint_king_ally",
+			"type": "story",
+			"title": "The Lint King’s Bargain",
+			"image": "/assets/quests/template/images/lint-king.png",
+			"audio": "/assets/quests/template/audio/lint-king.mp3",
+			"text": "The Lint King places the shiny button on his crown and bows. “Brave folder of laundry, I shall help you. The missing socks are trapped behind the Dryer Gate.”",
+			"choices": [
+				{
+					"id": "choice_tiny_key",
+					"label": "Use the tiny key from the Lint King",
+					"description": "Unlock the Dryer Gate peacefully.",
+					"requiredItemId": "tiny-key",
+					"requiredItemName": "Tiny Key",
+					"requiredItemImage": "/assets/items/tiny-key.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": false,
+						"purchaseAndUseImmediately": false
+					},
+					"nextNodeId": "ending_peaceful_hero",
+					"unavailableText": "The Lint King must give you this key first."
+				},
+				{
+					"id": "choice_broom_gate",
+					"label": "Sweep the Dryer Gate clean",
+					"description": "A clean gate may open on its own.",
+					"requiredItemId": "broom",
+					"requiredItemName": "Broom",
+					"requiredItemImage": "/assets/items/broom.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "ending_laundry_legend",
+					"unavailableText": "You need a broom to clear the Dryer Gate."
+				}
+			]
+		},
+		{
+			"id": "dryer_gate",
+			"type": "story",
+			"title": "The Dryer Gate",
+			"image": "/assets/quests/template/images/dryer-gate.png",
+			"audio": "/assets/quests/template/audio/dryer-gate.mp3",
+			"text": "The Dryer Gate spins slowly. Inside, hundreds of missing socks chant, “Pair us! Pair us!” The gate needs one final act of courage, cleverness, or tidiness.",
+			"choices": [
+				{
+					"id": "choice_laundry_basket",
+					"label": "Sort the socks into the laundry basket",
+					"description": "Restore order with heroic sorting skills.",
+					"requiredItemId": "laundry-basket",
+					"requiredItemName": "Laundry Basket",
+					"requiredItemImage": "/assets/items/laundry-basket.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "ending_laundry_legend",
+					"unavailableText": "You need a laundry basket to sort the socks."
+				},
+				{
+					"id": "choice_magic_thread",
+					"label": "Tie the socks together with magic thread",
+					"description": "Create a chain of socks back to the real world.",
+					"requiredItemId": "magic-thread",
+					"requiredItemName": "Magic Thread",
+					"requiredItemImage": "/assets/items/magic-thread.png",
+					"consumeItem": true,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "ending_sock_savior",
+					"unavailableText": "You need magic thread for this ending."
+				},
+				{
+					"id": "choice_whistle",
+					"label": "Blow the whistle and call everyone home",
+					"description": "A loud solution to a silly problem.",
+					"requiredItemId": "whistle",
+					"requiredItemName": "Whistle",
+					"requiredItemImage": "/assets/items/whistle.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "ending_chaotic_good",
+					"unavailableText": "You need a whistle to call the socks."
+				}
+			]
+		},
+		{
+			"id": "zipper_shortcut",
+			"type": "story",
+			"title": "The Zipper Shortcut",
+			"image": "/assets/quests/template/images/zipper-shortcut.png",
+			"audio": "/assets/quests/template/audio/zipper-shortcut.mp3",
+			"text": "You unzip a hidden path in the fabric of the Sock Kingdom. It leads straight to the royal sorting room, where the missing socks wait in a giant tangled pile.",
+			"choices": [
+				{
+					"id": "choice_sorting_cards",
+					"label": "Use sorting cards to match every pair",
+					"description": "Organize the socks by color, size, and pattern.",
+					"requiredItemId": "sorting-cards",
+					"requiredItemName": "Sorting Cards",
+					"requiredItemImage": "/assets/items/sorting-cards.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "ending_sock_savior",
+					"unavailableText": "You need sorting cards to organize the sock pile."
+				},
+				{
+					"id": "choice_laundry_basket_shortcut",
+					"label": "Collect every sock in the laundry basket",
+					"description": "A classic solution.",
+					"requiredItemId": "laundry-basket",
+					"requiredItemName": "Laundry Basket",
+					"requiredItemImage": "/assets/items/laundry-basket.png",
+					"consumeItem": false,
+					"purchaseBehavior": {
+						"allowPurchaseIfMissing": true,
+						"purchaseAndUseImmediately": true
+					},
+					"nextNodeId": "ending_laundry_legend",
+					"unavailableText": "You need a laundry basket to carry the socks home."
+				}
+			]
+		},
+		{
+			"id": "ending_peaceful_hero",
+			"type": "ending",
+			"title": "Ending: Friend of the Lint Kingdom",
+			"image": "/assets/quests/template/images/ending-peaceful-hero.png",
+			"audio": "/assets/quests/template/audio/ending-peaceful-hero.mp3",
+			"text": "With the tiny key, you open the Dryer Gate without a single battle. The socks cheer, the Lint King declares you an official friend of the kingdom, and your laundry pile at home is suddenly perfectly folded.",
+			"ending": {
+				"endingId": "peaceful_hero",
+				"rank": "good",
+				"stars": 2,
+				"replayHint": "What if you skipped the Lint King and found the Dryer Gate another way?",
+				"rewardSummary": "You earned coins and unlocked the Tiny Diplomat badge.",
+				"rewards": {
+					"coins": 30,
+					"items": [],
+					"achievements": ["tiny-diplomat"]
+				}
+			}
+		},
+		{
+			"id": "ending_laundry_legend",
+			"type": "ending",
+			"title": "Ending: Laundry Legend",
+			"image": "/assets/quests/template/images/ending-laundry-legend.png",
+			"audio": "/assets/quests/template/audio/ending-laundry-legend.mp3",
+			"text": "You sort, sweep, fold, and rescue every missing sock. The portal closes with a sparkle. Back home, the laundry basket glows once more and drops a golden coin into your hand.",
+			"ending": {
+				"endingId": "laundry_legend",
+				"rank": "best",
+				"stars": 3,
+				"replayHint": "Can you find an ending where the socks return home in a completely different way?",
+				"rewardSummary": "You earned bonus coins and the Laundry Legend achievement.",
+				"rewards": {
+					"coins": 50,
+					"items": ["golden-laundry-token"],
+					"achievements": ["laundry-legend"]
+				}
+			}
+		},
+		{
+			"id": "ending_sock_savior",
+			"type": "ending",
+			"title": "Ending: Savior of Socks",
+			"image": "/assets/quests/template/images/ending-sock-savior.png",
+			"audio": "/assets/quests/template/audio/ending-sock-savior.mp3",
+			"text": "Using clever tools and careful planning, you guide every sock safely home. From this day forward, socks everywhere whisper your name with respect.",
+			"ending": {
+				"endingId": "sock_savior",
+				"rank": "great",
+				"stars": 3,
+				"replayHint": "Try using louder, sillier tools next time and see what happens.",
+				"rewardSummary": "You earned coins and a rare sock-themed collectible.",
+				"rewards": {
+					"coins": 40,
+					"items": ["striped-sock-badge"],
+					"achievements": ["sock-savior"]
+				}
+			}
+		},
+		{
+			"id": "ending_chaotic_good",
+			"type": "ending",
+			"title": "Ending: The Great Sock Stampede",
+			"image": "/assets/quests/template/images/ending-chaotic-good.png",
+			"audio": "/assets/quests/template/audio/ending-chaotic-good.mp3",
+			"text": "You blow the whistle. Every sock in the kingdom launches through the portal at once. It works! Mostly. Your room is now full of socks, but at least none are missing.",
+			"ending": {
+				"endingId": "chaotic_good",
+				"rank": "silly",
+				"stars": 1,
+				"replayHint": "There may be a tidier way to save the socks.",
+				"rewardSummary": "You earned coins and a very loud story to tell.",
+				"rewards": {
+					"coins": 20,
+					"items": [],
+					"achievements": ["sock-stampede"]
+				}
+			}
+		}
+	]
+}

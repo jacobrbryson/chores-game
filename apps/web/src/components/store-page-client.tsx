@@ -39,6 +39,7 @@ import { findFamilyRewardImageOption } from "@/lib/family/rewards";
 type StoreSummaryResponse = {
   balance: number;
   ownedOptionIds: string[];
+  questItemQuantities: Record<string, number>;
   dashboardPrimaryColor: string;
   themeOptionId: string;
   themePrimaryColor: string;
@@ -74,7 +75,9 @@ export function StorePageClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [actionSuccess, setActionSuccess] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [modalSearchQuery, setModalSearchQuery] = useState("");
   const [pendingOptionId, setPendingOptionId] = useState("");
   const [previewOptionId, setPreviewOptionId] = useState("");
   const [previewConfettiOptionId, setPreviewConfettiOptionId] = useState("");
@@ -112,6 +115,22 @@ export function StorePageClient() {
     }
     return summary.categories.find((entry) => entry.id === activeCategoryId) ?? null;
   }, [activeCategoryId, summary]);
+  const normalizedModalSearchQuery = modalSearchQuery.trim().toLowerCase();
+  const filteredOptions = useMemo(() => {
+    if (!activeCategory) {
+      return [];
+    }
+    if (!normalizedModalSearchQuery) {
+      return activeCategory.options;
+    }
+    return activeCategory.options.filter((option) => {
+      const searchableText = [option.label, option.value, option.itemDescription]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return searchableText.includes(normalizedModalSearchQuery);
+    });
+  }, [activeCategory, normalizedModalSearchQuery]);
 
   const persistedThemePreference = useMemo(() => {
     if (!summary) {
@@ -238,6 +257,7 @@ export function StorePageClient() {
     }
     setPendingOptionId(option.id);
     setActionError("");
+    setActionSuccess("");
     try {
       if (category.kind === "reward") {
         return;
@@ -290,6 +310,7 @@ export function StorePageClient() {
     }
     setPendingOptionId(option.id);
     setActionError("");
+    setActionSuccess("");
     try {
       const response = await fetch("/api/store", {
         method: "POST",
@@ -305,6 +326,9 @@ export function StorePageClient() {
         throw new Error(body.error ?? `PURCHASE_OPTION_HTTP_${response.status}`);
       }
       await loadSummary();
+      if (category.kind === "quest_item") {
+        setActionSuccess(`${option.label} added to inventory`);
+      }
       window.dispatchEvent(new Event("wallet:refresh"));
       window.dispatchEvent(new Event("profile-avatar:refresh"));
       if (
@@ -335,6 +359,7 @@ export function StorePageClient() {
     }
     setPendingOptionId("google-avatar");
     setActionError("");
+    setActionSuccess("");
     try {
       const response = await fetch("/api/store", {
         method: "POST",
@@ -369,6 +394,11 @@ export function StorePageClient() {
       {!isLoading && !error && summary ? (
         <>
           {actionError ? <Alert className="mb-3">Store update failed: {actionError}</Alert> : null}
+          {actionSuccess && !activeCategory ? (
+            <Alert tone="success" role="status" className="mb-3">
+              {actionSuccess}
+            </Alert>
+          ) : null}
           <div className="store-grid">
             {summary.categories.map((category) => (
               <article key={category.id} className="store-card">
@@ -388,6 +418,7 @@ export function StorePageClient() {
                   className="btn btn-secondary"
                   onClick={() => {
                     setActionError("");
+                    setModalSearchQuery("");
                     setActiveCategoryId(category.id);
                   }}>
                   View options
@@ -402,6 +433,7 @@ export function StorePageClient() {
               if (!pendingOptionId) {
                 clearPreview();
                 setPreviewConfettiOptionId("");
+                setModalSearchQuery("");
                 setActiveCategoryId(null);
               }
             }}>
@@ -418,6 +450,7 @@ export function StorePageClient() {
                         if (!pendingOptionId) {
                           clearPreview();
                           setPreviewConfettiOptionId("");
+                          setModalSearchQuery("");
                           setActiveCategoryId(null);
                         }
                       }}
@@ -426,10 +459,28 @@ export function StorePageClient() {
                       X
                     </Button>
                   </div>
+                  <div className="store-options-search">
+                    <input
+                      type="search"
+                      className="table-search-input w-full"
+                      value={modalSearchQuery}
+                      onChange={(event) => setModalSearchQuery(event.target.value)}
+                      placeholder={`Search ${activeCategory.name.toLowerCase()}...`}
+                      aria-label={`Search ${activeCategory.name}`}
+                    />
+                  </div>
+                  {actionError ? <Alert className="mt-2">Store update failed: {actionError}</Alert> : null}
+                  {actionSuccess ? (
+                    <Alert tone="success" role="status" className="mt-2">
+                      {actionSuccess}
+                    </Alert>
+                  ) : null}
                 </header>
-                {actionError ? <Alert className="mb-3">Store update failed: {actionError}</Alert> : null}
                 <div className="store-options-grid">
-                  {activeCategory.kind === "avatar" && summary.googlePhotoUrl ? (
+                  {activeCategory.kind === "avatar" &&
+                  summary.googlePhotoUrl &&
+                  (!normalizedModalSearchQuery ||
+                    "google avatar".includes(normalizedModalSearchQuery)) ? (
                     <article className="store-option-card">
                       <div className="store-option-preview">
                         <Avatar
@@ -478,17 +529,38 @@ export function StorePageClient() {
                       )}
                     </div>
                   ) : null}
-                  {activeCategory.options.map((option) => {
+                  {activeCategory.options.length > 0 && filteredOptions.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-left small">
+                      No items match "{modalSearchQuery.trim()}".
+                    </div>
+                  ) : null}
+                  {filteredOptions.map((option) => {
                     const isRewardOption = activeCategory.kind === "reward";
                     const rewardImage = isRewardOption ? findFamilyRewardImageOption(option.value) : null;
                     const optionPrice = getOptionPrice(activeCategory, option);
-                    const owned = isRewardOption ? false : ownedSet.has(option.id);
+                    const questItemQuantity = summary.questItemQuantities?.[option.id] ?? 0;
+                    const questItemOwned = questItemQuantity > 0;
+                    const owned = isRewardOption
+                      ? false
+                      : activeCategory.kind === "quest_item"
+                        ? questItemOwned
+                        : ownedSet.has(option.id);
                     const applied = isRewardOption ? false : isOptionApplied(activeCategory, option);
                     const canAfford = summary.balance >= optionPrice;
                     const isDefaultConfettiOption =
                       activeCategory.kind === "confetti" && option.isDefault === true;
-                    const requiresPurchase = isRewardOption ? true : !owned && !isDefaultConfettiOption;
-                    const disabled = pendingOptionId.length > 0 || (requiresPurchase && !canAfford);
+                    const questItemCanBuy =
+                      activeCategory.kind === "quest_item" &&
+                      (option.itemStackable === true || !questItemOwned);
+                    const requiresPurchase = isRewardOption
+                      ? true
+                      : activeCategory.kind === "quest_item"
+                        ? questItemCanBuy
+                        : !owned && !isDefaultConfettiOption;
+                    const disabled =
+                      pendingOptionId.length > 0 ||
+                      (requiresPurchase && !canAfford) ||
+                      (activeCategory.kind === "quest_item" && !questItemCanBuy);
                     const isPending = pendingOptionId === option.id;
                     const canThemePreview = activeCategory.kind === "color" && Boolean(option.theme);
                     const canConfettiPreview = activeCategory.kind === "confetti";
@@ -601,6 +673,17 @@ export function StorePageClient() {
                               />
                             </div>
                           ) : null}
+                          {activeCategory.kind === "quest_item" ? (
+                            <div className="store-option-reward-image-wrap">
+                              <Image
+                                src={option.itemImage || "/assets/items/placeholder.png"}
+                                alt={option.label}
+                                width={96}
+                                height={96}
+                                className="store-option-reward-image"
+                              />
+                            </div>
+                          ) : null}
                           {canThemePreview ? (
                             <Button
                               type="button"
@@ -620,10 +703,18 @@ export function StorePageClient() {
                           ) : null}
                         </div>
                         <h4>{option.label}</h4>
+                        {activeCategory.kind === "quest_item" ? (
+                          <p className="small">{option.itemDescription || "Usable in quests."}</p>
+                        ) : null}
                         <p className="small">
                           {isRewardOption ? (
                             <>
                               <CoinIcon size={14} /> {optionPrice} coins
+                            </>
+                          ) : activeCategory.kind === "quest_item" ? (
+                            <>
+                              <CoinIcon size={14} /> {optionPrice} coins
+                              {questItemQuantity > 0 ? ` - Owned: ${questItemQuantity}` : ""}
                             </>
                           ) : owned || isDefaultConfettiOption ? (
                             "Owned"
@@ -642,6 +733,12 @@ export function StorePageClient() {
                               void onPurchaseOption(activeCategory, option);
                               return;
                             }
+                            if (activeCategory.kind === "quest_item") {
+                              if (questItemCanBuy) {
+                                void onPurchaseOption(activeCategory, option);
+                              }
+                              return;
+                            }
                             if (owned || isDefaultConfettiOption) {
                               void applyOption(activeCategory, option);
                               return;
@@ -654,6 +751,14 @@ export function StorePageClient() {
                               : canAfford
                                 ? "Redeem"
                                 : "Not enough coins"
+                            : activeCategory.kind === "quest_item"
+                              ? isPending
+                                ? "Buying..."
+                                : questItemCanBuy
+                                  ? canAfford
+                                    ? "Buy"
+                                    : "Not enough coins"
+                                  : "Owned"
                             : isPending
                               ? "Saving..."
                               : owned
@@ -684,6 +789,7 @@ export function StorePageClient() {
                     onClick={() => {
                       clearPreview();
                       setPreviewConfettiOptionId("");
+                      setModalSearchQuery("");
                       setActiveCategoryId(null);
                     }}>
                     Close

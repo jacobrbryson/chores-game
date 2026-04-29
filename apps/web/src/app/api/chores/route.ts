@@ -44,6 +44,7 @@ import {
   resolveChoreCategories,
 } from "@/lib/family/categories";
 import type { FamilyCategory } from "@/lib/family/types";
+import { trackAchievementEvent } from "@/lib/achievements/service";
 
 type CreateChoresBody = {
   description?: unknown;
@@ -1305,6 +1306,16 @@ export async function POST(request: NextRequest) {
             minIntervalSeconds: 0,
           });
         }
+        await trackAchievementEvent({
+          uid: session.uid,
+          familyId,
+          idToken,
+          viewerRole,
+          eventId: `chore_create_${createdChores.map((chore) => chore.id).join("_")}`,
+          metricDeltas: {
+            admin_chores_created: createdChores.length,
+          },
+        });
 
         return {
           kind: "ok" as const,

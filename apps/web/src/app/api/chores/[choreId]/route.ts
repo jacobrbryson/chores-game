@@ -43,6 +43,7 @@ import {
   readChoreCategoryIds,
   resolveChoreCategories,
 } from "@/lib/family/categories";
+import { computeCompletionDerivedMaximums, trackAchievementEvent } from "@/lib/achievements/service";
 
 type UpdateChoreBody = {
   action?: unknown;
@@ -757,6 +758,7 @@ export async function PATCH(
             recurrenceUnit: readString(existingChoreDoc.fields, "recurrenceUnit"),
           });
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
+          const hadPriorSubmission = Boolean(readTimestamp(existingChoreDoc.fields, "submittedAt"));
           if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
             syncOwnerUid = choreGoogleTaskOwnerUid;
           } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.memberId, session.email)) {
@@ -886,6 +888,32 @@ export async function PATCH(
             choreId,
             occurredAt: now,
           });
+          if (assigneeUid) {
+            const completionHour = new Date(now).getUTCHours();
+            const derivedMaximums = await computeCompletionDerivedMaximums({
+              familyId,
+              uid: assigneeUid,
+              idToken,
+              completedAtIso: now,
+            });
+            await trackAchievementEvent({
+              uid: assigneeUid,
+              familyId,
+              idToken,
+              viewerRole: "player",
+              eventId: `chore_complete_${choreId}_${nextStatus}`,
+              metricDeltas: {
+                chores_completed: 1,
+                coins_earned: payoutApplied ? choreCoinValue : 0,
+                morning_chores_completed: completionHour < 12 ? 1 : 0,
+                evening_chores_completed: completionHour >= 18 ? 1 : 0,
+                google_task_chores_completed: choreSource === GOOGLE_TASKS_CHORE_SOURCE ? 1 : 0,
+                reopened_chores_completed: hadPriorSubmission ? 1 : 0,
+              },
+              metricMaximums: derivedMaximums,
+              consumeRejectionFlagOnComplete: true,
+            });
+          }
         } else if (action === "undo_complete") {
           const requester = await getRequesterContext(
             familyId,
@@ -1041,6 +1069,30 @@ export async function PATCH(
             choreId,
             occurredAt: now,
           });
+          await trackAchievementEvent({
+            uid: session.uid,
+            familyId,
+            idToken,
+            viewerRole: "admin",
+            eventId: `chore_approve_${choreId}`,
+            metricDeltas: {
+              admin_chores_approved: 1,
+            },
+          });
+          if (assigneeUid) {
+            await trackAchievementEvent({
+              uid: assigneeUid,
+              familyId,
+              idToken,
+              viewerRole: "player",
+              eventId: `chore_approved_${choreId}`,
+              metricDeltas: {
+                chores_approved: 1,
+                coins_earned: payoutApplied ? choreCoinValue : 0,
+              },
+              approvalStreakDelta: "increment",
+            });
+          }
         } else if (action === "reject") {
           const requester = await getRequesterContext(
             familyId,
@@ -1090,6 +1142,18 @@ export async function PATCH(
             choreId,
             occurredAt: now,
           });
+          const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
+          if (assigneeUid) {
+            await trackAchievementEvent({
+              uid: assigneeUid,
+              familyId,
+              idToken,
+              viewerRole: "player",
+              eventId: `chore_reject_${choreId}`,
+              rejectionFlagSet: true,
+              approvalStreakDelta: "reset",
+            });
+          }
         } else if (action === "set_categories") {
           const requester = await getRequesterContext(
             familyId,

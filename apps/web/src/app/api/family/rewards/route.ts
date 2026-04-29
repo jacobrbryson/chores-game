@@ -27,6 +27,7 @@ import {
   normalizeFamilyRewardDescription,
   normalizeFamilyRewardLimit,
 } from "@/lib/family/rewards";
+import { trackAchievementEvent } from "@/lib/achievements/service";
 
 type CreateRewardBody = {
   description?: unknown;
@@ -245,6 +246,16 @@ export async function POST(request: NextRequest) {
           },
           idToken,
         );
+        await trackAchievementEvent({
+          uid: session.uid,
+          familyId,
+          idToken,
+          viewerRole,
+          eventId: `family_reward_create_${rewardId}`,
+          metricDeltas: {
+            admin_rewards_created: 1,
+          },
+        });
 
         return {
           kind: "ok" as const,

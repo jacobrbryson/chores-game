@@ -153,6 +153,9 @@ describe("PATCH /api/chores/[choreId] complete payout", () => {
       ) {
         throw new Error("FIRESTORE_HTTP_404");
       }
+      if (path === "users/player-uid/achievementState/state") {
+        throw new Error("FIRESTORE_HTTP_404");
+      }
       throw new Error(`Unexpected getDocument path: ${path}`);
     });
 
@@ -169,6 +172,22 @@ describe("PATCH /api/chores/[choreId] complete payout", () => {
             },
           },
         ];
+      }
+      if (path === "families/family-1/chores") {
+        return [
+          {
+            name: "projects/test/databases/(default)/documents/families/family-1/chores/chore-1",
+            fields: {
+              assigneeId: "legacy-player@example.com",
+              status: "Approved",
+              deleted: false,
+              submittedAt: "2026-04-27T10:00:00.000Z",
+            },
+          },
+        ];
+      }
+      if (path === "users/player-uid/achievements") {
+        return [];
       }
       throw new Error(`Unexpected listDocuments path: ${path}`);
     });

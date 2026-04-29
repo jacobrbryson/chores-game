@@ -480,6 +480,58 @@ Build a family chore game where:
     - `apps/ws/firebase.json` deploys `ws-chores-game`
   - Each App Hosting backend requires its own app-local `package-lock.json` in the deployed app root.
   - The workspace root `package-lock.json` remains in place for monorepo development, but App Hosting local-source deploys should be run from each app directory so runtime dependencies are packaged correctly.
+- Achievements system update (2026-04-27):
+  - Added a shared achievements catalog (`50` total):
+    - `40` player achievements
+    - `10` admin achievements
+  - Catalog entries now include:
+    - `id`
+    - `audience` (`player|admin`)
+    - `title`
+    - `description`
+    - `wittyTitle`
+    - `imageUrl`
+    - `metricType`
+    - `target`
+    - order/visibility metadata (`sortOrder`, `isVisibleToPlayers`)
+  - Per-user progress persistence:
+    - `users/{uid}/achievements/{achievementId}` stores progress, completion status, percent, timestamps, and idempotency `lastEventId`.
+    - `users/{uid}/achievementState/state` stores derived-state helpers (approval streak, rejection bounceback flag, profile customization flags).
+    - Optional audit/debug records are written to `families/{familyId}/achievementEvents/{eventId}`.
+  - Backend/domain achievement engine:
+    - Shared domain logic now lives in `apps/web/src/lib/achievements/*`.
+    - API routes call shared service helpers only after successful domain mutations.
+    - Progress writes are idempotent by event id and capped at each achievement target.
+    - Unlock events are emitted only on first completion transition.
+  - New achievements API:
+    - `GET /api/achievements`
+      - Returns catalog + signed-in user progress + role-aware presentation data.
+      - Includes socket auth context (`familyId`, `viewerUid`, `wsAuthToken`) used by realtime listeners.
+      - Player viewers receive admin achievements in locked/restricted form.
+  - Realtime achievement unlock event:
+    - New websocket internal publish endpoint: `POST /events/achievement-unlocked`.
+    - Event name: `achievement:unlocked`.
+    - Payload: `achievementId`, `title`, `wittyTitle`, `description`, `imageUrl`, `completedAt`, `userId`, `familyId`.
+    - Events emit to both `user:{uid}` and `family:{familyId}` rooms.
+  - `/achievements` route behavior:
+    - Replaced placeholder page with full mobile-first achievements UI.
+    - Player view shows player achievements first; admin-only entries are locked/gray at bottom.
+    - Admin view supports audience filters (`All`, `Player`, `Admin`).
+    - Supports highlighting by query/hash:
+      - `/achievements?highlight=<achievementId>`
+      - `#<achievementId>`
+    - Highlight scrolls target card into view and applies brief ring animation.
+  - Global client popup behavior:
+    - Added a global achievement unlock listener in app layout.
+    - On `achievement:unlocked`:
+      - triggers the existing confetti event system
+      - shows a dismissible popup toast (`5s` duration)
+      - includes circular countdown timer
+      - deep-links to `/achievements?highlight=<achievementId>`
+      - dedupes simultaneous duplicate achievement popups
+    - Popup placement:
+      - mobile: bottom
+      - desktop: bottom-right
 ## Suggested Initial Component Mapping
 - Auth module: Google sign-in, session handling, role mapping.
 - Chores module: CRUD, assignment, submission, approval pipeline.
@@ -493,3 +545,10 @@ Build a family chore game where:
 - Error states are handled (unauthorized, invalid transition, insufficient funds).
 - Tests cover critical business rules.
 - Documentation updated in `AGENTS.md` when behavior or rules change.
+- Questing system update (2026-04-27):
+  - Added JSON-driven quests with API routes: `GET /api/quests`, `GET /api/quests/{questId}`, `GET /api/quests/{questId}/progress`, `POST /api/quests/{questId}/start`, `POST /api/quests/{questId}/choose`, `POST /api/quests/{questId}/replay`.
+  - Quest content now loads from JSON files in `apps/web/src/assets/quests/` with runtime validation.
+  - Added `/quests` library view and `/quests/{questId}` quest reader/player UI.
+  - Added quest item support in Store (`quest_items` category) and transactional buy-and-use handling in quest choice flow.
+  - Added user quest progress persistence at `users/{uid}/questProgress/{questId}`.
+  - Added user inventory persistence at `users/{uid}/inventory/{itemId}` and surfaced owned items on profile surfaces.

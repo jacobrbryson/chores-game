@@ -1,6 +1,6 @@
 import type { FamilyAwardClaim } from "@/lib/family/award-claims";
 import { listFamilyAwardClaims } from "@/lib/family/award-claims";
-import { getDocument, readString } from "@/lib/firestore/rest";
+import { getDocument, listDocuments, readInteger, readString, readStringArray } from "@/lib/firestore/rest";
 import {
   canViewerAccessFamilyMember,
   getViewerFamilyContext,
@@ -17,6 +17,7 @@ import {
   type ThemePalette,
 } from "@/lib/store/catalog";
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
+import { buildOwnedItemsSummary, type OwnedItemSummary } from "@/lib/items/owned-items";
 
 export type FamilyMemberThemeSummary = {
   name: string;
@@ -41,6 +42,7 @@ export type FamilyMemberProfileData = {
   confetti: FamilyMemberConfettiSummary;
   unclaimedAwards: FamilyAwardClaim[];
   claimedAwards: FamilyAwardClaim[];
+  ownedItems: OwnedItemSummary[];
 };
 
 type LoadFamilyMemberProfileDataInput = {
@@ -79,6 +81,13 @@ async function resolveEffectiveConfettiOptionId(
   }
 
   return DEFAULT_CONFETTI_OPTION_ID;
+}
+
+function resolveOwnedOptionIds(fields: Parameters<typeof readStringArray>[0]) {
+  const ownedOptionIds = new Set(readStringArray(fields, "ownedStoreOptionIds"));
+  ownedOptionIds.add(DEFAULT_COLOR_THEME_OPTION_ID);
+  ownedOptionIds.add(DEFAULT_CONFETTI_OPTION_ID);
+  return ownedOptionIds;
 }
 
 function buildThemeSummary(member: FamilyResolvedMember): FamilyMemberThemeSummary {
@@ -173,6 +182,34 @@ export async function loadFamilyMemberProfileData(
     input.viewerUid,
     input.idToken,
   );
+  let ownedItems: OwnedItemSummary[] = [];
+  if (member.uid) {
+    try {
+      const [userDoc, inventoryDocs] = await Promise.all([
+        getDocument(`users/${member.uid}`, input.idToken),
+        listDocuments(`users/${member.uid}/inventory`, input.idToken, 500),
+      ]);
+      const inventoryByItemId = new Map<string, { quantity: number }>();
+      for (const doc of inventoryDocs) {
+        const itemId = readString(doc.fields, "itemId");
+        if (!itemId) {
+          continue;
+        }
+        inventoryByItemId.set(itemId, {
+          quantity: Math.max(0, readInteger(doc.fields, "quantity")),
+        });
+      }
+      ownedItems = buildOwnedItemsSummary({
+        ownedOptionIds: resolveOwnedOptionIds(userDoc.fields),
+        inventoryByItemId,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      if (!reason.includes("FIRESTORE_HTTP_404")) {
+        throw error;
+      }
+    }
+  }
 
   return {
     kind: "ok" as const,
@@ -188,6 +225,7 @@ export async function loadFamilyMemberProfileData(
       claimedAwards: memberClaims
         .filter((claim) => claim.status === "claimed")
         .sort(compareClaimedAwards),
+      ownedItems,
     } satisfies FamilyMemberProfileData,
   };
 }

@@ -1,4 +1,5 @@
 import type { StoreCategory } from "@/lib/store/catalog";
+import type { OwnedItemSummary } from "@/lib/items/owned-items";
 
 export type ProfilePageClientProps = {
   name: string;
@@ -22,6 +23,7 @@ export type StoreProfileSummary = {
   avatarPhotoUrl?: string;
   googlePhotoUrl?: string;
   selectedConfettiOptionId?: string;
+  ownedItems?: OwnedItemSummary[];
 };
 
 export type GoogleTasksTaskListOption = {

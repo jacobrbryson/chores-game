@@ -55,6 +55,14 @@ type FamilyMemberProfileResponse = {
     colors: string[];
     isDefault: boolean;
   };
+  ownedItems: Array<{
+    id: string;
+    name: string;
+    description: string;
+    image: string;
+    category: string;
+    quantity: number;
+  }>;
   unclaimedAwards: FamilyAwardClaim[];
   claimedAwards: FamilyAwardClaim[];
 };
@@ -233,6 +241,42 @@ export function FamilyMemberProfileClient({
                 </div>
               </dl>
             </article>
+          </section>
+
+          <section className="family-page-card profile-owned-items-card" aria-label="Owned items">
+            <div className="family-page-card-header">
+              <div>
+                <h2>Owned Items</h2>
+                <p className="small family-page-subhead">
+                  Full inventory for this family member.
+                </p>
+              </div>
+            </div>
+            {profile.ownedItems.length === 0 ? (
+              <p className="small">No owned items yet.</p>
+            ) : (
+              <div className="profile-owned-items-grid">
+                {profile.ownedItems.map((item) => (
+                  <article key={item.id} className="profile-owned-item-card">
+                    <img
+                      src={item.image || "/assets/items/placeholder.png"}
+                      alt={item.name}
+                      className="profile-owned-item-image"
+                      onError={(event) => {
+                        event.currentTarget.src = "/assets/items/placeholder.png";
+                      }}
+                    />
+                    <div className="profile-owned-item-copy">
+                      <h3>{item.name}</h3>
+                      <p className="small">{item.description}</p>
+                      <p className="small">
+                        {item.category} • Qty: {item.quantity}
+                      </p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="family-page-card family-member-awards-card" aria-label="Unclaimed family awards">

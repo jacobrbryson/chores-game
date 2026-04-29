@@ -6,6 +6,7 @@ export const FAMILY_ACTIVITY_TYPES = [
 	"chore_reordered",
 	"theme_changed",
 	"avatar_changed",
+	"quest_rewarded",
 ] as const;
 
 export type FamilyActivityType = (typeof FAMILY_ACTIVITY_TYPES)[number];
@@ -25,6 +26,7 @@ export function isFamilyActivityType(value: unknown): value is FamilyActivityTyp
 		value === "chore_deleted" ||
 		value === "chore_reordered" ||
 		value === "theme_changed" ||
-		value === "avatar_changed"
+		value === "avatar_changed" ||
+		value === "quest_rewarded"
 	);
 }

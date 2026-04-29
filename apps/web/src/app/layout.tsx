@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { AppFooter } from "@/components/app-footer";
 import { AppHeader } from "@/components/app-header";
+import { AchievementUnlockListener } from "@/components/achievements/achievement-unlock-listener";
 import { DashboardTabs } from "@/components/dashboard-tabs";
 import { NavigationHistoryTracker } from "@/components/navigation-history-tracker";
 import { PartyConfettiOverlay } from "@/components/party-confetti-overlay";
@@ -52,6 +53,7 @@ export default async function RootLayout({
         </Suspense>
         <ThemePreferenceSync />
         <PartyConfettiOverlay />
+        <AchievementUnlockListener />
         <div className="shell">
           <div className="container app-layout">
             <div className="app-main">

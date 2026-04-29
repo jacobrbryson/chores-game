@@ -22,6 +22,7 @@ import {
   normalizeCategoryColor,
   normalizeCategoryName,
 } from "@/lib/family/categories";
+import { trackAchievementEvent } from "@/lib/achievements/service";
 
 type CategoryBody = {
   name?: unknown;
@@ -221,6 +222,16 @@ export async function POST(request: NextRequest) {
           },
           idToken,
         );
+        await trackAchievementEvent({
+          uid: session.uid,
+          familyId,
+          idToken,
+          viewerRole,
+          eventId: `family_category_create_${categoryId}`,
+          metricDeltas: {
+            admin_categories_created: 1,
+          },
+        });
 
         return {
           kind: "ok" as const,

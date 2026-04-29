@@ -5,6 +5,8 @@ import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { getCanonicalAppOrigin } from "@/lib/app-origin";
 import { exchangeGoogleTasksAuthCode, listGoogleTaskLists } from "@/lib/google/tasks-api";
 import { persistGoogleTasksOAuthLink } from "@/lib/google/tasks-link";
+import { getViewerFamilyContext } from "@/lib/family/member-access";
+import { trackAchievementEvent } from "@/lib/achievements/service";
 
 const OAUTH_STATE_COOKIE_NAME = "google_tasks_oauth_state";
 
@@ -74,6 +76,19 @@ export async function GET(request: NextRequest) {
           token,
           selectedTaskLists: selectedTaskList ? [selectedTaskList] : [],
         });
+        const familyContext = await getViewerFamilyContext(session.uid, session.email, idToken);
+        if (familyContext.familyId && familyContext.viewerRole === "admin") {
+          await trackAchievementEvent({
+            uid: session.uid,
+            familyId: familyContext.familyId,
+            idToken,
+            viewerRole: "admin",
+            eventId: "google_tasks_linked_callback",
+            metricDeltas: {
+              admin_google_tasks_linked: 1,
+            },
+          });
+        }
         return null;
       },
     );

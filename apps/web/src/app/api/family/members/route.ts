@@ -23,6 +23,7 @@ import {
   DEFAULT_CONFETTI_OPTION_ID,
   findColorThemeOptionById,
 } from "@/lib/store/catalog";
+import { trackAchievementEvent } from "@/lib/achievements/service";
 
 type AddMemberBody = {
   name?: string;
@@ -222,6 +223,18 @@ export async function POST(request: NextRequest) {
             },
             idToken,
           );
+        }
+        if (isManagedLocalPlayer && session.role === "admin") {
+          await trackAchievementEvent({
+            uid: session.uid,
+            familyId,
+            idToken,
+            viewerRole: "admin",
+            eventId: `family_member_active_add_${memberId}`,
+            metricDeltas: {
+              admin_active_family_members_added: 1,
+            },
+          });
         }
         return {
           kind: "ok" as const,

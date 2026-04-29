@@ -6,6 +6,7 @@ export const FAMILY_ACTIVITY_TYPES = [
   "chore_reordered",
   "theme_changed",
   "avatar_changed",
+  "quest_rewarded",
 ] as const;
 
 export type FamilyActivityType = (typeof FAMILY_ACTIVITY_TYPES)[number];

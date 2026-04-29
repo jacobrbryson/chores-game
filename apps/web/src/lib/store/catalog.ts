@@ -1,10 +1,13 @@
+import { listPurchasableQuestItems } from "@/lib/items/catalog";
+
 export type StoreCategoryId =
 	| "customize_colors"
 	| "customize_avatar"
 	| "victory_confetti"
-	| "family_awards";
+	| "family_awards"
+	| "quest_items";
 
-export type StoreOptionKind = "color" | "avatar" | "confetti" | "reward";
+export type StoreOptionKind = "color" | "avatar" | "confetti" | "reward" | "quest_item";
 
 export type ConfettiShape = "rect" | "circle" | "streamer";
 
@@ -26,6 +29,13 @@ export type StoreOption = {
 	id: string;
 	label: string;
 	value: string;
+	itemId?: string;
+	itemImage?: string;
+	itemDescription?: string;
+	itemPurchasable?: boolean;
+	itemStackable?: boolean;
+	itemConsumable?: boolean;
+	itemUsableInQuests?: boolean;
 	theme?: ThemePalette;
 	confetti?: ConfettiPreset;
 	isDefault?: boolean;
@@ -279,6 +289,20 @@ const CONFETTI_OPTIONS: StoreOption[] = [
 
 export const DEFAULT_CONFETTI_OPTION_ID = "confetti_option_01";
 
+const QUEST_ITEM_OPTIONS: StoreOption[] = listPurchasableQuestItems().map((item) => ({
+	id: item.id,
+	label: item.name,
+	value: item.id,
+	itemId: item.id,
+	itemImage: item.image,
+	itemDescription: item.description,
+	itemPurchasable: item.purchasable,
+	itemStackable: item.stackable,
+	itemConsumable: item.consumable,
+	itemUsableInQuests: item.usableInQuests,
+	price: item.price,
+}));
+
 export const STORE_CATEGORIES: StoreCategory[] = [
 	{
 		id: "customize_colors",
@@ -307,6 +331,15 @@ export const STORE_CATEGORIES: StoreCategory[] = [
 		kind: "confetti",
 		options: CONFETTI_OPTIONS,
 	},
+	{
+		id: "quest_items",
+		name: "Quest Items",
+		description: "Items you can buy and use inside story quests.",
+		price: 0,
+		imagePath: "/store3/theme.png",
+		kind: "quest_item",
+		options: QUEST_ITEM_OPTIONS,
+	},
 ];
 
 export function isStoreCategoryId(
@@ -316,7 +349,8 @@ export function isStoreCategoryId(
 		value === "customize_colors" ||
 		value === "customize_avatar" ||
 		value === "victory_confetti" ||
-		value === "family_awards"
+		value === "family_awards" ||
+		value === "quest_items"
 	);
 }
 

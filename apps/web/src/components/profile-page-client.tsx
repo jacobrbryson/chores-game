@@ -378,6 +378,7 @@ export function ProfilePageClient({
     0,
     3,
   );
+  const ownedItems = storeSummary?.ownedItems ?? [];
 
   async function applyAvatarAction(body: Record<string, unknown>, pendingKey: string) {
     setAvatarActionPending(pendingKey);
@@ -857,6 +858,44 @@ export function ProfilePageClient({
           setConfettiDialogOpen(true);
         }}
       />
+
+      <section className="family-page-card profile-owned-items-card" aria-label="Owned items">
+        <div className="family-page-card-header">
+          <div>
+            <h2>Owned Items</h2>
+            <p className="small family-page-subhead">
+              Items, collectibles, and unlocks in this account inventory.
+            </p>
+          </div>
+        </div>
+        {isLoading ? <p className="small">Loading inventory...</p> : null}
+        {!isLoading && ownedItems.length === 0 ? (
+          <p className="small">No owned items yet. Complete chores, quests, and store purchases to build inventory.</p>
+        ) : null}
+        {!isLoading && ownedItems.length > 0 ? (
+          <div className="profile-owned-items-grid">
+            {ownedItems.map((item) => (
+              <article key={item.id} className="profile-owned-item-card">
+                <img
+                  src={item.image || "/assets/items/placeholder.png"}
+                  alt={item.name}
+                  className="profile-owned-item-image"
+                  onError={(event) => {
+                    event.currentTarget.src = "/assets/items/placeholder.png";
+                  }}
+                />
+                <div className="profile-owned-item-copy">
+                  <h3>{item.name}</h3>
+                  <p className="small">{item.description}</p>
+                  <p className="small">
+                    {item.category} • Qty: {item.quantity}
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </section>
 
       {googleTasksLoading && !googleTasksSummary ? (
         <section className="profile-google-card-wrap">

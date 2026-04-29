@@ -9,6 +9,8 @@ type AlertProps = {
   tone?: AlertTone;
   className?: string;
   role?: "alert" | "status";
+  align?: "start" | "center";
+  showIcon?: boolean;
 };
 
 const TONE_CLASSES: Record<AlertTone, string> = {
@@ -58,16 +60,24 @@ function AlertIcon({ tone }: { tone: AlertTone }) {
   );
 }
 
-export function Alert({ children, tone = "error", className, role = "alert" }: AlertProps) {
+export function Alert({
+  children,
+  tone = "error",
+  className,
+  role = "alert",
+  align = "start",
+  showIcon = true,
+}: AlertProps) {
   return (
     <div
       role={role}
       className={joinClassNames(
-        "flex items-start gap-2 rounded-md border px-3 py-2 text-sm leading-5",
+        "flex gap-2 rounded-md border px-3 py-2 text-sm leading-5",
+        align === "center" ? "items-center" : "items-start",
         TONE_CLASSES[tone],
         className,
       )}>
-      <AlertIcon tone={tone} />
+      {showIcon ? <AlertIcon tone={tone} /> : null}
       <div className="min-w-0">{children}</div>
     </div>
   );

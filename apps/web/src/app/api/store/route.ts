@@ -39,6 +39,8 @@ import { listFamilyAwardClaims } from "@/lib/family/award-claims";
 import { listFamilyRewards, type FamilyReward } from "@/lib/family/rewards";
 import { emitFamilyActivity } from "@/lib/notifications/events";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
+import { trackAchievementEvent } from "@/lib/achievements/service";
+import { buildOwnedItemsSummary } from "@/lib/items/owned-items";
 
 type StoreActionBody = {
   action?: unknown;
@@ -327,6 +329,8 @@ async function getStoreSummary(uid: string, idToken: string) {
   }
 
   const unlockedOptionDates: Record<string, string> = {};
+  const questItemQuantities: Record<string, number> = {};
+  const inventoryByItemId = new Map<string, { quantity: number }>();
   try {
     const ledgerDocs = await listDocuments(`users/${uid}/walletLedger`, idToken, 500);
     for (const doc of ledgerDocs) {
@@ -352,11 +356,32 @@ async function getStoreSummary(uid: string, idToken: string) {
       throw error;
     }
   }
+  try {
+    const inventoryDocs = await listDocuments(`users/${uid}/inventory`, idToken, 500);
+    for (const doc of inventoryDocs) {
+      const itemId = readString(doc.fields, "itemId");
+      if (!itemId) {
+        continue;
+      }
+      const quantity = Math.max(0, readInteger(doc.fields, "quantity"));
+      questItemQuantities[itemId] = quantity;
+      inventoryByItemId.set(itemId, { quantity });
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
 
   const familyRewardAvailability = familyId
     ? await resolveAvailableFamilyRewards(familyId, uid, idToken)
     : { rewards: [], availableRewards: [] };
   const familyAwardsCategory = buildFamilyAwardsCategory(familyRewardAvailability.availableRewards);
+  const ownedItems = buildOwnedItemsSummary({
+    ownedOptionIds,
+    inventoryByItemId,
+  });
 
   return {
     balance,
@@ -373,6 +398,8 @@ async function getStoreSummary(uid: string, idToken: string) {
     googlePhotoUrl,
     unlockedOptionDates,
     selectedConfettiOptionId,
+    questItemQuantities,
+    ownedItems,
     categories: [...STORE_CATEGORIES, familyAwardsCategory],
     avatarOptions: DEFAULT_AVATAR_IDS,
   };
@@ -511,6 +538,17 @@ export async function POST(request: NextRequest) {
             familyId,
             occurredAt: now,
           });
+          await trackAchievementEvent({
+            uid,
+            familyId,
+            idToken,
+            viewerRole: "player",
+            eventId: `store_set_theme_${themeOption.id}`,
+            metricDeltas: {
+              themes_applied: 1,
+            },
+            profileCustomizationKey: "theme",
+          });
           return { kind: "ok" as const };
         }
 
@@ -553,6 +591,17 @@ export async function POST(request: NextRequest) {
             familyId,
             occurredAt: now,
           });
+          await trackAchievementEvent({
+            uid,
+            familyId,
+            idToken,
+            viewerRole: "player",
+            eventId: `store_set_avatar_${avatarId}`,
+            metricDeltas: {
+              avatars_applied: 1,
+            },
+            profileCustomizationKey: "avatar",
+          });
           return {
             kind: "ok" as const,
             nextPicture: `/avatars/default/${encodeURIComponent(avatarId)}`,
@@ -591,6 +640,17 @@ export async function POST(request: NextRequest) {
             type: "avatar_changed",
             familyId,
             occurredAt: now,
+          });
+          await trackAchievementEvent({
+            uid,
+            familyId,
+            idToken,
+            viewerRole: "player",
+            eventId: "store_set_google_avatar",
+            metricDeltas: {
+              avatars_applied: 1,
+            },
+            profileCustomizationKey: "avatar",
           });
           return { kind: "ok" as const, nextPicture: normalizedUrl };
         }
@@ -633,8 +693,28 @@ export async function POST(request: NextRequest) {
           const optionPrice = Math.max(0, Math.floor(option.price ?? category.price));
           const userDoc = await getDocument(`users/${uid}`, idToken);
           const ownedOptionIds = resolveOwnedOptionIds(userDoc.fields);
-          if (category.kind !== "reward" && ownedOptionIds.has(option.id)) {
+          if (category.kind !== "reward" && category.kind !== "quest_item" && ownedOptionIds.has(option.id)) {
             return { kind: "already_owned" as const };
+          }
+          let questItemQuantity = 0;
+          let questItemTotalAcquired = 0;
+          let questItemTotalConsumed = 0;
+          if (category.kind === "quest_item") {
+            const itemId = option.itemId?.trim() || option.id;
+            try {
+              const inventoryDoc = await getDocument(`users/${uid}/inventory/${itemId}`, idToken);
+              questItemQuantity = Math.max(0, readInteger(inventoryDoc.fields, "quantity"));
+              questItemTotalAcquired = Math.max(0, readInteger(inventoryDoc.fields, "totalAcquired"));
+              questItemTotalConsumed = Math.max(0, readInteger(inventoryDoc.fields, "totalConsumed"));
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (!reason.includes("FIRESTORE_HTTP_404")) {
+                throw error;
+              }
+            }
+            if (option.itemStackable !== true && questItemQuantity > 0) {
+              return { kind: "already_owned" as const };
+            }
           }
 
           const balance = await getWalletBalance(uid, idToken);
@@ -731,6 +811,49 @@ export async function POST(request: NextRequest) {
               });
               throw error;
             }
+            await trackAchievementEvent({
+              uid,
+              familyId,
+              idToken,
+              viewerRole: "player",
+              eventId: `store_purchase_reward_${option.id}_${awardClaimId}`,
+              metricDeltas: {
+                store_purchases: 1,
+                family_awards_redeemed: 1,
+              },
+            });
+            return { kind: "ok" as const };
+          }
+
+          if (category.kind === "quest_item") {
+            const itemId = option.itemId?.trim() || option.id;
+            const now = new Date().toISOString();
+
+            await createOrReplaceDocument(
+              `users/${uid}/inventory/${itemId}`,
+              {
+                itemId: stringField(itemId),
+                quantity: integerField(questItemQuantity + 1),
+                totalAcquired: integerField(questItemTotalAcquired + 1),
+                totalConsumed: integerField(questItemTotalConsumed),
+                updatedAt: timestampField(now),
+              },
+              idToken,
+            );
+
+            const familyIdForQuestItemPurchase = await getPrimaryFamilyIdWithFallback(uid, idToken);
+            if (familyIdForQuestItemPurchase) {
+              await trackAchievementEvent({
+                uid,
+                familyId: familyIdForQuestItemPurchase,
+                idToken,
+                viewerRole: "player",
+                eventId: `store_purchase_quest_item_${itemId}_${now}`,
+                metricDeltas: {
+                  store_purchases: 1,
+                },
+              });
+            }
             return { kind: "ok" as const };
           }
 
@@ -744,6 +867,19 @@ export async function POST(request: NextRequest) {
             idToken,
             ["ownedStoreOptionIds", "storeUpdatedAt"],
           );
+          const familyIdForPurchase = await getPrimaryFamilyIdWithFallback(uid, idToken);
+          if (familyIdForPurchase) {
+            await trackAchievementEvent({
+              uid,
+              familyId: familyIdForPurchase,
+              idToken,
+              viewerRole: "player",
+              eventId: `store_purchase_option_${option.id}`,
+              metricDeltas: {
+                store_purchases: 1,
+              },
+            });
+          }
           if (category.kind === "avatar") {
             return applyOwnedAvatarOption(option.value, ownedOptionIds);
           }
@@ -825,6 +961,17 @@ export async function POST(request: NextRequest) {
               idToken,
               ["selectedConfettiOptionId", "updatedAt"],
             );
+            await trackAchievementEvent({
+              uid,
+              familyId,
+              idToken,
+              viewerRole: "player",
+              eventId: `store_set_confetti_${confettiOption.id}`,
+              metricDeltas: {
+                confetti_applied: 1,
+              },
+              profileCustomizationKey: "confetti",
+            });
           }
           return { kind: "ok" as const };
         }

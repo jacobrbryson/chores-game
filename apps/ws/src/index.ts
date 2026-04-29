@@ -5,6 +5,10 @@ import {
 	isFamilyActivityType,
 } from "./family-activity-event.js";
 import { verifyFamilySocketAuthToken } from "./family-auth-token.js";
+import {
+	type AchievementUnlockedEvent,
+	isAchievementUnlockedEvent,
+} from "./achievement-unlocked-event.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const isProduction = process.env.NODE_ENV === "production";
@@ -55,7 +59,11 @@ function sendJson(res: ServerResponse, status: number, body: Record<string, unkn
 }
 
 httpServer.on("request", (req, res) => {
-	if (req.method !== "POST" || req.url !== "/events/family-activity") {
+	if (
+		req.method !== "POST" ||
+		(req.url !== "/events/family-activity" &&
+			req.url !== "/events/achievement-unlocked")
+	) {
 		return;
 	}
 
@@ -75,18 +83,28 @@ httpServer.on("request", (req, res) => {
 
 	req.on("end", () => {
 		try {
-			const parsed = JSON.parse(raw) as Partial<FamilyActivityEvent>;
-			if (!parsed.familyId || !isFamilyActivityType(parsed.type)) {
-				sendJson(res, 400, { error: "invalid_payload" });
-				return;
+			if (req.url === "/events/family-activity") {
+				const parsed = JSON.parse(raw) as Partial<FamilyActivityEvent>;
+				if (!parsed.familyId || !isFamilyActivityType(parsed.type)) {
+					sendJson(res, 400, { error: "invalid_payload" });
+					return;
+				}
+				const payload: FamilyActivityEvent = {
+					type: parsed.type,
+					familyId: parsed.familyId,
+					choreId: parsed.choreId ?? "",
+					occurredAt: parsed.occurredAt ?? new Date().toISOString(),
+				};
+				io.to(`family:${payload.familyId}`).emit("family:activity", payload);
+			} else {
+				const parsed = JSON.parse(raw) as Partial<AchievementUnlockedEvent>;
+				if (!isAchievementUnlockedEvent(parsed)) {
+					sendJson(res, 400, { error: "invalid_payload" });
+					return;
+				}
+				io.to(`user:${parsed.userId}`).emit("achievement:unlocked", parsed);
+				io.to(`family:${parsed.familyId}`).emit("achievement:unlocked", parsed);
 			}
-			const payload: FamilyActivityEvent = {
-				type: parsed.type,
-				familyId: parsed.familyId,
-				choreId: parsed.choreId ?? "",
-				occurredAt: parsed.occurredAt ?? new Date().toISOString(),
-			};
-			io.to(`family:${payload.familyId}`).emit("family:activity", payload);
 			sendJson(res, 200, { ok: true });
 		} catch {
 			sendJson(res, 400, { error: "invalid_json" });

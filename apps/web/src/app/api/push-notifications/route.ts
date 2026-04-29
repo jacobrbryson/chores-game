@@ -21,6 +21,7 @@ import {
   normalizePushNotificationSettings,
   type PushNotificationType,
 } from "@/lib/push/constants";
+import { trackAchievementEvent } from "@/lib/achievements/service";
 import {
   buildMemberPushSettingsFields,
   buildStoredPushSubscriptionFields,
@@ -288,6 +289,18 @@ export async function PATCH(request: NextRequest) {
               throw error;
             }
           }
+        }
+        if (hasAnyPushNotificationEnabled(nextSettings)) {
+          await trackAchievementEvent({
+            uid: session.uid,
+            familyId: familyContext.familyId,
+            idToken,
+            viewerRole: "admin",
+            eventId: "admin_push_notifications_enabled",
+            metricDeltas: {
+              admin_push_notifications_enabled: 1,
+            },
+          });
         }
 
         return null;

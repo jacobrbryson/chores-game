@@ -586,6 +586,13 @@ service cloud.firestore {
         && request.resource.data.delta < 0;
     }
 
+    function isValidQuestRewardLedgerCreate(uid) {
+      return request.resource.data.reason == "quest_reward"
+        && request.resource.data.itemId is string
+        && request.resource.data.choreId == ""
+        && request.resource.data.delta > 0;
+    }
+
     function canSelfCreateWalletLedger(uid) {
       return isSelf(uid)
         && isWalletLedgerCreateBaseValid(uid)
@@ -593,6 +600,7 @@ service cloud.firestore {
           isValidChoreCompleteLedgerCreate(uid, false)
           || isValidChoreUndoLedgerCreate(uid, false)
           || isValidStorePurchaseLedgerCreate(uid)
+          || isValidQuestRewardLedgerCreate(uid)
         );
     }
 
@@ -604,6 +612,7 @@ service cloud.firestore {
           || isValidChoreCompleteLedgerCreate(uid, true)
           || isValidChoreUndoLedgerCreate(uid, true)
           || isValidStorePurchaseLedgerCreate(uid)
+          || isValidQuestRewardLedgerCreate(uid)
         );
     }
 
@@ -621,6 +630,60 @@ service cloud.firestore {
         allow read: if isSelf(uid) || canAdminManageUser(uid);
         allow create: if canSelfCreateWalletLedger(uid) || canAdminCreateWalletLedger(uid);
         allow update, delete: if false;
+      }
+
+      match /inventory/{itemId} {
+        allow read: if isSelf(uid) || canAdminManageUser(uid);
+        allow create, update: if (isSelf(uid) || canAdminManageUser(uid))
+          && request.resource.data.itemId == itemId
+          && request.resource.data.quantity is int
+          && request.resource.data.quantity >= 0
+          && request.resource.data.totalAcquired is int
+          && request.resource.data.totalAcquired >= 0
+          && request.resource.data.totalConsumed is int
+          && request.resource.data.totalConsumed >= 0
+          && request.resource.data.updatedAt is timestamp;
+        allow delete: if false;
+      }
+
+      match /questProgress/{questId} {
+        allow read: if isSelf(uid) || canAdminManageUser(uid);
+        allow create, update: if (isSelf(uid) || canAdminManageUser(uid))
+          && request.resource.data.userId == uid
+          && request.resource.data.questId == questId
+          && request.resource.data.currentNodeId is string
+          && request.resource.data.status is string
+          && request.resource.data.status in ["not_started", "in_progress", "completed"]
+          && request.resource.data.choicesMade is list
+          && request.resource.data.endingsReached is list
+          && request.resource.data.bestEndingId is string
+          && request.resource.data.timesPlayed is int
+          && request.resource.data.timesPlayed >= 0
+          && (request.resource.data.completedAt is timestamp || request.resource.data.completedAt is string)
+          && (request.resource.data.lastPlayedAt is timestamp || request.resource.data.lastPlayedAt is string)
+          && (request.resource.data.updatedAt is timestamp || request.resource.data.updatedAt is string)
+          && (
+            request.resource.data.firstCompletionRewardGrantedAt is timestamp
+            || request.resource.data.firstCompletionRewardGrantedAt is string
+          )
+          && (
+            request.resource.data.allEndingsRewardGrantedAt is timestamp
+            || request.resource.data.allEndingsRewardGrantedAt is string
+          )
+          && request.resource.data.endingRewardIdsGranted is list;
+        allow delete: if false;
+      }
+
+      match /achievements/{achievementId} {
+        allow read: if isSelf(uid) || canAdminManageUser(uid);
+        allow create, update: if isSelf(uid) || canAdminManageUser(uid);
+        allow delete: if false;
+      }
+
+      match /achievementState/{stateId} {
+        allow read: if isSelf(uid) || canAdminManageUser(uid);
+        allow create, update: if isSelf(uid) || canAdminManageUser(uid);
+        allow delete: if false;
       }
     }
 
@@ -851,6 +914,12 @@ service cloud.firestore {
         allow read: if isFamilyMember(familyId);
         allow create: if canCreateAwardClaim(familyId);
         allow update: if canAdminClaimAward(familyId);
+        allow delete: if false;
+      }
+
+      match /achievementEvents/{eventId} {
+        allow read: if isFamilyAdmin(familyId);
+        allow create, update: if isFamilyMember(familyId);
         allow delete: if false;
       }
     }
