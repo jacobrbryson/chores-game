@@ -10,28 +10,43 @@ export const metadata: Metadata = {
 
 export default function QuestsPage() {
   return (
-    <main className="panel family-page">
+    <main className="panel family-page quests-coming-soon-page">
       <div className="page-header-row">
         <div className="page-header-inline">
           <BackLink className="page-back-link" fallbackHref="/" />
           <h1>Quests</h1>
         </div>
       </div>
-      <Alert tone="info" align="center" showIcon={false} className="mb-4">
-        <div className="small">
-          <p>
-            Quests are interactive choose-your-own-adventure stories. Players use inventory items to unlock choices,
-            discover different endings, and earn coins, items, achievements, and collectibles.
-          </p>
-          <ul className="mt-2 list-disc pl-5">
-            <li>Some choices require quest items.</li>
-            <li>If missing and purchasable, items can be bought and used immediately from inside the quest.</li>
-            <li>Different paths lead to different endings.</li>
-            <li>Replay to discover alternate endings and extra rewards.</li>
-          </ul>
+      <div className="quests-coming-soon-content-wrap">
+        <Alert tone="info" align="center" showIcon={false} className="quests-coming-soon-intro-alert">
+          <div className="small">
+            <p>
+              Quests are interactive choose-your-own-adventure stories. Players use inventory items to unlock choices,
+              discover different endings, and earn coins, items, achievements, and collectibles.
+            </p>
+            <ul className="mt-2 list-disc pl-5">
+              <li>Some choices require quest items.</li>
+              <li>If missing and purchasable, items can be bought and used immediately from inside the quest.</li>
+              <li>Different paths lead to different endings.</li>
+              <li>Replay to discover alternate endings and extra rewards.</li>
+            </ul>
+          </div>
+        </Alert>
+        <QuestsLibraryClient />
+        <div className="quests-coming-soon-overlay" role="status" aria-live="polite">
+          <div className="quests-coming-soon-content">
+            <img
+              src="/avatars/default/avatar-09.png"
+              alt="Avatar 09 announcing coming soon"
+              className="quests-coming-soon-avatar"
+            />
+            <div className="quests-coming-soon-bubble">
+              <p>Coming Soon</p>
+              <p className="small">Quest adventures are almost ready.</p>
+            </div>
+          </div>
         </div>
-      </Alert>
-      <QuestsLibraryClient />
+      </div>
     </main>
   );
 }

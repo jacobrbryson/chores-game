@@ -133,6 +133,16 @@ function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
 
+function parseAssigneeScope(value: string): "single" | "multiple" | "family" {
+  if (value === "family") {
+    return "family";
+  }
+  if (value === "multiple") {
+    return "multiple";
+  }
+  return "single";
+}
+
 function createEmptyMemberStats() {
   return {
     lifetimeChoresCompleted: 0,
@@ -617,12 +627,7 @@ export async function GET(request: NextRequest) {
               status: readString(doc.fields, "status"),
               assigneeId: readString(doc.fields, "assigneeId") || undefined,
               assigneeIds: readStringArray(doc.fields, "assigneeIds"),
-              assigneeScope:
-                readString(doc.fields, "assigneeScope") === "family"
-                  ? "family"
-                  : readString(doc.fields, "assigneeScope") === "multiple"
-                    ? "multiple"
-                    : "single",
+              assigneeScope: parseAssigneeScope(readString(doc.fields, "assigneeScope")),
               assigneeName: readString(doc.fields, "assigneeName") || "Unassigned",
               assigneePrimaryColor:
                 assigneeColorByAlias.get(readString(doc.fields, "assigneeId")) ||

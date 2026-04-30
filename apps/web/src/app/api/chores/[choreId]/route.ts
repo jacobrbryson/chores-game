@@ -950,6 +950,8 @@ export async function PATCH(
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
           const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
           const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const choreAssigneeIdsRaw = readStringArray(existingChoreDoc.fields, "assigneeIds");
+          const choreAssigneeScope = readString(existingChoreDoc.fields, "assigneeScope");
           const choreAssigneeIds = await resolveChoreAssigneeIds(
             familyId,
             existingChoreDoc.fields,
@@ -990,7 +992,7 @@ export async function PATCH(
           }
           let spawnedNextChoreId = "";
           const completionNeedsApproval =
-            choreRequireApproval || choreAssigneeScope === "family" || choreAssigneeIds.length > 1;
+            choreRequireApproval || choreAssigneeIds.length > 1;
           const nextStatus = completionNeedsApproval ? "Submitted" : "Approved";
           const completionDate = now.slice(0, 10);
           if (choreRecurrence.recurrenceType !== "none") {

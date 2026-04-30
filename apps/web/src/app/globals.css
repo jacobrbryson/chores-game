@@ -5361,6 +5361,103 @@ white-space: nowrap;
   background: #f8fafc;
 }
 
+.quests-coming-soon-page {
+  position: relative;
+}
+
+.quests-coming-soon-content-wrap {
+  position: relative;
+  border-radius: inherit;
+}
+
+.quests-coming-soon-intro-alert {
+  margin: 0.35rem 0 0.75rem;
+  border-radius: 20px;
+}
+
+.quests-coming-soon-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(2, 6, 23, 0.6);
+  backdrop-filter: blur(1px);
+}
+
+.quests-coming-soon-content {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.quests-coming-soon-avatar {
+  position: relative;
+  z-index: 1;
+  width: 110px;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.18));
+}
+
+.quests-coming-soon-bubble {
+  position: relative;
+  z-index: 1;
+  border-radius: 18px;
+  padding: 0.85rem 1rem;
+  background: #ffffff;
+  border: 2px solid #0f172a;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.14);
+}
+
+.quests-coming-soon-bubble::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  bottom: 18px;
+  width: 20px;
+  height: 20px;
+  background: #ffffff;
+  border-left: 2px solid #0f172a;
+  border-bottom: 2px solid #0f172a;
+  transform: rotate(45deg);
+}
+
+.quests-coming-soon-bubble p {
+  margin: 0;
+}
+
+.quests-coming-soon-bubble p:first-child {
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.quests-coming-soon-bubble .small {
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 640px) {
+  .quests-coming-soon-content {
+    align-items: center;
+    flex-direction: column-reverse;
+    text-align: center;
+  }
+
+  .quests-coming-soon-bubble::before {
+    left: 50%;
+    bottom: -11px;
+    border-left: 2px solid #0f172a;
+    border-bottom: 2px solid #0f172a;
+    transform: translateX(-50%) rotate(-45deg);
+  }
+}
+
 .profile-owned-items-card {
   margin-top: 0.95rem;
 }
