@@ -32,6 +32,8 @@ type ChoreRow = {
   status: string;
   source?: "manual" | "google_tasks";
   assigneeId?: string;
+  assigneeIds?: string[];
+  assigneeScope?: "single" | "multiple" | "family";
   assigneeName: string;
   assigneeAvatarId?: string;
   assigneeAvatarPhotoUrl?: string;
@@ -50,6 +52,12 @@ type ChoreRow = {
 
 type ChoresResponse = {
   chores: ChoreRow[];
+  assigneeDirectory?: Array<{
+    id: string;
+    name: string;
+    avatarId?: string;
+    avatarPhotoUrl?: string;
+  }>;
   viewerRole?: "admin" | "player";
   viewerUid?: string;
   viewerAssigneeAliases?: string[];
@@ -235,6 +243,10 @@ function canApproveChore(chore: Pick<ChoreRow, "status" | "requireApproval">) {
   return chore.status === "Submitted" && Boolean(chore.requireApproval);
 }
 
+function isMultiAssigneeChore(chore: Pick<ChoreRow, "assigneeScope" | "assigneeIds">) {
+  return chore.assigneeScope === "family" || (chore.assigneeIds?.length ?? 0) > 1;
+}
+
 type ChoreActionsMenuProps = {
   chore: ChoreRow;
   canManageActions: boolean;
@@ -243,7 +255,7 @@ type ChoreActionsMenuProps = {
   onEdit: (chore: ChoreRow) => void;
   onDeleteRequested: (chore: ChoreRow) => void;
   onUndoCompletion: (choreId: string) => Promise<void> | void;
-  onApprove: (choreId: string) => Promise<void> | void;
+  onApprove: (chore: ChoreRow) => Promise<void> | void;
   onRejectRequested: (chore: ChoreRow) => void;
 };
 
@@ -355,9 +367,9 @@ function ChoreActionsMenu({
                 disabled={!canApprove || disabled}
                 onClick={() => {
                   setMenuOpen(false);
-                  void onApprove(chore.id);
+                  void onApprove(chore);
                 }}>
-                {busyAction === "approve" ? "Approving..." : "Approve"}
+                {busyAction === "approve" ? "Approving..." : isMultiAssigneeChore(chore) ? "Approve..." : "Approve"}
               </Button>
               <Button
                 type="button"
@@ -552,6 +564,8 @@ export default function ChoresPage() {
   const [editingChore, setEditingChore] = useState<ChoreRow | null>(null);
   const [pendingDeleteChore, setPendingDeleteChore] = useState<ChoreRow | null>(null);
   const [pendingRejectChore, setPendingRejectChore] = useState<ChoreRow | null>(null);
+  const [pendingApproveChore, setPendingApproveChore] = useState<ChoreRow | null>(null);
+  const [approvalCoinsByAssignee, setApprovalCoinsByAssignee] = useState<Record<string, number>>({});
   const [rejectFeedback, setRejectFeedback] = useState("");
   const [pendingBulkDeleteOpen, setPendingBulkDeleteOpen] = useState(false);
   const [pendingBulkSetCategoriesOpen, setPendingBulkSetCategoriesOpen] = useState(false);
@@ -559,6 +573,9 @@ export default function ChoresPage() {
   const [availableCategories, setAvailableCategories] = useState<ChoreCategory[]>([]);
   const [viewerUid, setViewerUid] = useState("");
   const [viewerAssigneeAliases, setViewerAssigneeAliases] = useState<string[]>([]);
+  const [assigneeDirectoryByAlias, setAssigneeDirectoryByAlias] = useState<
+    Record<string, { name: string; avatarId?: string; avatarPhotoUrl?: string }>
+  >({});
   const [viewerRole, setViewerRole] = useState<"admin" | "player">("player");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
@@ -709,6 +726,15 @@ export default function ChoresPage() {
       setViewerRole(payload.viewerRole === "admin" ? "admin" : "player");
       setViewerUid(payload.viewerUid ?? "");
       setViewerAssigneeAliases(payload.viewerAssigneeAliases ?? []);
+      const nextDirectory: Record<string, { name: string; avatarId?: string; avatarPhotoUrl?: string }> = {};
+      for (const entry of payload.assigneeDirectory ?? []) {
+        nextDirectory[entry.id] = {
+          name: entry.name,
+          avatarId: entry.avatarId,
+          avatarPhotoUrl: entry.avatarPhotoUrl,
+        };
+      }
+      setAssigneeDirectoryByAlias(nextDirectory);
       setPage(payload.pagination?.page ?? targetPage);
       setTotal(payload.pagination?.total ?? payload.chores.length ?? 0);
       setTotalPages(payload.pagination?.totalPages ?? 1);
@@ -998,8 +1024,21 @@ export default function ChoresPage() {
     }
   }
 
-  async function onApproveChore(choreId: string) {
+  async function onApproveChore(chore: ChoreRow) {
+    const choreId = chore.id;
     if (hasBusyAction) {
+      return;
+    }
+    if (isMultiAssigneeChore(chore)) {
+      const assigneeIds = chore.assigneeIds ?? [];
+      const defaultCoins =
+        assigneeIds.length > 0 ? Math.ceil((chore.coinValue ?? 0) / assigneeIds.length) : chore.coinValue ?? 0;
+      const next: Record<string, number> = {};
+      for (const assigneeId of assigneeIds) {
+        next[assigneeId] = defaultCoins;
+      }
+      setApprovalCoinsByAssignee(next);
+      setPendingApproveChore(chore);
       return;
     }
     setRowActionState({ choreId, action: "approve" });
@@ -1027,6 +1066,44 @@ export default function ChoresPage() {
           },
         };
       });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("wallet:refresh"));
+      }
+    } catch (approveError) {
+      const message =
+        approveError instanceof Error ? approveError.message : "approve_chore_failed";
+      setActionError(message);
+    } finally {
+      setRowActionState(null);
+    }
+  }
+
+  async function onApproveWithOverrides() {
+    if (!pendingApproveChore || hasBusyAction) {
+      return;
+    }
+    const choreId = pendingApproveChore.id;
+    setRowActionState({ choreId, action: "approve" });
+    setActionError("");
+    try {
+      const response = await fetch(`/api/chores/${choreId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "approve",
+          approvalPayouts: Object.entries(approvalCoinsByAssignee).map(([assigneeId, coinValue]) => ({
+            assigneeId,
+            coinValue: Math.max(0, Math.trunc(Number(coinValue) || 0)),
+          })),
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `APPROVE_HTTP_${response.status}`);
+      }
+      setPendingApproveChore(null);
+      setApprovalCoinsByAssignee({});
+      await loadChores({ silent: true });
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("wallet:refresh"));
       }
@@ -1285,6 +1362,8 @@ export default function ChoresPage() {
                     id: editingChore.id,
                     title: editingChore.title,
                     assigneeId: editingChore.assigneeId,
+                    assigneeIds: editingChore.assigneeIds,
+                    assigneeScope: editingChore.assigneeScope,
                     assigneeName: editingChore.assigneeName,
                     source: editingChore.source,
                     dueDate: editingChore.dueDate,
@@ -1552,6 +1631,84 @@ export default function ChoresPage() {
             </>
           ) : null}
       </main>
+      <ModalShell
+        open={Boolean(pendingApproveChore)}
+        onRequestClose={() => setPendingApproveChore(null)}>
+        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+          {pendingApproveChore ? (
+            <>
+              <div className="modal-dialog-title-row mb-2">
+                <h3 className="text-lg font-bold text-slate-800">Approve Chore</h3>
+                <Button
+                  type="button"
+                  className="modal-close-button"
+                  onClick={() => setPendingApproveChore(null)}
+                  aria-label="Close dialog"
+                  title="Close dialog">
+                  X
+                </Button>
+              </div>
+              <p className="mb-3 text-sm text-slate-600">
+                <strong>{pendingApproveChore.title}</strong> total coins: <strong>{pendingApproveChore.coinValue}</strong>
+              </p>
+              <div className="mb-4 flex flex-col gap-2">
+                {(pendingApproveChore.assigneeIds ?? []).map((assigneeId) => (
+                  <label key={assigneeId} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 p-2">
+                    <span className="inline-flex items-center gap-2 text-sm text-slate-700">
+                      <Avatar
+                        size={28}
+                        borderWidth={1}
+                        name={assigneeDirectoryByAlias[assigneeId]?.name || "Family member"}
+                        avatarId={assigneeDirectoryByAlias[assigneeId]?.avatarId}
+                        photoUrl={assigneeDirectoryByAlias[assigneeId]?.avatarPhotoUrl}
+                        ariaHidden
+                        referrerPolicy="no-referrer"
+                      />
+                      <span>{assigneeDirectoryByAlias[assigneeId]?.name || assigneeId}</span>
+                    </span>
+                    <span className="relative inline-flex items-center">
+                      <span className="pointer-events-none absolute left-2 inline-flex items-center text-amber-500">
+                        <CoinIcon size={14} />
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={approvalCoinsByAssignee[assigneeId] ?? 0}
+                        onChange={(event) =>
+                          setApprovalCoinsByAssignee((current) => ({
+                            ...current,
+                            [assigneeId]: Math.max(0, Math.trunc(Number(event.target.value) || 0)),
+                          }))
+                        }
+                        className="h-9 w-24 rounded-md border border-slate-300 pl-7 pr-2 py-1 text-right text-slate-800"
+                      />
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={hasBusyAction}
+                  onClick={() => setPendingApproveChore(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={hasBusyAction}
+                  onClick={() => void onApproveWithOverrides()}>
+                  {rowActionState?.choreId === pendingApproveChore.id && rowActionState.action === "approve"
+                    ? "Approving..."
+                    : "Approve"}
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </ModalShell>
       <ModalShell
         open={Boolean(pendingRejectChore)}
         onRequestClose={() => setPendingRejectChore(null)}>

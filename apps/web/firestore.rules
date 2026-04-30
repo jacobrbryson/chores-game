@@ -121,6 +121,35 @@ service cloud.firestore {
         );
     }
 
+    function requesterMemberIdsForFamily(familyId) {
+      let uidMemberId = request.auth.uid;
+      let emailMemberId = request.auth.token.email != null && request.auth.token.email != ""
+        ? request.auth.token.email.lower()
+        : "";
+      return [uidMemberId, emailMemberId];
+    }
+
+    function isRequesterInAssigneeIds(familyId, assigneeIds) {
+      let aliases = requesterMemberIdsForFamily(familyId);
+      return assigneeIds is list
+        && (
+          assigneeIds.hasAny([aliases[0]])
+          || (
+            aliases[1] != ""
+            && assigneeIds.hasAny([aliases[1]])
+          )
+        );
+    }
+
+    function canRequesterCompleteChore(familyId, choreData) {
+      return isRequesterAssigneeId(choreData.assigneeId)
+        || isRequesterInAssigneeIds(familyId, choreData.assigneeIds)
+        || (
+          choreData.assigneeScope == "family"
+          && isFamilyMember(familyId)
+        );
+    }
+
     function canPlayerCreateRecurringSuccessor(familyId) {
       let parentId = request.resource.data.recurrenceParentChoreId;
       let parentPath = /databases/$(database)/documents/families/$(familyId)/chores/$(parentId);
@@ -526,13 +555,14 @@ service cloud.firestore {
     }
 
     function isWalletLedgerCreateBaseValid(uid) {
+      let userPath = /databases/$(database)/documents/users/$(uid);
       return request.resource.data.uid == uid
         && request.resource.data.reason is string
         && request.resource.data.createdAt is timestamp
         && request.resource.data.choreId is string
         && request.resource.data.itemId is string
         && isWalletLedgerAmountShapeValid()
-        && request.resource.data.balanceAfter == get(/databases/$(database)/documents/users/$(uid)).data.walletBalance;
+        && request.resource.data.balanceAfter == getAfter(userPath).data.walletBalance;
     }
 
     function userPrimaryFamilyHasChore(uid, choreId) {
@@ -555,7 +585,7 @@ service cloud.firestore {
         && entryId == "chore_complete_" + request.resource.data.choreId
         && userPrimaryFamilyHasChore(uid, request.resource.data.choreId)
         && userPrimaryFamilyChore(uid, request.resource.data.choreId).deleted != true
-        && userPrimaryFamilyChore(uid, request.resource.data.choreId).coinValue == request.resource.data.delta
+        && request.resource.data.delta > 0
         && userPrimaryFamilyChore(uid, request.resource.data.choreId).status in ["Submitted", "Approved"]
         && (
           actorIsAdmin
@@ -571,7 +601,7 @@ service cloud.firestore {
         && entryId == "chore_undo_complete_" + request.resource.data.choreId
         && userPrimaryFamilyHasChore(uid, request.resource.data.choreId)
         && userPrimaryFamilyChore(uid, request.resource.data.choreId).deleted != true
-        && userPrimaryFamilyChore(uid, request.resource.data.choreId).coinValue == (0 - request.resource.data.delta)
+        && request.resource.data.delta < 0
         && userPrimaryFamilyChore(uid, request.resource.data.choreId).status in ["Open", "Deleted"]
         && (
           actorIsAdmin
@@ -786,7 +816,7 @@ service cloud.firestore {
         allow update: if isFamilyAdmin(familyId)
           || (
             isFamilyMember(familyId)
-            && isRequesterAssigneeId(resource.data.assigneeId)
+            && canRequesterCompleteChore(familyId, resource.data)
             && resource.data.status == "Open"
             && request.resource.data.status in ["Submitted", "Approved"]
             && (

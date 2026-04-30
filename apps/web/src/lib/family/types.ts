@@ -47,6 +47,8 @@ export type FamilySnapshotChore = {
   sortOrder?: number;
   createdAt?: string;
   assigneeId?: string;
+  assigneeIds?: string[];
+  assigneeScope?: "single" | "multiple" | "family";
   assigneeName: string;
   assigneePrimaryColor?: string;
   assigneeAvatarId?: string;

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="admin_push_enabled achievement">
+<defs>
+  <radialGradient id="bg" cx="50%" cy="42%" r="74%"><stop offset="0%" stop-color="#5e6571"/><stop offset="55%" stop-color="#262b34"/><stop offset="100%" stop-color="#07090d"/></radialGradient>
+  <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fcd34d"/><stop offset="60%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#2a2a2a"/></linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#000" flood-opacity="0.5"/></filter>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<g transform="translate(256 262)" filter="url(#shadow)">
+  <circle r="188" fill="url(#rim)" stroke="#111" stroke-width="10"/>
+  <circle r="152" fill="#f4f4f5" stroke="#27272a" stroke-width="8"/>
+  <g transform="translate(-256 -262)"><path d="M256 154c-44 0-76 32-76 76v44l-18 30h188l-18-30v-44c0-44-32-76-76-76z" fill="#fcd34d" stroke="#78350f" stroke-width="12"/><circle cx="256" cy="322" r="14" fill="#78350f"/></g>
+  <ellipse cx="-48" cy="-76" rx="72" ry="34" fill="#fff" opacity="0.35"/>
+</g>
+
+</svg>

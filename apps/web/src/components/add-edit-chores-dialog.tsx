@@ -33,6 +33,8 @@ type EditableChore = {
   id: string;
   title: string;
   assigneeId?: string;
+  assigneeIds?: string[];
+  assigneeScope?: "single" | "multiple" | "family";
   assigneeName?: string;
   source?: "manual" | "google_tasks";
   dueDate?: string;
@@ -54,6 +56,8 @@ export type AddEditChoreSavedResult = {
     id: string;
     title: string;
     assigneeId?: string;
+    assigneeIds?: string[];
+    assigneeScope?: "single" | "multiple" | "family";
     assigneeName: string;
     dueDate: string;
     details?: string;
@@ -81,6 +85,7 @@ type AddEditChoresDialogProps = {
 };
 
 const LAST_ASSIGNEE_STORAGE_KEY = "chores_last_assignee_id";
+const FAMILY_ASSIGNEE_OPTION_ID = "__family__";
 const ADDITIONAL_OPTIONS_STORAGE_KEY = "chores_additional_options_open_v2";
 const RECURRENCE_OPTIONS: TailwindSelectOption<ChoreRecurrenceType>[] = [
   { value: "none", label: "Does not repeat" },
@@ -163,7 +168,7 @@ export function AddEditChoresDialog({
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
   const [description, setDescription] = useState("");
-  const [assigneeId, setAssigneeId] = useState("");
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState(todayIsoDate());
   const [details, setDetails] = useState("");
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
@@ -209,9 +214,11 @@ export function AddEditChoresDialog({
     [members],
   );
   const assigneeSelectOptions = useMemo<TailwindSelectOption[]>(
-    () => [{ value: "", label: "Unassigned" }, ...assigneeOptions],
+    () => [{ value: FAMILY_ASSIGNEE_OPTION_ID, label: "Family" }, ...assigneeOptions],
     [assigneeOptions],
   );
+  const isFamilyAssignee = assigneeIds.includes(FAMILY_ASSIGNEE_OPTION_ID);
+  const hasMultipleAssignees = isFamilyAssignee || assigneeIds.length > 1;
   const categorySelectOptions = useMemo<TailwindSelectOption[]>(
     () =>
       categories.map((category) => ({
@@ -224,7 +231,7 @@ export function AddEditChoresDialog({
     isEditMode &&
     chore?.source === "google_tasks" &&
     assigneeHydrated &&
-    assigneeId !== (chore?.assigneeId ?? "");
+    (assigneeIds.length !== 1 || assigneeIds[0] !== (chore?.assigneeId ?? ""));
   const previousGoogleTasksOwnerName =
     members.find((member) => member.id === (chore?.assigneeId ?? ""))?.name ||
     chore?.assigneeName ||
@@ -245,8 +252,8 @@ export function AddEditChoresDialog({
     if (query) {
       params.set("q", query);
     }
-    if (assigneeId) {
-      params.set("assigneeId", assigneeId);
+    if (assigneeIds.length === 1 && assigneeIds[0] && assigneeIds[0] !== FAMILY_ASSIGNEE_OPTION_ID) {
+      params.set("assigneeId", assigneeIds[0]);
       params.set("dueDate", effectiveDueDate);
     }
     if (editingChoreId) {
@@ -282,7 +289,15 @@ export function AddEditChoresDialog({
     setMembers(allMembers);
     setCategories(allCategories);
     if (chore) {
-      setAssigneeId(chore.assigneeId ?? "");
+      setAssigneeIds(
+        chore.assigneeScope === "family"
+          ? [FAMILY_ASSIGNEE_OPTION_ID]
+          : chore.assigneeIds && chore.assigneeIds.length > 0
+            ? chore.assigneeIds
+            : chore.assigneeId
+              ? [chore.assigneeId]
+              : [],
+      );
       setCategoryIds(chore.categoryIds ?? []);
       setAssigneeHydrated(true);
       return;
@@ -292,7 +307,9 @@ export function AddEditChoresDialog({
     const viewer = allMembers.find(
       (member) => member.id === payload.viewerUid || member.uid === payload.viewerUid,
     );
-    setAssigneeId((current) => current || stickyMember?.id || viewer?.id || "");
+    setAssigneeIds((current) =>
+      current.length > 0 ? current : stickyMember?.id ? [stickyMember.id] : viewer?.id ? [viewer.id] : [],
+    );
     setAssigneeHydrated(true);
   }
 
@@ -328,7 +345,15 @@ export function AddEditChoresDialog({
 
   function hydrateFromChore(preferredOpen: boolean) {
     setDescription(chore?.title ?? "");
-    setAssigneeId(chore?.assigneeId ?? "");
+    setAssigneeIds(
+      chore?.assigneeScope === "family"
+        ? [FAMILY_ASSIGNEE_OPTION_ID]
+        : chore?.assigneeIds && chore.assigneeIds.length > 0
+          ? chore.assigneeIds
+          : chore?.assigneeId
+            ? [chore.assigneeId]
+            : [],
+    );
     setDueDate(chore?.dueDate || todayIsoDate());
     setDetails(chore?.details ?? "");
     setCategoryIds(chore?.categoryIds ?? []);
@@ -365,7 +390,7 @@ export function AddEditChoresDialog({
       });
     }, 250);
     return () => clearTimeout(timer);
-  }, [description, assigneeId, effectiveDueDate, open]);
+  }, [description, assigneeIds, effectiveDueDate, open]);
 
   const updateSuggestionMenuPosition = useCallback(() => {
     if (!descriptionFieldRef.current || typeof window === "undefined") {
@@ -419,11 +444,15 @@ export function AddEditChoresDialog({
   }, [filteredSuggestions.length, open, showSuggestionMenu, updateSuggestionMenuPosition]);
 
   useEffect(() => {
-    if (!open || !assigneeHydrated || !assigneeId || isEditMode) {
+    if (!open || !assigneeHydrated || isEditMode || assigneeIds.length !== 1) {
       return;
     }
-    writeLastAssigneeId(assigneeId);
-  }, [assigneeId, assigneeHydrated, isEditMode, open]);
+    const onlyAssigneeId = assigneeIds[0] ?? "";
+    if (!onlyAssigneeId || onlyAssigneeId === FAMILY_ASSIGNEE_OPTION_ID) {
+      return;
+    }
+    writeLastAssigneeId(onlyAssigneeId);
+  }, [assigneeHydrated, assigneeIds, isEditMode, open]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -437,8 +466,15 @@ export function AddEditChoresDialog({
       return;
     }
 
-    const selectedAssignee = members.find((member) => member.id === assigneeId);
-    const resolvedAssigneeName = selectedAssignee?.name || "Unassigned";
+    const resolvedAssigneeIds = isFamilyAssignee
+      ? []
+      : assigneeIds.filter((id) => id && id !== FAMILY_ASSIGNEE_OPTION_ID);
+    const singleAssigneeId = resolvedAssigneeIds.length === 1 ? resolvedAssigneeIds[0] : "";
+    const resolvedAssigneeName = isFamilyAssignee
+      ? "Family"
+      : resolvedAssigneeIds.length > 1
+        ? `${resolvedAssigneeIds.length} assignees`
+        : members.find((member) => member.id === singleAssigneeId)?.name || "Unassigned";
     const fallbackDueDate = chore?.dueDate || todayIsoDate();
     const fallbackDetails = chore?.details ?? "";
     const fallbackCategoryIds = chore?.categoryIds ?? [];
@@ -481,7 +517,9 @@ export function AddEditChoresDialog({
       setError("custom_recurrence_interval_required");
       return;
     }
-    const resolvedRequireApproval = showAdditionalOptions
+    const resolvedRequireApproval = hasMultipleAssignees
+      ? true
+      : showAdditionalOptions
       ? requireApproval
       : isEditMode
         ? Boolean(chore?.requireApproval)
@@ -522,7 +560,7 @@ export function AddEditChoresDialog({
       setDescription("");
       setShowSuggestionMenu(false);
       setActiveSuggestionIndex(-1);
-      setAssigneeId("");
+      setAssigneeIds([]);
       setDueDate(todayIsoDate());
       setDetails("");
       setCategoryIds([]);
@@ -541,8 +579,16 @@ export function AddEditChoresDialog({
           pendingChore: {
             id: requestId,
             title: normalizedDescription,
-            assigneeId: assigneeId || undefined,
-            assigneeName: resolvedAssigneeName,
+                  assigneeId: singleAssigneeId || undefined,
+                  assigneeIds: isFamilyAssignee
+                    ? []
+                    : resolvedAssigneeIds,
+                  assigneeScope: isFamilyAssignee
+                    ? "family"
+                    : resolvedAssigneeIds.length > 1
+                      ? "multiple"
+                      : "single",
+                  assigneeName: resolvedAssigneeName,
             dueDate: resolvedDueDate,
             details: resolvedDetails,
             categoryIds: resolvedCategoryIds,
@@ -568,7 +614,13 @@ export function AddEditChoresDialog({
               ? {
                   action: "edit",
                   description: normalizedDescription,
-                  assigneeId,
+                  assigneeId: singleAssigneeId,
+                  assigneeIds: isFamilyAssignee ? [] : resolvedAssigneeIds,
+                  assigneeScope: isFamilyAssignee
+                    ? "family"
+                    : resolvedAssigneeIds.length > 1
+                      ? "multiple"
+                      : "single",
                   dueDate: resolvedDueDate,
                   details: resolvedDetails,
                   categoryIds: resolvedCategoryIds,
@@ -580,7 +632,13 @@ export function AddEditChoresDialog({
                 }
               : {
                   description: normalizedDescription,
-                  assigneeId,
+                  assigneeId: singleAssigneeId,
+                  assigneeIds: isFamilyAssignee ? [] : resolvedAssigneeIds,
+                  assigneeScope: isFamilyAssignee
+                    ? "family"
+                    : resolvedAssigneeIds.length > 1
+                      ? "multiple"
+                      : "single",
                   dueDate: showAdditionalOptions ? dueDate : undefined,
                   details: resolvedDetails,
                   categoryIds: resolvedCategoryIds,
@@ -626,7 +684,7 @@ export function AddEditChoresDialog({
         setDescription("");
         setShowSuggestionMenu(false);
         setActiveSuggestionIndex(-1);
-        setAssigneeId("");
+        setAssigneeIds([]);
         setDueDate(todayIsoDate());
         setDetails("");
         setCategoryIds([]);
@@ -792,11 +850,18 @@ export function AddEditChoresDialog({
 
               <label className="flex w-full flex-col gap-1.5">
                 <span className="text-sm font-medium text-slate-700">Assignee</span>
-                <TailwindSelect
-                  ariaLabel="Assignee"
-                  value={assigneeId}
-                  onChange={setAssigneeId}
+                <TailwindMultiSelect
+                  ariaLabel="Assignees"
+                  values={assigneeIds}
+                  onChange={(nextValues) => {
+                    if (nextValues.includes(FAMILY_ASSIGNEE_OPTION_ID)) {
+                      setAssigneeIds([FAMILY_ASSIGNEE_OPTION_ID]);
+                      return;
+                    }
+                    setAssigneeIds(nextValues);
+                  }}
                   options={assigneeSelectOptions}
+                  placeholder="Select assignees"
                   className="w-full"
                   buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                   menuClassName="border-slate-300"
@@ -898,15 +963,17 @@ export function AddEditChoresDialog({
                   <label className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
                     <input
                       type="checkbox"
-                      checked={requireApproval}
-                      disabled={!showAdditionalOptions}
+                      checked={hasMultipleAssignees ? true : requireApproval}
+                      disabled={!showAdditionalOptions || hasMultipleAssignees}
                       onChange={(event) => setRequireApproval(event.target.checked)}
                       className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#1f69b7]"
                     />
                     <span className="flex flex-col gap-1">
                       <span className="text-sm font-medium text-slate-700">Require Parent Approval</span>
                       <span className="text-xs text-slate-500">
-                        Completed chores leave the open list, notify parents, and wait for approval before coins are paid out.
+                        {hasMultipleAssignees
+                          ? "Chores with multiple assignees always require approval. Coin totals can be changed at time of approval."
+                          : "Completed chores leave the open list, notify parents, and wait for approval before coins are paid out."}
                       </span>
                     </span>
                   </label>

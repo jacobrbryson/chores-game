@@ -616,6 +616,13 @@ export async function GET(request: NextRequest) {
               title: readString(doc.fields, "title") || "Untitled chore",
               status: readString(doc.fields, "status"),
               assigneeId: readString(doc.fields, "assigneeId") || undefined,
+              assigneeIds: readStringArray(doc.fields, "assigneeIds"),
+              assigneeScope:
+                readString(doc.fields, "assigneeScope") === "family"
+                  ? "family"
+                  : readString(doc.fields, "assigneeScope") === "multiple"
+                    ? "multiple"
+                    : "single",
               assigneeName: readString(doc.fields, "assigneeName") || "Unassigned",
               assigneePrimaryColor:
                 assigneeColorByAlias.get(readString(doc.fields, "assigneeId")) ||
@@ -666,6 +673,8 @@ export async function GET(request: NextRequest) {
               sortOrder: chore.sortOrder,
               createdAt: chore.createdAt,
               assigneeId: chore.assigneeId,
+              assigneeIds: chore.assigneeIds,
+              assigneeScope: chore.assigneeScope,
               assigneeName: chore.assigneeName,
               assigneePrimaryColor: chore.assigneePrimaryColor,
               assigneeAvatarId: chore.assigneeAvatarId,

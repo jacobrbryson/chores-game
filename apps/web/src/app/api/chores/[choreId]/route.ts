@@ -49,6 +49,8 @@ type UpdateChoreBody = {
   action?: unknown;
   description?: unknown;
   assigneeId?: unknown;
+  assigneeIds?: unknown;
+  assigneeScope?: unknown;
   dueDate?: unknown;
   details?: unknown;
   categoryIds?: unknown;
@@ -58,6 +60,7 @@ type UpdateChoreBody = {
   recurrenceInterval?: unknown;
   recurrenceUnit?: unknown;
   feedback?: unknown;
+  approvalPayouts?: unknown;
 };
 const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
 
@@ -93,6 +96,63 @@ async function getPrimaryFamilyId(uid: string, idToken: string) {
 
 function normalizeDescription(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function normalizeAssigneeIds(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") {
+      continue;
+    }
+    const trimmed = entry.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+  return normalized;
+}
+
+type ApprovalPayoutEntry = {
+  assigneeId: string;
+  coinValue: number;
+};
+
+function parseApprovalPayoutsJson(value: string): ApprovalPayoutEntry[] {
+  if (!value) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    const normalized: ApprovalPayoutEntry[] = [];
+    for (const entry of parsed) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const assigneeId =
+        "assigneeId" in entry && typeof entry.assigneeId === "string"
+          ? entry.assigneeId.trim()
+          : "";
+      const coinValue =
+        "coinValue" in entry && typeof entry.coinValue === "number" && Number.isFinite(entry.coinValue)
+          ? Math.max(0, Math.trunc(entry.coinValue))
+          : -1;
+      if (assigneeId && coinValue >= 0) {
+        normalized.push({ assigneeId, coinValue });
+      }
+    }
+    return normalized;
+  } catch {
+    return [];
+  }
 }
 
 function asValidDate(value: unknown) {
@@ -388,6 +448,133 @@ async function countActiveChoresForAssignee(
   }).length;
 }
 
+async function listActiveFamilyMemberIds(familyId: string, idToken: string) {
+  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 200);
+  return memberDocs
+    .filter((doc) => !readBoolean(doc.fields, "deleted"))
+    .filter((doc) => {
+      const status = readString(doc.fields, "status");
+      return status === "" || status === "active";
+    })
+    .map((doc) => documentIdFromName(doc.name))
+    .filter(Boolean);
+}
+
+async function userHasFamilyMembership(uid: string, familyId: string, idToken: string) {
+  try {
+    const userDoc = await getDocument(`users/${uid}`, idToken);
+    const familyIds = readStringArray(userDoc.fields, "familyIds");
+    return familyIds.includes(familyId);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (reason.includes("FIRESTORE_HTTP_404")) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function resolveChoreAssigneeIds(
+  familyId: string,
+  fields: Record<string, FirestoreValue> | undefined,
+  idToken: string,
+) {
+  const assigneeId = readString(fields, "assigneeId");
+  const assigneeIdsRaw = readStringArray(fields, "assigneeIds");
+  const assigneeScope = readString(fields, "assigneeScope");
+  if (assigneeScope === "family") {
+    return listActiveFamilyMemberIds(familyId, idToken);
+  }
+  if (assigneeIdsRaw.length > 0) {
+    return assigneeIdsRaw;
+  }
+  return assigneeId ? [assigneeId] : [];
+}
+
+function buildPayoutByAssignee(params: {
+  assigneeIds: string[];
+  totalCoinValue: number;
+  storedPayoutsJson?: string;
+  overrides?: unknown;
+}) {
+  const { assigneeIds, totalCoinValue, storedPayoutsJson = "", overrides } = params;
+  const payoutByAssignee = new Map<string, number>();
+  const storedPayouts = parseApprovalPayoutsJson(storedPayoutsJson);
+  if (storedPayouts.length > 0) {
+    for (const payout of storedPayouts) {
+      payoutByAssignee.set(payout.assigneeId, payout.coinValue);
+    }
+    return payoutByAssignee;
+  }
+
+  const defaultSplit =
+    assigneeIds.length > 0 ? Math.ceil(totalCoinValue / assigneeIds.length) : totalCoinValue;
+  const overrideByAssignee = new Map<string, number>();
+  if (Array.isArray(overrides)) {
+    for (const entry of overrides) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const maybeId =
+        "assigneeId" in entry && typeof entry.assigneeId === "string"
+          ? entry.assigneeId.trim()
+          : "";
+      const maybeCoin =
+        "coinValue" in entry &&
+        typeof entry.coinValue === "number" &&
+        Number.isFinite(entry.coinValue)
+          ? Math.max(0, Math.trunc(entry.coinValue))
+          : -1;
+      if (maybeId && maybeCoin >= 0) {
+        overrideByAssignee.set(maybeId, maybeCoin);
+      }
+    }
+  }
+  for (const assigneeId of assigneeIds) {
+    payoutByAssignee.set(assigneeId, overrideByAssignee.get(assigneeId) ?? defaultSplit);
+  }
+  return payoutByAssignee;
+}
+
+async function applyPayoutByAssignee(params: {
+  familyId: string;
+  idToken: string;
+  choreId: string;
+  payoutByAssignee: Map<string, number>;
+  direction: "credit" | "debit";
+}) {
+  const { familyId, idToken, choreId, payoutByAssignee, direction } = params;
+  let anyApplied = false;
+  for (const [assigneeAlias, coins] of payoutByAssignee.entries()) {
+    if (coins <= 0) {
+      continue;
+    }
+    const assigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
+    if (!assigneeUid) {
+      continue;
+    }
+    try {
+      await applyWalletDelta({
+        uid: assigneeUid,
+        idToken,
+        delta: direction === "credit" ? coins : -coins,
+        reason: direction === "credit" ? "chore_complete" : "chore_undo_complete",
+        choreId,
+      });
+      anyApplied = true;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      if (direction === "debit" && reason.includes("WALLET_NEGATIVE_BLOCKED")) {
+        return { kind: "wallet_negative_blocked" as const };
+      }
+      if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
+        throw error;
+      }
+    }
+  }
+  return { kind: "ok" as const, anyApplied };
+}
+
 function mapCommonFirestoreErrors(reason: string, fallbackError: string) {
   if (reason.includes("FIRESTORE_HTTP_401") || reason.includes("FIREBASE_REFRESH_FAILED")) {
     return jsonReauthRequired();
@@ -454,6 +641,13 @@ export async function GET(
                 : "manual",
             sortOrder: readOptionalSortOrder(choreDoc.fields),
             assigneeId: readString(choreDoc.fields, "assigneeId") || undefined,
+            assigneeIds: readStringArray(choreDoc.fields, "assigneeIds"),
+            assigneeScope:
+              readString(choreDoc.fields, "assigneeScope") === "family"
+                ? "family"
+                : readString(choreDoc.fields, "assigneeScope") === "multiple"
+                  ? "multiple"
+                  : "single",
             assigneeName: readString(choreDoc.fields, "assigneeName") || "Unassigned",
             assigneePrimaryColor: await resolveAssigneePrimaryColor(
               familyId,
@@ -693,6 +887,11 @@ export async function PATCH(
     typeof body.assigneeId === "string" && body.assigneeId.trim().length > 0
       ? body.assigneeId.trim()
       : "";
+  const assigneeIds = normalizeAssigneeIds(body.assigneeIds);
+  const assigneeScope =
+    body.assigneeScope === "family" || body.assigneeScope === "multiple" || body.assigneeScope === "single"
+      ? body.assigneeScope
+      : "";
   const dueDate = asValidDate(body.dueDate);
   const details =
     typeof body.details === "string" && body.details.trim().length > 0
@@ -711,6 +910,11 @@ export async function PATCH(
       : "";
   const hasCategoryIds = Array.isArray(body.categoryIds);
   const categoryIds = normalizeCategoryIds(body.categoryIds);
+  const resolvedAssigneeIds = assigneeIds.length > 0 ? assigneeIds : assigneeId ? [assigneeId] : [];
+  const resolvedAssigneeScope =
+    assigneeScope || (resolvedAssigneeIds.length > 1 ? "multiple" : resolvedAssigneeIds.length === 1 ? "single" : "single");
+  const resolvedSingleAssigneeId =
+    resolvedAssigneeScope === "single" && resolvedAssigneeIds.length === 1 ? resolvedAssigneeIds[0] : "";
 
   if (action === "set_categories" && !hasCategoryIds) {
     return NextResponse.json({ error: "category_ids_required" }, { status: 400 });
@@ -746,6 +950,11 @@ export async function PATCH(
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
           const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
           const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const choreAssigneeIds = await resolveChoreAssigneeIds(
+            familyId,
+            existingChoreDoc.fields,
+            idToken,
+          );
           const choreSource = readString(existingChoreDoc.fields, "source");
           const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
           const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
@@ -767,11 +976,8 @@ export async function PATCH(
           if (currentStatus !== "Open") {
             return { kind: "invalid_transition" as const };
           }
-          const requesterOwnsChore = isRequesterAssignee(
-            choreAssigneeId,
-            session.uid,
-            session.memberId,
-            session.email,
+          const requesterOwnsChore = choreAssigneeIds.some((id) =>
+            isRequesterAssignee(id, session.uid, session.memberId, session.email),
           );
           const requester = await getRequesterContext(
             familyId,
@@ -783,7 +989,8 @@ export async function PATCH(
             return { kind: "forbidden_action" as const };
           }
           let spawnedNextChoreId = "";
-          const completionNeedsApproval = choreRequireApproval && requester.role !== "admin";
+          const completionNeedsApproval =
+            choreRequireApproval || choreAssigneeScope === "family" || choreAssigneeIds.length > 1;
           const nextStatus = completionNeedsApproval ? "Submitted" : "Approved";
           const completionDate = now.slice(0, 10);
           if (choreRecurrence.recurrenceType !== "none") {
@@ -817,6 +1024,8 @@ export async function PATCH(
                 title: stringField(choreTitle),
                 status: stringField("Open"),
                 assigneeId: stringField(choreAssigneeId),
+                assigneeIds: stringArrayField(choreAssigneeIdsRaw),
+                assigneeScope: stringField(choreAssigneeScope || "single"),
                 assigneeName: stringField(readString(existingChoreDoc.fields, "assigneeName") || "Unassigned"),
                 details: stringField(choreDetails),
                 categoryIds: stringArrayField(choreCategoryIds),
@@ -928,6 +1137,16 @@ export async function PATCH(
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
           const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
           const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const choreAssigneeIdsRaw = readStringArray(existingChoreDoc.fields, "assigneeIds");
+          const choreAssigneeScope = readString(existingChoreDoc.fields, "assigneeScope");
+          const choreAssigneeIds =
+            choreAssigneeScope === "family"
+              ? await listActiveFamilyMemberIds(familyId, idToken)
+              : choreAssigneeIdsRaw.length > 0
+                ? choreAssigneeIdsRaw
+                : choreAssigneeId
+                  ? [choreAssigneeId]
+                  : [];
           const choreSource = readString(existingChoreDoc.fields, "source");
           const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
           const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
@@ -960,28 +1179,26 @@ export async function PATCH(
               updatedAt: timestampField(now),
               spawnedNextChoreId: stringField(""),
               rejectionFeedback: stringField(""),
+              approvalPayoutsJson: stringField(""),
             },
             idToken,
-            ["status", "updatedAt", "spawnedNextChoreId", "rejectionFeedback"],
+            ["status", "updatedAt", "spawnedNextChoreId", "rejectionFeedback", "approvalPayoutsJson"],
           );
-          const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
-          if (currentStatus === "Approved" && assigneeUid && choreCoinValue > 0) {
-            try {
-              await applyWalletDelta({
-                uid: assigneeUid,
-                idToken,
-                delta: -choreCoinValue,
-                reason: "chore_undo_complete",
-                choreId,
-              });
-            } catch (error) {
-              const reason = error instanceof Error ? error.message : "";
-              if (reason.includes("WALLET_NEGATIVE_BLOCKED")) {
-                return { kind: "wallet_negative_blocked" as const };
-              }
-              if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
-                throw error;
-              }
+          const payoutByAssignee = buildPayoutByAssignee({
+            assigneeIds: choreAssigneeIds,
+            totalCoinValue: choreCoinValue,
+            storedPayoutsJson: readString(existingChoreDoc.fields, "approvalPayoutsJson"),
+          });
+          if (currentStatus === "Approved") {
+            const payoutResult = await applyPayoutByAssignee({
+              familyId,
+              idToken,
+              choreId,
+              payoutByAssignee,
+              direction: "debit",
+            });
+            if (payoutResult.kind === "wallet_negative_blocked") {
+              return { kind: "wallet_negative_blocked" as const };
             }
           }
           await emitFamilyActivity({
@@ -1017,6 +1234,11 @@ export async function PATCH(
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
           const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
           const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const choreAssigneeIds = await resolveChoreAssigneeIds(
+            familyId,
+            existingChoreDoc.fields,
+            idToken,
+          );
           const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
           const choreRequireApproval = readBoolean(existingChoreDoc.fields, "requireApproval");
           if (currentStatus !== "Submitted" || !choreRequireApproval) {
@@ -1031,25 +1253,35 @@ export async function PATCH(
             idToken,
             ["status", "updatedAt"],
           );
-          const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
-          let payoutApplied = false;
-          if (assigneeUid && choreCoinValue > 0) {
-            try {
-              await applyWalletDelta({
-                uid: assigneeUid,
-                idToken,
-                delta: choreCoinValue,
-                reason: "chore_complete",
-                choreId,
-              });
-              payoutApplied = true;
-            } catch (error) {
-              const reason = error instanceof Error ? error.message : "";
-              if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
-                throw error;
-              }
-            }
-          }
+          const payoutByAssignee = buildPayoutByAssignee({
+            assigneeIds: choreAssigneeIds,
+            totalCoinValue: choreCoinValue,
+            overrides: body.approvalPayouts,
+          });
+          await patchDocument(
+            `families/${familyId}/chores/${choreId}`,
+            {
+              approvalPayoutsJson: stringField(
+                JSON.stringify(
+                  Array.from(payoutByAssignee.entries()).map(([assigneeId, coinValue]) => ({
+                    assigneeId,
+                    coinValue,
+                  })),
+                ),
+              ),
+              updatedAt: timestampField(now),
+            },
+            idToken,
+            ["approvalPayoutsJson", "updatedAt"],
+          );
+          const payoutResult = await applyPayoutByAssignee({
+            familyId,
+            idToken,
+            choreId,
+            payoutByAssignee,
+            direction: "credit",
+          });
+          const payoutApplied = payoutResult.kind === "ok" && payoutResult.anyApplied;
           await emitFamilyActivity({
             familyId,
             idToken,
@@ -1058,7 +1290,7 @@ export async function PATCH(
             actorEmail: session.email,
             actorName,
             title: "Chore approved",
-            message: `${actorName} approved "${choreTitle}"${payoutApplied ? ` and paid ${choreCoinValue} coins` : ""}.`,
+            message: `${actorName} approved "${choreTitle}"${payoutApplied ? " and paid coins" : ""}.`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
@@ -1079,16 +1311,24 @@ export async function PATCH(
               admin_chores_approved: 1,
             },
           });
-          if (assigneeUid) {
+          for (const assigneeAlias of choreAssigneeIds) {
+            const assigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
+            if (!assigneeUid) {
+              continue;
+            }
+            const canTrack = await userHasFamilyMembership(assigneeUid, familyId, idToken);
+            if (!canTrack) {
+              continue;
+            }
             await trackAchievementEvent({
               uid: assigneeUid,
               familyId,
               idToken,
               viewerRole: "player",
-              eventId: `chore_approved_${choreId}`,
+              eventId: `chore_approved_${choreId}_${assigneeUid}`,
               metricDeltas: {
                 chores_approved: 1,
-                coins_earned: payoutApplied ? choreCoinValue : 0,
+                coins_earned: payoutByAssignee.get(assigneeAlias) ?? 0,
               },
               approvalStreakDelta: "increment",
             });
@@ -1226,14 +1466,14 @@ export async function PATCH(
             syncOwnerUid = choreGoogleTaskOwnerUid;
           } else if (
             isRequesterAssignee(previousAssigneeId, session.uid, session.memberId, session.email) ||
-            isRequesterAssignee(assigneeId, session.uid, session.memberId, session.email)
+            isRequesterAssignee(resolvedSingleAssigneeId, session.uid, session.memberId, session.email)
           ) {
             syncOwnerUid = session.uid;
           }
-          if (assigneeId) {
+          if (resolvedSingleAssigneeId) {
             const activeChoreCount = await countActiveChoresForAssignee(
               familyId,
-              assigneeId,
+              resolvedSingleAssigneeId,
               idToken,
               choreId,
             );
@@ -1241,20 +1481,31 @@ export async function PATCH(
               return { kind: "active_chore_limit_reached" as const };
             }
           }
-          const resolvedAssigneeName = assigneeId
-            ? await getFamilyMemberName(familyId, assigneeId, idToken)
-            : "Unassigned";
+          const resolvedAssigneeName =
+            resolvedAssigneeScope === "family"
+              ? "Family"
+              : resolvedAssigneeIds.length > 1
+                ? `${resolvedAssigneeIds.length} assignees`
+                : resolvedSingleAssigneeId
+                  ? await getFamilyMemberName(familyId, resolvedSingleAssigneeId, idToken)
+                  : "Unassigned";
           await patchDocument(
             `families/${familyId}/chores/${choreId}`,
             {
               title: stringField(normalizedDescription),
-              assigneeId: stringField(assigneeId),
+              assigneeId: stringField(resolvedSingleAssigneeId),
+              assigneeIds: stringArrayField(resolvedAssigneeIds),
+              assigneeScope: stringField(resolvedAssigneeScope),
               assigneeName: stringField(resolvedAssigneeName),
               dueDate: stringField(dueDate),
               details: stringField(details),
               categoryIds: stringArrayField(nextCategoryIds),
               coinValue: integerField(coinValue ?? DEFAULT_CHORE_COIN_VALUE),
-              requireApproval: boolField(requireApproval),
+              requireApproval: boolField(
+                resolvedAssigneeScope === "family" || resolvedAssigneeIds.length > 1
+                  ? true
+                  : requireApproval,
+              ),
               recurrenceType: stringField(recurrence.recurrenceType),
               recurrenceInterval: integerField(recurrence.recurrenceInterval ?? 0),
               recurrenceUnit: stringField(recurrence.recurrenceUnit ?? ""),
@@ -1264,6 +1515,8 @@ export async function PATCH(
             [
               "title",
               "assigneeId",
+              "assigneeIds",
+              "assigneeScope",
               "assigneeName",
               "dueDate",
               "details",
@@ -1287,7 +1540,7 @@ export async function PATCH(
             message: `${actorName} updated "${normalizedDescription || previousTitle}" (${coinValue ?? DEFAULT_CHORE_COIN_VALUE} coins${requireApproval ? ", approval required" : ""}${recurrence.recurrenceType !== "none" ? `, ${recurrenceLabel(recurrence).toLowerCase()}` : ""}).`,
             choreId,
             choreTitle: normalizedDescription || previousTitle,
-            relatedIds: [assigneeId, previousAssigneeId].filter(Boolean),
+            relatedIds: Array.from(new Set([...resolvedAssigneeIds, previousAssigneeId].filter(Boolean))),
           });
           await publishFamilyActivity({
             type: "chore_updated",
@@ -1393,6 +1646,11 @@ export async function DELETE(
         const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
         const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
         const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+        const choreAssigneeIds = await resolveChoreAssigneeIds(
+          familyId,
+          existingChoreDoc.fields,
+          idToken,
+        );
         const choreSource = readString(existingChoreDoc.fields, "source");
         const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
         const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
@@ -1409,26 +1667,21 @@ export async function DELETE(
           idToken,
           ["deleted", "deletedAt", "status", "updatedAt"],
         );
-        if (currentStatus === "Approved" && choreCoinValue > 0) {
-          const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
-          if (assigneeUid) {
-            try {
-              await applyWalletDelta({
-                uid: assigneeUid,
-                idToken,
-                delta: -choreCoinValue,
-                reason: "chore_undo_complete",
-                choreId,
-              });
-            } catch (error) {
-              const reason = error instanceof Error ? error.message : "";
-              if (reason.includes("WALLET_NEGATIVE_BLOCKED")) {
-                return { kind: "wallet_negative_blocked" as const };
-              }
-              if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
-                throw error;
-              }
-            }
+        if (currentStatus === "Approved") {
+          const payoutByAssignee = buildPayoutByAssignee({
+            assigneeIds: choreAssigneeIds,
+            totalCoinValue: choreCoinValue,
+            storedPayoutsJson: readString(existingChoreDoc.fields, "approvalPayoutsJson"),
+          });
+          const payoutResult = await applyPayoutByAssignee({
+            familyId,
+            idToken,
+            choreId,
+            payoutByAssignee,
+            direction: "debit",
+          });
+          if (payoutResult.kind === "wallet_negative_blocked") {
+            return { kind: "wallet_negative_blocked" as const };
           }
         }
         await emitFamilyActivity({

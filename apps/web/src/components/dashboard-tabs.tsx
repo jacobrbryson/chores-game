@@ -81,7 +81,8 @@ const DASHBOARD_TABS: DashboardTab[] = [
   {
     id: "quests",
     label: "Quests",
-    href: "/quests",
+    disabled: true,
+    tooltip: "Coming Soon",
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path

@@ -18,6 +18,7 @@ export function AchievementsPageClient() {
   const [error, setError] = useState("");
   const [highlightedId, setHighlightedId] = useState("");
   const [adminFilter, setAdminFilter] = useState<AudienceFilter>("all");
+  const [hideComplete, setHideComplete] = useState(false);
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
 
   const load = useCallback(async () => {
@@ -54,39 +55,63 @@ export function AchievementsPageClient() {
   }, [items, searchParams]);
 
   const orderedItems = useMemo(() => {
-    const sorted = [...items].sort((a, b) => {
+    let filtered = [...items];
+    if (viewerRole === "admin" && adminFilter !== "all") {
+      filtered = filtered.filter((item) => item.audience === adminFilter);
+    }
+    if (hideComplete) {
+      filtered = filtered.filter((item) => !item.completed);
+    }
+
+    return filtered.sort((a, b) => {
+      if (b.percentComplete !== a.percentComplete) {
+        return b.percentComplete - a.percentComplete;
+      }
       if (viewerRole === "player" && a.audience !== b.audience) {
         return a.audience === "player" ? -1 : 1;
       }
       return a.sortOrder - b.sortOrder;
     });
-    if (viewerRole !== "admin" || adminFilter === "all") {
-      return sorted;
-    }
-    return sorted.filter((item) => item.audience === adminFilter);
-  }, [adminFilter, items, viewerRole]);
+  }, [adminFilter, hideComplete, items, viewerRole]);
 
   return (
     <section className="space-y-4">
-      {viewerRole === "admin" ? (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            className={`btn btn-secondary ${adminFilter === "all" ? "ring-2 ring-sky-300" : ""}`}
-            onClick={() => setAdminFilter("all")}>
-            All
-          </Button>
-          <Button
-            className={`btn btn-secondary ${adminFilter === "player" ? "ring-2 ring-sky-300" : ""}`}
-            onClick={() => setAdminFilter("player")}>
-            Player
-          </Button>
-          <Button
-            className={`btn btn-secondary ${adminFilter === "admin" ? "ring-2 ring-sky-300" : ""}`}
-            onClick={() => setAdminFilter("admin")}>
-            Admin
-          </Button>
-        </div>
-      ) : null}
+      <div className="flex flex-wrap gap-2">
+        {viewerRole === "admin" ? (
+          <>
+            <Button
+              className={`btn btn-secondary ${adminFilter === "all" ? "ring-2 ring-sky-300" : ""}`}
+              onClick={() => setAdminFilter("all")}>
+              All
+            </Button>
+            <Button
+              className={`btn btn-secondary ${adminFilter === "player" ? "ring-2 ring-sky-300" : ""}`}
+              onClick={() => setAdminFilter("player")}>
+              Player
+            </Button>
+            <Button
+              className={`btn btn-secondary ${adminFilter === "admin" ? "ring-2 ring-sky-300" : ""}`}
+              onClick={() => setAdminFilter("admin")}>
+              Admin
+            </Button>
+          </>
+        ) : null}
+        <label className="today-chores-toggle-row">
+          <input
+            type="checkbox"
+            className="peer sr-only"
+            checked={hideComplete}
+            onChange={(event) => setHideComplete(event.target.checked)}
+          />
+          <span
+            aria-hidden="true"
+            className="my-chores-toggle-track"
+          />
+          <span className="small today-chores-toggle-copy">
+            <span>Hide Complete</span>
+          </span>
+        </label>
+      </div>
       {isLoading ? <p className="small">Loading achievements...</p> : null}
       {!isLoading && error ? <Alert>Could not load achievements: {error}</Alert> : null}
       {!isLoading && !error ? (

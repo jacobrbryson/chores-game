@@ -4,8 +4,10 @@ import { AddEditChoresDialog, type AddEditChoreSavedResult } from "@/components/
 import { Alert } from "@/components/alert";
 import { AppMenu } from "@/components/app-menu";
 import { Button } from "@/components/button";
+import { CoinIcon } from "@/components/coin-icon";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { MenuActionButton } from "@/components/menu-action-button";
+import { ModalShell } from "@/components/modal-shell";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import {
   CategoryScale,
@@ -24,7 +26,7 @@ import Link from "next/link";
 import { TodayChoreCard } from "@/components/today-chore-card";
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { Line } from "react-chartjs-2";
-import type { FamilySnapshotChore } from "@/lib/family/types";
+import type { FamilySnapshotChore, FamilySnapshotMember } from "@/lib/family/types";
 import {
   parseCompletionWindow,
   type CompletionWindow,
@@ -33,6 +35,7 @@ import { triggerPartyConfetti } from "@/lib/confetti/party";
 
 type TodayChoresPanelProps = {
   chores: FamilySnapshotChore[];
+  members: FamilySnapshotMember[];
   viewerAssigneeIds: string[];
   viewerRole: "admin" | "player";
   onReload: () => Promise<void> | void;
@@ -297,6 +300,7 @@ function reorderChoreIds(
 
 export function TodayChoresPanel({
   chores,
+  members,
   viewerAssigneeIds,
   viewerRole,
   onReload,
@@ -324,6 +328,8 @@ export function TodayChoresPanel({
   } | null>(null);
   const [reorderBusy, setReorderBusy] = useState(false);
   const [choreActionError, setChoreActionError] = useState("");
+  const [pendingApproveChore, setPendingApproveChore] = useState<FamilySnapshotChore | null>(null);
+  const [approvalCoinsByAssignee, setApprovalCoinsByAssignee] = useState<Record<string, number>>({});
   const [myChoresOnly, setMyChoresOnly] = useState(readMyChoresOnly);
   const [completionWindow, setCompletionWindow] = useState<CompletionWindow>(readCompletionWindow);
   const [completionCounts, setCompletionCounts] = useState<CompletionCount[]>([]);
@@ -525,6 +531,20 @@ export function TodayChoresPanel({
       ),
     [viewerAssigneeIds],
   );
+  const memberByAlias = useMemo(() => {
+    const map = new Map<string, FamilySnapshotMember>();
+    for (const member of members) {
+      map.set(member.id, member);
+      if (member.uid) {
+        map.set(member.uid, member);
+      }
+      const normalizedEmail = member.email.trim().toLowerCase();
+      if (normalizedEmail) {
+        map.set(normalizedEmail, member);
+      }
+    }
+    return map;
+  }, [members]);
   const pendingCreateChores = useMemo(
     () => Object.values(pendingCreateChoresByRequestId),
     [pendingCreateChoresByRequestId],
@@ -614,7 +634,8 @@ export function TodayChoresPanel({
     }
     return sortedOpenChores.filter(
       (chore) =>
-        chore.assigneeId && viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId)),
+        (chore.assigneeIds ?? []).some((id) => viewerAssigneeIdSet.has(normalizeAssigneeAlias(id))) ||
+        Boolean(chore.assigneeId && viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId))),
     );
   }, [sortedOpenChores, myChoresOnly, viewerAssigneeIdSet]);
   const hasBusyChoreAction = Object.keys(busyActionsById).length > 0;
@@ -947,7 +968,24 @@ export function TodayChoresPanel({
     choreId: string,
     source?: { clientX: number; clientY: number },
   ) {
+    const chore = openChores.find((entry) => entry.id === choreId);
     if (busyActionsById[choreId]) {
+      return;
+    }
+    const isMultiOrFamily =
+      chore?.assigneeScope === "family" || (chore?.assigneeIds?.length ?? 0) > 1;
+    if (viewerRole === "admin" && chore && isMultiOrFamily) {
+      const assigneeIds = chore.assigneeScope === "family"
+        ? members.filter((member) => member.status === "active").map((member) => member.id)
+        : chore.assigneeIds ?? [];
+      const defaultCoins =
+        assigneeIds.length > 0 ? Math.ceil((chore.coinValue ?? 0) / assigneeIds.length) : chore.coinValue ?? 0;
+      const nextCoins: Record<string, number> = {};
+      for (const assigneeId of assigneeIds) {
+        nextCoins[assigneeId] = defaultCoins;
+      }
+      setApprovalCoinsByAssignee(nextCoins);
+      setPendingApproveChore(chore);
       return;
     }
     setChoreActionError("");
@@ -1003,6 +1041,58 @@ export function TodayChoresPanel({
         delete next[choreId];
         return next;
       });
+    } finally {
+      setBusyActionsById((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
+    }
+  }
+
+  async function onCompleteAndApproveFromDashboard() {
+    if (!pendingApproveChore || busyActionsById[pendingApproveChore.id]) {
+      return;
+    }
+    const choreId = pendingApproveChore.id;
+    setChoreActionError("");
+    setBusyActionsById((current) => ({ ...current, [choreId]: "complete" }));
+    try {
+      const completeResponse = await fetch(`/api/chores/${choreId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "complete" }),
+      });
+      if (!completeResponse.ok) {
+        const body = (await completeResponse.json()) as { error?: string };
+        throw new Error(body.error ?? `COMPLETE_CHORE_HTTP_${completeResponse.status}`);
+      }
+
+      const approveResponse = await fetch(`/api/chores/${choreId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "approve",
+          approvalPayouts: Object.entries(approvalCoinsByAssignee).map(([assigneeId, coinValue]) => ({
+            assigneeId,
+            coinValue: Math.max(0, Math.trunc(Number(coinValue) || 0)),
+          })),
+        }),
+      });
+      if (!approveResponse.ok) {
+        const body = (await approveResponse.json()) as { error?: string };
+        throw new Error(body.error ?? `APPROVE_CHORE_HTTP_${approveResponse.status}`);
+      }
+      setPendingApproveChore(null);
+      setApprovalCoinsByAssignee({});
+      await onReload();
+      setCompletionStatsRefreshTick((current) => current + 1);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("wallet:refresh"));
+        window.dispatchEvent(new Event("notifications:refresh"));
+      }
+    } catch (error) {
+      setChoreActionError(normalizeError(error, "complete_and_approve_failed"));
     } finally {
       setBusyActionsById((current) => {
         const next = { ...current };
@@ -1273,10 +1363,10 @@ export function TodayChoresPanel({
                     canComplete={
                       !pendingCreateChoreIdSet.has(chore.id) &&
                       (viewerRole === "admin" ||
-                        Boolean(
-                          chore.assigneeId &&
-                            viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId)),
-                        ))
+                        (chore.assigneeIds ?? []).some((id) =>
+                          viewerAssigneeIdSet.has(normalizeAssigneeAlias(id)),
+                        ) ||
+                        Boolean(chore.assigneeId && viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId))))
                     }
                     canReorder={canReorderChores && !reorderBusy}
                     isDragging={draggingChoreId === chore.id}
@@ -1437,6 +1527,90 @@ export function TodayChoresPanel({
           ) : null}
         </aside>
       </div>
+      <ModalShell
+        open={Boolean(pendingApproveChore)}
+        onRequestClose={() => setPendingApproveChore(null)}>
+        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+          {pendingApproveChore ? (
+            <>
+              <div className="modal-dialog-title-row mb-2">
+                <h3 className="text-lg font-bold text-slate-800">Complete and Approve Chore</h3>
+                <Button
+                  type="button"
+                  className="modal-close-button"
+                  onClick={() => setPendingApproveChore(null)}
+                  aria-label="Close dialog"
+                  title="Close dialog">
+                  X
+                </Button>
+              </div>
+              <p className="mb-3 text-sm text-slate-600">
+                <strong>{pendingApproveChore.title}</strong> total coins:{" "}
+                <strong>{pendingApproveChore.coinValue}</strong>
+              </p>
+              <div className="mb-4 flex flex-col gap-2">
+                {(
+                  pendingApproveChore.assigneeScope === "family"
+                    ? members.filter((member) => member.status === "active").map((member) => member.id)
+                    : pendingApproveChore.assigneeIds ?? []
+                ).map((assigneeId) => {
+                  const member = memberByAlias.get(assigneeId);
+                  return (
+                    <label key={assigneeId} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 p-2">
+                      <span className="inline-flex items-center gap-2 text-sm text-slate-700">
+                        <FamilyMemberAvatar
+                          size={28}
+                          borderWidth={1}
+                          name={member?.name || "Family member"}
+                          avatarId={member?.avatarId || undefined}
+                          avatarPhotoUrl={member?.avatarPhotoUrl || undefined}
+                        />
+                        <span>{member?.name || assigneeId}</span>
+                      </span>
+                      <span className="relative inline-flex items-center">
+                        <span className="pointer-events-none absolute left-2 inline-flex items-center text-amber-500">
+                          <CoinIcon size={14} />
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={approvalCoinsByAssignee[assigneeId] ?? 0}
+                          onChange={(event) =>
+                            setApprovalCoinsByAssignee((current) => ({
+                              ...current,
+                              [assigneeId]: Math.max(0, Math.trunc(Number(event.target.value) || 0)),
+                            }))
+                          }
+                          className="h-9 w-24 rounded-md border border-slate-300 py-1 pr-2 pl-7 text-right text-slate-800"
+                        />
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={Boolean(busyActionsById[pendingApproveChore.id])}
+                  onClick={() => setPendingApproveChore(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={Boolean(busyActionsById[pendingApproveChore.id])}
+                  onClick={() => void onCompleteAndApproveFromDashboard()}>
+                  {busyActionsById[pendingApproveChore.id] === "complete"
+                    ? "Saving..."
+                    : "Complete and Approve"}
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </ModalShell>
     </article>
   );
 }

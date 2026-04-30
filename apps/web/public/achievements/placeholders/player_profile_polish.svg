@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="player_profile_polish achievement">
+<defs>
+  <radialGradient id="bg" cx="50%" cy="42%" r="74%"><stop offset="0%" stop-color="#5e6571"/><stop offset="55%" stop-color="#262b34"/><stop offset="100%" stop-color="#07090d"/></radialGradient>
+  <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f0abfc"/><stop offset="60%" stop-color="#e879f9"/><stop offset="100%" stop-color="#2a2a2a"/></linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#000" flood-opacity="0.5"/></filter>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<g transform="translate(256 262)" filter="url(#shadow)">
+  <circle r="188" fill="url(#rim)" stroke="#111" stroke-width="10"/>
+  <circle r="152" fill="#f4f4f5" stroke="#27272a" stroke-width="8"/>
+  <g transform="translate(-256 -262)"><circle cx="238" cy="212" r="44" fill="#e9d5ff"/><rect x="176" y="264" width="124" height="86" rx="40" fill="#d8b4fe"/><path d="M322 178l10 20 22 6-18 14 2 22-16-12-20 8 6-20-14-16 22-2z" fill="#fde68a"/></g>
+  <ellipse cx="-48" cy="-76" rx="72" ry="34" fill="#fff" opacity="0.35"/>
+</g>
+
+</svg>

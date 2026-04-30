@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="player_google_task_done achievement">
+<defs>
+  <radialGradient id="bg" cx="50%" cy="42%" r="74%"><stop offset="0%" stop-color="#5e6571"/><stop offset="55%" stop-color="#262b34"/><stop offset="100%" stop-color="#07090d"/></radialGradient>
+  <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#86efac"/><stop offset="60%" stop-color="#4ade80"/><stop offset="100%" stop-color="#2a2a2a"/></linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#000" flood-opacity="0.5"/></filter>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<g transform="translate(256 262)" filter="url(#shadow)">
+  <circle r="188" fill="url(#rim)" stroke="#111" stroke-width="10"/>
+  <circle r="152" fill="#f4f4f5" stroke="#27272a" stroke-width="8"/>
+  <g transform="translate(-256 -262)"><rect x="152" y="176" width="208" height="160" rx="24" fill="#e2e8f0" stroke="#334155" stroke-width="12"/><path d="M204 250h52" stroke="#16a34a" stroke-width="16" stroke-linecap="round"/><path d="M228 250c0-24 14-44 38-44 14 0 26 6 34 18" fill="none" stroke="#16a34a" stroke-width="14" stroke-linecap="round"/><path d="M244 280l24 24 52-56" fill="none" stroke="#16a34a" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></g>
+  <ellipse cx="-48" cy="-76" rx="72" ry="34" fill="#fff" opacity="0.35"/>
+</g>
+<g><rect x="306" y="306" width="104" height="64" rx="18" fill="#111827" stroke="#f8fafc" stroke-width="6"/><text x="358" y="350" text-anchor="middle" font-family="Trebuchet MS, Verdana, sans-serif" font-size="30" font-weight="900" fill="#f8fafc">G</text></g>
+</svg>

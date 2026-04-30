@@ -81,6 +81,8 @@ export function TodayChoreCard({
   const assigneePrimaryColor = getSafeHexColor(chore.assigneePrimaryColor);
   const assigneeAvatarId = chore.assigneeAvatarId?.trim() || "";
   const assigneeAvatarPhotoUrl = chore.assigneeAvatarPhotoUrl?.trim() || "";
+  const isMultiOrFamilyAssignee =
+    chore.assigneeScope === "family" || (chore.assigneeIds?.length ?? 0) > 1;
 
   function updateMenuPosition() {
     if (!triggerRef.current || typeof window === "undefined") {
@@ -188,6 +190,8 @@ export function TodayChoreCard({
           id: chore.id,
           title: chore.title,
           assigneeId: chore.assigneeId,
+          assigneeIds: chore.assigneeIds,
+          assigneeScope: chore.assigneeScope,
           assigneeName: chore.assigneeName,
           source: chore.source,
           dueDate: chore.dueDate,
@@ -336,8 +340,10 @@ export function TodayChoreCard({
           {busyAction === "complete"
             ? "Marking..."
             : canComplete
-              ? chore.requireApproval && isAdminViewer
-                ? "Complete and Approve"
+              ? isMultiOrFamilyAssignee && isAdminViewer
+                ? "Complete and Approve..."
+                : chore.requireApproval && isAdminViewer
+                  ? "Complete and Approve"
                 : "Mark as Complete"
               : "Only assignee can complete"}
         </Button>

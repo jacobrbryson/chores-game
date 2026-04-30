@@ -49,6 +49,8 @@ import { trackAchievementEvent } from "@/lib/achievements/service";
 type CreateChoresBody = {
   description?: unknown;
   assigneeId?: unknown;
+  assigneeIds?: unknown;
+  assigneeScope?: unknown;
   details?: unknown;
   titles?: unknown;
   dueDate?: unknown;
@@ -72,6 +74,8 @@ type ChoreRow = {
   source: "manual" | "google_tasks";
   sortOrder?: number;
   assigneeId?: string;
+  assigneeIds?: string[];
+  assigneeScope?: "single" | "multiple" | "family";
   assigneeName: string;
   assigneeAvatarId?: string;
   assigneeAvatarPhotoUrl?: string;
@@ -89,6 +93,13 @@ type ChoreRow = {
   createdAt?: string;
   submittedAt?: string;
   updatedAt?: string;
+};
+
+type AssigneeDirectoryEntry = {
+  id: string;
+  name: string;
+  avatarId?: string;
+  avatarPhotoUrl?: string;
 };
 
 type ViewerRole = "admin" | "player";
@@ -181,6 +192,26 @@ function normalizeDescription(value: string) {
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
+}
+
+function normalizeAssigneeIds(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") {
+      continue;
+    }
+    const trimmed = entry.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+  return normalized;
 }
 
 function isRequesterAssignee(assigneeId: string, uid: string, memberId: string, email: string) {
@@ -304,6 +335,13 @@ function normalizeChoreDoc(doc: {
     source,
     sortOrder: readOptionalSortOrder(doc.fields),
     assigneeId: readString(doc.fields, "assigneeId") || undefined,
+    assigneeIds: readStringArray(doc.fields, "assigneeIds"),
+    assigneeScope:
+      readString(doc.fields, "assigneeScope") === "family"
+        ? "family"
+        : readString(doc.fields, "assigneeScope") === "multiple"
+          ? "multiple"
+          : "single",
     assigneeName: readString(doc.fields, "assigneeName") || "Unassigned",
     details: readString(doc.fields, "details") || undefined,
     dueDate: readString(doc.fields, "dueDate"),
@@ -853,13 +891,22 @@ export async function GET(request: NextRequest) {
           : "";
         const assigneeAvatarByAlias = new Map<string, string>();
         const assigneeAvatarPhotoByAlias = new Map<string, string>();
+        const assigneeDirectoryByAlias = new Map<string, AssigneeDirectoryEntry>();
         for (const memberDoc of memberDocs) {
           if (readBoolean(memberDoc.fields, "deleted")) {
             continue;
           }
           const memberId = documentIdFromName(memberDoc.name);
+          const memberName = readString(memberDoc.fields, "name") || "Family member";
           const avatarId = readString(memberDoc.fields, "avatarId");
           const avatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
+          const directoryEntry: AssigneeDirectoryEntry = {
+            id: memberId,
+            name: memberName,
+            avatarId: avatarId || undefined,
+            avatarPhotoUrl: avatarPhotoUrl || undefined,
+          };
+          assigneeDirectoryByAlias.set(memberId, directoryEntry);
           if (avatarId) {
             assigneeAvatarByAlias.set(memberId, avatarId);
           }
@@ -868,6 +915,7 @@ export async function GET(request: NextRequest) {
           }
           const memberUid = readString(memberDoc.fields, "uid");
           if (memberUid) {
+            assigneeDirectoryByAlias.set(memberUid, directoryEntry);
             if (avatarId) {
               assigneeAvatarByAlias.set(memberUid, avatarId);
             }
@@ -877,6 +925,7 @@ export async function GET(request: NextRequest) {
           }
           const normalizedEmail = normalizeEmail(readString(memberDoc.fields, "email"));
           if (normalizedEmail) {
+            assigneeDirectoryByAlias.set(normalizedEmail, directoryEntry);
             if (avatarId) {
               assigneeAvatarByAlias.set(normalizedEmail, avatarId);
             }
@@ -949,6 +998,8 @@ export async function GET(request: NextRequest) {
             source: doc.source,
             sortOrder: doc.sortOrder,
             assigneeId: doc.assigneeId,
+            assigneeIds: doc.assigneeIds,
+            assigneeScope: doc.assigneeScope,
             assigneeName: doc.assigneeName,
             assigneeAvatarId: doc.assigneeId
               ? assigneeAvatarByAlias.get(doc.assigneeId) ??
@@ -986,6 +1037,9 @@ export async function GET(request: NextRequest) {
             uid: session.uid,
             familyIds: [familyId],
           }),
+          assigneeDirectory: Array.from(new Map(
+            Array.from(assigneeDirectoryByAlias.values()).map((entry) => [entry.id, entry] as const),
+          ).values()),
           pagination: {
             page: pagination.page,
             pageSize: pagination.pageSize,
@@ -1152,6 +1206,16 @@ export async function POST(request: NextRequest) {
     typeof body.assigneeId === "string" && body.assigneeId.trim().length > 0
       ? body.assigneeId.trim()
       : "";
+  const assigneeIds = normalizeAssigneeIds(body.assigneeIds);
+  const assigneeScopeInput =
+    body.assigneeScope === "family" || body.assigneeScope === "multiple" || body.assigneeScope === "single"
+      ? body.assigneeScope
+      : "";
+  const resolvedAssigneeScope =
+    assigneeScopeInput || (assigneeIds.length > 1 ? "multiple" : assigneeIds.length === 1 ? "single" : "single");
+  const resolvedAssigneeIds = assigneeIds.length > 0 ? assigneeIds : assigneeId ? [assigneeId] : [];
+  const resolvedSingleAssigneeId =
+    resolvedAssigneeScope === "single" && resolvedAssigneeIds.length === 1 ? resolvedAssigneeIds[0] : "";
   const categoryIds = normalizeCategoryIds(body.categoryIds);
   const coinValue = parseCoinValue(body.coinValue);
   const requireApproval = parseRequireApproval(body.requireApproval);
@@ -1212,13 +1276,18 @@ export async function POST(request: NextRequest) {
           return Math.max(maxValue, chore.sortOrder);
         }, -1);
         const nextSortOrder = maxSortOrder + 1;
-        const resolvedAssigneeName = assigneeId
-          ? await getFamilyMemberName(familyId, assigneeId, idToken)
-          : "Unassigned";
-        if (assigneeId) {
+        const resolvedAssigneeName =
+          resolvedAssigneeScope === "family"
+            ? "Family"
+            : resolvedAssigneeIds.length > 1
+              ? `${resolvedAssigneeIds.length} assignees`
+              : resolvedSingleAssigneeId
+                ? await getFamilyMemberName(familyId, resolvedSingleAssigneeId, idToken)
+                : "Unassigned";
+        if (resolvedSingleAssigneeId) {
           const activeChoreCount = await countActiveChoresForAssignee(
             familyId,
-            assigneeId,
+            resolvedSingleAssigneeId,
             idToken,
           );
           if (activeChoreCount + titles.length > MAX_ACTIVE_CHORES_PER_ASSIGNEE) {
@@ -1239,13 +1308,19 @@ export async function POST(request: NextRequest) {
               {
                 title: stringField(chore.title),
                 status: stringField("Open"),
-                assigneeId: stringField(assigneeId),
+                assigneeId: stringField(resolvedSingleAssigneeId),
+                assigneeIds: stringArrayField(resolvedAssigneeIds),
+                assigneeScope: stringField(resolvedAssigneeScope),
                 assigneeName: stringField(resolvedAssigneeName),
                 details: stringField(details),
                 categoryIds: stringArrayField(categoryIds),
                 dueDate: stringField(dueDate),
                 coinValue: integerField(coinValue),
-                requireApproval: boolField(requireApproval),
+                requireApproval: boolField(
+                  resolvedAssigneeScope === "family" || resolvedAssigneeIds.length > 1
+                    ? true
+                    : requireApproval,
+                ),
                 recurrenceType: stringField(recurrence.recurrenceType),
                 recurrenceInterval: integerField(recurrence.recurrenceInterval ?? 0),
                 recurrenceUnit: stringField(recurrence.recurrenceUnit ?? ""),
@@ -1272,7 +1347,7 @@ export async function POST(request: NextRequest) {
               message: `${session.name || "Someone"} added "${chore.title}" (${coinValue} coins${requireApproval ? ", approval required" : ""}${recurrence.recurrenceType !== "none" ? `, ${recurrenceLabel(recurrence).toLowerCase()}` : ""}).`,
               choreId: chore.id,
               choreTitle: chore.title,
-              relatedIds: assigneeId ? [assigneeId] : [],
+              relatedIds: resolvedAssigneeIds,
             }),
           ),
         );
@@ -1298,7 +1373,7 @@ export async function POST(request: NextRequest) {
           }),
         );
 
-        if (isRequesterAssignee(assigneeId, session.uid, session.memberId, session.email)) {
+        if (isRequesterAssignee(resolvedSingleAssigneeId, session.uid, session.memberId, session.email)) {
           await syncGoogleTasksForUser({
             uid: session.uid,
             idToken,

@@ -110,6 +110,8 @@ export function FamilyCard() {
           source?: "manual" | "google_tasks";
           sortOrder?: number;
           assigneeId?: string;
+          assigneeIds?: string[];
+          assigneeScope?: "single" | "multiple" | "family";
           assigneeName: string;
           assigneePrimaryColor?: string;
           assigneeAvatarId?: string;
@@ -136,6 +138,8 @@ export function FamilyCard() {
         title: chore.title,
         sortOrder: typeof chore.sortOrder === "number" ? chore.sortOrder : undefined,
         assigneeId: chore.assigneeId,
+        assigneeIds: Array.isArray(chore.assigneeIds) ? chore.assigneeIds : [],
+        assigneeScope: chore.assigneeScope,
         assigneeName: chore.assigneeName || "Unassigned",
         assigneePrimaryColor: chore.assigneePrimaryColor,
         assigneeAvatarId: chore.assigneeAvatarId,
@@ -339,6 +343,7 @@ export function FamilyCard() {
           ) : (
             <TodayChoresPanel
               chores={summary.choresToday}
+              members={summary.members}
               viewerAssigneeIds={viewerAssigneeIds}
               viewerRole={viewerRole}
               onReload={() => loadSummary({ silent: true })}

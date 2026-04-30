@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="admin_family_builder achievement">
+<defs>
+  <radialGradient id="bg" cx="50%" cy="42%" r="74%"><stop offset="0%" stop-color="#5e6571"/><stop offset="55%" stop-color="#262b34"/><stop offset="100%" stop-color="#07090d"/></radialGradient>
+  <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#93c5fd"/><stop offset="60%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#2a2a2a"/></linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#000" flood-opacity="0.5"/></filter>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<g transform="translate(256 262)" filter="url(#shadow)">
+  <circle r="188" fill="url(#rim)" stroke="#111" stroke-width="10"/>
+  <circle r="152" fill="#f4f4f5" stroke="#27272a" stroke-width="8"/>
+  <g transform="translate(-256 -262)"><circle cx="208" cy="228" r="30" fill="#bfdbfe"/><circle cx="288" cy="228" r="30" fill="#bfdbfe"/><rect x="170" y="264" width="156" height="74" rx="32" fill="#93c5fd"/><path d="M354 208v54M327 235h54" stroke="#1d4ed8" stroke-width="14" stroke-linecap="round"/></g>
+  <ellipse cx="-48" cy="-76" rx="72" ry="34" fill="#fff" opacity="0.35"/>
+</g>
+<g><rect x="306" y="306" width="104" height="64" rx="18" fill="#111827" stroke="#f8fafc" stroke-width="6"/><text x="358" y="350" text-anchor="middle" font-family="Trebuchet MS, Verdana, sans-serif" font-size="30" font-weight="900" fill="#f8fafc">3</text></g>
+</svg>
