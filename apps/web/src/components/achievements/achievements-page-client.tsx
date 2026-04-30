@@ -56,6 +56,9 @@ export function AchievementsPageClient() {
 
   const orderedItems = useMemo(() => {
     let filtered = [...items];
+    if (viewerRole === "player") {
+      filtered = filtered.filter((item) => item.audience === "player");
+    }
     if (viewerRole === "admin" && adminFilter !== "all") {
       filtered = filtered.filter((item) => item.audience === adminFilter);
     }
