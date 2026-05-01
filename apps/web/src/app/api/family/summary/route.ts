@@ -33,6 +33,7 @@ import {
   normalizeCoinValue,
   normalizeRecurrenceConfig,
 } from "@/lib/chores/recurrence";
+import { normalizeChoreType } from "@/lib/chores/types";
 
 export const dynamic = "force-dynamic";
 const MAX_FAMILY_MEMBERS = 100;
@@ -624,6 +625,13 @@ export async function GET(request: NextRequest) {
             .map((doc) => ({
               id: documentIdFromName(doc.name),
               title: readString(doc.fields, "title") || "Untitled chore",
+              choreType: normalizeChoreType(
+                readString(doc.fields, "choreType"),
+                readString(doc.fields, "assigneeScope") === "family" ||
+                  readStringArray(doc.fields, "assigneeIds").length > 1
+                  ? "group"
+                  : "normal",
+              ),
               status: readString(doc.fields, "status"),
               assigneeId: readString(doc.fields, "assigneeId") || undefined,
               assigneeIds: readStringArray(doc.fields, "assigneeIds"),
@@ -675,6 +683,7 @@ export async function GET(request: NextRequest) {
             .map((chore) => ({
               id: chore.id,
               title: chore.title,
+              choreType: chore.choreType,
               sortOrder: chore.sortOrder,
               createdAt: chore.createdAt,
               assigneeId: chore.assigneeId,

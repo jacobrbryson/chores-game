@@ -187,6 +187,33 @@ service cloud.firestore {
         && get(parentPath).data.recurrenceUnit == request.resource.data.recurrenceUnit;
     }
 
+    function canPlayerCreateSeeAndDoChore(familyId) {
+      return isFamilyMember(familyId)
+        && request.resource.data.source == "manual"
+        && request.resource.data.choreType == "see_and_do"
+        && request.resource.data.status == "Open"
+        && request.resource.data.deleted == false
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.assigneeName is string
+        && request.resource.data.assigneeId == request.auth.uid
+        && request.resource.data.assigneeIds is list
+        && request.resource.data.assigneeIds.size() == 1
+        && request.resource.data.assigneeIds[0] == request.auth.uid
+        && request.resource.data.assigneeScope == "single"
+        && request.resource.data.details is string
+        && request.resource.data.categoryIds is list
+        && request.resource.data.dueDate is string
+        && request.resource.data.coinValue is int
+        && request.resource.data.coinValue == 0
+        && request.resource.data.requireApproval == true
+        && request.resource.data.recurrenceType == "none"
+        && request.resource.data.recurrenceInterval is int
+        && request.resource.data.recurrenceUnit is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.sortOrder is int;
+    }
+
     function isFamilyAdmin(familyId) {
       return (
         hasUidMemberDoc(familyId)
@@ -811,7 +838,8 @@ service cloud.firestore {
             && request.resource.data.assigneeName is string
             && request.resource.data.title is string
           )
-          || canPlayerCreateRecurringSuccessor(familyId);
+          || canPlayerCreateRecurringSuccessor(familyId)
+          || canPlayerCreateSeeAndDoChore(familyId);
         allow delete: if isFamilyAdmin(familyId);
         allow update: if isFamilyAdmin(familyId)
           || (

@@ -306,7 +306,8 @@ export function TodayChoresPanel({
   onReload,
   completionStatsReloadKey = 0,
 }: TodayChoresPanelProps) {
-  const canCreateChores = viewerRole === "admin";
+  const canCreateChores = viewerRole === "admin" || viewerRole === "player";
+  const playerSeeAndDoMode = viewerRole === "player";
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const [desktopQuickSortMenuOpen, setDesktopQuickSortMenuOpen] = useState(false);
   const [mobileQuickSortMenuOpen, setMobileQuickSortMenuOpen] = useState(false);
@@ -974,10 +975,15 @@ export function TodayChoresPanel({
     }
     const isMultiOrFamily =
       chore?.assigneeScope === "family" || (chore?.assigneeIds?.length ?? 0) > 1;
-    if (viewerRole === "admin" && chore && isMultiOrFamily) {
+    const needsApprovalCoinPrompt = isMultiOrFamily || chore?.choreType === "see_and_do";
+    if (viewerRole === "admin" && chore && needsApprovalCoinPrompt) {
       const assigneeIds = chore.assigneeScope === "family"
         ? members.filter((member) => member.status === "active").map((member) => member.id)
-        : chore.assigneeIds ?? [];
+        : (chore.assigneeIds && chore.assigneeIds.length > 0
+          ? chore.assigneeIds
+          : chore.assigneeId
+            ? [chore.assigneeId]
+            : []);
       const defaultCoins =
         assigneeIds.length > 0 ? Math.ceil((chore.coinValue ?? 0) / assigneeIds.length) : chore.coinValue ?? 0;
       const nextCoins: Record<string, number> = {};
@@ -1228,6 +1234,7 @@ export function TodayChoresPanel({
               </Link>
               {canCreateChores ? (
                 <AddEditChoresDialog
+                  createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
                   renderTrigger={(openDialog) => (
                     <Button
                       type="button"
@@ -1316,7 +1323,7 @@ export function TodayChoresPanel({
                         setMobileActionsOpen(false);
                         setMobileAddDialogOpen(true);
                       }}>
-                      Add Chore
+                      {playerSeeAndDoMode ? "Add See and Do Chore" : "Add Chore"}
                     </Button>
                   ) : null}
                   <Link
@@ -1329,6 +1336,7 @@ export function TodayChoresPanel({
               ) : null}
               {canCreateChores ? (
                 <AddEditChoresDialog
+                  createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
                   hideTrigger
                   open={mobileAddDialogOpen}
                   onOpenChange={setMobileAddDialogOpen}
@@ -1345,7 +1353,11 @@ export function TodayChoresPanel({
               </p>
               {canCreateChores ? (
                 <div className="chores-empty-cta">
-                  <AddEditChoresDialog onSaved={onChoreSaved} />
+                  <AddEditChoresDialog
+                    createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
+                    triggerLabel={playerSeeAndDoMode ? "Add See and Do Chore" : "Let's add some!"}
+                    onSaved={onChoreSaved}
+                  />
                 </div>
               ) : null}
             </div>
@@ -1552,7 +1564,11 @@ export function TodayChoresPanel({
                 {(
                   pendingApproveChore.assigneeScope === "family"
                     ? members.filter((member) => member.status === "active").map((member) => member.id)
-                    : pendingApproveChore.assigneeIds ?? []
+                    : pendingApproveChore.assigneeIds && pendingApproveChore.assigneeIds.length > 0
+                      ? pendingApproveChore.assigneeIds
+                      : pendingApproveChore.assigneeId
+                        ? [pendingApproveChore.assigneeId]
+                        : []
                 ).map((assigneeId) => {
                   const member = memberByAlias.get(assigneeId);
                   return (

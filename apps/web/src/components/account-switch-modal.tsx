@@ -84,6 +84,7 @@ export function AccountSwitchModal({
             <input
               type="password"
               name="guardian-switch-code"
+              autoFocus
               inputMode="numeric"
               pattern="\d{4}"
               maxLength={4}

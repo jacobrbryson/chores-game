@@ -1630,6 +1630,10 @@ textarea:disabled {
   line-height: 1.22;
 }
 
+.achievements-toolbar .today-chores-toggle-row {
+  margin-left: auto;
+}
+
 .completion-chart {
   min-width: 0;
   border: 1px solid #d0e3fc;
@@ -4817,6 +4821,19 @@ white-space: nowrap;
   .today-chores-toggle-row {
     flex: 1;
     min-width: 0;
+  }
+
+  .achievements-toolbar .today-chores-toggle-row {
+    flex: 0 0 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+    margin-top: 6px;
+  }
+
+  .achievements-toolbar .today-chores-toggle-copy {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 
   .today-chores-toggle-copy {

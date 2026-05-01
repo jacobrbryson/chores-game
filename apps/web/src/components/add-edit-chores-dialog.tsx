@@ -15,6 +15,7 @@ import {
   type ChoreRecurrenceType,
   type ChoreRecurrenceUnit,
 } from "@/lib/chores/recurrence";
+import type { ChoreType } from "@/lib/chores/types";
 import type { FamilyCategory } from "@/lib/family/types";
 
 type Suggestion = {
@@ -32,6 +33,7 @@ type FamilyMemberOption = {
 type EditableChore = {
   id: string;
   title: string;
+  choreType?: ChoreType;
   assigneeId?: string;
   assigneeIds?: string[];
   assigneeScope?: "single" | "multiple" | "family";
@@ -55,6 +57,7 @@ export type AddEditChoreSavedResult = {
   pendingChore?: {
     id: string;
     title: string;
+    choreType?: ChoreType;
     assigneeId?: string;
     assigneeIds?: string[];
     assigneeScope?: "single" | "multiple" | "family";
@@ -82,6 +85,7 @@ type AddEditChoresDialogProps = {
   onOpenChange?: (open: boolean) => void;
   hideTrigger?: boolean;
   optimisticCreate?: boolean;
+  createMode?: "default" | "see_and_do";
 };
 
 const LAST_ASSIGNEE_STORAGE_KEY = "chores_last_assignee_id";
@@ -157,6 +161,7 @@ export function AddEditChoresDialog({
   onOpenChange,
   hideTrigger = false,
   optimisticCreate = false,
+  createMode = "default",
 }: AddEditChoresDialogProps) {
   const SUGGESTION_GAP_PX = 6;
   const SUGGESTION_VIEWPORT_MARGIN_PX = 8;
@@ -164,6 +169,7 @@ export function AddEditChoresDialog({
   const SUGGESTION_MAX_HEIGHT_PX = 224;
 
   const isEditMode = Boolean(chore);
+  const isSeeAndDoMode = !isEditMode && createMode === "see_and_do";
   const editingChoreId = chore?.id ?? "";
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
@@ -236,6 +242,11 @@ export function AddEditChoresDialog({
     members.find((member) => member.id === (chore?.assigneeId ?? ""))?.name ||
     chore?.assigneeName ||
     "this user";
+  const titleTypeSuffix = isSeeAndDoMode
+    ? " (See and Do)"
+    : hasMultipleAssignees || chore?.choreType === "group"
+      ? " (Group)"
+      : "";
 
   const filteredSuggestions = useMemo(() => {
     const query = description.trim().toLowerCase();
@@ -466,7 +477,9 @@ export function AddEditChoresDialog({
       return;
     }
 
-    const resolvedAssigneeIds = isFamilyAssignee
+    const resolvedAssigneeIds = isSeeAndDoMode
+      ? []
+      : isFamilyAssignee
       ? []
       : assigneeIds.filter((id) => id && id !== FAMILY_ASSIGNEE_OPTION_ID);
     const singleAssigneeId = resolvedAssigneeIds.length === 1 ? resolvedAssigneeIds[0] : "";
@@ -503,7 +516,9 @@ export function AddEditChoresDialog({
       setError(`coin_value_must_be_whole_number_0_to_${MAX_CHORE_COIN_VALUE}`);
       return;
     }
-    const resolvedCoinValue = showAdditionalOptions
+    const resolvedCoinValue = isSeeAndDoMode
+      ? 0
+      : showAdditionalOptions
       ? Math.trunc(parsedCoinValue)
       : isEditMode
         ? chore?.coinValue ?? DEFAULT_CHORE_COIN_VALUE
@@ -517,14 +532,18 @@ export function AddEditChoresDialog({
       setError("custom_recurrence_interval_required");
       return;
     }
-    const resolvedRequireApproval = hasMultipleAssignees
+    const resolvedRequireApproval = isSeeAndDoMode
+      ? true
+      : hasMultipleAssignees
       ? true
       : showAdditionalOptions
       ? requireApproval
       : isEditMode
         ? Boolean(chore?.requireApproval)
         : false;
-    const resolvedRecurrenceType = showAdditionalOptions
+    const resolvedRecurrenceType = isSeeAndDoMode
+      ? "none"
+      : showAdditionalOptions
       ? recurrenceType
       : isEditMode
         ? chore?.recurrenceType ?? "none"
@@ -576,9 +595,10 @@ export function AddEditChoresDialog({
           phase: "pending",
           choreIds: [],
           requestId,
-          pendingChore: {
-            id: requestId,
-            title: normalizedDescription,
+            pendingChore: {
+              id: requestId,
+              title: normalizedDescription,
+              choreType: isSeeAndDoMode ? "see_and_do" : hasMultipleAssignees ? "group" : "normal",
                   assigneeId: singleAssigneeId || undefined,
                   assigneeIds: isFamilyAssignee
                     ? []
@@ -629,9 +649,11 @@ export function AddEditChoresDialog({
                   recurrenceType: resolvedRecurrenceType,
                   recurrenceInterval: resolvedRecurrenceInterval,
                   recurrenceUnit: resolvedRecurrenceUnit,
+                  choreType: isSeeAndDoMode ? "see_and_do" : hasMultipleAssignees ? "group" : "normal",
                 }
               : {
                   description: normalizedDescription,
+                  choreType: isSeeAndDoMode ? "see_and_do" : hasMultipleAssignees ? "group" : "normal",
                   assigneeId: singleAssigneeId,
                   assigneeIds: isFamilyAssignee ? [] : resolvedAssigneeIds,
                   assigneeScope: isFamilyAssignee
@@ -818,7 +840,16 @@ export function AddEditChoresDialog({
       <ModalShell open={open} onRequestClose={() => setDialogOpen(false)}>
         <div className="add-chores-modal-card w-full max-w-4xl rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
             <div className="modal-dialog-title-row mb-3">
-              <h3 className="text-lg font-bold text-slate-800">{isEditMode ? "Edit Chore" : "Add Chores"}</h3>
+              <h3 className="text-lg font-bold text-slate-800">
+                {isEditMode ? (
+                  "Edit Chore"
+                ) : (
+                  <>
+                    Add Chores
+                    {titleTypeSuffix ? <span className="font-medium text-slate-500">{titleTypeSuffix}</span> : null}
+                  </>
+                )}
+              </h3>
               <Button
                 type="button"
                 className="modal-close-button"
@@ -847,7 +878,13 @@ export function AddEditChoresDialog({
                   />
                 </div>
               </label>
+              {isSeeAndDoMode ? (
+                <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  All See and Do chores require parent approval. A parent can assign the coin value.
+                </p>
+              ) : null}
 
+              {!isSeeAndDoMode ? (
               <label className="flex w-full flex-col gap-1.5">
                 <span className="text-sm font-medium text-slate-700">Assignee</span>
                 <TailwindMultiSelect
@@ -872,7 +909,9 @@ export function AddEditChoresDialog({
                   </Alert>
                 ) : null}
               </label>
+              ) : null}
 
+              {!isSeeAndDoMode ? (
               <Button
                 type="button"
                 className="group inline-flex cursor-pointer items-center gap-2 self-start text-sm font-semibold text-[#1f69b7]"
@@ -884,7 +923,9 @@ export function AddEditChoresDialog({
                   Additional Options
                 </span>
               </Button>
+              ) : null}
 
+              {!isSeeAndDoMode ? (
               <div
                 className={`add-chores-advanced${showAdditionalOptions ? " is-open" : ""}`}
                 aria-hidden={!showAdditionalOptions}>
@@ -1019,6 +1060,7 @@ export function AddEditChoresDialog({
                   </label>
                 </div>
               </div>
+              ) : null}
 
               {error ? (
                 isActiveChoreLimitError ? (

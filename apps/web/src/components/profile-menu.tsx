@@ -638,6 +638,7 @@ export function ProfileMenu({
               <input
                 type="password"
                 name="guardian-return-code"
+                autoFocus
                 inputMode="numeric"
                 pattern="\d{4}"
                 maxLength={4}

@@ -17,6 +17,7 @@ import type {
   ChoreRecurrenceType,
   ChoreRecurrenceUnit,
 } from "@/lib/chores/recurrence";
+import type { ChoreType } from "@/lib/chores/types";
 import { parseCompletionWindow } from "@/lib/preferences/completion-window";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
 
@@ -29,6 +30,7 @@ type ChoreCategory = {
 type ChoreRow = {
   id: string;
   title: string;
+  choreType?: ChoreType;
   status: string;
   source?: "manual" | "google_tasks";
   assigneeId?: string;
@@ -247,6 +249,13 @@ function isMultiAssigneeChore(chore: Pick<ChoreRow, "assigneeScope" | "assigneeI
   return chore.assigneeScope === "family" || (chore.assigneeIds?.length ?? 0) > 1;
 }
 
+function getDisplayedCoinValue(chore: Pick<ChoreRow, "choreType" | "status" | "coinValue">) {
+  if (chore.choreType === "see_and_do" && chore.status !== "Approved") {
+    return "-";
+  }
+  return String(chore.coinValue ?? 0);
+}
+
 type ChoreActionsMenuProps = {
   chore: ChoreRow;
   canManageActions: boolean;
@@ -369,7 +378,11 @@ function ChoreActionsMenu({
                   setMenuOpen(false);
                   void onApprove(chore);
                 }}>
-                {busyAction === "approve" ? "Approving..." : isMultiAssigneeChore(chore) ? "Approve..." : "Approve"}
+                {busyAction === "approve"
+                  ? "Approving..."
+                  : isMultiAssigneeChore(chore) || chore.choreType === "see_and_do"
+                    ? "Approve..."
+                    : "Approve"}
               </Button>
               <Button
                 type="button"
@@ -588,7 +601,8 @@ export default function ChoresPage() {
   const [sortBy, setSortBy] = useState<ChoreSortBy>("completedAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [realtimeContext, setRealtimeContext] = useState<{ familyId: string; authToken: string } | null>(null);
-  const canCreateChores = viewerRole === "admin";
+  const canCreateChores = viewerRole === "admin" || viewerRole === "player";
+  const playerSeeAndDoMode = viewerRole === "player";
   const requestSeqRef = useRef(0);
   const loadAbortRef = useRef<AbortController | null>(null);
   const shouldApplySearch = query.trim().length >= 3;
@@ -1029,8 +1043,13 @@ export default function ChoresPage() {
     if (hasBusyAction) {
       return;
     }
-    if (isMultiAssigneeChore(chore)) {
-      const assigneeIds = chore.assigneeIds ?? [];
+    if (isMultiAssigneeChore(chore) || chore.choreType === "see_and_do") {
+      const assigneeIds =
+        chore.assigneeIds && chore.assigneeIds.length > 0
+          ? chore.assigneeIds
+          : chore.assigneeId
+            ? [chore.assigneeId]
+            : [];
       const defaultCoins =
         assigneeIds.length > 0 ? Math.ceil((chore.coinValue ?? 0) / assigneeIds.length) : chore.coinValue ?? 0;
       const next: Record<string, number> = {};
@@ -1433,7 +1452,11 @@ export default function ChoresPage() {
                   <p className="small">No chores found.</p>
                   {canCreateChores ? (
                     <div className="chores-empty-cta">
-                      <AddEditChoresDialog onSaved={() => loadChores({ silent: true })} />
+                      <AddEditChoresDialog
+                        createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
+                        triggerLabel={playerSeeAndDoMode ? "Add See and Do Chore" : "Let's add some!"}
+                        onSaved={() => loadChores({ silent: true })}
+                      />
                     </div>
                   ) : null}
                 </div>
@@ -1573,7 +1596,7 @@ export default function ChoresPage() {
                             <td>
                               <span className="inline-flex items-center gap-1 text-sm font-semibold text-amber-600">
                                 <CoinIcon size={16} />
-                                {chore.coinValue}
+                                {getDisplayedCoinValue(chore)}
                               </span>
                             </td>
                             <td>
@@ -1602,7 +1625,8 @@ export default function ChoresPage() {
                   {canCreateChores ? (
                     <div className="chores-empty-cta chores-add-more-cta">
                       <AddEditChoresDialog
-                        triggerLabel="Add more chores"
+                        createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
+                        triggerLabel={playerSeeAndDoMode ? "Add See and Do Chore" : "Add more chores"}
                         onSaved={() => loadChores({ silent: true })}
                       />
                     </div>
@@ -1652,7 +1676,13 @@ export default function ChoresPage() {
                 <strong>{pendingApproveChore.title}</strong> total coins: <strong>{pendingApproveChore.coinValue}</strong>
               </p>
               <div className="mb-4 flex flex-col gap-2">
-                {(pendingApproveChore.assigneeIds ?? []).map((assigneeId) => (
+                {(
+                  pendingApproveChore.assigneeIds && pendingApproveChore.assigneeIds.length > 0
+                    ? pendingApproveChore.assigneeIds
+                    : pendingApproveChore.assigneeId
+                      ? [pendingApproveChore.assigneeId]
+                      : []
+                ).map((assigneeId) => (
                   <label key={assigneeId} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 p-2">
                     <span className="inline-flex items-center gap-2 text-sm text-slate-700">
                       <Avatar

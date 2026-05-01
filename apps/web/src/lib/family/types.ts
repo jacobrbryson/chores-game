@@ -2,6 +2,7 @@ import type {
   ChoreRecurrenceType,
   ChoreRecurrenceUnit,
 } from "@/lib/chores/recurrence";
+import type { ChoreType } from "@/lib/chores/types";
 
 export type FamilyCategory = {
   id: string;
@@ -42,6 +43,7 @@ export type FamilyPendingInvite = {
 export type FamilySnapshotChore = {
   id: string;
   title: string;
+  choreType?: ChoreType;
   status: "Open" | "Submitted" | "Approved" | "Rejected" | "Unknown";
   source?: "manual" | "google_tasks";
   sortOrder?: number;

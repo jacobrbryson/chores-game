@@ -47,6 +47,13 @@ function getSafeHexColor(value: string | undefined) {
   return "";
 }
 
+function getDisplayedCoinValue(chore: Pick<FamilySnapshotChore, "choreType" | "status" | "coinValue">) {
+  if (chore.choreType === "see_and_do" && chore.status !== "Approved") {
+    return "-";
+  }
+  return String(chore.coinValue ?? 0);
+}
+
 export function TodayChoreCard({
   chore,
   isAdminViewer,
@@ -239,7 +246,7 @@ export function TodayChoreCard({
               ) : null}
               <span className="inline-flex items-center gap-1 text-lg font-bold leading-none text-amber-600">
                 <CoinIcon size={20} />
-                {chore.coinValue}
+                {getDisplayedCoinValue(chore)}
               </span>
               {canManageActions ? (
                 <div className="relative" ref={triggerRef}>

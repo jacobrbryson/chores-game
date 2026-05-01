@@ -35,6 +35,7 @@ import {
   parseRequireApproval,
   recurrenceLabel,
 } from "@/lib/chores/recurrence";
+import { normalizeChoreType, type ChoreType } from "@/lib/chores/types";
 import {
   buildCategoryMap,
   hasAllCategoryIds,
@@ -48,6 +49,7 @@ import { trackAchievementEvent } from "@/lib/achievements/service";
 
 type CreateChoresBody = {
   description?: unknown;
+  choreType?: unknown;
   assigneeId?: unknown;
   assigneeIds?: unknown;
   assigneeScope?: unknown;
@@ -70,6 +72,7 @@ type ReorderChoresBody = {
 type ChoreRow = {
   id: string;
   title: string;
+  choreType: ChoreType;
   status: string;
   source: "manual" | "google_tasks";
   sortOrder?: number;
@@ -328,18 +331,24 @@ function normalizeChoreDoc(doc: {
   const googleTaskOwnerUid = readString(doc.fields, "googleTaskOwnerUid");
   const hasGoogleMetadata = Boolean(googleTaskId && googleTaskListId && googleTaskOwnerUid);
   const source = sourceField === GOOGLE_TASKS_CHORE_SOURCE ? "google_tasks" : "manual";
+  const assigneeIds = readStringArray(doc.fields, "assigneeIds");
+  const assigneeScope = readString(doc.fields, "assigneeScope");
   return {
     id: documentIdFromName(doc.name),
     title,
+    choreType: normalizeChoreType(
+      readString(doc.fields, "choreType"),
+      assigneeScope === "family" || assigneeIds.length > 1 ? "group" : "normal",
+    ),
     status: readString(doc.fields, "status") || "Open",
     source,
     sortOrder: readOptionalSortOrder(doc.fields),
     assigneeId: readString(doc.fields, "assigneeId") || undefined,
-    assigneeIds: readStringArray(doc.fields, "assigneeIds"),
+    assigneeIds,
     assigneeScope:
-      readString(doc.fields, "assigneeScope") === "family"
+      assigneeScope === "family"
         ? "family"
-        : readString(doc.fields, "assigneeScope") === "multiple"
+        : assigneeScope === "multiple"
           ? "multiple"
           : "single",
     assigneeName: readString(doc.fields, "assigneeName") || "Unassigned",
@@ -994,6 +1003,7 @@ export async function GET(request: NextRequest) {
           .map((doc) => ({
             id: doc.id,
             title: doc.title,
+            choreType: doc.choreType,
             status: doc.status,
             source: doc.source,
             sortOrder: doc.sortOrder,
@@ -1218,6 +1228,8 @@ export async function POST(request: NextRequest) {
     resolvedAssigneeScope === "single" && resolvedAssigneeIds.length === 1 ? resolvedAssigneeIds[0] : "";
   const categoryIds = normalizeCategoryIds(body.categoryIds);
   const coinValue = parseCoinValue(body.coinValue);
+  const requestedChoreType =
+    typeof body.choreType === "string" ? normalizeChoreType(body.choreType, "normal") : "normal";
   const requireApproval = parseRequireApproval(body.requireApproval);
   const recurrence = normalizeRecurrenceConfig({
     recurrenceType: body.recurrenceType,
@@ -1253,9 +1265,14 @@ export async function POST(request: NextRequest) {
           return { kind: "family_not_found" as const };
         }
         const viewerRole = await getViewerRole(familyId, session.uid, idToken);
-        if (viewerRole !== "admin") {
+        if (viewerRole !== "admin" && requestedChoreType !== "see_and_do") {
           return { kind: "forbidden_action" as const };
         }
+        const requesterMemberName = await getFamilyMemberName(
+          familyId,
+          session.memberId || session.uid,
+          idToken,
+        );
 
         const [existingDocs, categories] = await Promise.all([
           listDocuments(`families/${familyId}/chores`, idToken, 1000),
@@ -1276,18 +1293,38 @@ export async function POST(request: NextRequest) {
           return Math.max(maxValue, chore.sortOrder);
         }, -1);
         const nextSortOrder = maxSortOrder + 1;
+        const resolvedForPlayer = viewerRole !== "admin" && requestedChoreType === "see_and_do";
+        const finalAssigneeScope = resolvedForPlayer ? "single" : resolvedAssigneeScope;
+        const finalAssigneeIds = resolvedForPlayer ? [session.uid] : resolvedAssigneeIds;
+        const finalSingleAssigneeId =
+          finalAssigneeScope === "single" && finalAssigneeIds.length === 1 ? finalAssigneeIds[0] : "";
+        const finalRequireApproval = resolvedForPlayer
+          ? true
+          : requestedChoreType === "see_and_do"
+            ? true
+          : finalAssigneeScope === "family" || finalAssigneeIds.length > 1
+            ? true
+            : requireApproval;
+        const finalCoinValue = resolvedForPlayer ? 0 : coinValue;
+        const finalChoreType = resolvedForPlayer
+          ? "see_and_do"
+          : finalAssigneeScope === "family" || finalAssigneeIds.length > 1
+            ? "group"
+            : requestedChoreType;
         const resolvedAssigneeName =
-          resolvedAssigneeScope === "family"
+          finalAssigneeScope === "family"
             ? "Family"
-            : resolvedAssigneeIds.length > 1
-              ? `${resolvedAssigneeIds.length} assignees`
-              : resolvedSingleAssigneeId
-                ? await getFamilyMemberName(familyId, resolvedSingleAssigneeId, idToken)
+            : finalAssigneeIds.length > 1
+              ? `${finalAssigneeIds.length} assignees`
+              : finalSingleAssigneeId
+                ? resolvedForPlayer
+                  ? requesterMemberName
+                  : await getFamilyMemberName(familyId, finalSingleAssigneeId, idToken)
                 : "Unassigned";
-        if (resolvedSingleAssigneeId) {
+        if (finalSingleAssigneeId) {
           const activeChoreCount = await countActiveChoresForAssignee(
             familyId,
-            resolvedSingleAssigneeId,
+            finalSingleAssigneeId,
             idToken,
           );
           if (activeChoreCount + titles.length > MAX_ACTIVE_CHORES_PER_ASSIGNEE) {
@@ -1307,20 +1344,17 @@ export async function POST(request: NextRequest) {
               `families/${familyId}/chores/${chore.id}`,
               {
                 title: stringField(chore.title),
+                choreType: stringField(finalChoreType),
                 status: stringField("Open"),
-                assigneeId: stringField(resolvedSingleAssigneeId),
-                assigneeIds: stringArrayField(resolvedAssigneeIds),
-                assigneeScope: stringField(resolvedAssigneeScope),
+                assigneeId: stringField(finalSingleAssigneeId),
+                assigneeIds: stringArrayField(finalAssigneeIds),
+                assigneeScope: stringField(finalAssigneeScope),
                 assigneeName: stringField(resolvedAssigneeName),
                 details: stringField(details),
                 categoryIds: stringArrayField(categoryIds),
                 dueDate: stringField(dueDate),
-                coinValue: integerField(coinValue),
-                requireApproval: boolField(
-                  resolvedAssigneeScope === "family" || resolvedAssigneeIds.length > 1
-                    ? true
-                    : requireApproval,
-                ),
+                coinValue: integerField(finalCoinValue),
+                requireApproval: boolField(finalRequireApproval),
                 recurrenceType: stringField(recurrence.recurrenceType),
                 recurrenceInterval: integerField(recurrence.recurrenceInterval ?? 0),
                 recurrenceUnit: stringField(recurrence.recurrenceUnit ?? ""),
@@ -1344,10 +1378,10 @@ export async function POST(request: NextRequest) {
               actorEmail: session.email,
               actorName: session.name || session.email,
               title: "Chore added",
-              message: `${session.name || "Someone"} added "${chore.title}" (${coinValue} coins${requireApproval ? ", approval required" : ""}${recurrence.recurrenceType !== "none" ? `, ${recurrenceLabel(recurrence).toLowerCase()}` : ""}).`,
+              message: `${session.name || "Someone"} added "${chore.title}" (${finalCoinValue} coins${finalRequireApproval ? ", approval required" : ""}${recurrence.recurrenceType !== "none" ? `, ${recurrenceLabel(recurrence).toLowerCase()}` : ""}).`,
               choreId: chore.id,
               choreTitle: chore.title,
-              relatedIds: resolvedAssigneeIds,
+              relatedIds: finalAssigneeIds,
             }),
           ),
         );
@@ -1373,7 +1407,7 @@ export async function POST(request: NextRequest) {
           }),
         );
 
-        if (isRequesterAssignee(resolvedSingleAssigneeId, session.uid, session.memberId, session.email)) {
+        if (isRequesterAssignee(finalSingleAssigneeId, session.uid, session.memberId, session.email)) {
           await syncGoogleTasksForUser({
             uid: session.uid,
             idToken,

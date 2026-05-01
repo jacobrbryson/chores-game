@@ -35,6 +35,7 @@ import {
   parseRequireApproval,
   recurrenceLabel,
 } from "@/lib/chores/recurrence";
+import { normalizeChoreType } from "@/lib/chores/types";
 import {
   buildCategoryMap,
   hasAllCategoryIds,
@@ -634,6 +635,13 @@ export async function GET(
           chore: {
             id: choreId,
             title: readString(choreDoc.fields, "title") || "Untitled chore",
+            choreType: normalizeChoreType(
+              readString(choreDoc.fields, "choreType"),
+              readString(choreDoc.fields, "assigneeScope") === "family" ||
+                readStringArray(choreDoc.fields, "assigneeIds").length > 1
+                ? "group"
+                : "normal",
+            ),
             status: readString(choreDoc.fields, "status") || "Open",
             source:
               readString(choreDoc.fields, "source") === GOOGLE_TASKS_CHORE_SOURCE
@@ -952,6 +960,10 @@ export async function PATCH(
           const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
           const choreAssigneeIdsRaw = readStringArray(existingChoreDoc.fields, "assigneeIds");
           const choreAssigneeScope = readString(existingChoreDoc.fields, "assigneeScope");
+          const choreType = normalizeChoreType(
+            readString(existingChoreDoc.fields, "choreType"),
+            choreAssigneeScope === "family" || choreAssigneeIdsRaw.length > 1 ? "group" : "normal",
+          );
           const choreAssigneeIds = await resolveChoreAssigneeIds(
             familyId,
             existingChoreDoc.fields,
@@ -992,7 +1004,7 @@ export async function PATCH(
           }
           let spawnedNextChoreId = "";
           const completionNeedsApproval =
-            choreRequireApproval || choreAssigneeIds.length > 1;
+            choreRequireApproval || choreAssigneeIds.length > 1 || choreType === "see_and_do";
           const nextStatus = completionNeedsApproval ? "Submitted" : "Approved";
           const completionDate = now.slice(0, 10);
           if (choreRecurrence.recurrenceType !== "none") {
@@ -1024,6 +1036,7 @@ export async function PATCH(
               `families/${familyId}/chores/${spawnedNextChoreId}`,
               {
                 title: stringField(choreTitle),
+                choreType: stringField(choreType),
                 status: stringField("Open"),
                 assigneeId: stringField(choreAssigneeId),
                 assigneeIds: stringArrayField(choreAssigneeIdsRaw),
@@ -1246,23 +1259,19 @@ export async function PATCH(
           if (currentStatus !== "Submitted" || !choreRequireApproval) {
             return { kind: "invalid_transition" as const };
           }
-          await patchDocument(
-            `families/${familyId}/chores/${choreId}`,
-            {
-              status: stringField("Approved"),
-              updatedAt: timestampField(now),
-            },
-            idToken,
-            ["status", "updatedAt"],
-          );
           const payoutByAssignee = buildPayoutByAssignee({
             assigneeIds: choreAssigneeIds,
             totalCoinValue: choreCoinValue,
             overrides: body.approvalPayouts,
           });
+          const approvedCoinValue = Array.from(payoutByAssignee.values()).reduce(
+            (total, coins) => total + Math.max(0, Math.trunc(coins || 0)),
+            0,
+          );
           await patchDocument(
             `families/${familyId}/chores/${choreId}`,
             {
+              status: stringField("Approved"),
               approvalPayoutsJson: stringField(
                 JSON.stringify(
                   Array.from(payoutByAssignee.entries()).map(([assigneeId, coinValue]) => ({
@@ -1271,10 +1280,11 @@ export async function PATCH(
                   })),
                 ),
               ),
+              coinValue: integerField(approvedCoinValue),
               updatedAt: timestampField(now),
             },
             idToken,
-            ["approvalPayoutsJson", "updatedAt"],
+            ["status", "approvalPayoutsJson", "coinValue", "updatedAt"],
           );
           const payoutResult = await applyPayoutByAssignee({
             familyId,
@@ -1491,10 +1501,15 @@ export async function PATCH(
                 : resolvedSingleAssigneeId
                   ? await getFamilyMemberName(familyId, resolvedSingleAssigneeId, idToken)
                   : "Unassigned";
+          const nextChoreType =
+            resolvedAssigneeScope === "family" || resolvedAssigneeIds.length > 1
+              ? "group"
+              : normalizeChoreType(readString(existingChoreDoc.fields, "choreType"), "normal");
           await patchDocument(
             `families/${familyId}/chores/${choreId}`,
             {
               title: stringField(normalizedDescription),
+              choreType: stringField(nextChoreType),
               assigneeId: stringField(resolvedSingleAssigneeId),
               assigneeIds: stringArrayField(resolvedAssigneeIds),
               assigneeScope: stringField(resolvedAssigneeScope),
@@ -1504,7 +1519,9 @@ export async function PATCH(
               categoryIds: stringArrayField(nextCategoryIds),
               coinValue: integerField(coinValue ?? DEFAULT_CHORE_COIN_VALUE),
               requireApproval: boolField(
-                resolvedAssigneeScope === "family" || resolvedAssigneeIds.length > 1
+                nextChoreType === "see_and_do" ||
+                  resolvedAssigneeScope === "family" ||
+                  resolvedAssigneeIds.length > 1
                   ? true
                   : requireApproval,
               ),
@@ -1516,6 +1533,7 @@ export async function PATCH(
             idToken,
             [
               "title",
+              "choreType",
               "assigneeId",
               "assigneeIds",
               "assigneeScope",

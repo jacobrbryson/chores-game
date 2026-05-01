@@ -9,6 +9,7 @@ import { fetchAchievements, readAchievementHighlightId } from "@/lib/achievement
 import type { AchievementResponseItem } from "@/lib/achievements/service";
 
 type AudienceFilter = "all" | "player" | "admin";
+const HIDE_COMPLETE_STORAGE_KEY = "achievementsHideComplete";
 
 export function AchievementsPageClient() {
   const searchParams = useSearchParams();
@@ -38,6 +39,27 @@ export function AchievementsPageClient() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    try {
+      const storedValue = window.localStorage.getItem(HIDE_COMPLETE_STORAGE_KEY);
+      if (storedValue === "true") {
+        setHideComplete(true);
+      } else if (storedValue === "false") {
+        setHideComplete(false);
+      }
+    } catch {
+      // Ignore storage access errors and keep in-memory behavior.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(HIDE_COMPLETE_STORAGE_KEY, hideComplete ? "true" : "false");
+    } catch {
+      // Ignore storage write errors.
+    }
+  }, [hideComplete]);
 
   useEffect(() => {
     const highlightId = readAchievementHighlightId(searchParams.toString(), window.location.hash);
@@ -79,7 +101,7 @@ export function AchievementsPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+      <div className="achievements-toolbar flex flex-wrap gap-2">
         {viewerRole === "admin" ? (
           <>
             <Button
