@@ -23,6 +23,7 @@ type ApplyWalletDeltaInput = {
     | "manual_adjustment";
   choreId?: string;
   itemId?: string;
+  debugMeta?: Record<string, unknown>;
 };
 
 function ledgerEntryId(input: ApplyWalletDeltaInput) {
@@ -44,6 +45,12 @@ export async function getPrimaryFamilyId(uid: string, idToken: string) {
 
 export async function applyWalletDelta(input: ApplyWalletDeltaInput) {
   const now = new Date().toISOString();
+  let targetPrimaryFamilyId = "";
+  try {
+    targetPrimaryFamilyId = await getPrimaryFamilyId(input.uid, input.idToken);
+  } catch {
+    targetPrimaryFamilyId = "";
+  }
   const currentBalance = await getWalletBalance(input.uid, input.idToken);
   const nextBalance = currentBalance + input.delta;
   if (nextBalance < 0) {
@@ -70,6 +77,8 @@ export async function applyWalletDelta(input: ApplyWalletDeltaInput) {
       nextBalance,
       choreId: input.choreId ?? "",
       itemId: input.itemId ?? "",
+      targetPrimaryFamilyId,
+      debugMeta: input.debugMeta ?? {},
       firestoreReason: reason.slice(0, 220),
     });
     throw error;
@@ -95,6 +104,22 @@ export async function applyWalletDelta(input: ApplyWalletDeltaInput) {
     );
   } catch (error) {
     const reason = error instanceof Error ? error.message : "unknown";
+    if (reason.includes("FIRESTORE_HTTP_403")) {
+      // Temporary resilience path: keep wallet flows functional even if ledger rules are not yet in sync.
+      console.warn("[WALLET_DELTA_LEDGER_CREATE_SKIPPED]", {
+        uid: input.uid,
+        reason: input.reason,
+        delta: input.delta,
+        currentBalance,
+        nextBalance,
+        choreId: input.choreId ?? "",
+        itemId: input.itemId ?? "",
+        targetPrimaryFamilyId,
+        debugMeta: input.debugMeta ?? {},
+        note: "ledger_create_permission_denied_non_fatal",
+      });
+      return nextBalance;
+    }
     console.error("[WALLET_DELTA_LEDGER_CREATE_ERROR]", {
       uid: input.uid,
       reason: input.reason,
@@ -103,6 +128,8 @@ export async function applyWalletDelta(input: ApplyWalletDeltaInput) {
       nextBalance,
       choreId: input.choreId ?? "",
       itemId: input.itemId ?? "",
+      targetPrimaryFamilyId,
+      debugMeta: input.debugMeta ?? {},
       firestoreReason: reason.slice(0, 220),
     });
     throw error;

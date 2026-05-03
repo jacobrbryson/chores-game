@@ -36,6 +36,8 @@ import {
 } from "@/lib/theme/preferences";
 import { findFamilyRewardImageOption } from "@/lib/family/rewards";
 
+const STORE_ACTION_TIMEOUT_MS = 12000;
+
 type StoreSummaryResponse = {
   balance: number;
   ownedOptionIds: string[];
@@ -81,14 +83,42 @@ export function StorePageClient() {
   const [pendingOptionId, setPendingOptionId] = useState("");
   const [previewOptionId, setPreviewOptionId] = useState("");
   const [previewConfettiOptionId, setPreviewConfettiOptionId] = useState("");
+  const [applyNowPrompt, setApplyNowPrompt] = useState<{
+    categoryId: string;
+    optionId: string;
+    title: string;
+    message: string;
+  } | null>(null);
   const previewActiveRef = useRef(false);
   const confettiPreviewResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistedThemeRef = useRef<ThemePreference>(DEFAULT_THEME_PREFERENCE);
   const deepLinkHandledRef = useRef(false);
+  const lastConfettiPreviewAtRef = useRef(0);
 
-  async function loadSummary() {
-    setIsLoading(true);
-    setError("");
+  async function postStoreAction(body: Record<string, unknown>) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), STORE_ACTION_TIMEOUT_MS);
+    try {
+      return await fetch("/api/store", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function loadSummary(options?: { showLoading?: boolean; clearError?: boolean }) {
+    const showLoading = options?.showLoading ?? true;
+    const clearError = options?.clearError ?? true;
+    if (showLoading) {
+      setIsLoading(true);
+    }
+    if (clearError) {
+      setError("");
+    }
     try {
       const response = await fetch("/api/store", { cache: "no-store" });
       if (!response.ok) {
@@ -100,7 +130,9 @@ export function StorePageClient() {
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "store_unavailable");
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
   }
 
@@ -216,6 +248,11 @@ export function StorePageClient() {
     option: StoreOption,
     event?: MouseEvent<HTMLElement>,
   ) {
+    const now = Date.now();
+    if (now - lastConfettiPreviewAtRef.current < 240) {
+      return;
+    }
+    lastConfettiPreviewAtRef.current = now;
     setPreviewConfettiOptionId(option.id);
     triggerPartyConfetti({
       optionId: option.id,
@@ -268,11 +305,7 @@ export function StorePageClient() {
           : category.kind === "avatar"
             ? { action: "set_avatar", avatarId: option.value }
             : { action: "set_confetti", optionId: option.id };
-      const response = await fetch("/api/store", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const response = await postStoreAction(body);
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
         throw new Error(payload.error ?? `APPLY_OPTION_HTTP_${response.status}`);
@@ -288,7 +321,7 @@ export function StorePageClient() {
       } else if (category.kind === "confetti") {
         dispatchConfettiSelectionChanged(option.id);
       }
-      await loadSummary();
+      await loadSummary({ showLoading: false, clearError: false });
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("profile-avatar:refresh"));
       }
@@ -312,32 +345,42 @@ export function StorePageClient() {
     setActionError("");
     setActionSuccess("");
     try {
-      const response = await fetch("/api/store", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "purchase_option",
-          categoryId: category.id,
-          optionId: option.id,
-        }),
+      const response = await postStoreAction({
+        action: "purchase_option",
+        categoryId: category.id,
+        optionId: option.id,
       });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? `PURCHASE_OPTION_HTTP_${response.status}`);
       }
-      await loadSummary();
+      await loadSummary({ showLoading: false, clearError: false });
       if (category.kind === "quest_item") {
         setActionSuccess(`${option.label} added to inventory`);
       }
       window.dispatchEvent(new Event("wallet:refresh"));
       window.dispatchEvent(new Event("profile-avatar:refresh"));
-      if (
-        category.kind === "color" &&
-        option.theme &&
-        typeof window !== "undefined" &&
-        window.confirm("Purchase complete. Set this theme now?")
-      ) {
-        await applyOption(category, option, true);
+      if (category.kind === "color" && option.theme) {
+        setApplyNowPrompt({
+          categoryId: category.id,
+          optionId: option.id,
+          title: "Set theme now?",
+          message: `Purchase complete. Apply "${option.label}" now?`,
+        });
+      } else if (category.kind === "avatar") {
+        setApplyNowPrompt({
+          categoryId: category.id,
+          optionId: option.id,
+          title: "Set avatar now?",
+          message: `Purchase complete. Apply "${option.label}" now?`,
+        });
+      } else if (category.kind === "confetti") {
+        setApplyNowPrompt({
+          categoryId: category.id,
+          optionId: option.id,
+          title: "Set confetti now?",
+          message: `Purchase complete. Apply "${option.label}" now?`,
+        });
       }
     } catch (purchaseError) {
       if (typeof window !== "undefined") {
@@ -361,16 +404,12 @@ export function StorePageClient() {
     setActionError("");
     setActionSuccess("");
     try {
-      const response = await fetch("/api/store", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "set_google_avatar" }),
-      });
+      const response = await postStoreAction({ action: "set_google_avatar" });
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
         throw new Error(payload.error ?? `SET_GOOGLE_AVATAR_HTTP_${response.status}`);
       }
-      await loadSummary();
+      await loadSummary({ showLoading: false, clearError: false });
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("profile-avatar:refresh"));
       }
@@ -389,7 +428,36 @@ export function StorePageClient() {
           <h1>Store</h1>
         </div>
       </div>
-      {isLoading ? <p className="small">Loading store...</p> : null}
+      {isLoading ? (
+        <section aria-label="Loading store" aria-hidden="true" className="space-y-3">
+          <div className="store-grid">
+            <article className="store-card">
+              <div className="family-skeleton family-skeleton-reward" />
+              <div className="family-skeleton family-skeleton-title mt-3" />
+              <div className="family-skeleton family-skeleton-subtitle mt-2" />
+              <div className="family-skeleton family-skeleton-button mt-3" />
+            </article>
+            <article className="store-card">
+              <div className="family-skeleton family-skeleton-reward" />
+              <div className="family-skeleton family-skeleton-title mt-3" />
+              <div className="family-skeleton family-skeleton-subtitle mt-2" />
+              <div className="family-skeleton family-skeleton-button mt-3" />
+            </article>
+            <article className="store-card">
+              <div className="family-skeleton family-skeleton-reward" />
+              <div className="family-skeleton family-skeleton-title mt-3" />
+              <div className="family-skeleton family-skeleton-subtitle mt-2" />
+              <div className="family-skeleton family-skeleton-button mt-3" />
+            </article>
+            <article className="store-card">
+              <div className="family-skeleton family-skeleton-reward" />
+              <div className="family-skeleton family-skeleton-title mt-3" />
+              <div className="family-skeleton family-skeleton-subtitle mt-2" />
+              <div className="family-skeleton family-skeleton-button mt-3" />
+            </article>
+          </div>
+        </section>
+      ) : null}
       {!isLoading && error ? <Alert>Could not load store: {error}</Alert> : null}
       {!isLoading && !error && summary ? (
         <>
@@ -793,6 +861,66 @@ export function StorePageClient() {
                       setActiveCategoryId(null);
                     }}>
                     Close
+                  </Button>
+                </div>
+              </section>
+            ) : null}
+          </ModalShell>
+
+          <ModalShell
+            open={Boolean(applyNowPrompt)}
+            onRequestClose={() => {
+              if (!pendingOptionId) {
+                setApplyNowPrompt(null);
+              }
+            }}>
+            {applyNowPrompt ? (
+              <section className="store-options-modal">
+                <header className="store-options-modal-header">
+                  <div className="store-options-modal-title-row modal-dialog-title-row">
+                    <h3>{applyNowPrompt.title}</h3>
+                    <Button
+                      type="button"
+                      className="modal-close-button"
+                      onClick={() => {
+                        if (!pendingOptionId) {
+                          setApplyNowPrompt(null);
+                        }
+                      }}
+                      aria-label="Close dialog"
+                      title="Close dialog">
+                      X
+                    </Button>
+                  </div>
+                  <p className="small">{applyNowPrompt.message}</p>
+                </header>
+                <div className="store-options-actions">
+                  <Button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={pendingOptionId.length > 0}
+                    onClick={() => setApplyNowPrompt(null)}>
+                    Not now
+                  </Button>
+                  <Button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={pendingOptionId.length > 0}
+                    onClick={async () => {
+                      if (!summary) {
+                        setApplyNowPrompt(null);
+                        return;
+                      }
+                      const category = summary.categories.find((entry) => entry.id === applyNowPrompt.categoryId);
+                      const option = category?.options.find((entry) => entry.id === applyNowPrompt.optionId);
+                      if (!category || !option) {
+                        setApplyNowPrompt(null);
+                        return;
+                      }
+                      await applyOption(category, option, true);
+                      setApplyNowPrompt(null);
+                    }}>
+                    {pendingOptionId.length > 0 ? "Applying..." : "Apply now"}
                   </Button>
                 </div>
               </section>

@@ -58,7 +58,13 @@ type ConfettiBurst = {
 	durationMs: number;
 };
 
+type AllDoneGraphic = {
+	id: string;
+	colors: [string, string, string];
+};
+
 const STORE_BRIEF_PATH = "/api/store?brief=1";
+const MAX_ACTIVE_BURSTS = 8;
 
 function randomInRange(min: number, max: number) {
 	return min + Math.random() * (max - min);
@@ -218,8 +224,10 @@ export function PartyConfettiOverlay({
 }: PartyConfettiOverlayProps) {
 	const [selectedOptionId, setSelectedOptionId] = useState(readStoredConfettiOptionId);
 	const [bursts, setBursts] = useState<ConfettiBurst[]>([]);
+	const [allDoneGraphic, setAllDoneGraphic] = useState<AllDoneGraphic | null>(null);
 	const burstSequenceRef = useRef(0);
 	const timeoutHandlesRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+	const allDoneTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const selectedOptionRef = useRef(selectedOptionId);
 	const pointerRef = useRef<{ x: number; y: number }>({ x: 50, y: 50 });
 
@@ -369,13 +377,38 @@ export function PartyConfettiOverlay({
 			});
 
 			const burstIds = new Set(nextBursts.map((entry) => entry.id));
-			setBursts((current) => [...current, ...nextBursts]);
+			setBursts((current) => [...current, ...nextBursts].slice(-MAX_ACTIVE_BURSTS));
 			const timer = setTimeout(() => {
 				setBursts((current) =>
 					current.filter((entry) => !burstIds.has(entry.id)),
 				);
 			}, durationMs + 260);
 			timeoutHandlesRef.current.push(timer);
+			if (timeoutHandlesRef.current.length > 32) {
+				timeoutHandlesRef.current = timeoutHandlesRef.current.slice(-32);
+			}
+
+			if (detail?.showAllDone) {
+				const baseColors = preset.colors.slice(0, 3);
+				const colors: [string, string, string] = [
+					baseColors[0] ?? "#f59e0b",
+					baseColors[1] ?? "#22d3ee",
+					baseColors[2] ?? "#f472b6",
+				];
+				const graphicId = `all-done-${Date.now()}-${burstSequenceRef.current}`;
+				setAllDoneGraphic({
+					id: graphicId,
+					colors,
+				});
+				if (allDoneTimeoutRef.current) {
+					clearTimeout(allDoneTimeoutRef.current);
+				}
+				allDoneTimeoutRef.current = setTimeout(() => {
+					setAllDoneGraphic((current) =>
+						current?.id === graphicId ? null : current,
+					);
+				}, 1500);
+			}
 		},
 		[defaultDurationMs, maxDurationMs],
 	);
@@ -417,6 +450,10 @@ export function PartyConfettiOverlay({
 				clearTimeout(handle);
 			}
 			timeoutHandlesRef.current = [];
+			if (allDoneTimeoutRef.current) {
+				clearTimeout(allDoneTimeoutRef.current);
+				allDoneTimeoutRef.current = null;
+			}
 		};
 	}, []);
 
@@ -463,6 +500,21 @@ export function PartyConfettiOverlay({
 					))}
 				</div>
 			))}
+			{allDoneGraphic ? (
+				<div className="party-all-done-overlay">
+					<div
+						className="party-all-done-burst"
+						style={
+							{
+								"--all-done-color-a": allDoneGraphic.colors[0],
+								"--all-done-color-b": allDoneGraphic.colors[1],
+								"--all-done-color-c": allDoneGraphic.colors[2],
+							} as CSSProperties
+						}
+					/>
+					<p className="party-all-done-text">All Done!</p>
+				</div>
+			) : null}
 		</div>
 	);
 }

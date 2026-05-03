@@ -273,7 +273,22 @@ export function FamilyCard() {
 
   return (
     <>
-      {isLoading ? <p className="small">Loading family snapshot...</p> : null}
+      {isLoading ? (
+        <article className="family-panel" aria-label="Loading chores dashboard" aria-hidden="true">
+          <div className="family-skeleton family-skeleton-title" />
+          <div className="family-skeleton family-skeleton-subtitle" />
+          <div className="family-skeleton-chip-row mt-3">
+            <div className="family-skeleton family-skeleton-chip" />
+            <div className="family-skeleton family-skeleton-chip" />
+            <div className="family-skeleton family-skeleton-chip" />
+          </div>
+          <div className="family-skeleton-stack mt-3">
+            <div className="family-skeleton family-skeleton-row" />
+            <div className="family-skeleton family-skeleton-row" />
+            <div className="family-skeleton family-skeleton-row" />
+          </div>
+        </article>
+      ) : null}
       {!isLoading && error ? (
         <div className="family-error-wrap">
           <Alert>Could not load family snapshot: {error}</Alert>

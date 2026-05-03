@@ -9,11 +9,16 @@ export type OwnedItemSummary = {
   category: string;
   quantity: number;
   source: "inventory" | "store_unlock";
+  addedAt?: string;
+  paidValue: number;
+  acquisitionLabel: string;
 };
 
 export function buildOwnedItemsSummary(input: {
   ownedOptionIds: Iterable<string>;
-  inventoryByItemId: Map<string, { quantity: number }>;
+  inventoryByItemId: Map<string, { quantity: number; addedAt?: string }>;
+  paidValueByItemId?: Map<string, number>;
+  acquisitionLabelByItemId?: Map<string, string>;
 }) {
   const byId = new Map<string, OwnedItemSummary>();
 
@@ -27,6 +32,11 @@ export function buildOwnedItemsSummary(input: {
       category: gameItem?.category || "inventory",
       quantity: Math.max(0, entry.quantity),
       source: "inventory",
+      addedAt: entry.addedAt,
+      paidValue: Math.max(0, input.paidValueByItemId?.get(itemId) ?? 0),
+      acquisitionLabel:
+        input.acquisitionLabelByItemId?.get(itemId) ??
+        `${gameItem?.name || itemId} reward`,
     });
   }
 
@@ -51,10 +61,25 @@ export function buildOwnedItemsSummary(input: {
       category: optionMatch.category.id,
       quantity: 1,
       source: "store_unlock",
+      paidValue: Math.max(0, input.paidValueByItemId?.get(optionId) ?? 0),
+      acquisitionLabel:
+        input.acquisitionLabelByItemId?.get(optionId) ?? "Store purchase",
     });
   }
 
+  function toUnixMillis(value?: string) {
+    if (!value) {
+      return 0;
+    }
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
   return Array.from(byId.values()).sort((left, right) => {
+    const byAddedAt = toUnixMillis(right.addedAt) - toUnixMillis(left.addedAt);
+    if (byAddedAt !== 0) {
+      return byAddedAt;
+    }
     if (right.quantity !== left.quantity) {
       return right.quantity - left.quantity;
     }

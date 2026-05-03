@@ -543,14 +543,34 @@ async function applyPayoutByAssignee(params: {
   choreId: string;
   payoutByAssignee: Map<string, number>;
   direction: "credit" | "debit";
+  actorUid?: string;
+  actorRole?: "admin" | "player";
+  choreStatus?: string;
 }) {
-  const { familyId, idToken, choreId, payoutByAssignee, direction } = params;
+  const { familyId, idToken, choreId, payoutByAssignee, direction, actorUid = "", actorRole = "player", choreStatus = "" } = params;
+  console.log("[PAYOUT_BY_ASSIGNEE_ATTEMPT]", {
+    familyId,
+    choreId,
+    direction,
+    actorUid,
+    actorRole,
+    choreStatus,
+    payoutEntries: Array.from(payoutByAssignee.entries()),
+  });
   let anyApplied = false;
   for (const [assigneeAlias, coins] of payoutByAssignee.entries()) {
     if (coins <= 0) {
       continue;
     }
     const assigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
+    console.log("[PAYOUT_BY_ASSIGNEE_RESOLVE]", {
+      familyId,
+      choreId,
+      direction,
+      assigneeAlias,
+      assigneeUid: assigneeUid || "",
+      coins,
+    });
     if (!assigneeUid) {
       continue;
     }
@@ -561,14 +581,39 @@ async function applyPayoutByAssignee(params: {
         delta: direction === "credit" ? coins : -coins,
         reason: direction === "credit" ? "chore_complete" : "chore_undo_complete",
         choreId,
+        debugMeta: {
+          familyId,
+          actorUid,
+          actorRole,
+          choreStatus,
+          assigneeAlias,
+          assigneeUid,
+          direction,
+          coins,
+        },
       });
       anyApplied = true;
     } catch (error) {
       const reason = error instanceof Error ? error.message : "";
+      console.error("[PAYOUT_BY_ASSIGNEE_ERROR]", {
+        familyId,
+        choreId,
+        direction,
+        actorUid,
+        actorRole,
+        choreStatus,
+        assigneeAlias,
+        assigneeUid,
+        coins,
+        reason: reason.slice(0, 220),
+      });
       if (direction === "debit" && reason.includes("WALLET_NEGATIVE_BLOCKED")) {
         return { kind: "wallet_negative_blocked" as const };
       }
-      if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
+      if (reason.includes("FIRESTORE_HTTP_403")) {
+        return { kind: "wallet_permission_denied" as const };
+      }
+      if (!reason.includes("FIRESTORE_HTTP_404")) {
         throw error;
       }
     }
@@ -1081,6 +1126,16 @@ export async function PATCH(
                 delta: choreCoinValue,
                 reason: "chore_complete",
                 choreId,
+                debugMeta: {
+                  familyId,
+                  actorUid: session.uid,
+                  actorRole: requester.role,
+                  choreStatus: currentStatus,
+                  assigneeAlias: choreAssigneeId,
+                  assigneeUid,
+                  direction: "credit",
+                  coins: choreCoinValue,
+                },
               });
               payoutApplied = true;
             } catch (error) {
@@ -1211,9 +1266,15 @@ export async function PATCH(
               choreId,
               payoutByAssignee,
               direction: "debit",
+              actorUid: session.uid,
+              actorRole: requester.role,
+              choreStatus: currentStatus,
             });
             if (payoutResult.kind === "wallet_negative_blocked") {
               return { kind: "wallet_negative_blocked" as const };
+            }
+            if (payoutResult.kind === "wallet_permission_denied") {
+              return { kind: "wallet_permission_denied" as const };
             }
           }
           await emitFamilyActivity({
@@ -1292,7 +1353,13 @@ export async function PATCH(
             choreId,
             payoutByAssignee,
             direction: "credit",
+            actorUid: session.uid,
+            actorRole: requester.role,
+            choreStatus: currentStatus,
           });
+          if (payoutResult.kind === "wallet_permission_denied") {
+            return { kind: "wallet_permission_denied" as const };
+          }
           const payoutApplied = payoutResult.kind === "ok" && payoutResult.anyApplied;
           await emitFamilyActivity({
             familyId,
@@ -1597,6 +1664,15 @@ export async function PATCH(
         { status: 409 },
       );
     }
+    if (data.kind === "wallet_permission_denied") {
+      return NextResponse.json(
+        {
+          error: "wallet_permission_denied",
+          message: "Missing permission to update wallet ledger for this chore transition.",
+        },
+        { status: 403 },
+      );
+    }
     if (data.kind === "recurring_successor_locked") {
       return NextResponse.json(
         {
@@ -1699,9 +1775,15 @@ export async function DELETE(
             choreId,
             payoutByAssignee,
             direction: "debit",
+            actorUid: session.uid,
+            actorRole: requester.role,
+            choreStatus: currentStatus,
           });
           if (payoutResult.kind === "wallet_negative_blocked") {
             return { kind: "wallet_negative_blocked" as const };
+          }
+          if (payoutResult.kind === "wallet_permission_denied") {
+            return { kind: "wallet_permission_denied" as const };
           }
         }
         await emitFamilyActivity({
@@ -1752,6 +1834,15 @@ export async function DELETE(
       return NextResponse.json(
         { error: "wallet_negative_blocked", message: "Cannot delete completed chore after coins were spent." },
         { status: 409 },
+      );
+    }
+    if (data.kind === "wallet_permission_denied") {
+      return NextResponse.json(
+        {
+          error: "wallet_permission_denied",
+          message: "Missing permission to update wallet ledger for this chore transition.",
+        },
+        { status: 403 },
       );
     }
 

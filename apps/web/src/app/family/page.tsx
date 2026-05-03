@@ -885,8 +885,43 @@ export default function FamilyPage() {
             ) : null}
           </div>
 
-          {isLoading ? <p className="small">Loading family members...</p> : null}
           {!isLoading && error ? <Alert>Could not load members: {error}</Alert> : null}
+          {isLoading && !error ? (
+            <div className="family-page-grid" aria-hidden="true">
+              <section className="family-page-card" aria-label="Loading members">
+                <div className="family-page-card-header">
+                  <div className="family-skeleton family-skeleton-title" />
+                  <div className="family-skeleton family-skeleton-subtitle" />
+                </div>
+                <div className="family-skeleton-stack">
+                  <div className="family-skeleton family-skeleton-row" />
+                  <div className="family-skeleton family-skeleton-row" />
+                  <div className="family-skeleton family-skeleton-row" />
+                </div>
+              </section>
+              <section className="family-page-card family-categories-card" aria-label="Loading categories">
+                <div className="family-page-card-header">
+                  <div className="family-skeleton family-skeleton-title" />
+                  <div className="family-skeleton family-skeleton-button" />
+                </div>
+                <div className="family-skeleton-chip-row">
+                  <div className="family-skeleton family-skeleton-chip" />
+                  <div className="family-skeleton family-skeleton-chip" />
+                  <div className="family-skeleton family-skeleton-chip" />
+                </div>
+              </section>
+              <section className="family-page-card family-categories-card" aria-label="Loading awards">
+                <div className="family-page-card-header">
+                  <div className="family-skeleton family-skeleton-title" />
+                  <div className="family-skeleton family-skeleton-button" />
+                </div>
+                <div className="family-skeleton-stack">
+                  <div className="family-skeleton family-skeleton-reward" />
+                  <div className="family-skeleton family-skeleton-reward" />
+                </div>
+              </section>
+            </div>
+          ) : null}
           {!isLoading && !error ? (
             <>
               {summary?.pendingInvite ? (

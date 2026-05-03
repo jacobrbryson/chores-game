@@ -256,6 +256,13 @@ function getDisplayedCoinValue(chore: Pick<ChoreRow, "choreType" | "status" | "c
   return String(chore.coinValue ?? 0);
 }
 
+function getCoinTooltip(chore: Pick<ChoreRow, "choreType">) {
+  if (chore.choreType === "see_and_do") {
+    return "See and Do chore types will have coins assigned during parent approval";
+  }
+  return undefined;
+}
+
 type ChoreActionsMenuProps = {
   chore: ChoreRow;
   canManageActions: boolean;
@@ -1442,7 +1449,46 @@ export default function ChoresPage() {
             ) : null}
             {hasShortSearch ? <p className="small">Type at least 3 characters to filter.</p> : null}
           </div>
-          {isLoading ? <p className="small">Loading chores...</p> : null}
+          {isLoading ? (
+            <section aria-label="Loading chores" aria-hidden="true" className="space-y-3">
+              <div className="family-skeleton-chip-row">
+                <div className="family-skeleton family-skeleton-chip" />
+                <div className="family-skeleton family-skeleton-chip" />
+                <div className="family-skeleton family-skeleton-chip" />
+              </div>
+              <div className="family-table-wrap">
+                <table className="family-table">
+                  <thead>
+                    <tr>
+                      <th><div className="family-skeleton family-skeleton-chip" /></th>
+                      <th><div className="family-skeleton family-skeleton-title" /></th>
+                      <th><div className="family-skeleton family-skeleton-title" /></th>
+                      <th><div className="family-skeleton family-skeleton-title" /></th>
+                      <th><div className="family-skeleton family-skeleton-title" /></th>
+                      <th><div className="family-skeleton family-skeleton-title" /></th>
+                      <th><div className="family-skeleton family-skeleton-title" /></th>
+                      <th><div className="family-skeleton family-skeleton-title" /></th>
+                      <th><div className="family-skeleton family-skeleton-chip" /></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td colSpan={9}><div className="family-skeleton family-skeleton-row" /></td>
+                    </tr>
+                    <tr>
+                      <td colSpan={9}><div className="family-skeleton family-skeleton-row" /></td>
+                    </tr>
+                    <tr>
+                      <td colSpan={9}><div className="family-skeleton family-skeleton-row" /></td>
+                    </tr>
+                    <tr>
+                      <td colSpan={9}><div className="family-skeleton family-skeleton-row" /></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
           {!isLoading && loadError ? <Alert>Could not load chores: {loadError}</Alert> : null}
           {!isLoading && !loadError ? (
             <>
@@ -1594,9 +1640,11 @@ export default function ChoresPage() {
                             <td>{chore.dueDate || "-"}</td>
                             <td>{formatCompletedDate(chore.completedAt)}</td>
                             <td>
-                              <span className="inline-flex items-center gap-1 text-sm font-semibold text-amber-600">
+                              <span
+                                className="inline-flex items-center gap-1 text-sm font-semibold text-amber-600"
+                                title={getCoinTooltip(chore)}>
                                 <CoinIcon size={16} />
-                                {getDisplayedCoinValue(chore)}
+                                <span>{getDisplayedCoinValue(chore)}</span>
                               </span>
                             </td>
                             <td>

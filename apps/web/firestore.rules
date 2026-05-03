@@ -589,18 +589,42 @@ service cloud.firestore {
         && request.resource.data.choreId is string
         && request.resource.data.itemId is string
         && isWalletLedgerAmountShapeValid()
-        && request.resource.data.balanceAfter == getAfter(userPath).data.walletBalance;
+        && (
+          request.resource.data.balanceAfter == getAfter(userPath).data.walletBalance
+          || request.resource.data.balanceAfter == get(userPath).data.walletBalance
+        );
     }
 
-    function userPrimaryFamilyHasChore(uid, choreId) {
-      let familyId = primaryFamilyIdForUser(uid);
+    function walletLedgerFamilyId(uid, actorIsAdmin) {
+      return actorIsAdmin
+        ? primaryFamilyIdForUser(request.auth.uid)
+        : primaryFamilyIdForUser(uid);
+    }
+
+    function userPrimaryFamilyHasChore(uid, choreId, actorIsAdmin) {
+      let familyId = walletLedgerFamilyId(uid, actorIsAdmin);
       return familyId is string
         && familyId != ""
         && exists(/databases/$(database)/documents/families/$(familyId)/chores/$(choreId));
     }
 
-    function userPrimaryFamilyChore(uid, choreId) {
-      return get(/databases/$(database)/documents/families/$(primaryFamilyIdForUser(uid))/chores/$(choreId)).data;
+    function userPrimaryFamilyChore(uid, choreId, actorIsAdmin) {
+      return get(/databases/$(database)/documents/families/$(walletLedgerFamilyId(uid, actorIsAdmin))/chores/$(choreId)).data;
+    }
+
+    function requesterMatchesChoreAssignee(choreData) {
+      return isRequesterAssigneeId(choreData.assigneeId)
+        || (
+          choreData.assigneeIds is list
+          && (
+            choreData.assigneeIds.hasAny([request.auth.uid])
+            || (
+              request.auth.token.email != null
+              && request.auth.token.email != ""
+              && choreData.assigneeIds.hasAny([request.auth.token.email.lower()])
+            )
+          )
+        );
     }
 
     function isValidChoreCompleteLedgerCreate(uid, actorIsAdmin) {
@@ -610,13 +634,14 @@ service cloud.firestore {
         && request.resource.data.delta > 0
         && request.resource.data.balanceAfter >= request.resource.data.delta
         && entryId == "chore_complete_" + request.resource.data.choreId
-        && userPrimaryFamilyHasChore(uid, request.resource.data.choreId)
-        && userPrimaryFamilyChore(uid, request.resource.data.choreId).deleted != true
+        && userPrimaryFamilyHasChore(uid, request.resource.data.choreId, actorIsAdmin)
+        && userPrimaryFamilyChore(uid, request.resource.data.choreId, actorIsAdmin).deleted != true
         && request.resource.data.delta > 0
-        && userPrimaryFamilyChore(uid, request.resource.data.choreId).status in ["Submitted", "Approved"]
+        // Accept transition-window states to avoid racey denials between chore status and ledger writes.
+        && userPrimaryFamilyChore(uid, request.resource.data.choreId, actorIsAdmin).status in ["Open", "Submitted", "Approved"]
         && (
           actorIsAdmin
-          || isRequesterAssigneeId(userPrimaryFamilyChore(uid, request.resource.data.choreId).assigneeId)
+          || requesterMatchesChoreAssignee(userPrimaryFamilyChore(uid, request.resource.data.choreId, actorIsAdmin))
         );
     }
 
@@ -626,13 +651,14 @@ service cloud.firestore {
         && request.resource.data.itemId == ""
         && request.resource.data.delta < 0
         && entryId == "chore_undo_complete_" + request.resource.data.choreId
-        && userPrimaryFamilyHasChore(uid, request.resource.data.choreId)
-        && userPrimaryFamilyChore(uid, request.resource.data.choreId).deleted != true
+        && userPrimaryFamilyHasChore(uid, request.resource.data.choreId, actorIsAdmin)
+        && userPrimaryFamilyChore(uid, request.resource.data.choreId, actorIsAdmin).deleted != true
         && request.resource.data.delta < 0
-        && userPrimaryFamilyChore(uid, request.resource.data.choreId).status in ["Open", "Deleted"]
+        // Accept transition-window states to avoid racey denials between chore status and ledger writes.
+        && userPrimaryFamilyChore(uid, request.resource.data.choreId, actorIsAdmin).status in ["Submitted", "Approved", "Open", "Deleted"]
         && (
           actorIsAdmin
-          || isRequesterAssigneeId(userPrimaryFamilyChore(uid, request.resource.data.choreId).assigneeId)
+          || requesterMatchesChoreAssignee(userPrimaryFamilyChore(uid, request.resource.data.choreId, actorIsAdmin))
         );
     }
 

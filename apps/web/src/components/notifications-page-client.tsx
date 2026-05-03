@@ -218,7 +218,41 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
             {hasShortSearch ? <p className="small">Type at least 3 characters to filter.</p> : null}
           </div>
 
-          {isLoading ? <p className="small">Loading notifications...</p> : null}
+          {isLoading ? (
+            <section aria-label="Loading notifications" aria-hidden="true" className="space-y-3">
+              <div className="family-skeleton-chip-row">
+                <div className="family-skeleton family-skeleton-chip" />
+                <div className="family-skeleton family-skeleton-chip" />
+              </div>
+              <div className="family-table-wrap">
+                <table className="family-table">
+                  <thead>
+                    <tr>
+                      <th><div className="family-skeleton family-skeleton-title" /></th>
+                      <th><div className="family-skeleton family-skeleton-title" /></th>
+                      <th><div className="family-skeleton family-skeleton-title" /></th>
+                      <th><div className="family-skeleton family-skeleton-title" /></th>
+                      <th><div className="family-skeleton family-skeleton-title" /></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td colSpan={5}><div className="family-skeleton family-skeleton-row" /></td>
+                    </tr>
+                    <tr>
+                      <td colSpan={5}><div className="family-skeleton family-skeleton-row" /></td>
+                    </tr>
+                    <tr>
+                      <td colSpan={5}><div className="family-skeleton family-skeleton-row" /></td>
+                    </tr>
+                    <tr>
+                      <td colSpan={5}><div className="family-skeleton family-skeleton-row" /></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
           {!isLoading && error ? (
             <Alert>Could not load notifications: {error}</Alert>
           ) : null}

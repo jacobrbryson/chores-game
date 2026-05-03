@@ -10,7 +10,8 @@
 		"dev:web": "npm run dev -w @apps/web",
 		"dev:ws": "npm run dev -w @apps/ws",
 		"build": "npm run build --workspaces --if-present",
-		"wallet:rebuild": "node scripts/rebuild-wallet-balances.mjs"
+		"wallet:rebuild": "node scripts/rebuild-wallet-balances.mjs",
+		"admin:grant-confetti": "node scripts/admin/grant-all-confetti-options.mjs"
 	},
 	"overrides": {
 		"minimatch": "^10.2.1"

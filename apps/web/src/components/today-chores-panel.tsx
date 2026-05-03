@@ -885,6 +885,7 @@ export function TodayChoresPanel({
           [requestId]: {
             id: pendingChore.id,
             title: pendingChore.title,
+            choreType: pendingChore.choreType,
             status: "Open",
             assigneeId: pendingChore.assigneeId,
             assigneeName: pendingChore.assigneeName,
@@ -1014,6 +1015,7 @@ export function TodayChoresPanel({
       intensity: 1.3,
       sourceClientX: source?.clientX,
       sourceClientY: source?.clientY,
+      showAllDone: true,
     });
     try {
       const response = await fetch(`/api/chores/${choreId}`, {

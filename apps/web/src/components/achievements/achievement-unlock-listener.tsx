@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { connectFamilySocket } from "@/lib/ws";
-import { triggerPartyConfetti } from "@/lib/confetti/party";
 import type { AchievementUnlockedEvent } from "@/lib/ws/achievement-unlocked-event";
 
 type ToastItem = AchievementUnlockedEvent & {
   toastId: string;
   createdAtMs: number;
+  expiresAtMs: number;
 };
 
 const TOAST_DURATION_MS = 5000;
@@ -66,10 +66,17 @@ export function AchievementUnlockListener() {
   }, []);
 
   useEffect(() => {
-    setToasts((current) =>
-      current.filter((entry) => nowMs - entry.createdAtMs < TOAST_DURATION_MS),
-    );
-  }, [nowMs]);
+    if (toasts.length === 0) {
+      return;
+    }
+    const nextExpiryMs = Math.min(...toasts.map((entry) => entry.expiresAtMs));
+    const delayMs = Math.max(0, nextExpiryMs - Date.now());
+    const timeout = window.setTimeout(() => {
+      const currentNow = Date.now();
+      setToasts((current) => current.filter((entry) => entry.expiresAtMs > currentNow));
+    }, delayMs + 8);
+    return () => window.clearTimeout(timeout);
+  }, [toasts]);
 
   useEffect(() => {
     if (!socketState) {
@@ -87,14 +94,15 @@ export function AchievementUnlockListener() {
         if (current.some((entry) => entry.achievementId === event.achievementId)) {
           return current;
         }
+        const createdAtMs = Date.now();
         const nextToast: ToastItem = {
           ...event,
           toastId: `${event.achievementId}_${event.completedAt}`,
-          createdAtMs: Date.now(),
+          createdAtMs,
+          expiresAtMs: createdAtMs + TOAST_DURATION_MS,
         };
         return [...current, nextToast];
       });
-      triggerPartyConfetti();
     };
 
     socket.on("achievement:unlocked", onUnlocked);
@@ -110,7 +118,7 @@ export function AchievementUnlockListener() {
   return (
     <div className="pointer-events-none fixed bottom-3 right-3 z-[120] flex w-[calc(100vw-1.5rem)] max-w-sm flex-col gap-2 sm:w-96">
       {toasts.map((toast) => {
-        const elapsed = nowMs - toast.createdAtMs;
+        const elapsed = Math.max(0, nowMs - toast.createdAtMs);
         const ratio = Math.max(0, Math.min(1, 1 - elapsed / TOAST_DURATION_MS));
         const countdownStyle = {
           background: `conic-gradient(#0ea5e9 ${Math.floor(ratio * 360)}deg, #cbd5e1 0deg)`,

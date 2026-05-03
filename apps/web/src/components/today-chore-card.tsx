@@ -48,10 +48,17 @@ function getSafeHexColor(value: string | undefined) {
 }
 
 function getDisplayedCoinValue(chore: Pick<FamilySnapshotChore, "choreType" | "status" | "coinValue">) {
-  if (chore.choreType === "see_and_do" && chore.status !== "Approved") {
+  if (chore.choreType === "see_and_do") {
     return "-";
   }
   return String(chore.coinValue ?? 0);
+}
+
+function getCoinTooltip(chore: Pick<FamilySnapshotChore, "choreType">) {
+  if (chore.choreType === "see_and_do") {
+    return "See and Do chore types will have coins assigned during parent approval";
+  }
+  return undefined;
 }
 
 export function TodayChoreCard({
@@ -244,9 +251,11 @@ export function TodayChoreCard({
                   &#8942;&#8942;
                 </span>
               ) : null}
-              <span className="inline-flex items-center gap-1 text-lg font-bold leading-none text-amber-600">
+              <span
+                className="inline-flex items-center gap-1 text-lg font-bold leading-none text-amber-600"
+                title={getCoinTooltip(chore)}>
                 <CoinIcon size={20} />
-                {getDisplayedCoinValue(chore)}
+                <span>{getDisplayedCoinValue(chore)}</span>
               </span>
               {canManageActions ? (
                 <div className="relative" ref={triggerRef}>

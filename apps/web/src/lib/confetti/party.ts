@@ -16,6 +16,7 @@ export type PartyConfettiTriggerDetail = {
 	spread?: number;
 	sourceClientX?: number;
 	sourceClientY?: number;
+	showAllDone?: boolean;
 };
 
 export type PartyConfettiSelectionDetail = {

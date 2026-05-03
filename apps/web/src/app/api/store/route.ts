@@ -843,6 +843,27 @@ export async function POST(request: NextRequest) {
 
             const familyIdForQuestItemPurchase = await getPrimaryFamilyIdWithFallback(uid, idToken);
             if (familyIdForQuestItemPurchase) {
+              const questItemOptionIds = new Set(category.options.map((entry) => entry.itemId?.trim() || entry.id));
+              const unlockedQuestItemIds = new Set<string>();
+              try {
+                const inventoryDocs = await listDocuments(`users/${uid}/inventory`, idToken, 500);
+                for (const doc of inventoryDocs) {
+                  const unlockedItemId = readString(doc.fields, "itemId").trim();
+                  if (!unlockedItemId || !questItemOptionIds.has(unlockedItemId)) {
+                    continue;
+                  }
+                  if (Math.max(0, readInteger(doc.fields, "quantity")) > 0) {
+                    unlockedQuestItemIds.add(unlockedItemId);
+                  }
+                }
+              } catch (error) {
+                const reason = error instanceof Error ? error.message : "";
+                if (!reason.includes("FIRESTORE_HTTP_404")) {
+                  throw error;
+                }
+              }
+              // Include current purchase in case inventory listing lags.
+              unlockedQuestItemIds.add(itemId);
               await trackAchievementEvent({
                 uid,
                 familyId: familyIdForQuestItemPurchase,
@@ -851,13 +872,49 @@ export async function POST(request: NextRequest) {
                 eventId: `store_purchase_quest_item_${itemId}_${now}`,
                 metricDeltas: {
                   store_purchases: 1,
+                  store_quest_item_unlocks: 1,
+                },
+                metricMaximums: {
+                  store_quest_item_collection_complete:
+                    unlockedQuestItemIds.size >= questItemOptionIds.size && questItemOptionIds.size > 0
+                      ? 1
+                      : 0,
                 },
               });
             }
             return { kind: "ok" as const };
           }
 
+          const categoryPurchasableOptionIds = category.options
+            .filter((entry) => !entry.isDefault)
+            .map((entry) => entry.id);
+          const ownedBeforeCount = categoryPurchasableOptionIds.filter((optionId) => ownedOptionIds.has(optionId)).length;
           ownedOptionIds.add(option.id);
+          const ownedAfterCount = categoryPurchasableOptionIds.filter((optionId) => ownedOptionIds.has(optionId)).length;
+          const unlockDeltas: Record<string, number> = {};
+          const unlockMaximums: Record<string, number> = {};
+          if (category.kind === "color") {
+            if (ownedBeforeCount === 0 && ownedAfterCount > 0) {
+              unlockDeltas.store_color_unlocks = 1;
+            }
+            if (categoryPurchasableOptionIds.length > 0 && ownedAfterCount >= categoryPurchasableOptionIds.length) {
+              unlockMaximums.store_color_collection_complete = 1;
+            }
+          } else if (category.kind === "avatar") {
+            if (ownedBeforeCount === 0 && ownedAfterCount > 0) {
+              unlockDeltas.store_avatar_unlocks = 1;
+            }
+            if (categoryPurchasableOptionIds.length > 0 && ownedAfterCount >= categoryPurchasableOptionIds.length) {
+              unlockMaximums.store_avatar_collection_complete = 1;
+            }
+          } else if (category.kind === "confetti") {
+            if (ownedBeforeCount === 0 && ownedAfterCount > 0) {
+              unlockDeltas.store_confetti_unlocks = 1;
+            }
+            if (categoryPurchasableOptionIds.length > 0 && ownedAfterCount >= categoryPurchasableOptionIds.length) {
+              unlockMaximums.store_confetti_collection_complete = 1;
+            }
+          }
           await patchDocument(
             `users/${uid}`,
             {
@@ -877,7 +934,9 @@ export async function POST(request: NextRequest) {
               eventId: `store_purchase_option_${option.id}`,
               metricDeltas: {
                 store_purchases: 1,
+                ...unlockDeltas,
               },
+              metricMaximums: unlockMaximums,
             });
           }
           if (category.kind === "avatar") {

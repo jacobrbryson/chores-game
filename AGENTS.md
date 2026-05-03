@@ -55,6 +55,9 @@ Build a family chore game where:
 - Validate all incoming API payloads.
 - Prefer explicit enums/constants for statuses and roles.
 - Use the shared Tailwind `Alert` component for all in-app alert/error/warning/info UI; do not introduce one-off alert markup or alert-specific CSS for new surfaces.
+- Never use browser-native dialogs (`window.alert`, `window.confirm`, `window.prompt`) for product UI flows; always use shared modal/dialog components (for example `ModalShell` + shared `Button` patterns).
+- Action-menu behavior must match shared app menu UX: selecting a menu action should close the menu immediately and then open the destination modal/dialog/surface if needed.
+- For page-level and card-level async data fetches, use visual skeleton loaders instead of loading text whenever practical (for example avoid plain `Loading ...` copy as the primary loading state).
 - Keep source files small and focused. Target a max of ~400 lines per file; split large files by feature/component.
 - Add tests for workflow-critical behavior:
   - chore status transitions

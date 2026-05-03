@@ -1,6 +1,6 @@
 import type { FamilyAwardClaim } from "@/lib/family/award-claims";
 import { listFamilyAwardClaims } from "@/lib/family/award-claims";
-import { getDocument, listDocuments, readInteger, readString, readStringArray } from "@/lib/firestore/rest";
+import { getDocument, listDocuments, readInteger, readString, readStringArray, readTimestamp } from "@/lib/firestore/rest";
 import {
   canViewerAccessFamilyMember,
   getViewerFamilyContext,
@@ -18,6 +18,7 @@ import {
 } from "@/lib/store/catalog";
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
 import { buildOwnedItemsSummary, type OwnedItemSummary } from "@/lib/items/owned-items";
+import { findGameItemById } from "@/lib/items/catalog";
 
 export type FamilyMemberThemeSummary = {
   name: string;
@@ -189,19 +190,49 @@ export async function loadFamilyMemberProfileData(
         getDocument(`users/${member.uid}`, input.idToken),
         listDocuments(`users/${member.uid}/inventory`, input.idToken, 500),
       ]);
-      const inventoryByItemId = new Map<string, { quantity: number }>();
+      const ledgerDocs = await listDocuments(`users/${member.uid}/walletLedger`, input.idToken, 500);
+      const inventoryByItemId = new Map<string, { quantity: number; addedAt?: string }>();
+      const paidValueByItemId = new Map<string, number>();
+      const acquisitionLabelByItemId = new Map<string, string>();
+      for (const doc of ledgerDocs) {
+        const reason = readString(doc.fields, "reason");
+        const itemId = readString(doc.fields, "itemId");
+        if (!itemId) {
+          continue;
+        }
+        if (reason === "store_purchase") {
+          const debitAmount = Math.max(0, readInteger(doc.fields, "debitAmount"));
+          paidValueByItemId.set(itemId, (paidValueByItemId.get(itemId) ?? 0) + debitAmount);
+          acquisitionLabelByItemId.set(itemId, "Store purchase");
+          continue;
+        }
+        if (reason === "quest_reward" && !acquisitionLabelByItemId.has(itemId)) {
+          acquisitionLabelByItemId.set(itemId, "Quest reward");
+        }
+      }
       for (const doc of inventoryDocs) {
         const itemId = readString(doc.fields, "itemId");
         if (!itemId) {
           continue;
         }
+        const addedAt =
+          readTimestamp(doc.fields, "createdAt") ||
+          readTimestamp(doc.fields, "updatedAt") ||
+          undefined;
         inventoryByItemId.set(itemId, {
           quantity: Math.max(0, readInteger(doc.fields, "quantity")),
+          addedAt,
         });
+        if (!acquisitionLabelByItemId.has(itemId) || acquisitionLabelByItemId.get(itemId) === "Quest reward") {
+          const itemName = findGameItemById(itemId)?.name || itemId;
+          acquisitionLabelByItemId.set(itemId, `Quest ${itemName} reward`);
+        }
       }
       ownedItems = buildOwnedItemsSummary({
         ownedOptionIds: resolveOwnedOptionIds(userDoc.fields),
         inventoryByItemId,
+        paidValueByItemId,
+        acquisitionLabelByItemId,
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : "";
