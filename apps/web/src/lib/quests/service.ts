@@ -1,5 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { validateQuestAgainstRules } from "@/lib/quests/quest-validation";
+import { getQuestRules } from "@/lib/quests/rules";
 import { validateQuestDefinition } from "@/lib/quests/validation";
 import type { QuestDefinition } from "@/lib/quests/types";
 
@@ -13,6 +15,8 @@ type QuestCacheState = {
 let questCache: QuestCacheState | null = null;
 
 async function readQuestFiles(): Promise<QuestDefinition[]> {
+  const rules = await getQuestRules();
+  const isDev = process.env.NODE_ENV !== "production";
   const entries = await fs.readdir(QUEST_JSON_DIRECTORY, { withFileTypes: true });
   const questFiles = entries
     .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".json"))
@@ -25,6 +29,14 @@ async function readQuestFiles(): Promise<QuestDefinition[]> {
     const raw = await fs.readFile(filePath, "utf8");
     const parsed = JSON.parse(raw) as unknown;
     const quest = validateQuestDefinition(parsed);
+    if (isDev) {
+      const issues = validateQuestAgainstRules(quest, rules);
+      if (issues.length > 0) {
+        for (const issue of issues) {
+          console.warn(`[QUEST_RULES_VALIDATION][${quest.id}] ${issue}`);
+        }
+      }
+    }
     quests.push(quest);
   }
   return quests;

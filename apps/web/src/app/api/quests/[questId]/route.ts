@@ -6,6 +6,20 @@ import { getDocument, readInteger } from "@/lib/firestore/rest";
 import { getQuestProgress, listInventoryByItemId } from "@/lib/quests/progress";
 import { toRuntimeNode } from "@/lib/quests/runtime";
 import { getQuestDefinitionById, getQuestNodeById } from "@/lib/quests/service";
+import type { QuestProgress } from "@/lib/quests/types";
+
+function toChoicesMadeByNodeId(progress: QuestProgress) {
+  const map = new Map<string, Set<string>>();
+  for (const entry of progress.choicesMade) {
+    if (!entry.fromNodeId || !entry.choiceId) {
+      continue;
+    }
+    const existing = map.get(entry.fromNodeId) ?? new Set<string>();
+    existing.add(entry.choiceId);
+    map.set(entry.fromNodeId, existing);
+  }
+  return map;
+}
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -89,6 +103,7 @@ export async function GET(
                 node: currentNode,
                 inventoryByItemId,
                 walletBalance,
+                choicesMadeByNodeId: toChoicesMadeByNodeId(progress),
               })
             : null,
         };

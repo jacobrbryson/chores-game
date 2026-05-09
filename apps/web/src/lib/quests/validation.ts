@@ -24,13 +24,12 @@ function assert(condition: boolean, message: string): asserts condition {
 
 function validateStoryNode(node: QuestStoryNode, nodeIds: Set<string>) {
   assert(Array.isArray(node.choices), `QUEST_NODE_${node.id}_CHOICES_REQUIRED`);
-  assert(node.choices.length >= 2 && node.choices.length <= 5, `QUEST_NODE_${node.id}_CHOICE_COUNT_INVALID`);
+  assert(node.choices.length >= 1 && node.choices.length <= 5, `QUEST_NODE_${node.id}_CHOICE_COUNT_INVALID`);
   const choiceIds = new Set<string>();
   for (const choice of node.choices) {
     assert(Boolean(choice.id), `QUEST_NODE_${node.id}_CHOICE_ID_REQUIRED`);
     assert(!choiceIds.has(choice.id), `QUEST_NODE_${node.id}_CHOICE_ID_DUPLICATE_${choice.id}`);
     choiceIds.add(choice.id);
-    assert(Boolean(choice.requiredItemId), `QUEST_NODE_${node.id}_CHOICE_${choice.id}_REQUIRED_ITEM_MISSING`);
     assert(Boolean(choice.nextNodeId), `QUEST_NODE_${node.id}_CHOICE_${choice.id}_NEXT_NODE_MISSING`);
     assert(nodeIds.has(choice.nextNodeId), `QUEST_NODE_${node.id}_CHOICE_${choice.id}_NEXT_NODE_INVALID_${choice.nextNodeId}`);
   }

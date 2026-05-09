@@ -87,6 +87,7 @@ function toQuestProgress(
   startNodeId: string,
   fields: Record<string, FirestoreValue> | undefined,
 ): QuestProgress {
+  const endingsReached = Array.from(new Set(readStringArray(fields, "endingsReached").filter(Boolean)));
   const statusRaw = readString(fields, "status");
   const status =
     statusRaw === "in_progress" || statusRaw === "completed" ? statusRaw : "not_started";
@@ -96,7 +97,7 @@ function toQuestProgress(
     currentNodeId: readString(fields, "currentNodeId") || startNodeId,
     status,
     choicesMade: readChoiceRecords(fields),
-    endingsReached: readStringArray(fields, "endingsReached"),
+    endingsReached,
     bestEndingId: readString(fields, "bestEndingId"),
     timesPlayed: Math.max(0, readInteger(fields, "timesPlayed")),
     completedAt: readTimestamp(fields, "completedAt"),
@@ -160,10 +161,29 @@ function questProgressFields(progress: QuestProgress) {
   };
 }
 
+function normalizeProgressForQuest(progress: QuestProgress, quest: QuestDefinition): QuestProgress {
+  const validEndingIds = new Set(
+    quest.nodes.filter((node) => node.type === "ending").map((node) => node.ending.endingId),
+  );
+  const normalizedEndingsReached = Array.from(
+    new Set(progress.endingsReached.filter((endingId) => validEndingIds.has(endingId))),
+  ).slice(0, Math.max(0, quest.meta.totalEndings));
+  if (normalizedEndingsReached.length === progress.endingsReached.length) {
+    return progress;
+  }
+  return {
+    ...progress,
+    endingsReached: normalizedEndingsReached,
+  };
+}
+
 export async function getQuestProgress(uid: string, quest: QuestDefinition, idToken: string) {
   try {
     const doc = await getDocument(`users/${uid}/questProgress/${quest.id}`, idToken);
-    return toQuestProgress(uid, quest.id, quest.startNodeId, doc.fields);
+    return normalizeProgressForQuest(
+      toQuestProgress(uid, quest.id, quest.startNodeId, doc.fields),
+      quest,
+    );
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";
     if (reason.includes("FIRESTORE_HTTP_404")) {
@@ -177,7 +197,10 @@ export async function getQuestProgressWithMeta(uid: string, quest: QuestDefiniti
   try {
     const doc = await getDocument(`users/${uid}/questProgress/${quest.id}`, idToken);
     return {
-      progress: toQuestProgress(uid, quest.id, quest.startNodeId, doc.fields),
+      progress: normalizeProgressForQuest(
+        toQuestProgress(uid, quest.id, quest.startNodeId, doc.fields),
+        quest,
+      ),
       updateTime: doc.updateTime ?? "",
       exists: true,
     };
@@ -240,7 +263,11 @@ export function resolveChoiceMissingReason(
   ownedQuantity: number,
   currentCoins: number,
 ) {
-  const item = findGameItemById(choice.requiredItemId);
+  const requiredItemId = choice.requiredItemId?.trim() ?? "";
+  if (!requiredItemId) {
+    return "";
+  }
+  const item = findGameItemById(requiredItemId);
   if (ownedQuantity > 0) {
     return "";
   }
@@ -315,7 +342,7 @@ export async function commitQuestChoiceWithOptionalPurchase(input: {
   questId: string;
   nextProgress: QuestProgress;
   previousProgressUpdateTime?: string;
-  requiredItemId: string;
+  requiredItemId?: string;
   purchasePrice: number;
   rewardCoins: number;
   rewardItemIds: string[];
@@ -324,7 +351,7 @@ export async function commitQuestChoiceWithOptionalPurchase(input: {
   nextWalletBalance: number;
   currentUserUpdateTime: string;
   inventoryByItemId: Map<string, InventoryEntry>;
-  resultingInventoryQuantity: number;
+  resultingInventoryQuantity?: number;
 }) {
   const writes: Array<{
     update: {
@@ -375,7 +402,7 @@ export async function commitQuestChoiceWithOptionalPurchase(input: {
           balanceAfter: integerField(input.nextWalletBalance),
           countsTowardBalance: boolField(true),
           choreId: stringField(""),
-          itemId: stringField(input.requiredItemId),
+          itemId: stringField(input.requiredItemId ?? ""),
           createdAt: timestampField(input.nowIso),
         },
       },
@@ -403,23 +430,26 @@ export async function commitQuestChoiceWithOptionalPurchase(input: {
     });
   }
 
-  const previousInventory = input.inventoryByItemId.get(input.requiredItemId) ?? null;
-  const nextInventoryQuantity = Math.max(0, input.resultingInventoryQuantity);
-  const nextTotalAcquired = (previousInventory?.totalAcquired ?? 0) + (input.shouldPurchase ? 1 : 0);
-  const nextTotalConsumed = (previousInventory?.totalConsumed ?? 0) + (input.consumeItem ? 1 : 0);
-  writes.push({
-    update: {
-      path: `users/${input.uid}/inventory/${input.requiredItemId}`,
-      fields: {
-        itemId: stringField(input.requiredItemId),
-        quantity: integerField(nextInventoryQuantity),
-        totalAcquired: integerField(nextTotalAcquired),
-        totalConsumed: integerField(nextTotalConsumed),
-        updatedAt: timestampField(input.nowIso),
+  const requiredItemId = input.requiredItemId?.trim() ?? "";
+  if (requiredItemId) {
+    const previousInventory = input.inventoryByItemId.get(requiredItemId) ?? null;
+    const nextInventoryQuantity = Math.max(0, input.resultingInventoryQuantity ?? 0);
+    const nextTotalAcquired = (previousInventory?.totalAcquired ?? 0) + (input.shouldPurchase ? 1 : 0);
+    const nextTotalConsumed = (previousInventory?.totalConsumed ?? 0) + (input.consumeItem ? 1 : 0);
+    writes.push({
+      update: {
+        path: `users/${input.uid}/inventory/${requiredItemId}`,
+        fields: {
+          itemId: stringField(requiredItemId),
+          quantity: integerField(nextInventoryQuantity),
+          totalAcquired: integerField(nextTotalAcquired),
+          totalConsumed: integerField(nextTotalConsumed),
+          updatedAt: timestampField(input.nowIso),
+        },
+        currentDocument: previousInventory ? { exists: true } : { exists: false },
       },
-      currentDocument: previousInventory ? { exists: true } : { exists: false },
-    },
-  });
+    });
+  }
 
   for (const rewardItemId of input.rewardItemIds) {
     const existingRewardInventory = input.inventoryByItemId.get(rewardItemId) ?? null;
@@ -428,8 +458,8 @@ export async function commitQuestChoiceWithOptionalPurchase(input: {
         path: `users/${input.uid}/inventory/${rewardItemId}`,
         fields: {
           itemId: stringField(rewardItemId),
-          quantity: integerField((existingRewardInventory?.quantity ?? 0) + 1),
-          totalAcquired: integerField((existingRewardInventory?.totalAcquired ?? 0) + 1),
+        quantity: integerField(Math.max(1, existingRewardInventory?.quantity ?? 0)),
+        totalAcquired: integerField(Math.max(1, existingRewardInventory?.totalAcquired ?? 0)),
           totalConsumed: integerField(existingRewardInventory?.totalConsumed ?? 0),
           updatedAt: timestampField(input.nowIso),
         },

@@ -1,4 +1,4 @@
-export type GameItemCategory = "quest" | "collectible" | "cosmetic";
+export type GameItemCategory = "quest" | "collectible" | "cosmetic" | "character";
 
 export type GameItem = {
   id: string;
@@ -181,6 +181,18 @@ export const GAME_ITEMS: GameItem[] = [
     stackable: false,
     consumable: false,
     usableInQuests: true,
+  },
+  {
+    id: "character_default_avatar_01",
+    name: "Pip the Portal Pal",
+    description: "Unlocked by completing the first quest.",
+    category: "character",
+    image: "/avatars/default/avatar-01.png",
+    purchasable: false,
+    price: 0,
+    stackable: false,
+    consumable: false,
+    usableInQuests: false,
   },
   {
     id: "golden-laundry-token",

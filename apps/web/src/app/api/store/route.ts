@@ -130,6 +130,26 @@ function resolveOwnedOptionIds(
   return ownedOptionIds;
 }
 
+function grantOwnedOptionIdsFromInventory(input: {
+  ownedOptionIds: Set<string>;
+  inventoryByItemId: Map<string, { quantity: number }>;
+}) {
+  const avatarCategory = findStoreCategoryById("customize_avatar");
+  if (!avatarCategory) {
+    return;
+  }
+  for (const option of avatarCategory.options) {
+    const unlockItemId = option.itemId?.trim() ?? "";
+    if (!unlockItemId) {
+      continue;
+    }
+    const quantity = input.inventoryByItemId.get(unlockItemId)?.quantity ?? 0;
+    if (quantity > 0) {
+      input.ownedOptionIds.add(option.id);
+    }
+  }
+}
+
 function toUnixMillis(value: string) {
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
@@ -367,6 +387,7 @@ async function getStoreSummary(uid: string, idToken: string) {
       questItemQuantities[itemId] = quantity;
       inventoryByItemId.set(itemId, { quantity });
     }
+    grantOwnedOptionIdsFromInventory({ ownedOptionIds, inventoryByItemId });
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";
     if (!reason.includes("FIRESTORE_HTTP_404")) {
@@ -560,6 +581,20 @@ export async function POST(request: NextRequest) {
           if (!avatarOption) {
             return { kind: "invalid_avatar" as const };
           }
+          if (avatarOption.itemId?.trim()) {
+            try {
+              const inventoryDoc = await getDocument(`users/${uid}/inventory/${avatarOption.itemId.trim()}`, idToken);
+              const quantity = Math.max(0, readInteger(inventoryDoc.fields, "quantity"));
+              if (quantity > 0) {
+                ownedOptionIds.add(avatarOption.id);
+              }
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (!reason.includes("FIRESTORE_HTTP_404")) {
+                throw error;
+              }
+            }
+          }
           if (!ownedOptionIds.has(avatarOption.id)) {
             return { kind: "missing_unlock" as const };
           }
@@ -689,6 +724,9 @@ export async function POST(request: NextRequest) {
           if (!option) {
             return { kind: "invalid_option" as const };
           }
+          if (option.isPurchasable === false) {
+            return { kind: "invalid_option" as const };
+          }
 
           const optionPrice = Math.max(0, Math.floor(option.price ?? category.price));
           const userDoc = await getDocument(`users/${uid}`, idToken);
@@ -714,6 +752,19 @@ export async function POST(request: NextRequest) {
             }
             if (option.itemStackable !== true && questItemQuantity > 0) {
               return { kind: "already_owned" as const };
+            }
+          }
+          if (category.kind === "avatar" && option.itemId?.trim()) {
+            try {
+              const inventoryDoc = await getDocument(`users/${uid}/inventory/${option.itemId.trim()}`, idToken);
+              if (Math.max(0, readInteger(inventoryDoc.fields, "quantity")) > 0) {
+                return { kind: "already_owned" as const };
+              }
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (!reason.includes("FIRESTORE_HTTP_404")) {
+                throw error;
+              }
             }
           }
 

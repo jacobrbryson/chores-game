@@ -15,11 +15,25 @@ import { getEndingNodeMap, toRuntimeNode } from "@/lib/quests/runtime";
 import { getQuestDefinitionById, getQuestNodeById } from "@/lib/quests/service";
 import { emitFamilyActivity } from "@/lib/notifications/events";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
+import type { QuestProgress } from "@/lib/quests/types";
 
 type ChooseBody = {
   choiceId?: unknown;
   purchaseIfMissing?: unknown;
 };
+
+function toChoicesMadeByNodeId(progress: QuestProgress) {
+  const map = new Map<string, Set<string>>();
+  for (const entry of progress.choicesMade) {
+    if (!entry.fromNodeId || !entry.choiceId) {
+      continue;
+    }
+    const existing = map.get(entry.fromNodeId) ?? new Set<string>();
+    existing.add(entry.choiceId);
+    map.set(entry.fromNodeId, existing);
+  }
+  return map;
+}
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -120,16 +134,20 @@ export async function POST(
           return { kind: "invalid_choice" as const };
         }
 
-        const requiredItem = findGameItemById(choice.requiredItemId);
-        if (!requiredItem) {
+        const requiredItemId = choice.requiredItemId?.trim() ?? "";
+        const requiredItem = requiredItemId ? findGameItemById(requiredItemId) : null;
+        const isFreeStoryChoice = !requiredItemId;
+        if (requiredItemId && !requiredItem) {
           return { kind: "required_item_missing" as const };
         }
-        const currentItemInventory = inventoryByItem.get(requiredItem.id);
+        const currentItemInventory = requiredItem ? inventoryByItem.get(requiredItem.id) : null;
         const ownedQuantity = currentItemInventory?.quantity ?? 0;
-        const isOwned = ownedQuantity > 0;
+        const isOwned = isFreeStoryChoice ? true : ownedQuantity > 0;
         const canPurchaseWhenMissing =
-          choice.purchaseBehavior.allowPurchaseIfMissing && requiredItem.purchasable;
-        const canAffordPurchase = currentWalletBalance >= requiredItem.price;
+          (requiredItem?.purchasable ?? false) &&
+          choice.purchaseBehavior.allowPurchaseIfMissing &&
+          !isFreeStoryChoice;
+        const canAffordPurchase = requiredItem ? currentWalletBalance >= requiredItem.price : true;
         const shouldPurchase = !isOwned && purchaseIfMissing && canPurchaseWhenMissing;
         if (!isOwned && !shouldPurchase) {
           if (!purchaseIfMissing) {
@@ -138,10 +156,10 @@ export async function POST(
           if (!canPurchaseWhenMissing) {
             return { kind: "required_item_not_purchasable" as const };
           }
-          return { kind: "insufficient_funds" as const, requiredCoins: requiredItem.price };
+          return { kind: "insufficient_funds" as const, requiredCoins: requiredItem?.price ?? 0 };
         }
         if (shouldPurchase && !canAffordPurchase) {
-          return { kind: "insufficient_funds" as const, requiredCoins: requiredItem.price };
+          return { kind: "insufficient_funds" as const, requiredCoins: requiredItem?.price ?? 0 };
         }
 
         const nextNode = getQuestNodeById(quest, choice.nextNodeId);
@@ -151,9 +169,9 @@ export async function POST(
 
         const nowIso = new Date().toISOString();
         const purchasedBeforeUse = shouldPurchase;
-        const purchasePrice = shouldPurchase ? requiredItem.price : 0;
+        const purchasePrice = shouldPurchase ? requiredItem?.price ?? 0 : 0;
         const resultingRequiredItemQuantity =
-          ownedQuantity + (shouldPurchase ? 1 : 0) - (choice.consumeItem ? 1 : 0);
+          isFreeStoryChoice ? 0 : ownedQuantity + (shouldPurchase ? 1 : 0) - (choice.consumeItem ? 1 : 0);
         if (resultingRequiredItemQuantity < 0) {
           return { kind: "required_item_missing" as const };
         }
@@ -184,13 +202,11 @@ export async function POST(
 
           if (!endingRewardIdsGranted.includes(reachedEndingId)) {
             endingRewardIdsGranted = [...endingRewardIdsGranted, reachedEndingId];
-            rewardCoins += Math.max(0, Math.floor(nextNode.ending.rewards.coins));
             rewardItemIds.push(...nextNode.ending.rewards.items);
             earnedAchievements.push(...nextNode.ending.rewards.achievements);
           }
           if (!firstCompletionRewardGrantedAt && quest.globalRewards?.firstCompletion) {
             firstCompletionRewardGrantedAt = nowIso;
-            rewardCoins += Math.max(0, Math.floor(quest.globalRewards.firstCompletion.coins));
             rewardItemIds.push(...quest.globalRewards.firstCompletion.items);
             earnedAchievements.push(...quest.globalRewards.firstCompletion.achievements);
           }
@@ -200,7 +216,6 @@ export async function POST(
             quest.globalRewards?.allEndingsDiscovered
           ) {
             allEndingsRewardGrantedAt = nowIso;
-            rewardCoins += Math.max(0, Math.floor(quest.globalRewards.allEndingsDiscovered.coins));
             rewardItemIds.push(...quest.globalRewards.allEndingsDiscovered.items);
             earnedAchievements.push(...quest.globalRewards.allEndingsDiscovered.achievements);
           }
@@ -208,7 +223,7 @@ export async function POST(
 
         const nextWalletBalance = currentWalletBalance - purchasePrice + rewardCoins;
         if (nextWalletBalance < 0) {
-          return { kind: "insufficient_funds" as const, requiredCoins: requiredItem.price };
+          return { kind: "insufficient_funds" as const, requiredCoins: requiredItem?.price ?? 0 };
         }
 
         const nextProgress = {
@@ -222,7 +237,7 @@ export async function POST(
               choiceId: choice.id,
               fromNodeId: activeNode.id,
               toNodeId: nextNode.id,
-              usedItemId: requiredItem.id,
+              usedItemId: requiredItem?.id ?? "",
               purchasedBeforeUse,
               consumedItem: choice.consumeItem,
               createdAt: nowIso,
@@ -245,7 +260,7 @@ export async function POST(
           questId: quest.id,
           nextProgress,
           previousProgressUpdateTime: progressMeta.updateTime || undefined,
-          requiredItemId: requiredItem.id,
+          requiredItemId: requiredItem?.id,
           purchasePrice,
           rewardCoins,
           rewardItemIds,
@@ -261,7 +276,9 @@ export async function POST(
         for (const [itemId, entry] of inventoryByItem) {
           nextInventoryByItemId.set(itemId, entry.quantity);
         }
-        nextInventoryByItemId.set(requiredItem.id, resultingRequiredItemQuantity);
+        if (requiredItem) {
+          nextInventoryByItemId.set(requiredItem.id, resultingRequiredItemQuantity);
+        }
         for (const rewardItemId of rewardItemIds) {
           nextInventoryByItemId.set(rewardItemId, (nextInventoryByItemId.get(rewardItemId) ?? 0) + 1);
         }
@@ -281,7 +298,7 @@ export async function POST(
             actorEmail: session.email,
             actorName: session.name || session.email || "Family member",
             title: "Quest rewards earned",
-            message: `${session.name || "A player"} earned ${rewardCoins} coins in ${quest.title}.`,
+                message: `${session.name || "A player"} earned quest rewards in ${quest.title}.`,
             relatedIds: [session.uid, session.email],
           });
         }
@@ -294,9 +311,10 @@ export async function POST(
             node: nextNode,
             inventoryByItemId: nextInventoryByItemId,
             walletBalance: nextWalletBalance,
+            choicesMadeByNodeId: toChoicesMadeByNodeId(nextProgress),
           }),
           transaction: {
-            purchasedItemId: shouldPurchase ? requiredItem.id : "",
+            purchasedItemId: shouldPurchase ? requiredItem?.id ?? "" : "",
             spentCoins: purchasePrice,
             rewardCoins,
             rewardItemIds,

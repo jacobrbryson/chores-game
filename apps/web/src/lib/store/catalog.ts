@@ -26,17 +26,22 @@ export type ThemePalette = {
 };
 
 export type StoreOption = {
-	id: string;
-	label: string;
-	value: string;
-	itemId?: string;
+  id: string;
+  label: string;
+  value: string;
+  itemId?: string;
 	itemImage?: string;
 	itemDescription?: string;
 	itemPurchasable?: boolean;
 	itemStackable?: boolean;
 	itemConsumable?: boolean;
-	itemUsableInQuests?: boolean;
-	theme?: ThemePalette;
+  itemUsableInQuests?: boolean;
+  isPurchasable?: boolean;
+  isUnlockable?: boolean;
+  unlockSource?: "quest" | "store";
+  unlockLabel?: string;
+  requiredQuestId?: string;
+  theme?: ThemePalette;
 	confetti?: ConfettiPreset;
 	isDefault?: boolean;
 	price?: number;
@@ -177,8 +182,14 @@ assertUniqueColorThemePrimaries(COLOR_OPTIONS);
 const AVATAR_OPTIONS: StoreOption[] = DEFAULT_AVATAR_IDS.slice(0, 9).map(
 	(avatarId, index) => ({
 		id: `avatar_option_${String(index + 1).padStart(2, "0")}`,
-		label: `Avatar ${String(index + 1).padStart(2, "0")}`,
+		label: index === 0 ? "Pip the Portal Pal" : `Avatar ${String(index + 1).padStart(2, "0")}`,
 		value: avatarId,
+		itemId: index === 0 ? "character_default_avatar_01" : undefined,
+		isPurchasable: index === 0 ? false : true,
+		isUnlockable: index === 0 ? true : undefined,
+		unlockSource: index === 0 ? "quest" : undefined,
+		unlockLabel: index === 0 ? "Quest Award" : undefined,
+		requiredQuestId: index === 0 ? "template-quest-001" : undefined,
 	}),
 );
 

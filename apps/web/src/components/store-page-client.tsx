@@ -613,6 +613,11 @@ export function StorePageClient() {
                       : activeCategory.kind === "quest_item"
                         ? questItemOwned
                         : ownedSet.has(option.id);
+                    const isQuestUnlockOption =
+                      activeCategory.kind === "avatar" &&
+                      option.isPurchasable === false &&
+                      option.isUnlockable === true &&
+                      option.unlockSource === "quest";
                     const applied = isRewardOption ? false : isOptionApplied(activeCategory, option);
                     const canAfford = summary.balance >= optionPrice;
                     const isDefaultConfettiOption =
@@ -624,9 +629,12 @@ export function StorePageClient() {
                       ? true
                       : activeCategory.kind === "quest_item"
                         ? questItemCanBuy
+                        : isQuestUnlockOption
+                          ? false
                         : !owned && !isDefaultConfettiOption;
                     const disabled =
                       pendingOptionId.length > 0 ||
+                      (isQuestUnlockOption && !owned) ||
                       (requiresPurchase && !canAfford) ||
                       (activeCategory.kind === "quest_item" && !questItemCanBuy);
                     const isPending = pendingOptionId === option.id;
@@ -784,6 +792,8 @@ export function StorePageClient() {
                               <CoinIcon size={14} /> {optionPrice} coins
                               {questItemQuantity > 0 ? ` - Owned: ${questItemQuantity}` : ""}
                             </>
+                          ) : isQuestUnlockOption && !owned ? (
+                            option.unlockLabel || "Quest Award"
                           ) : owned || isDefaultConfettiOption ? (
                             "Owned"
                           ) : (
@@ -807,6 +817,9 @@ export function StorePageClient() {
                               }
                               return;
                             }
+                            if (isQuestUnlockOption && !owned) {
+                              return;
+                            }
                             if (owned || isDefaultConfettiOption) {
                               void applyOption(activeCategory, option);
                               return;
@@ -827,6 +840,8 @@ export function StorePageClient() {
                                     ? "Buy"
                                     : "Not enough coins"
                                   : "Owned"
+                            : isQuestUnlockOption && !owned
+                              ? option.unlockLabel || "Quest Award"
                             : isPending
                               ? "Saving..."
                               : owned

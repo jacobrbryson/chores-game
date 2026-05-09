@@ -11,7 +11,7 @@ export type QuestChoice = {
   id: string;
   label: string;
   description: string;
-  requiredItemId: string;
+  requiredItemId?: string;
   requiredItemName?: string;
   requiredItemImage?: string;
   consumeItem: boolean;

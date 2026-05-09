@@ -1,0 +1,160 @@
+{
+  "version": "1.0.0",
+  "questRules": {
+    "durationMinutes": { "min": 3, "max": 15 },
+    "pageRules": {
+      "sentencesPerPage": { "min": 3, "max": 12 },
+      "decisionSpacingPages": { "min": 3, "max": 9 }
+    },
+    "purchaseRules": {
+      "questsAreCoinSinks": true,
+      "mostDecisionPathsRequireNoPurchase": true,
+      "maxRequiredStoreItemsPerDecision": 1,
+      "avoidRequiredPurchasesOnMostPaths": true
+    },
+    "endingRules": {
+      "encouragePrematureEndings": true,
+      "badMoralChoicesEndEarly": true,
+      "badMoralChoiceExamples": [
+        "lying",
+        "cheating",
+        "stealing",
+        "hurting others",
+        "bullying",
+        "being unsafe"
+      ],
+      "endingTypes": [
+        "success",
+        "partial_success",
+        "moral_failure",
+        "silly_failure",
+        "unsafe_choice",
+        "secret_ending",
+        "true_ending"
+      ]
+    },
+    "replayRules": {
+      "trackDiscoveredEndings": true,
+      "trackCompletionPercent": true,
+      "preventRewardFarming": true
+    }
+  },
+  "inventoryRules": {
+    "itemsCarryAcrossQuests": true,
+    "itemsAreReusable": true,
+    "itemsAreNeverConsumed": true,
+    "allowFreeQuestPickups": true,
+    "itemTypes": ["store_item", "quest_item", "unlockable_item"]
+  },
+  "rewardRules": {
+    "questRewards": ["item_unlock"],
+    "allowFirstCompletionReward": true,
+    "allowFullCompletionReward": true,
+    "allowSecretEndingReward": true
+  },
+  "itemModel": {
+    "categories": ["utility", "cosmetic", "character", "tool", "key_item"],
+    "fields": {
+      "id": "string",
+      "name": "string",
+      "description": "string",
+      "category": "utility | cosmetic | character | tool | key_item",
+      "isPurchasable": "boolean",
+      "coinCost": "number",
+      "isUnlockable": "boolean",
+      "isQuestPickup": "boolean",
+      "canBeUsedInDecisions": "boolean",
+      "usageTags": ["cleaning", "repair", "navigation", "social", "magic", "light", "food", "safety"]
+    }
+  },
+  "decisionRules": {
+    "allowItemPickupChoices": true,
+    "itemPickupChoicesAddToInventory": true,
+    "allowRequiredItemChoices": true,
+    "allowOptionalItemChoices": true,
+    "allowNoItemChoices": true,
+    "mostChoicesShouldNotRequireItems": true,
+    "moralChoiceTags": [
+      "honest",
+      "helpful",
+      "brave",
+      "kind",
+      "patient",
+      "responsible",
+      "selfish",
+      "dishonest",
+      "unsafe",
+      "harmful",
+      "greedy"
+    ]
+  },
+  "difficultyScoring": {
+    "factors": {
+      "estimatedMinutes": 2,
+      "pageCount": 1,
+      "decisionCount": 3,
+      "endingCount": 2,
+      "requiredItemCoinValue": 0.05,
+      "optionalItemCoinValue": 0.02,
+      "moralComplexity": 2,
+      "replayComplexity": 2
+    },
+    "ranks": [
+      { "rank": 1, "label": "Tiny Quest", "scoreMin": 0, "scoreMax": 15 },
+      { "rank": 2, "label": "Short Quest", "scoreMin": 16, "scoreMax": 30 },
+      { "rank": 3, "label": "Adventure Quest", "scoreMin": 31, "scoreMax": 50 },
+      { "rank": 4, "label": "Hero Quest", "scoreMin": 51, "scoreMax": 75 },
+      { "rank": 5, "label": "Legend Quest", "scoreMin": 76, "scoreMax": 999 }
+    ]
+  },
+  "contentRules": {
+    "supportTargetAgeGroups": true,
+    "scaleSentenceCountByAge": true,
+    "avoidShameLanguage": true,
+    "avoidOverlyScaryContent": true,
+    "badChoicesShouldTeachConsequences": true,
+    "questShouldHaveClearIntent": true,
+    "intentExamples": [
+      "honesty",
+      "kindness",
+      "responsibility",
+      "teamwork",
+      "patience",
+      "helping without being asked",
+      "problem solving"
+    ]
+  },
+  "validationRules": {
+    "validateDuration": true,
+    "validatePageSentenceCounts": true,
+    "validateDecisionSpacing": true,
+    "validateUnreachablePages": true,
+    "validateMissingImages": true,
+    "validateMissingAudio": true,
+    "validateUnknownItemReferences": true,
+    "validateUnknownCharacterReferences": true,
+    "validateUnknownThemeReferences": true,
+    "validateRequiredPurchaseLimits": true,
+    "validateEndingsHaveResolutionText": true
+  },
+  "catalogs": {
+    "storeItems": [],
+    "questItems": [],
+    "unlockableItems": [
+      {
+        "id": "character_default_avatar_01",
+        "name": "Pip the Portal Pal",
+        "description": "Unlocked by completing the first quest.",
+        "category": "character",
+        "isPurchasable": false,
+        "coinCost": 0,
+        "isUnlockable": true,
+        "isQuestPickup": false,
+        "canBeUsedInDecisions": false,
+        "usageTags": ["social"]
+      }
+    ],
+    "characters": ["character_default_avatar_01"],
+    "themes": ["Responsibility", "Problem solving", "Household teamwork", "Honesty", "Kindness"]
+  }
+}

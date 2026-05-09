@@ -9,11 +9,14 @@ export type QuestChoiceRuntime = {
   requiredItemName: string;
   requiredItemImage: string;
   consumeItem: boolean;
+  allowPurchaseIfMissing: boolean;
+  purchaseAndUseImmediately: boolean;
   purchasable: boolean;
   canAfford: boolean;
   price: number;
   ownedQuantity: number;
   owned: boolean;
+  madeBefore: boolean;
   disabled: boolean;
   actionText: string;
   unavailableText: string;
@@ -32,6 +35,9 @@ function toActionText(input: {
   canAfford: boolean;
   price: number;
 }) {
+  if (!input.choice.requiredItemId?.trim()) {
+    return "Continue";
+  }
   if (input.ownedQuantity > 0) {
     return `Use ${input.itemName}`;
   }
@@ -56,8 +62,33 @@ export function toRuntimeChoice(
   choice: QuestChoice,
   ownedQuantity: number,
   walletBalance: number,
+  madeBefore: boolean,
 ): QuestChoiceRuntime {
-  const item = findGameItemById(choice.requiredItemId);
+  const requiredItemId = choice.requiredItemId?.trim() ?? "";
+  if (!requiredItemId) {
+    return {
+      id: choice.id,
+      label: choice.label,
+      description: choice.description,
+      requiredItemId: "",
+      requiredItemName: "Story Choice",
+      requiredItemImage: "/assets/items/placeholder.png",
+      consumeItem: false,
+      allowPurchaseIfMissing: false,
+      purchaseAndUseImmediately: false,
+      purchasable: false,
+      canAfford: true,
+      price: 0,
+      ownedQuantity: 0,
+      owned: true,
+      madeBefore,
+      disabled: false,
+      actionText: "Continue",
+      unavailableText: "",
+      nextNodeId: choice.nextNodeId,
+    };
+  }
+  const item = findGameItemById(requiredItemId);
   const requiredItemName = item?.name || choice.requiredItemName || "Required Item";
   const requiredItemImage = item?.image || choice.requiredItemImage || "/assets/items/placeholder.png";
   const price = Math.max(0, item?.price ?? 0);
@@ -74,15 +105,18 @@ export function toRuntimeChoice(
     id: choice.id,
     label: choice.label,
     description: choice.description,
-    requiredItemId: choice.requiredItemId,
+    requiredItemId,
     requiredItemName,
     requiredItemImage,
     consumeItem: choice.consumeItem,
+    allowPurchaseIfMissing: choice.purchaseBehavior.allowPurchaseIfMissing,
+    purchaseAndUseImmediately: choice.purchaseBehavior.purchaseAndUseImmediately,
     purchasable,
     canAfford,
     price,
     ownedQuantity,
     owned,
+    madeBefore,
     disabled,
     actionText: toActionText({
       choice,
@@ -101,18 +135,21 @@ export function toRuntimeNode(input: {
   node: QuestNode;
   inventoryByItemId: Map<string, number>;
   walletBalance: number;
+  choicesMadeByNodeId?: Map<string, Set<string>>;
 }): QuestNodeRuntime {
   if (input.node.type !== "story") {
     return input.node;
   }
   const storyNode = input.node as QuestStoryNode;
+  const choicesMadeAtNode = input.choicesMadeByNodeId?.get(storyNode.id) ?? new Set<string>();
   return {
     ...storyNode,
     choices: storyNode.choices.map((choice) =>
       toRuntimeChoice(
         choice,
-        input.inventoryByItemId.get(choice.requiredItemId) ?? 0,
+        choice.requiredItemId ? input.inventoryByItemId.get(choice.requiredItemId) ?? 0 : 0,
         input.walletBalance,
+        choicesMadeAtNode.has(choice.id),
       ),
     ),
   };

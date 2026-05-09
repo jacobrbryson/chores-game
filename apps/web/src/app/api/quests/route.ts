@@ -2,9 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
+import { ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
+import { findGameItemById } from "@/lib/items/catalog";
 import { createDefaultQuestProgress, listQuestProgress } from "@/lib/quests/progress";
 import { getQuestActionLabel } from "@/lib/quests/runtime";
 import { listQuestDefinitions } from "@/lib/quests/service";
+import type { QuestStatus } from "@/lib/quests/types";
+
+const COMING_SOON_QUEST_IDS = new Set([
+  "template-quest-002",
+  "template-quest-003",
+  "template-quest-004",
+  "template-quest-005",
+  "template-quest-006",
+]);
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -57,9 +68,79 @@ export async function GET(request: NextRequest) {
           listQuestDefinitions(),
           listQuestProgress(session.uid, idToken),
         ]);
+        const sortedQuests = [...quests].sort((left, right) => left.id.localeCompare(right.id));
         const progressByQuestId = new Map(progressRows.map((row) => [row.questId, row]));
-        const entries = quests.map((quest) => {
+        const firstQuest = sortedQuests[0] ?? null;
+        const firstQuestProgress = firstQuest
+          ? (progressByQuestId.get(firstQuest.id) ?? createDefaultQuestProgress(session.uid, firstQuest))
+          : null;
+        const hasUnlockedQuestPack = Boolean(
+          firstQuestProgress && firstQuestProgress.status !== "not_started",
+        );
+
+        const visibleQuests = hasUnlockedQuestPack || !firstQuest
+          ? sortedQuests
+          : sortedQuests.filter((quest) => quest.id === firstQuest.id);
+
+        const entries = visibleQuests.map((quest) => {
           const progress = progressByQuestId.get(quest.id) ?? createDefaultQuestProgress(session.uid, quest);
+          const validEndingIds = new Set(
+            quest.nodes.filter((node) => node.type === "ending").map((node) => node.ending.endingId),
+          );
+          const normalizedEndingsDiscovered = Array.from(
+            new Set(progress.endingsReached.filter((endingId) => validEndingIds.has(endingId))),
+          ).length;
+          const normalizedTotalEndings = Math.max(1, quest.meta.totalEndings);
+          const clampedEndingsDiscovered = Math.min(normalizedEndingsDiscovered, normalizedTotalEndings);
+          const normalizedCompletionStatus: QuestStatus =
+            clampedEndingsDiscovered > 0 ? "completed" : progress.status;
+          const rewardItems = new Map<string, { id: string; label: string; image?: string }>();
+          const rewardAchievements = new Map<string, { id: string; label: string }>();
+          const allRewardSets = [
+            quest.globalRewards?.firstCompletion,
+            quest.globalRewards?.allEndingsDiscovered,
+            ...quest.nodes.filter((node) => node.type === "ending").map((node) => node.ending.rewards),
+          ].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+
+          for (const rewardSet of allRewardSets) {
+            for (const itemId of rewardSet.items ?? []) {
+              const item = findGameItemById(itemId);
+              if (!item) {
+                continue;
+              }
+              if (!rewardItems.has(item.id)) {
+                const itemLabel = item.category === "character" ? `New Avatar: ${item.name}` : item.name;
+                rewardItems.set(item.id, {
+                  id: item.id,
+                  label: itemLabel,
+                  image: item.image,
+                });
+              }
+            }
+            for (const achievementId of rewardSet.achievements ?? []) {
+              const achievement = ACHIEVEMENT_BY_ID.get(achievementId);
+              if (!achievement) {
+                continue;
+              }
+              if (!rewardAchievements.has(achievement.id)) {
+                rewardAchievements.set(achievement.id, {
+                  id: achievement.id,
+                  label: achievement.title,
+                });
+              }
+            }
+          }
+
+          const prizeHighlights: Array<{ id: string; label: string; image?: string }> = [
+            ...Array.from(rewardItems.values()),
+            ...Array.from(rewardAchievements.values()),
+          ];
+          if (quest.id === "template-quest-001") {
+            prizeHighlights.push({
+              id: "quest-unlock-pack-5",
+              label: "Unlocks 5 more quests",
+            });
+          }
           return {
             questId: quest.id,
             slug: quest.slug,
@@ -71,16 +152,23 @@ export async function GET(request: NextRequest) {
             ageRange: quest.ageRange,
             estimatedMinutes: quest.estimatedMinutes,
             difficulty: quest.difficulty,
-            completionStatus: progress.status,
-            endingsDiscovered: progress.endingsReached.length,
-            totalEndings: quest.meta.totalEndings,
+            completionStatus: normalizedCompletionStatus,
+            endingsDiscovered: clampedEndingsDiscovered,
+            totalEndings: normalizedTotalEndings,
             bestEndingId: progress.bestEndingId,
-            actionLabel: getQuestActionLabel(progress),
+            actionLabel: COMING_SOON_QUEST_IDS.has(quest.id) ? "Start" : getQuestActionLabel(progress),
+            prizeHighlights,
             progress,
+            locked: COMING_SOON_QUEST_IDS.has(quest.id),
           };
         });
         return {
           quests: entries,
+          meta: {
+            hasUnlockedQuestPack,
+            totalAvailable: sortedQuests.length,
+            totalVisible: entries.length,
+          },
         };
       },
     );

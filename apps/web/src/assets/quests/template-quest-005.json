@@ -1,8 +1,8 @@
 {
-	"id": "template-quest-001",
-	"slug": "the-missing-sock-portal",
-	"title": "The Missing Sock Portal",
-	"subtitle": "An onboarding story quest",
+	"id": "template-quest-005",
+	"slug": "the-rainy-day-blanket-fort",
+	"title": "The Rainy Day Blanket Fort",
+	"subtitle": "Quest pack story 5",
 	"author": "Family Chores Game",
 	"illustrator": "Family Chores Game",
 	"narrator": "Family Chores Game",
@@ -10,8 +10,8 @@
 	"copyright": "(c) 2026 Family Chores Game",
 	"version": "1.1.0",
 	"difficulty": "easy",
-	"coverImage": "/quests/pages/the-missing-sock-portal.png",
-	"summary": "A cozy adventure that starts in the laundry room and ends with a new friend joining your team.",
+	"coverImage": "/quests/template-quest-005/coverImage.png",
+	"summary": "A cozy indoor quest with branching paths about honesty, patience, and shared responsibility.",
 	"ageRange": "6-12",
 	"readingLevel": "Early reader with parent help",
 	"estimatedMinutes": 10,
@@ -48,7 +48,6 @@
 			"type": "story",
 			"title": "The Basket Begins to Glow",
 			"image": "/quests/template-quest-001/page_01_glow.png",
-			"audio": "/quests/template-quest-001/page_01_glow.mp3",
 			"text": "You are sorting clean laundry when one striped sock starts to glow like a tiny lantern. The basket hums and rattles, and a swirl of blue sparkles curls into the air. A gentle voice whispers that the Sock Kingdom needs help before bedtime. You take a deep breath and remember that brave helpers also make safe choices.",
 			"choices": [
 				{
@@ -94,7 +93,6 @@
 			"type": "story",
 			"title": "A Calm Plan",
 			"image": "/quests/template-quest-001/page_02_prep_kind.png",
-			"audio": "/quests/template-quest-001/page_02_prep_kind.mp3",
 			"text": "The sock introduces itself as a royal messenger and thanks you for being polite. It explains that sock pairs are lost in a windy hallway behind the Dryer Gate. You promise to help and check that the laundry room floor is clear before stepping closer. The portal brightens as if it likes thoughtful teamwork.",
 			"choices": [
 				{
@@ -116,7 +114,6 @@
 			"type": "story",
 			"title": "Hall of Fluttering Socks",
 			"image": "/quests/template-quest-001/page_03_portal_hall.png",
-			"audio": "/quests/template-quest-001/page_03_portal_hall.mp3",
 			"text": "You arrive in a bright hallway where socks flutter like friendly flags. Tiny lint sprites sweep glitter into neat piles and wave as you pass. A sign says, Be honest, be kind, and ask for help when needed. You nod because those rules feel fair and brave.",
 			"choices": [
 				{
@@ -138,7 +135,6 @@
 			"type": "story",
 			"title": "The Sorting Room",
 			"image": "/quests/template-quest-001/page_04_sorting_room.png",
-			"audio": "/quests/template-quest-001/page_04_sorting_room.mp3",
 			"text": "In the next room, two giant baskets are tipped over and socks are mixed in a giant swirl. The messenger says the gate opens only when helpers choose the right spirit, not the fastest trick. You spot labels for colors, sizes, and patterns on the wall. A soft chime rings, inviting your next big choice.",
 			"choices": [
 				{
@@ -160,7 +156,6 @@
 			"type": "story",
 			"title": "How Will You Lead?",
 			"image": "/quests/template-quest-001/page_05_big_choice.png",
-			"audio": "/quests/template-quest-001/page_05_big_choice.mp3",
 			"text": "Three glowing paths appear on the floor and each path asks a different kind of courage. One path asks for patience and teamwork. One path offers a shortcut if you pretend work is done. Another path lets you blame a lint sprite for the mess. The messenger waits quietly while you choose.",
 			"choices": [
 				{
@@ -206,7 +201,6 @@
 			"type": "story",
 			"title": "Sorting Side by Side",
 			"image": "/quests/template-quest-001/page_06_teamwork_start.png",
-			"audio": "/quests/template-quest-001/page_06_teamwork_start.mp3",
 			"text": "You invite the lint sprites to sort with you instead of ordering them around. Everyone builds little matching piles and celebrates each successful pair. The room gets calmer with every kind word and careful step. The Dryer Gate begins to glow gold.",
 			"choices": [
 				{
@@ -228,7 +222,6 @@
 			"type": "story",
 			"title": "Bridge of Choices",
 			"image": "/quests/template-quest-001/page_07_teamwork_bridge.png",
-			"audio": "/quests/template-quest-001/page_07_teamwork_bridge.mp3",
 			"text": "A fabric bridge stretches to the gate, and the wind tugs at loose socks along the rail. The messenger reminds everyone to move slowly and look out for one another. You hold the basket steady while smaller sprites cross first. The bridge stops wobbling when the group works in rhythm.",
 			"choices": [
 				{
@@ -250,7 +243,6 @@
 			"type": "story",
 			"title": "Final Gate Decision",
 			"image": "/quests/template-quest-001/page_08_gate_choice.png",
-			"audio": "/quests/template-quest-001/page_08_gate_choice.mp3",
 			"text": "At the gate, two handles appear beside a little safety bell. One handle opens slowly and lets everyone exit in order. The other handle spins fast and could fling socks all over the room. The messenger says your final choice will teach the kingdom what kind of leader you are.",
 			"choices": [
 				{
@@ -284,7 +276,6 @@
 			"type": "ending",
 			"title": "The Portal Pauses",
 			"image": "/quests/template-quest-001/ending_selfish_rush.png",
-			"audio": "/quests/template-quest-001/ending_selfish_rush.mp3",
 			"text": "When you demand treasure first, the portal dims and closes for now. The messenger says helpers can return whenever they are ready to share and listen. Nobody yells, and nobody is shamed, but the adventure has to wait. Back in your room, you decide to try again with a kinder plan.",
 			"ending": {
 				"endingId": "moral_failure_selfish",
@@ -300,7 +291,6 @@
 			"type": "ending",
 			"title": "Safety First Reset",
 			"image": "/quests/template-quest-001/ending_unsafe_jump.png",
-			"audio": "/quests/template-quest-001/ending_unsafe_jump.mp3",
 			"text": "You leap too quickly and land in a tumble of towels. A lint sprite helps you up and reminds you to pause before risky moves. The portal returns you home safely so you can try again with a better plan. Being brave and being safe can happen together.",
 			"ending": {
 				"endingId": "unsafe_choice_jump",
@@ -316,7 +306,6 @@
 			"type": "ending",
 			"title": "The Truth Light",
 			"image": "/quests/template-quest-001/ending_dishonest.png",
-			"audio": "/quests/template-quest-001/ending_dishonest.mp3",
 			"text": "The gate listens to your words, then shines a truth light across the room. It gently shows that the sorting is not done yet and asks for honest effort. The messenger thanks you for trying and invites you to restart with honesty. You realize trust grows when words and actions match.",
 			"ending": {
 				"endingId": "moral_failure_dishonest",
@@ -332,7 +321,6 @@
 			"type": "ending",
 			"title": "Teamwork Timeout",
 			"image": "/quests/template-quest-001/ending_harmful.png",
-			"audio": "/quests/template-quest-001/ending_harmful.mp3",
 			"text": "Blaming a helper makes the room go quiet and the gate powers down. The lint sprites step back because being kind is a rule of this place. The messenger calmly explains that leaders own their choices and protect their team. You are sent home with a chance to begin again the right way.",
 			"ending": {
 				"endingId": "moral_failure_harmful",
@@ -348,7 +336,6 @@
 			"type": "ending",
 			"title": "The Sock Parade",
 			"image": "/quests/template-quest-001/ending_silly_stampede.png",
-			"audio": "/quests/template-quest-001/ending_silly_stampede.mp3",
 			"text": "You pull the fast handle and socks burst into the sky like confetti. Everyone laughs, but the room is messy again and needs another sorting round. The messenger calls it a funny ending with extra cleanup homework. You can replay to find the smooth team finish.",
 			"ending": {
 				"endingId": "silly_failure_parade",
@@ -364,7 +351,6 @@
 			"type": "ending",
 			"title": "Meet Pip the Portal Pal",
 			"image": "/quests/template-quest-001/ending_true_friend.png",
-			"audio": "/quests/template-quest-001/ending_true_friend.mp3",
 			"text": "You ring the bell, and the gate opens in a warm golden arc while every sock returns home in order. A cheerful character steps forward from the glow and bows with a grin. The messenger introduces them as Pip the Portal Pal, your new quest companion for future adventures. Pip promises to join your avatar collection as a thank-you for leading with honesty, safety, and teamwork.",
 			"ending": {
 				"endingId": "true_ending_friend_unlocked",
