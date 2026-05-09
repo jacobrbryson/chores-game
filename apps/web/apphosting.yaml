@@ -20,6 +20,11 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_GCS_ASSET_BASE_URL
+    secret: NEXT_PUBLIC_GCS_ASSET_BASE_URL
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: WS_INTERNAL_SECRET
     secret: WS_INTERNAL_SECRET
     availability:

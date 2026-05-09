@@ -121,7 +121,7 @@ service cloud.firestore {
         );
     }
 
-    function requesterMemberIdsForFamily(familyId) {
+    function requesterMemberIdsForFamily() {
       let uidMemberId = request.auth.uid;
       let emailMemberId = request.auth.token.email != null && request.auth.token.email != ""
         ? request.auth.token.email.lower()
@@ -129,8 +129,8 @@ service cloud.firestore {
       return [uidMemberId, emailMemberId];
     }
 
-    function isRequesterInAssigneeIds(familyId, assigneeIds) {
-      let aliases = requesterMemberIdsForFamily(familyId);
+    function isRequesterInAssigneeIds(assigneeIds) {
+      let aliases = requesterMemberIdsForFamily();
       return assigneeIds is list
         && (
           assigneeIds.hasAny([aliases[0]])
@@ -143,7 +143,7 @@ service cloud.firestore {
 
     function canRequesterCompleteChore(familyId, choreData) {
       return isRequesterAssigneeId(choreData.assigneeId)
-        || isRequesterInAssigneeIds(familyId, choreData.assigneeIds)
+        || isRequesterInAssigneeIds(choreData.assigneeIds)
         || (
           choreData.assigneeScope == "family"
           && isFamilyMember(familyId)
@@ -627,7 +627,7 @@ service cloud.firestore {
         );
     }
 
-    function isValidChoreCompleteLedgerCreate(uid, actorIsAdmin) {
+    function isValidChoreCompleteLedgerCreate(uid, entryId, actorIsAdmin) {
       return request.resource.data.reason == "chore_complete"
         && request.resource.data.choreId != ""
         && request.resource.data.itemId == ""
@@ -645,7 +645,7 @@ service cloud.firestore {
         );
     }
 
-    function isValidChoreUndoLedgerCreate(uid, actorIsAdmin) {
+    function isValidChoreUndoLedgerCreate(uid, entryId, actorIsAdmin) {
       return request.resource.data.reason == "chore_undo_complete"
         && request.resource.data.choreId != ""
         && request.resource.data.itemId == ""
@@ -662,40 +662,40 @@ service cloud.firestore {
         );
     }
 
-    function isValidStorePurchaseLedgerCreate(uid) {
+    function isValidStorePurchaseLedgerCreate() {
       return request.resource.data.reason == "store_purchase"
         && request.resource.data.itemId != ""
         && request.resource.data.choreId == ""
         && request.resource.data.delta < 0;
     }
 
-    function isValidQuestRewardLedgerCreate(uid) {
+    function isValidQuestRewardLedgerCreate() {
       return request.resource.data.reason == "quest_reward"
         && request.resource.data.itemId is string
         && request.resource.data.choreId == ""
         && request.resource.data.delta > 0;
     }
 
-    function canSelfCreateWalletLedger(uid) {
+    function canSelfCreateWalletLedger(uid, ledgerEntryId) {
       return isSelf(uid)
         && isWalletLedgerCreateBaseValid(uid)
         && (
-          isValidChoreCompleteLedgerCreate(uid, false)
-          || isValidChoreUndoLedgerCreate(uid, false)
-          || isValidStorePurchaseLedgerCreate(uid)
-          || isValidQuestRewardLedgerCreate(uid)
+          isValidChoreCompleteLedgerCreate(uid, ledgerEntryId, false)
+          || isValidChoreUndoLedgerCreate(uid, ledgerEntryId, false)
+          || isValidStorePurchaseLedgerCreate()
+          || isValidQuestRewardLedgerCreate()
         );
     }
 
-    function canAdminCreateWalletLedger(uid) {
+    function canAdminCreateWalletLedger(uid, ledgerEntryId) {
       return canAdminManageUser(uid)
         && isWalletLedgerCreateBaseValid(uid)
         && (
           request.resource.data.reason == "manual_adjustment"
-          || isValidChoreCompleteLedgerCreate(uid, true)
-          || isValidChoreUndoLedgerCreate(uid, true)
-          || isValidStorePurchaseLedgerCreate(uid)
-          || isValidQuestRewardLedgerCreate(uid)
+          || isValidChoreCompleteLedgerCreate(uid, ledgerEntryId, true)
+          || isValidChoreUndoLedgerCreate(uid, ledgerEntryId, true)
+          || isValidStorePurchaseLedgerCreate()
+          || isValidQuestRewardLedgerCreate()
         );
     }
 
@@ -711,7 +711,7 @@ service cloud.firestore {
 
       match /walletLedger/{entryId} {
         allow read: if isSelf(uid) || canAdminManageUser(uid);
-        allow create: if canSelfCreateWalletLedger(uid) || canAdminCreateWalletLedger(uid);
+        allow create: if canSelfCreateWalletLedger(uid, entryId) || canAdminCreateWalletLedger(uid, entryId);
         allow update, delete: if false;
       }
 

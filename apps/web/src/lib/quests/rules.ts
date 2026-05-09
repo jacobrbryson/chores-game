@@ -54,14 +54,28 @@ export type QuestRulesDefinition = {
 };
 
 const RULES_JSON_PATH = path.join(process.cwd(), "public", "quests", "rules.json");
+const GCS_ASSET_BASE_URL = process.env.NEXT_PUBLIC_GCS_ASSET_BASE_URL?.replace(/\/+$/, "");
+const GCS_RULES_URL = GCS_ASSET_BASE_URL ? `${GCS_ASSET_BASE_URL}/quests/rules.json` : "";
 
 let rulesCache: QuestRulesDefinition | null = null;
+
+async function loadRulesJson() {
+  if (GCS_RULES_URL) {
+    const response = await fetch(GCS_RULES_URL, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch quest rules from ${GCS_RULES_URL}: ${response.status}`);
+    }
+    return response.text();
+  }
+
+  return fs.readFile(RULES_JSON_PATH, "utf8");
+}
 
 export async function getQuestRules(options?: { forceReload?: boolean }) {
   if (!options?.forceReload && rulesCache) {
     return rulesCache;
   }
-  const raw = await fs.readFile(RULES_JSON_PATH, "utf8");
+  const raw = await loadRulesJson();
   const parsed = JSON.parse(raw) as QuestRulesDefinition;
   rulesCache = parsed;
   return parsed;
