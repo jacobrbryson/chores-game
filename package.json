@@ -8,8 +8,12 @@
 	"scripts": {
 		"dev": "npm run dev --workspaces --if-present --parallel",
 		"dev:web": "npm run dev -w @apps/web",
+		"dev:mobile": "npm run dev -w @apps/mobile",
 		"dev:ws": "npm run dev -w @apps/ws",
 		"build": "npm run build --workspaces --if-present",
+		"typecheck": "npm run typecheck --workspaces --if-present",
+		"lint": "npm run lint --workspaces --if-present",
+		"test": "npm run test --workspaces --if-present",
 		"wallet:rebuild": "node scripts/rebuild-wallet-balances.mjs",
 		"admin:grant-confetti": "node scripts/admin/grant-all-confetti-options.mjs"
 	},
