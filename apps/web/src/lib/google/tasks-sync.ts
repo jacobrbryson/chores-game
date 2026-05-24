@@ -27,6 +27,7 @@ import {
   updateGoogleTasksSyncMetadata,
 } from "@/lib/google/tasks-link";
 import { applyWalletDelta } from "@/lib/economy/wallet";
+import { writeAuditLogBestEffort } from "@/lib/audit/log";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 
 export const GOOGLE_TASKS_CHORE_SOURCE = "google_tasks";
@@ -598,7 +599,12 @@ export async function syncGoogleTasksForUser(
           continue;
         }
 
-        const nextStatus = remoteTask.status === "completed" ? "Submitted" : "Open";
+        const nextStatus =
+          remoteTask.status === "completed"
+            ? localChore.status === "Approved"
+              ? "Approved"
+              : "Submitted"
+            : "Open";
         const nextTitle = normalizeTitle(remoteTask.title);
         const nextDetails = normalizeDetails(remoteTask.notes ?? "");
         const nextDueDate = googleDueToDueDate(remoteTask.due) || localChore.dueDate || now.slice(0, 10);
@@ -641,6 +647,21 @@ export async function syncGoogleTasksForUser(
             options.idToken,
             updateMask,
           );
+          if (statusChanged) {
+            await writeAuditLogBestEffort({
+              familyId: link.familyId,
+              idToken: options.idToken,
+              eventType: "chore_status_changed",
+              actor: { uid: options.uid, role: "system", name: "Google Tasks sync" },
+              userId: localChore.assigneeId,
+              choreId: localChore.id,
+              choreTitle: localChore.title,
+              source: GOOGLE_TASKS_CHORE_SOURCE,
+              previous: { status: localChore.status },
+              next: { status: nextStatus },
+              reason: "google_tasks_remote_reconcile",
+            });
+          }
           if (statusChanged && localChore.coinValue > 0) {
             const assigneeUid = await resolveAssigneeUid(link.familyId, localChore.assigneeId, options.idToken);
             if (assigneeUid) {

@@ -6,7 +6,7 @@ import { ACHIEVEMENT_BY_ID } from "@/lib/achievements/catalog";
 import { findGameItemById } from "@/lib/items/catalog";
 import { createDefaultQuestProgress, listQuestProgress } from "@/lib/quests/progress";
 import { getQuestActionLabel } from "@/lib/quests/runtime";
-import { listQuestDefinitions } from "@/lib/quests/service";
+import { listQuestDefinitionsForViewer } from "@/lib/quests/service";
 import type { QuestStatus } from "@/lib/quests/types";
 
 const COMING_SOON_QUEST_IDS = new Set([
@@ -65,7 +65,11 @@ export async function GET(request: NextRequest) {
       session,
       async (idToken) => {
         const [quests, progressRows] = await Promise.all([
-          listQuestDefinitions(),
+          listQuestDefinitionsForViewer({
+            uid: session.uid,
+            email: session.email ?? "",
+            idToken,
+          }),
           listQuestProgress(session.uid, idToken),
         ]);
         const sortedQuests = [...quests].sort((left, right) => left.id.localeCompare(right.id));

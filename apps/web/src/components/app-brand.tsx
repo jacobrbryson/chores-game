@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { familyChoresBrand } from "@/lib/brand";
 
 function BrandContent() {
   return (
@@ -16,8 +17,8 @@ function BrandContent() {
         priority
       />
       <span className="brand-copy">
-        <span className="brand-title">Family Chores</span>
-        <span className="brand-tagline">Play. Help. Earn.</span>
+        <span className="brand-title">{familyChoresBrand.title}</span>
+        <span className="brand-tagline">{familyChoresBrand.tagline}</span>
       </span>
     </>
   );

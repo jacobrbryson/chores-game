@@ -5,7 +5,7 @@ import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { getDocument, readInteger } from "@/lib/firestore/rest";
 import { getQuestProgress, listInventoryByItemId } from "@/lib/quests/progress";
 import { toRuntimeNode } from "@/lib/quests/runtime";
-import { getQuestDefinitionById, getQuestNodeById } from "@/lib/quests/service";
+import { getQuestDefinitionForViewer, getQuestNodeById } from "@/lib/quests/service";
 import type { QuestProgress } from "@/lib/quests/types";
 
 function toChoicesMadeByNodeId(progress: QuestProgress) {
@@ -76,7 +76,12 @@ export async function GET(
     const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
-        const quest = await getQuestDefinitionById(questId);
+        const quest = await getQuestDefinitionForViewer({
+          questId,
+          uid: session.uid,
+          email: session.email ?? "",
+          idToken,
+        });
         if (!quest) {
           return { kind: "not_found" as const };
         }

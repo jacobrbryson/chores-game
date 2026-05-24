@@ -75,6 +75,8 @@ type QuickSortState = {
   direction: QuickSortDirection;
 };
 
+type ChoreScopeSelection = "family" | `member:${string}`;
+
 type CompletionStatsResponse = {
   window: CompletionWindow;
   counts: CompletionCount[];
@@ -97,13 +99,46 @@ function normalizeAssigneeAlias(value?: string) {
   return (value ?? "").trim().toLowerCase();
 }
 
+function getMemberAliasSet(member: FamilySnapshotMember) {
+  return new Set(
+    [member.id, member.uid, member.email]
+      .map((value) => normalizeAssigneeAlias(value))
+      .filter(Boolean),
+  );
+}
+
+function choreMatchesMember(chore: FamilySnapshotChore, member: FamilySnapshotMember) {
+  if (chore.assigneeScope === "family") {
+    return true;
+  }
+  const memberAliases = getMemberAliasSet(member);
+  return (
+    (chore.assigneeIds ?? []).some((id) => memberAliases.has(normalizeAssigneeAlias(id))) ||
+    Boolean(chore.assigneeId && memberAliases.has(normalizeAssigneeAlias(chore.assigneeId)))
+  );
+}
+
 function normalizeChoreTitle(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-const MY_CHORES_ONLY_STORAGE_KEY = "today_chores_my_only";
+function formatCompactBalance(value: number) {
+  if (value < 1000) {
+    return `${value}`;
+  }
+  if (value < 1_000_000) {
+    return `${(value / 1000).toFixed(1)}k`;
+  }
+  if (value < 1_000_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}m`;
+  }
+  return `${(value / 1_000_000_000).toFixed(1)}b`;
+}
+
+const CHORE_SCOPE_STORAGE_KEY = "today_chores_scope";
 const COMPLETION_WINDOW_STORAGE_KEY = "today_chores_completion_window";
 const QUICK_SORT_STORAGE_KEY = "today_chores_quick_sort";
+const FAMILY_CHORE_SCOPE_SELECTION: ChoreScopeSelection = "family";
 const EMPTY_COMPLETION_SERIES: CompletionSeries = {
   interval: "day",
   labels: [],
@@ -147,17 +182,21 @@ ChartJS.register(
   Filler,
 );
 
-function readMyChoresOnly() {
+function readChoreScopeSelection(): ChoreScopeSelection | null {
   try {
-    return window.localStorage.getItem(MY_CHORES_ONLY_STORAGE_KEY) === "1";
+    const value = window.localStorage.getItem(CHORE_SCOPE_STORAGE_KEY);
+    if (value === FAMILY_CHORE_SCOPE_SELECTION || value?.startsWith("member:")) {
+      return value as ChoreScopeSelection;
+    }
   } catch {
-    return false;
+    // Ignore storage errors.
   }
+  return null;
 }
 
-function writeMyChoresOnly(next: boolean) {
+function writeChoreScopeSelection(next: ChoreScopeSelection) {
   try {
-    window.localStorage.setItem(MY_CHORES_ONLY_STORAGE_KEY, next ? "1" : "0");
+    window.localStorage.setItem(CHORE_SCOPE_STORAGE_KEY, next);
   } catch {
     // Ignore storage errors.
   }
@@ -308,6 +347,7 @@ export function TodayChoresPanel({
 }: TodayChoresPanelProps) {
   const canCreateChores = viewerRole === "admin" || viewerRole === "player";
   const playerSeeAndDoMode = viewerRole === "player";
+  const [choreScopeMenuOpen, setChoreScopeMenuOpen] = useState(false);
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const [desktopQuickSortMenuOpen, setDesktopQuickSortMenuOpen] = useState(false);
   const [mobileQuickSortMenuOpen, setMobileQuickSortMenuOpen] = useState(false);
@@ -331,7 +371,8 @@ export function TodayChoresPanel({
   const [choreActionError, setChoreActionError] = useState("");
   const [pendingApproveChore, setPendingApproveChore] = useState<FamilySnapshotChore | null>(null);
   const [approvalCoinsByAssignee, setApprovalCoinsByAssignee] = useState<Record<string, number>>({});
-  const [myChoresOnly, setMyChoresOnly] = useState(readMyChoresOnly);
+  const [choreScopeSelection, setChoreScopeSelection] =
+    useState<ChoreScopeSelection | null>(readChoreScopeSelection);
   const [completionWindow, setCompletionWindow] = useState<CompletionWindow>(readCompletionWindow);
   const [completionCounts, setCompletionCounts] = useState<CompletionCount[]>([]);
   const [completionSeries, setCompletionSeries] =
@@ -354,15 +395,10 @@ export function TodayChoresPanel({
           return;
         }
         const payload = (await response.json()) as {
-          myChoresOnly?: boolean;
           completionWindow?: CompletionWindow | null;
         };
         if (cancelled) {
           return;
-        }
-        if (typeof payload.myChoresOnly === "boolean") {
-          setMyChoresOnly(payload.myChoresOnly);
-          writeMyChoresOnly(payload.myChoresOnly);
         }
         if (payload.completionWindow) {
           setCompletionWindow(payload.completionWindow);
@@ -532,6 +568,39 @@ export function TodayChoresPanel({
       ),
     [viewerAssigneeIds],
   );
+  const activeMembers = useMemo(
+    () => members.filter((member) => member.status === "active"),
+    [members],
+  );
+  const viewerMember = useMemo(
+    () =>
+      activeMembers.find((member) =>
+        Array.from(getMemberAliasSet(member)).some((alias) => viewerAssigneeIdSet.has(alias)),
+      ) ?? null,
+    [activeMembers, viewerAssigneeIdSet],
+  );
+  const defaultChoreScopeSelection: ChoreScopeSelection = viewerMember
+    ? `member:${viewerMember.id}`
+    : FAMILY_CHORE_SCOPE_SELECTION;
+  const selectedChoreScope = useMemo<ChoreScopeSelection>(() => {
+    if (choreScopeSelection === FAMILY_CHORE_SCOPE_SELECTION) {
+      return choreScopeSelection;
+    }
+    if (choreScopeSelection?.startsWith("member:")) {
+      const selectedMemberId = choreScopeSelection.slice("member:".length);
+      if (activeMembers.some((member) => member.id === selectedMemberId)) {
+        return choreScopeSelection;
+      }
+    }
+    return defaultChoreScopeSelection;
+  }, [activeMembers, choreScopeSelection, defaultChoreScopeSelection]);
+  const selectedChoreMember = useMemo(() => {
+    if (!selectedChoreScope.startsWith("member:")) {
+      return null;
+    }
+    const selectedMemberId = selectedChoreScope.slice("member:".length);
+    return activeMembers.find((member) => member.id === selectedMemberId) ?? null;
+  }, [activeMembers, selectedChoreScope]);
   const memberByAlias = useMemo(() => {
     const map = new Map<string, FamilySnapshotMember>();
     for (const member of members) {
@@ -630,15 +699,11 @@ export function TodayChoresPanel({
     [pendingCreateChoresByRequestId],
   );
   const visibleChores = useMemo(() => {
-    if (!myChoresOnly) {
+    if (selectedChoreScope === FAMILY_CHORE_SCOPE_SELECTION || !selectedChoreMember) {
       return sortedOpenChores;
     }
-    return sortedOpenChores.filter(
-      (chore) =>
-        (chore.assigneeIds ?? []).some((id) => viewerAssigneeIdSet.has(normalizeAssigneeAlias(id))) ||
-        Boolean(chore.assigneeId && viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId))),
-    );
-  }, [sortedOpenChores, myChoresOnly, viewerAssigneeIdSet]);
+    return sortedOpenChores.filter((chore) => choreMatchesMember(chore, selectedChoreMember));
+  }, [selectedChoreMember, selectedChoreScope, sortedOpenChores]);
   const hasBusyChoreAction = Object.keys(busyActionsById).length > 0;
   const hasPendingCreates = Object.keys(pendingCreateChoresByRequestId).length > 0;
   const hasPendingDeletes = Object.keys(pendingDeleteChoreIds).length > 0;
@@ -811,16 +876,10 @@ export function TodayChoresPanel({
     [completionSeries.maxCount, completionSeries.series, completionWindow],
   );
 
-  function updateMyChoresOnly(next: boolean) {
-    setMyChoresOnly(next);
-    writeMyChoresOnly(next);
-    void fetch("/api/preferences", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ myChoresOnly: next }),
-    }).catch(() => {
-      // Keep local value; retry will happen on next toggle.
-    });
+  function updateChoreScopeSelection(next: ChoreScopeSelection) {
+    setChoreScopeSelection(next);
+    writeChoreScopeSelection(next);
+    setChoreScopeMenuOpen(false);
   }
 
   function updateCompletionWindow(next: CompletionWindow) {
@@ -1027,7 +1086,6 @@ export function TodayChoresPanel({
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? `COMPLETE_CHORE_HTTP_${response.status}`);
       }
-      setCompletionStatsRefreshTick((current) => current + 1);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("wallet:refresh"));
         window.dispatchEvent(new Event("notifications:refresh"));
@@ -1160,21 +1218,127 @@ export function TodayChoresPanel({
       <div className="today-chores-layout">
         <div className="today-chores-main">
           <div className="today-chores-toolbar">
-            <label className="today-chores-toggle-row">
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                checked={myChoresOnly}
-                onChange={(event) => updateMyChoresOnly(event.target.checked)}
-              />
-              <span
-                aria-hidden="true"
-                className="my-chores-toggle-track"
-              />
-              <span className="small today-chores-toggle-copy">
-                <span>My Chores</span>
-              </span>
-            </label>
+            <AppMenu
+              open={choreScopeMenuOpen}
+              onOpenChange={setChoreScopeMenuOpen}
+              wrapperClassName="today-chores-scope-wrap"
+              triggerClassName="theme-select-trigger today-chores-scope-trigger"
+              triggerTitle="Choose chore view"
+              triggerAriaLabel="Choose chore view"
+              panelClassName="app-menu-panel profile-dropdown today-chores-scope-menu"
+              trigger={
+                <>
+                  {selectedChoreMember ? (
+                    <FamilyMemberAvatar
+                      className="completion-chart-avatar today-chores-scope-avatar"
+                      name={selectedChoreMember.name}
+                      avatarId={selectedChoreMember.avatarId}
+                      avatarPhotoUrl={selectedChoreMember.avatarPhotoUrl}
+                      primaryColor={getSafeHexColor(selectedChoreMember.dashboardPrimaryColor) || undefined}
+                      size={28}
+                      borderWidth={2}
+                      ariaHidden
+                    />
+                  ) : (
+                    <span className="today-chores-family-avatar" aria-hidden="true">
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
+                        <circle cx="7" cy="7" r="2" />
+                        <circle cx="13.25" cy="8" r="1.75" />
+                        <path d="M3.75 15a3.5 3.5 0 0 1 6.5 0" />
+                        <path d="M11 14.75a3 3 0 0 1 5-.75" />
+                      </svg>
+                    </span>
+                  )}
+                  <span className="today-chores-scope-trigger-text">
+                    {selectedChoreMember?.name || "Family"}
+                  </span>
+                  {selectedChoreMember ? (
+                    <span className="today-chores-scope-coins" aria-label={`${selectedChoreMember.stats.currentCoins} coins`}>
+                      <CoinIcon size={12} />
+                      <span>{formatCompactBalance(selectedChoreMember.stats.currentCoins)}</span>
+                    </span>
+                  ) : null}
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 20 20"
+                    className={`today-chores-scope-caret${choreScopeMenuOpen ? " is-open" : ""}`}>
+                    <path
+                      d="M5 7.5L10 12.5L15 7.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </>
+              }>
+              <button
+                type="button"
+                role="menuitem"
+                className={`theme-select-option today-chores-scope-option${
+                  selectedChoreScope === FAMILY_CHORE_SCOPE_SELECTION ? " theme-select-option-selected" : ""
+                }`}
+                onClick={() => updateChoreScopeSelection(FAMILY_CHORE_SCOPE_SELECTION)}>
+                <span className="today-chores-scope-option-main">
+                  <span className="today-chores-family-avatar" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
+                      <circle cx="7" cy="7" r="2" />
+                      <circle cx="13.25" cy="8" r="1.75" />
+                      <path d="M3.75 15a3.5 3.5 0 0 1 6.5 0" />
+                      <path d="M11 14.75a3 3 0 0 1 5-.75" />
+                    </svg>
+                  </span>
+                  <span className="today-chores-scope-option-copy">
+                    <span>All Family</span>
+                    <span>All open chores</span>
+                  </span>
+                </span>
+                <span className="today-chores-scope-option-check" aria-hidden="true">
+                  {selectedChoreScope === FAMILY_CHORE_SCOPE_SELECTION ? "\u2713" : ""}
+                </span>
+              </button>
+              {activeMembers.map((member) => {
+                const selection: ChoreScopeSelection = `member:${member.id}`;
+                const primaryColor = getSafeHexColor(member.dashboardPrimaryColor) || "#1f69b7";
+                return (
+                  <button
+                    key={member.id}
+                    type="button"
+                    role="menuitem"
+                    className={`theme-select-option today-chores-scope-option${
+                      selectedChoreScope === selection ? " theme-select-option-selected" : ""
+                    }`}
+                    onClick={() => updateChoreScopeSelection(selection)}>
+                    <span className="today-chores-scope-option-main">
+                      <FamilyMemberAvatar
+                        className="completion-chart-avatar today-chores-scope-avatar"
+                        name={member.name}
+                        avatarId={member.avatarId}
+                        avatarPhotoUrl={member.avatarPhotoUrl}
+                        primaryColor={primaryColor}
+                        size={30}
+                        borderWidth={2}
+                        ariaHidden
+                      />
+                      <span className="today-chores-scope-option-copy">
+                        <span>{member.name}</span>
+                        <span>{member.role === "admin" ? "Parent" : "Kid"}</span>
+                      </span>
+                    </span>
+                    <span className="today-chores-scope-option-trailing">
+                      <span className="today-chores-scope-coins" aria-label={`${member.stats.currentCoins} coins`}>
+                        <CoinIcon size={12} />
+                        <span>{formatCompactBalance(member.stats.currentCoins)}</span>
+                      </span>
+                      <span className="today-chores-scope-option-check" aria-hidden="true">
+                        {selectedChoreScope === selection ? "\u2713" : ""}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </AppMenu>
             <div className="today-chores-actions-shell today-chores-actions-desktop">
               <AppMenu
                 open={desktopQuickSortMenuOpen}
@@ -1351,7 +1515,9 @@ export function TodayChoresPanel({
           {visibleChores.length === 0 ? (
             <div className="flex flex-col gap-3 pt-1">
               <p className="small">
-                {myChoresOnly ? "No chores assigned to you right now." : "No open chores right now."}
+                {selectedChoreMember
+                  ? `No chores assigned to ${selectedChoreMember.name} right now.`
+                  : "No open chores right now."}
               </p>
               {canCreateChores ? (
                 <div className="chores-empty-cta">

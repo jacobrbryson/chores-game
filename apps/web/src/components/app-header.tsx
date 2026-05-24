@@ -7,6 +7,7 @@ import {
   isSessionSwitched,
   parseSessionToken,
 } from "@/lib/auth/session";
+import { hasSupportAdminEmail } from "@/lib/support/access";
 
 export async function AppHeader() {
   const googleClientId =
@@ -37,6 +38,7 @@ export async function AppHeader() {
             initial={profileInitial}
             isSwitched={sessionUser ? isSessionSwitched(sessionUser) : false}
             authenticatedName={authenticatedIdentity?.name || authenticatedIdentity?.email || ""}
+            showSupportLink={hasSupportAdminEmail(sessionUser)}
           />
         ) : googleClientId && gsiLoginUri ? (
           <GoogleSignInButton mode="gsi" clientId={googleClientId} loginUri={gsiLoginUri} />

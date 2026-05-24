@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { TodayChoresPanel } from "@/components/today-chores-panel";
@@ -15,6 +15,7 @@ export function FamilyCard() {
   const [acceptingInvite, setAcceptingInvite] = useState(false);
   const [acceptInviteError, setAcceptInviteError] = useState("");
   const [completionStatsReloadKey, setCompletionStatsReloadKey] = useState(0);
+  const silentRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const needsReauth =
     error === "reauth_required" ||
@@ -193,9 +194,28 @@ export function FamilyCard() {
     }
   }, []);
 
+  const queueSilentSummaryRefresh = useCallback(() => {
+    if (silentRefreshTimerRef.current) {
+      return;
+    }
+    silentRefreshTimerRef.current = setTimeout(() => {
+      silentRefreshTimerRef.current = null;
+      void loadSummary({ silent: true });
+    }, 120);
+  }, [loadSummary]);
+
   useEffect(() => {
     void loadSummary();
   }, [loadSummary]);
+
+  useEffect(() => {
+    return () => {
+      if (silentRefreshTimerRef.current) {
+        clearTimeout(silentRefreshTimerRef.current);
+        silentRefreshTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!familyId || !summary?.wsAuthToken) {
@@ -224,14 +244,14 @@ export function FamilyCard() {
         event.type === "avatar_changed" ||
         event.type === "chore_reordered"
       ) {
-        void loadSummary({ silent: true });
+        queueSilentSummaryRefresh();
         return;
       }
       if (event.type === "chore_completed" || event.type === "chore_deleted") {
         if (event.choreId) {
           removeTodayChore(event.choreId);
         }
-        void loadSummary({ silent: true });
+        queueSilentSummaryRefresh();
       } else if (event.choreId) {
         void refreshTodayChoreFromApi(event.choreId);
       }
@@ -245,7 +265,7 @@ export function FamilyCard() {
     return () => {
       socket.off("family:activity", onFamilyActivity);
     };
-  }, [familyId, loadSummary, refreshTodayChoreFromApi, removeTodayChore, summary?.wsAuthToken]);
+  }, [familyId, queueSilentSummaryRefresh, refreshTodayChoreFromApi, removeTodayChore, summary?.wsAuthToken]);
 
   async function onAcceptInvite() {
     if (acceptingInvite) {

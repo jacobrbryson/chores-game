@@ -92,6 +92,7 @@ Build a family chore game where:
   - `VAPID_PRIVATE_KEY` (required for browser push notifications)
   - `VAPID_SUBJECT` (recommended; contact URI for VAPID, e.g. `mailto:...`)
   - `PUSH_SUBSCRIPTION_SECRET` (optional; falls back to `SESSION_SECRET` when omitted)
+  - `EXPO_PUBLIC_API_BASE_URL` (mobile app API base URL, typically `http://localhost:3000/api/v1` for local development)
 - Homepage view split by auth state:
   - Logged out users see the marketing hero + "How it works".
   - Logged in users see a "My Family" dashboard card instead of the hero.
@@ -555,3 +556,30 @@ Build a family chore game where:
   - Added quest item support in Store (`quest_items` category) and transactional buy-and-use handling in quest choice flow.
   - Added user quest progress persistence at `users/{uid}/questProgress/{questId}`.
   - Added user inventory persistence at `users/{uid}/inventory/{itemId}` and surfaced owned items on profile surfaces.
+- Expo mobile UI foundation update (2026-05-10):
+  - `apps/mobile` now uses a lightweight native entry (`index.js` + `App.tsx`) with in-app tab state, avoiding cross-workspace router dependency conflicts.
+  - Added a reusable mobile design system:
+    - Theme tokens in `apps/mobile/src/theme/*` (`colors`, `spacing`, `radius`, `typography`, `shadows`).
+    - Shared UI primitives in `apps/mobile/src/components/ui/*` (`AppScreen`, `AppHeader`, `Card`, `Button`, `Badge`, `CoinPill`, `ProgressBar`, `EmptyState`, `LoadingState`, `ErrorState`, `SectionHeader`, `AvatarBadge`).
+  - Mobile screens (`Home`, `Chores`, `Rewards`, `Quests`, `Achievements`, `Profile`, `Login`) were restyled to match web visual language (soft blue backgrounds, rounded cards, badge/coin treatments, quest dark surfaces) while keeping existing API behavior unchanged.
+  - Mobile API usage remains internal and versioned through `EXPO_PUBLIC_API_BASE_URL` targeting `/api/v1`.
+  - Mobile dev commands:
+    - `npm run dev:mobile`
+    - `npm exec expo install --fix`
+    - `npm exec expo start --clear`
+  - Unity remains deferred; integration planning note stays in `apps/mobile/docs/unity-integration.todo.md`.
+- Support admin diagnostics update (2026-05-23):
+  - Added `/support` as a production debugging console for app operators, separate from family admins.
+  - Support access is controlled by server env allowlists:
+    - `SUPPORT_ADMIN_EMAILS` (comma-separated signed-in Google emails)
+    - `SUPPORT_ADMIN_UIDS` (comma-separated Firebase UIDs)
+  - Support data APIs use server-side Firestore credentials through App Hosting metadata credentials, `GOOGLE_APPLICATION_CREDENTIALS`, or `FIREBASE_SERVICE_ACCOUNT_KEY`.
+  - Added `GET /api/support/debug` to inspect users, families, chores, wallet ledger entries, family activity notifications, and immutable audit logs across families.
+  - Added family-scoped immutable `auditLogs` records for chore status transitions including complete, approve, reject, undo, delete, and Google Tasks remote reconciliation.
+  - Fixed Google Tasks sync so a remote completed task no longer downgrades a local `Approved` chore back to `Submitted`.
+  - Firestore rules now allow family admins to read family audit logs and family members to create immutable audit entries for their own family events.
+- Public API/token access update (2026-05-23):
+  - Added scoped bearer-token public API auth for `/api/v1` read endpoints with server-only token hashes in `apiTokens` and immutable events in `publicApiAudit`.
+  - Profile now includes Developer API token creation, disable, soft-delete, re-issue, usage, and audit views; raw tokens are shown only on create/re-issue.
+  - Public API requests use `Authorization: Bearer <token>`, structured audit/logging, request IDs, and a UTC daily quota of 1,000 requests per token with rate-limit headers.
+  - OpenAPI JSON is served at `/api/docs/openapi.json`; Swagger UI is available at `/docs/api` and `/api/docs`.

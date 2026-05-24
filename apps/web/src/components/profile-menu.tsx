@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { AccountSwitchModal } from "@/components/account-switch-modal";
 import { Alert } from "@/components/alert";
 import { AppMenu } from "@/components/app-menu";
@@ -84,9 +84,81 @@ type ProfileMenuProps = {
   initial: string;
   isSwitched?: boolean;
   authenticatedName?: string;
+  showSupportLink?: boolean;
 };
 
 type SwitchableMember = FamilySummaryResponse["members"][number];
+
+function ProfileMenuItemIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+const notificationsIcon = (
+  <ProfileMenuItemIcon>
+    <path d="M10 3.5a4 4 0 0 0-4 4v1.6c0 .7-.2 1.3-.58 1.88L4.4 12.5h11.2l-1.02-1.52A3.4 3.4 0 0 1 14 9.1V7.5a4 4 0 0 0-4-4Z" />
+    <path d="M8.25 14.5a1.75 1.75 0 0 0 3.5 0" />
+  </ProfileMenuItemIcon>
+);
+
+const profileIcon = (
+  <ProfileMenuItemIcon>
+    <circle cx="10" cy="6.5" r="2.5" />
+    <path d="M5.5 15.25a4.5 4.5 0 0 1 9 0" />
+  </ProfileMenuItemIcon>
+);
+
+const familyIcon = (
+  <ProfileMenuItemIcon>
+    <circle cx="7" cy="7" r="2" />
+    <circle cx="13.5" cy="8" r="1.75" />
+    <path d="M3.75 15a3.5 3.5 0 0 1 6.5 0" />
+    <path d="M11 14.75a3 3 0 0 1 5.25-.75" />
+  </ProfileMenuItemIcon>
+);
+
+const supportIcon = (
+  <ProfileMenuItemIcon>
+    <path d="M5.25 10.25v-.5a4.75 4.75 0 0 1 9.5 0v.5" />
+    <path d="M5.25 10.25a1.5 1.5 0 0 0-1.5 1.5v1a1.5 1.5 0 0 0 1.5 1.5h1.25v-4H5.25Z" />
+    <path d="M14.75 10.25a1.5 1.5 0 0 1 1.5 1.5v1a1.5 1.5 0 0 1-1.5 1.5H13.5v-4h1.25Z" />
+    <path d="M8 15.75h2.75a1.5 1.5 0 0 0 1.5-1.5" />
+  </ProfileMenuItemIcon>
+);
+
+const switchIcon = (
+  <ProfileMenuItemIcon>
+    <path d="M7 6.25h8.25" />
+    <path d="m12.75 3.75 2.5 2.5-2.5 2.5" />
+    <path d="M13 13.75H4.75" />
+    <path d="m7.25 11.25-2.5 2.5 2.5 2.5" />
+  </ProfileMenuItemIcon>
+);
+
+const returnParentIcon = (
+  <ProfileMenuItemIcon>
+    <path d="M8 5.25 4.75 8.5 8 11.75" />
+    <path d="M5 8.5h5a4 4 0 1 1 0 8H7.75" />
+  </ProfileMenuItemIcon>
+);
+
+const logoutIcon = (
+  <ProfileMenuItemIcon>
+    <path d="M8 4.5H5.75A1.75 1.75 0 0 0 4 6.25v7.5c0 .97.78 1.75 1.75 1.75H8" />
+    <path d="M10.25 10h5.25" />
+    <path d="m13 7.25 2.75 2.75L13 12.75" />
+  </ProfileMenuItemIcon>
+);
 
 function formatCompactBalance(value: number) {
   if (value < 1000) {
@@ -108,6 +180,7 @@ export function ProfileMenu({
   initial,
   isSwitched = false,
   authenticatedName = "",
+  showSupportLink = false,
 }: ProfileMenuProps) {
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState(name);
@@ -490,18 +563,25 @@ export function ProfileMenu({
           href={notificationsHref}
           fullWidth
           onClick={() => setOpen(false)}
+          leading={notificationsIcon}
           badgeCount={unseenCount}>
           Notifications
         </MenuActionLink>
-        <MenuActionLink href="/profile" fullWidth onClick={() => setOpen(false)}>
+        <MenuActionLink href="/profile" fullWidth onClick={() => setOpen(false)} leading={profileIcon}>
           Profile
         </MenuActionLink>
-        <MenuActionLink href="/family" fullWidth onClick={() => setOpen(false)}>
+        <MenuActionLink href="/family" fullWidth onClick={() => setOpen(false)} leading={familyIcon}>
           Manage Family
         </MenuActionLink>
+        {showSupportLink ? (
+          <MenuActionLink href="/support" fullWidth onClick={() => setOpen(false)} leading={supportIcon}>
+            Support
+          </MenuActionLink>
+        ) : null}
         {!isSwitched ? (
           <MenuActionButton
             fullWidth
+            leading={switchIcon}
             onClick={() => {
               setOpen(false);
               openSwitchPicker();
@@ -512,6 +592,7 @@ export function ProfileMenu({
         {isSwitched ? (
           <MenuActionButton
             fullWidth
+            leading={returnParentIcon}
             onClick={() => {
               setOpen(false);
               setRestorePin("");
@@ -523,7 +604,7 @@ export function ProfileMenu({
         ) : null}
         <div className="profile-divider" />
         <form action="/api/auth/logout" method="post">
-          <MenuActionButton fullWidth type="submit">
+          <MenuActionButton fullWidth type="submit" leading={logoutIcon}>
             Logout
           </MenuActionButton>
         </form>

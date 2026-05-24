@@ -421,7 +421,7 @@ async function getStoreSummary(uid: string, idToken: string) {
     selectedConfettiOptionId,
     questItemQuantities,
     ownedItems,
-    categories: [...STORE_CATEGORIES, familyAwardsCategory],
+    categories: [familyAwardsCategory, ...STORE_CATEGORIES],
     avatarOptions: DEFAULT_AVATAR_IDS,
   };
 }

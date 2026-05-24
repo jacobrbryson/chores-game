@@ -1,6 +1,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { validateQuestAgainstRules } from "@/lib/quests/quest-validation";
+import {
+  getFamilyQuestDefinition,
+  listPublishedFamilyQuestDefinitions,
+} from "@/lib/quests/family-quests";
+import { getPrimaryFamilyIdWithFallback } from "@/lib/family/member-access";
 import { getQuestRules } from "@/lib/quests/rules";
 import { validateQuestDefinition } from "@/lib/quests/validation";
 import type { QuestDefinition } from "@/lib/quests/types";
@@ -61,6 +66,39 @@ export async function listQuestDefinitions(options?: { forceReload?: boolean }) 
 export async function getQuestDefinitionById(questId: string) {
   const quests = await listQuestDefinitions();
   return quests.find((quest) => quest.id === questId) ?? null;
+}
+
+export async function listQuestDefinitionsForViewer(input: {
+  uid: string;
+  email: string;
+  idToken: string;
+}) {
+  const baseQuests = await listQuestDefinitions();
+  const familyId = await getPrimaryFamilyIdWithFallback(input.uid, input.email, input.idToken);
+  if (!familyId) {
+    return baseQuests;
+  }
+  const familyQuests = await listPublishedFamilyQuestDefinitions(familyId, input.idToken);
+  const seen = new Set(baseQuests.map((quest) => quest.id));
+  return [...baseQuests, ...familyQuests.filter((quest) => !seen.has(quest.id))];
+}
+
+export async function getQuestDefinitionForViewer(input: {
+  questId: string;
+  uid: string;
+  email: string;
+  idToken: string;
+}) {
+  const builtInQuest = await getQuestDefinitionById(input.questId);
+  if (builtInQuest) {
+    return builtInQuest;
+  }
+
+  const familyId = await getPrimaryFamilyIdWithFallback(input.uid, input.email, input.idToken);
+  if (!familyId) {
+    return null;
+  }
+  return getFamilyQuestDefinition(familyId, input.questId, input.idToken, "published");
 }
 
 export function getQuestNodeById(quest: QuestDefinition, nodeId: string) {

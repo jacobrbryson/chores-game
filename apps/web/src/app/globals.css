@@ -664,6 +664,20 @@ body {
 
 .menu-action-link-label {
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.menu-action-link-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.menu-action-link-icon svg {
+  width: 100%;
+  height: 100%;
 }
 
 .app-menu-panel .menu-action-link + .menu-action-link {
@@ -1628,6 +1642,159 @@ textarea:disabled {
 .today-chores-toggle-copy {
   min-width: 0;
   line-height: 1.22;
+}
+
+.today-chores-scope-wrap {
+  min-width: 0;
+  flex: 0 1 240px;
+}
+
+.today-chores-scope-trigger {
+  max-width: 260px;
+}
+
+.today-chores-scope-avatar {
+  flex-shrink: 0;
+}
+
+.today-chores-scope-trigger-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-chores-scope-caret {
+  flex: 0 0 auto;
+  color: #5f7da3;
+  width: 16px;
+  height: 16px;
+  transition: transform 150ms ease;
+}
+
+.today-chores-scope-caret.is-open {
+  transform: rotate(180deg);
+}
+
+.today-chores-family-avatar {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid color-mix(in srgb, var(--brand) 42%, #ffffff);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, #ffffff);
+  color: color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 86%, var(--brand) 14%);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.today-chores-family-avatar svg {
+  width: 17px;
+  height: 17px;
+}
+
+.today-chores-scope-menu {
+  min-width: 240px;
+  width: min(300px, calc(100vw - 28px));
+  padding: 8px;
+}
+
+.today-chores-scope-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.today-chores-scope-option:hover {
+  background: color-mix(in srgb, var(--brand) 10%, #ffffff);
+}
+
+.today-chores-scope-option-main {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex: 1;
+}
+
+.today-chores-scope-option-trailing {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.today-chores-scope-coins {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  color: #8a4b05;
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.today-chores-scope-coins .coin-icon {
+  filter: drop-shadow(0 1px 2px rgba(180, 83, 9, 0.18));
+}
+
+.today-chores-scope-option-check {
+  flex: 0 0 auto;
+  width: 1rem;
+  text-align: right;
+  color: #2d5f95;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.today-chores-scope-option.theme-select-option-selected .today-chores-scope-option-check {
+  color: inherit;
+}
+
+.today-chores-scope-option.theme-select-option-selected .today-chores-scope-option-copy span:first-child {
+  color: inherit;
+}
+
+.today-chores-scope-option.theme-select-option-selected .today-chores-scope-option-copy span:last-child {
+  color: color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 64%, #ffffff 36%);
+}
+
+.today-chores-scope-option.theme-select-option-selected .today-chores-scope-coins {
+  color: inherit;
+}
+
+.today-chores-scope-option .today-chores-scope-avatar {
+  justify-content: flex-start;
+}
+
+.today-chores-scope-option-copy {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  flex: 1;
+}
+
+.today-chores-scope-option-copy span:first-child {
+  overflow: hidden;
+  color: #17416f;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-chores-scope-option-copy span:last-child {
+  color: #5f7da3;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .achievements-toolbar .today-chores-toggle-row {
@@ -3932,6 +4099,23 @@ white-space: nowrap;
   line-height: 1.35;
 }
 
+@media (max-width: 1180px) {
+  .profile-google-content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-google-media-layout {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 0;
+  }
+
+  .profile-google-media-card-calendar {
+    width: min(100%, 360px);
+    justify-self: center;
+  }
+}
+
 .profile-page-avatar-card h2 {
   margin-bottom: 2px;
 }
@@ -4226,6 +4410,7 @@ a.family-award-claim-card:focus-visible {
 }
 
 .profile-google-actions {
+  padding-top: 8px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -5020,6 +5205,15 @@ a.family-award-claim-card:focus-visible {
   .today-chores-toggle-row {
     flex: 1;
     min-width: 0;
+  }
+
+  .today-chores-scope-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .today-chores-scope-trigger {
+    max-width: none;
   }
 
   .achievements-toolbar .today-chores-toggle-row {
@@ -6330,4 +6524,216 @@ a.family-award-claim-card:focus-visible {
 .profile-owned-item-copy {
   display: grid;
   gap: 0.2rem;
+}
+
+.family-quests-card {
+  grid-column: 1 / -1;
+}
+
+.family-quests-rail {
+  padding-bottom: 0.35rem;
+}
+
+.family-quests-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.family-quest-editor-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.family-quest-topbar {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.family-quest-score {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  box-shadow: 0 10px 22px rgb(15 23 42 / 0.08);
+}
+
+.family-quest-score strong {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.family-quest-score span {
+  color: #475569;
+  font-size: 0.82rem;
+}
+
+.family-quest-timeline {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+  padding: 0.25rem 0.1rem 0.55rem;
+  scroll-snap-type: x proximity;
+}
+
+.family-quest-timeline-node {
+  min-width: 170px;
+  max-width: 190px;
+  display: grid;
+  gap: 0.25rem;
+  justify-items: start;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0.75rem;
+  text-align: left;
+  scroll-snap-align: start;
+}
+
+.family-quest-timeline-node.active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.18);
+}
+
+.family-quest-timeline-node span {
+  display: inline-grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.family-quest-timeline-node strong {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.family-quest-timeline-node small {
+  color: #64748b;
+  text-transform: capitalize;
+}
+
+.family-quest-validation h2 {
+  margin: 0 0 0.5rem;
+}
+
+.family-quest-validation ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: #64748b;
+}
+
+.family-quest-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.family-quest-form-card {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.family-quest-form-card h2,
+.family-quest-choice-list h3 {
+  margin: 0;
+}
+
+.family-quest-form-card label,
+.family-quest-choice-card label {
+  display: grid;
+  gap: 0.35rem;
+  color: #334155;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.family-quest-form-card input,
+.family-quest-form-card textarea,
+.family-quest-form-card select,
+.family-quest-choice-card input,
+.family-quest-choice-card select {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  font-weight: 400;
+}
+
+.family-quest-form-card textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.family-quest-page-editor textarea {
+  min-height: 12rem;
+}
+
+.family-quest-upload-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.family-quest-dropzone {
+  border: 1px dashed #94a3b8;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 0.85rem;
+}
+
+.family-quest-dropzone input {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.family-quest-dropzone strong {
+  color: #2563eb;
+  font-size: 0.83rem;
+  overflow-wrap: anywhere;
+}
+
+.family-quest-choice-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.family-quest-choice-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.8rem;
+  background: #f8fafc;
+}
+
+@media (max-width: 820px) {
+  .family-quest-topbar,
+  .family-quest-editor-grid,
+  .family-quest-upload-row,
+  .family-quest-choice-card {
+    grid-template-columns: 1fr;
+  }
 }

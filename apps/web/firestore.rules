@@ -930,6 +930,11 @@ service cloud.firestore {
         allow update: if isFamilyAdmin(familyId) || canRedeemFamilyReward(familyId);
       }
 
+      match /quests/{questId} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update, delete: if isFamilyAdmin(familyId);
+      }
+
       match /notifications/{notificationId} {
         allow read: if isFamilyMember(familyId);
         allow create: if isFamilyMember(familyId)
@@ -944,6 +949,32 @@ service cloud.firestore {
           )
           && request.resource.data.createdAt is timestamp
           && request.resource.data.relatedIds is list;
+        allow update, delete: if false;
+      }
+
+      match /auditLogs/{auditLogId} {
+        allow read: if isFamilyAdmin(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.familyId == familyId
+          && request.resource.data.eventType is string
+          && request.resource.data.actorUid is string
+          && (
+            request.resource.data.actorUid == request.auth.uid
+            || request.resource.data.actorRole == "system"
+            || (
+              isFamilyAdmin(familyId)
+              && userBelongsToFamily(request.resource.data.actorUid, familyId)
+            )
+          )
+          && request.resource.data.userId is string
+          && request.resource.data.choreId is string
+          && request.resource.data.choreTitle is string
+          && request.resource.data.source is string
+          && request.resource.data.reason is string
+          && request.resource.data.requestId is string
+          && request.resource.data.previous is map
+          && request.resource.data.next is map
+          && request.resource.data.createdAt is timestamp;
         allow update, delete: if false;
       }
 

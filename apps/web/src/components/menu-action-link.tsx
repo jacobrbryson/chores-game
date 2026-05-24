@@ -6,6 +6,7 @@ import { ReactNode } from "react";
 type MenuActionLinkProps = {
   href: string;
   children: ReactNode;
+  leading?: ReactNode;
   className?: string;
   fullWidth?: boolean;
   onClick?: () => void;
@@ -15,6 +16,7 @@ type MenuActionLinkProps = {
 export function MenuActionLink({
   href,
   children,
+  leading,
   className = "",
   fullWidth = false,
   onClick,
@@ -29,7 +31,10 @@ export function MenuActionLink({
       className={`menu-action-link${fullWidth ? " menu-action-link-full" : ""}${
         className ? ` ${className}` : ""
       }`}>
-      <span className="menu-action-link-label">{children}</span>
+      <span className="menu-action-link-label">
+        {leading ? <span className="menu-action-link-icon">{leading}</span> : null}
+        <span>{children}</span>
+      </span>
       {showBadge ? <span className="menu-link-count">{badgeCount}</span> : null}
     </Link>
   );

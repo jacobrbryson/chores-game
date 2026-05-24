@@ -5,6 +5,7 @@ import { ReactNode } from "react";
 
 type MenuActionButtonProps = {
   children: ReactNode;
+  leading?: ReactNode;
   className?: string;
   fullWidth?: boolean;
   onClick?: () => void;
@@ -16,6 +17,7 @@ type MenuActionButtonProps = {
 
 export function MenuActionButton({
   children,
+  leading,
   className = "",
   fullWidth = false,
   onClick,
@@ -32,7 +34,10 @@ export function MenuActionButton({
       }`}
       onClick={onClick}
       disabled={disabled}>
-      <span className="menu-action-link-label">{children}</span>
+      <span className="menu-action-link-label">
+        {leading ? <span className="menu-action-link-icon">{leading}</span> : null}
+        <span>{children}</span>
+      </span>
       {trailing ? <span className={trailingClassName}>{trailing}</span> : null}
     </Button>
   );

@@ -470,8 +470,35 @@ export async function GET(request: NextRequest) {
           if (!currentStats) {
             continue;
           }
+          let ledgerLifetimeCoinsEarned = 0;
+          if (member.uid) {
+            try {
+              const ledgerDocs = await listDocuments(
+                `users/${member.uid}/walletLedger`,
+                idToken,
+                1000,
+              );
+              ledgerLifetimeCoinsEarned = ledgerDocs.reduce((total, ledgerDoc) => {
+                if (readBoolean(ledgerDoc.fields, "countsTowardBalance") === false) {
+                  return total;
+                }
+                const creditAmount = readInteger(ledgerDoc.fields, "creditAmount");
+                if (creditAmount > 0) {
+                  return total + creditAmount;
+                }
+                const delta = readInteger(ledgerDoc.fields, "delta");
+                return delta > 0 ? total + delta : total;
+              }, 0);
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (!reason.includes("FIRESTORE_HTTP_404")) {
+                throw error;
+              }
+            }
+          }
           currentStats.lifetimeCoinsEarned = Math.max(
             currentStats.lifetimeCoinsEarned,
+            ledgerLifetimeCoinsEarned,
             currentStats.currentCoins,
           );
         }

@@ -6,9 +6,14 @@ import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { ProfileAdminNotificationsCard } from "@/components/profile/profile-admin-notifications-card";
+import { ProfileApiAccessCard } from "@/components/profile/profile-api-access-card";
 import { ProfileCustomizationModals } from "@/components/profile/profile-customization-modals";
 import { ProfileDetailsSection } from "@/components/profile/profile-details-section";
 import { ProfileGoogleLinkCard } from "@/components/profile/profile-google-link-card";
+import {
+  ProfileSectionTabs,
+  type ProfileSectionTabId,
+} from "@/components/profile/profile-section-tabs";
 import { deriveGoogleTasksView } from "@/components/profile/profile-google-tasks.utils";
 import {
   getPushNotificationsSummary,
@@ -103,11 +108,6 @@ export function ProfilePageClient({
   const [googleTaskListSelectionDraft, setGoogleTaskListSelectionDraft] = useState<string[] | null>(null);
   const singleTaskListAutoSyncRef = useRef("");
   const postLinkAutoSyncPendingRef = useRef(false);
-  const [pin, setPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
-  const [pinPending, setPinPending] = useState(false);
-  const [pinError, setPinError] = useState("");
-  const [pinSuccess, setPinSuccess] = useState("");
   const [pushSummary, setPushSummary] = useState<PushNotificationsProfileSummary | null>(null);
   const [pushLoading, setPushLoading] = useState(role === "admin" && !isSwitched);
   const [pushSaving, setPushSaving] = useState(false);
@@ -120,6 +120,7 @@ export function ProfilePageClient({
   const [isEditingName, setIsEditingName] = useState(false);
   const [namePending, setNamePending] = useState(false);
   const [nameError, setNameError] = useState("");
+  const [activeTab, setActiveTab] = useState<ProfileSectionTabId>("general");
 
   const loadStoreSummary = useCallback(async () => {
     setIsLoading(true);
@@ -580,33 +581,6 @@ export function ProfilePageClient({
     }
   }
 
-  async function onSaveSwitchPin() {
-    if (pinPending) {
-      return;
-    }
-    setPinPending(true);
-    setPinError("");
-    setPinSuccess("");
-    try {
-      const response = await fetch("/api/account-switch/pin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin, confirmPin }),
-      });
-      if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error ?? `PIN_SAVE_HTTP_${response.status}`);
-      }
-      setPin("");
-      setConfirmPin("");
-      setPinSuccess("PIN saved.");
-    } catch (errorValue) {
-      setPinError(errorValue instanceof Error ? errorValue.message : "pin_update_failed");
-    } finally {
-      setPinPending(false);
-    }
-  }
-
   const pushBrowserStatus = useMemo(() => {
     if (role !== "admin" || isSwitched) {
       return "";
@@ -808,8 +782,13 @@ export function ProfilePageClient({
         </p>
       ) : null}
       {error ? <Alert>Could not load profile settings: {error}</Alert> : null}
-
-      <ProfileDetailsSection
+      <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-3">
+          <ProfileSectionTabs activeTab={activeTab} onChange={setActiveTab} />
+        </div>
+        <div className="p-4">
+      {activeTab === "general" ? (
+        <ProfileDetailsSection
         displayName={displayName}
         displayEmail={displayEmail}
         role={role}
@@ -857,9 +836,11 @@ export function ProfilePageClient({
           setConfettiActionError("");
           setConfettiDialogOpen(true);
         }}
-      />
+        />
+      ) : null}
 
-      <section className="family-page-card profile-owned-items-card" aria-label="Owned items">
+      {activeTab === "inventory" ? (
+        <section className="profile-owned-items-card" aria-label="Owned items">
         <div className="family-page-card-header">
           <div>
             <h2>Owned Items</h2>
@@ -896,16 +877,16 @@ export function ProfilePageClient({
           </div>
         ) : null}
       </section>
+      ) : null}
 
+      {activeTab === "integrations" ? (
+        <div className="flex flex-col gap-3">
       {googleTasksLoading && !googleTasksSummary ? (
-        <section className="profile-google-card-wrap">
           <article className="profile-page-google-card">
             <h2>Google Account</h2>
             <p className="small">Loading Google account status...</p>
           </article>
-        </section>
       ) : !googleAccountLinked ? (
-        <section className="profile-google-card-wrap">
           <article className="profile-page-google-card">
             <h2>Google Account</h2>
             {googleAccountRedirectError ? (
@@ -922,7 +903,6 @@ export function ProfilePageClient({
               <Alert>Google sign-in is not configured for linking.</Alert>
             )}
           </article>
-        </section>
       ) : (
         <ProfileGoogleLinkCard
           googleTasksRedirectError={googleTasksRedirectError}
@@ -970,53 +950,12 @@ export function ProfilePageClient({
           }}
         />
       )}
+        {!isSwitched ? <ProfileApiAccessCard /> : null}
+        </div>
+      ) : null}
 
-      {role === "admin" && !isSwitched ? (
-        <>
-          <section className="profile-google-card-wrap">
-            <article className="profile-page-google-card">
-              <h2>Switch PIN</h2>
-              <p className="small">
-                Set a 4-digit PIN for switching into a child account and returning to your parent profile.
-              </p>
-              {pinError ? <Alert>Could not save PIN: {pinError}</Alert> : null}
-              {pinSuccess ? <p className="small">{pinSuccess}</p> : null}
-              <div className="profile-switch-pin-grid">
-                <label className="flex w-full flex-col gap-1.5">
-                  <span className="text-sm font-medium text-slate-700">PIN</span>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    pattern="\d{4}"
-                    maxLength={4}
-                    autoComplete="new-password"
-                    value={pin}
-                    onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
-                    className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
-                  />
-                </label>
-                <label className="flex w-full flex-col gap-1.5">
-                  <span className="text-sm font-medium text-slate-700">Confirm PIN</span>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    pattern="\d{4}"
-                    maxLength={4}
-                    autoComplete="new-password"
-                    value={confirmPin}
-                    onChange={(event) => setConfirmPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
-                    className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
-                  />
-                </label>
-              </div>
-              <div className="profile-google-actions">
-                <Button type="button" className="btn btn-primary" disabled={pinPending} onClick={onSaveSwitchPin}>
-                  {pinPending ? "Saving..." : "Save PIN"}
-                </Button>
-              </div>
-            </article>
-          </section>
-
+      {activeTab === "notifications" ? (
+        role === "admin" && !isSwitched ? (
           <ProfileAdminNotificationsCard
             summary={pushSummary}
             loading={pushLoading}
@@ -1034,8 +973,22 @@ export function ProfilePageClient({
               void onSendPushSample(type);
             }}
           />
-        </>
+        ) : (
+          <section aria-label="Notifications">
+            <div className="family-page-card-header">
+              <div>
+                <h2>Notifications</h2>
+                <p className="small family-page-subhead">
+                  Browser push notification settings are only available for active admin profiles.
+                </p>
+              </div>
+            </div>
+          </section>
+        )
       ) : null}
+
+        </div>
+      </section>
 
       <ProfileCustomizationModals
         avatarDialogOpen={avatarDialogOpen}

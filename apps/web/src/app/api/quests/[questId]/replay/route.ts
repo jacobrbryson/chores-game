@@ -3,7 +3,7 @@ import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { getQuestProgress, saveQuestProgress } from "@/lib/quests/progress";
-import { getQuestDefinitionById } from "@/lib/quests/service";
+import { getQuestDefinitionForViewer } from "@/lib/quests/service";
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -60,7 +60,12 @@ export async function POST(
     const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
-        const quest = await getQuestDefinitionById(questId);
+        const quest = await getQuestDefinitionForViewer({
+          questId,
+          uid: session.uid,
+          email: session.email ?? "",
+          idToken,
+        });
         if (!quest) {
           return { kind: "not_found" as const };
         }

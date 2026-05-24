@@ -59,9 +59,7 @@ export function ProfileDetailsSection({
   onOpenConfettiDialog,
 }: ProfileDetailsSectionProps) {
   return (
-    <section className="profile-page-grid">
-      <article className="profile-page-avatar-card">
-        <h2>Details</h2>
+    <div>
         <div className="profile-page-account-row">
           <div className="profile-page-account-avatar">
             <Avatar
@@ -195,7 +193,6 @@ export function ProfileDetailsSection({
             </dd>
           </div>
         </dl>
-      </article>
-    </section>
+    </div>
   );
 }

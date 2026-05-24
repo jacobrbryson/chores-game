@@ -11,6 +11,7 @@ import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
+import { FamilyQuestsSection } from "@/components/family-quests-section";
 import { ModalShell } from "@/components/modal-shell";
 import type { FamilySummaryResponse } from "@/lib/family/types";
 import {
@@ -1359,6 +1360,7 @@ export default function FamilyPage() {
                         <p className="small">No custom rewards yet.</p>
                       )}
                     </section>
+                    <FamilyQuestsSection />
                   </div>
                 </>
               )}

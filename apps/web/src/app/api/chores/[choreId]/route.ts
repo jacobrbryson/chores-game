@@ -45,6 +45,7 @@ import {
   resolveChoreCategories,
 } from "@/lib/family/categories";
 import { computeCompletionDerivedMaximums, trackAchievementEvent } from "@/lib/achievements/service";
+import { writeAuditLogBestEffort } from "@/lib/audit/log";
 
 type UpdateChoreBody = {
   action?: unknown;
@@ -1048,8 +1049,9 @@ export async function PATCH(
             return { kind: "forbidden_action" as const };
           }
           let spawnedNextChoreId = "";
-          const completionNeedsApproval =
+          const approvalRequiredByChore =
             choreRequireApproval || choreAssigneeIds.length > 1 || choreType === "see_and_do";
+          const completionNeedsApproval = requester.role !== "admin" && approvalRequiredByChore;
           const nextStatus = completionNeedsApproval ? "Submitted" : "Approved";
           const completionDate = now.slice(0, 10);
           if (choreRecurrence.recurrenceType !== "none") {
@@ -1116,6 +1118,29 @@ export async function PATCH(
             idToken,
             ["status", "submittedAt", "updatedAt", "spawnedNextChoreId"],
           );
+          await writeAuditLogBestEffort({
+            familyId,
+            idToken,
+            eventType: "chore_status_changed",
+            actor: {
+              uid: session.uid,
+              email: session.email,
+              name: actorName,
+              role: requester.role,
+            },
+            userId: choreAssigneeId,
+            choreId,
+            choreTitle,
+            source: choreSource || "manual",
+            previous: { status: currentStatus },
+            next: {
+              status: nextStatus,
+              submittedAt: now,
+              spawnedNextChoreId,
+              requireApproval: completionNeedsApproval,
+            },
+            reason: "complete",
+          });
           const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
           let payoutApplied = false;
           if (nextStatus === "Approved" && assigneeUid && choreCoinValue > 0) {
@@ -1254,6 +1279,28 @@ export async function PATCH(
             idToken,
             ["status", "updatedAt", "spawnedNextChoreId", "rejectionFeedback", "approvalPayoutsJson"],
           );
+          await writeAuditLogBestEffort({
+            familyId,
+            idToken,
+            eventType: "chore_status_changed",
+            actor: {
+              uid: session.uid,
+              email: session.email,
+              name: actorName,
+              role: requester.role,
+            },
+            userId: choreAssigneeId,
+            choreId,
+            choreTitle,
+            source: choreSource || "manual",
+            previous: {
+              status: currentStatus,
+              spawnedNextChoreId,
+              approvalPayoutsJson: readString(existingChoreDoc.fields, "approvalPayoutsJson"),
+            },
+            next: { status: "Open", spawnedNextChoreId: "" },
+            reason: "undo_complete",
+          });
           const payoutByAssignee = buildPayoutByAssignee({
             assigneeIds: choreAssigneeIds,
             totalCoinValue: choreCoinValue,
@@ -1347,6 +1394,24 @@ export async function PATCH(
             idToken,
             ["status", "approvalPayoutsJson", "coinValue", "updatedAt"],
           );
+          await writeAuditLogBestEffort({
+            familyId,
+            idToken,
+            eventType: "chore_status_changed",
+            actor: {
+              uid: session.uid,
+              email: session.email,
+              name: actorName,
+              role: requester.role,
+            },
+            userId: choreAssigneeId,
+            choreId,
+            choreTitle,
+            source: readString(existingChoreDoc.fields, "source") || "manual",
+            previous: { status: currentStatus, coinValue: choreCoinValue },
+            next: { status: "Approved", coinValue: approvedCoinValue },
+            reason: "approve",
+          });
           const payoutResult = await applyPayoutByAssignee({
             familyId,
             idToken,
@@ -1440,6 +1505,24 @@ export async function PATCH(
             idToken,
             ["status", "rejectionFeedback", "updatedAt"],
           );
+          await writeAuditLogBestEffort({
+            familyId,
+            idToken,
+            eventType: "chore_status_changed",
+            actor: {
+              uid: session.uid,
+              email: session.email,
+              name: actorName,
+              role: requester.role,
+            },
+            userId: choreAssigneeId,
+            choreId,
+            choreTitle,
+            source: readString(existingChoreDoc.fields, "source") || "manual",
+            previous: { status: currentStatus },
+            next: { status: "Rejected", rejectionFeedback: feedback },
+            reason: "reject",
+          });
           await emitFamilyActivity({
             familyId,
             idToken,
@@ -1763,6 +1846,24 @@ export async function DELETE(
           idToken,
           ["deleted", "deletedAt", "status", "updatedAt"],
         );
+        await writeAuditLogBestEffort({
+          familyId,
+          idToken,
+          eventType: "chore_status_changed",
+          actor: {
+            uid: session.uid,
+            email: session.email,
+            name: session.name || session.email,
+            role: requester.role,
+          },
+          userId: choreAssigneeId,
+          choreId,
+          choreTitle,
+          source: choreSource || "manual",
+          previous: { status: currentStatus, deleted: readBoolean(existingChoreDoc.fields, "deleted") },
+          next: { status: "Deleted", deleted: true },
+          reason: "delete",
+        });
         if (currentStatus === "Approved") {
           const payoutByAssignee = buildPayoutByAssignee({
             assigneeIds: choreAssigneeIds,

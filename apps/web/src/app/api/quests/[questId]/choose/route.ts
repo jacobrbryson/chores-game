@@ -12,7 +12,7 @@ import {
   resolveBestEndingId,
 } from "@/lib/quests/progress";
 import { getEndingNodeMap, toRuntimeNode } from "@/lib/quests/runtime";
-import { getQuestDefinitionById, getQuestNodeById } from "@/lib/quests/service";
+import { getQuestDefinitionForViewer, getQuestNodeById } from "@/lib/quests/service";
 import { emitFamilyActivity } from "@/lib/notifications/events";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import type { QuestProgress } from "@/lib/quests/types";
@@ -110,7 +110,12 @@ export async function POST(
     const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
-        const quest = await getQuestDefinitionById(questId);
+        const quest = await getQuestDefinitionForViewer({
+          questId,
+          uid: session.uid,
+          email: session.email ?? "",
+          idToken,
+        });
         if (!quest) {
           return { kind: "quest_not_found" as const };
         }

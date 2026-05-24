@@ -50,8 +50,7 @@ export function ProfileGoogleLinkCard({
   onGoogleTasksUnlink,
 }: ProfileGoogleLinkCardProps) {
   return (
-    <section className="profile-google-card-wrap">
-      <article className="profile-page-google-card">
+    <article className="profile-page-google-card">
         <h2>Link with Google</h2>
         <div className="profile-google-content-grid">
           <div className="profile-google-content-copy">
@@ -156,8 +155,7 @@ export function ProfileGoogleLinkCard({
 
           </div>
         </div>
-      </article>
-    </section>
+    </article>
   );
 }
 

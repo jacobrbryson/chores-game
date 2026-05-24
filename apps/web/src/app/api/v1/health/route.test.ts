@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildHealthPayload } from "./route";
+import { buildHealthPayload } from "./health-payload";
 
 describe("v1 health", () => {
   it("returns expected fields", () => {
