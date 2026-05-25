@@ -34,7 +34,7 @@ export function AchievementCard({ achievement, highlighted, cardRef }: Achieveme
     <article
       id={achievement.id}
       ref={cardRef}
-      className={`rounded-2xl border p-4 shadow-sm transition ${cardTone} ${highlighted ? "ring-4 ring-amber-300" : ""}`}
+      className={`rounded-xl border p-4 shadow-sm transition ${cardTone} ${highlighted ? "ring-4 ring-amber-300" : ""}`}
       style={{ backgroundImage: cardBackground }}>
       <div className="flex items-center gap-3">
         <div className="relative h-16 w-16 shrink-0">

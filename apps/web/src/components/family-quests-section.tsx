@@ -65,20 +65,7 @@ export function FamilyQuestsSection() {
   const canCreate = payload?.viewerRole === "admin" && quests.length < (payload?.maxQuests ?? 3);
 
   return (
-    <section className="family-page-card family-quests-card" aria-label="Family quests">
-      <div className="family-categories-card-header">
-        <div className="family-categories-card-title">
-          <h2>Family Quests</h2>
-          <p className="small">
-            {quests.length}/{payload?.maxQuests ?? 3} custom quest{quests.length === 1 ? "" : "s"}
-          </p>
-        </div>
-        {canCreate ? (
-          <Link href="/family/quests/new" className="btn btn-secondary">
-            Create Quest
-          </Link>
-        ) : null}
-      </div>
+    <section aria-label="Family quests">
       {error ? <Alert>Could not load family quests: {error}</Alert> : null}
       {loading ? (
         <div className="quests-netflix-rail quests-netflix-rail-skeleton" aria-hidden="true">
@@ -114,15 +101,24 @@ export function FamilyQuestsSection() {
           ))}
         </div>
       ) : (
-        <div className="family-quests-empty">
-          <p className="small">No family quests yet.</p>
-          {canCreate ? (
-            <Button type="button" className="btn btn-primary" onClick={() => { window.location.href = "/family/quests/new"; }}>
-              Create the first quest
-            </Button>
-          ) : null}
-        </div>
+        <Alert tone="info" role="status" className="family-awards-info-card">
+          <div className="grid gap-1">
+            <strong>Family quests turn bigger goals into guided adventures.</strong>
+            <span>
+              Parents create quests for kids to play through, complete choices, and earn rewards tied to family goals.
+              Quests live here for editing and review, appear for players when they are ready to play, and work best
+              when you want a multi-step challenge instead of a single chore or award.
+            </span>
+          </div>
+        </Alert>
       )}
+      {canCreate ? (
+        <div className="mt-4 flex justify-center">
+          <Link href="/family/quests/new" className="btn btn-primary">
+            Add Quest
+          </Link>
+        </div>
+      ) : null}
     </section>
   );
 }

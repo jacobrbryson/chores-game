@@ -38,6 +38,7 @@ import type {
 } from "@/components/profile/profile-page.types";
 import { dispatchConfettiSelectionChanged } from "@/lib/confetti/party";
 import { readStoredConfettiOptionId } from "@/lib/confetti/party";
+import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
 import {
   browserSupportsPushNotifications,
   ensureBrowserPushSubscription,
@@ -53,6 +54,13 @@ import {
   type StoreOption,
 } from "@/lib/store/catalog";
 import { DEFAULT_THEME_PREFERENCE, dispatchThemeChanged } from "@/lib/theme/preferences";
+
+const PROFILE_TAB_IDS: readonly ProfileSectionTabId[] = [
+  "general",
+  "inventory",
+  "notifications",
+  "integrations",
+];
 
 function normalizeTaskListIds(taskListIds: string[]) {
   return Array.from(
@@ -120,7 +128,11 @@ export function ProfilePageClient({
   const [isEditingName, setIsEditingName] = useState(false);
   const [namePending, setNamePending] = useState(false);
   const [nameError, setNameError] = useState("");
-  const [activeTab, setActiveTab] = useState<ProfileSectionTabId>("general");
+  const [activeTab, setActiveTab] = usePersistedTab<ProfileSectionTabId>({
+    storageKey: "profile-page-active-tab",
+    defaultTab: "general",
+    validTabs: PROFILE_TAB_IDS,
+  });
 
   const loadStoreSummary = useCallback(async () => {
     setIsLoading(true);

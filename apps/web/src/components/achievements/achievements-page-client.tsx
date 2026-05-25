@@ -3,13 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Alert } from "@/components/alert";
-import { Button } from "@/components/button";
 import { AchievementCard } from "@/components/achievements/achievement-card";
+import { AppTabs, type AppTabItem } from "@/components/app-tabs";
 import { fetchAchievements, readAchievementHighlightId } from "@/lib/achievements/api";
 import type { AchievementResponseItem } from "@/lib/achievements/service";
 
 type AudienceFilter = "all" | "player" | "admin";
 const HIDE_COMPLETE_STORAGE_KEY = "achievementsHideComplete";
+const ADMIN_TABS: AppTabItem<AudienceFilter>[] = [
+  { id: "all", label: "All" },
+  { id: "player", label: "Player" },
+  { id: "admin", label: "Parent (Admin)" },
+];
 
 export function AchievementsPageClient() {
   const searchParams = useSearchParams();
@@ -100,66 +105,38 @@ export function AchievementsPageClient() {
   }, [adminFilter, hideComplete, items, viewerRole]);
 
   const totals = useMemo(() => {
-    const visibleItems =
-      viewerRole === "player" ? items.filter((item) => item.audience === "player") : items;
+    let visibleItems = [...items];
+    if (viewerRole === "player") {
+      visibleItems = visibleItems.filter((item) => item.audience === "player");
+    } else if (adminFilter !== "all") {
+      visibleItems = visibleItems.filter((item) => item.audience === adminFilter);
+    }
     const completedCount = visibleItems.filter((item) => item.completed).length;
     return {
       total: visibleItems.length,
       completed: completedCount,
     };
-  }, [items, viewerRole]);
+  }, [adminFilter, items, viewerRole]);
 
   return (
     <section className="space-y-4">
-      {!isLoading ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="family-category-chip">Total: {totals.total}</span>
-          <span className="family-category-chip">Completed: {totals.completed}</span>
-        </div>
+      {viewerRole === "admin" ? (
+        <AppTabs
+          ariaLabel="Achievement audiences"
+          tabs={ADMIN_TABS}
+          activeTab={adminFilter}
+          onChange={setAdminFilter}
+        />
       ) : null}
-      <div className="achievements-toolbar flex flex-wrap gap-2">
-        {viewerRole === "admin" ? (
-          <>
-            <Button
-              className={`btn btn-secondary ${adminFilter === "all" ? "ring-2 ring-sky-300" : ""}`}
-              onClick={() => setAdminFilter("all")}>
-              All
-            </Button>
-            <Button
-              className={`btn btn-secondary ${adminFilter === "player" ? "ring-2 ring-sky-300" : ""}`}
-              onClick={() => setAdminFilter("player")}>
-              Player
-            </Button>
-            <Button
-              className={`btn btn-secondary ${adminFilter === "admin" ? "ring-2 ring-sky-300" : ""}`}
-              onClick={() => setAdminFilter("admin")}>
-              Admin
-            </Button>
-          </>
-        ) : null}
-        <label className="today-chores-toggle-row">
-          <input
-            type="checkbox"
-            className="peer sr-only"
-            checked={hideComplete}
-            onChange={(event) => setHideComplete(event.target.checked)}
-          />
-          <span
-            aria-hidden="true"
-            className="my-chores-toggle-track"
-          />
-          <span className="small today-chores-toggle-copy">
-            <span>Hide Complete</span>
-          </span>
-        </label>
-      </div>
       {isLoading ? (
         <section aria-label="Loading achievements" aria-hidden="true" className="space-y-3">
-          <div className="achievements-toolbar flex flex-wrap gap-2">
-            <div className="family-skeleton family-skeleton-chip" />
-            <div className="family-skeleton family-skeleton-chip" />
-            <div className="family-skeleton family-skeleton-chip" />
-          </div>
+          {viewerRole === "admin" ? (
+            <div className="achievements-toolbar flex flex-wrap gap-2">
+              <div className="family-skeleton family-skeleton-chip" />
+              <div className="family-skeleton family-skeleton-chip" />
+              <div className="family-skeleton family-skeleton-chip" />
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start gap-3">
@@ -210,22 +187,45 @@ export function AchievementsPageClient() {
       ) : null}
       {!isLoading && error ? <Alert>Could not load achievements: {error}</Alert> : null}
       {!isLoading && !error ? (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {orderedItems.map((achievement) => (
-            <AchievementCard
-              key={achievement.id}
-              achievement={achievement}
-              highlighted={highlightedId === achievement.id}
-              cardRef={(node) => {
-                if (node) {
-                  cardRefs.current.set(achievement.id, node);
-                } else {
-                  cardRefs.current.delete(achievement.id);
-                }
-              }}
-            />
-          ))}
-        </div>
+        <section className="space-y-3" role="tabpanel">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="family-category-chip">Total: {totals.total}</span>
+              <span className="family-category-chip">Completed: {totals.completed}</span>
+            </div>
+            <label className="today-chores-toggle-row">
+              <input
+                type="checkbox"
+                className="peer sr-only"
+                checked={hideComplete}
+                onChange={(event) => setHideComplete(event.target.checked)}
+              />
+              <span
+                aria-hidden="true"
+                className="my-chores-toggle-track"
+              />
+              <span className="small today-chores-toggle-copy">
+                <span>Hide Complete</span>
+              </span>
+            </label>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {orderedItems.map((achievement) => (
+              <AchievementCard
+                key={achievement.id}
+                achievement={achievement}
+                highlighted={highlightedId === achievement.id}
+                cardRef={(node) => {
+                  if (node) {
+                    cardRefs.current.set(achievement.id, node);
+                  } else {
+                    cardRefs.current.delete(achievement.id);
+                  }
+                }}
+              />
+            ))}
+          </div>
+        </section>
       ) : null}
     </section>
   );

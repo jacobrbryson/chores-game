@@ -1214,9 +1214,9 @@ export function TodayChoresPanel({
   }, [completionWindow]);
 
   return (
-    <article className="family-panel">
+    <article className="today-chores-dashboard">
       <div className="today-chores-layout">
-        <div className="today-chores-main">
+        <div className="family-panel today-chores-main">
           <div className="today-chores-toolbar">
             <AppMenu
               open={choreScopeMenuOpen}

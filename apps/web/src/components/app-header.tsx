@@ -1,7 +1,5 @@
 import { cookies } from "next/headers";
-import { AppBrand } from "@/components/app-brand";
-import { GoogleSignInButton } from "@/components/google-signin-button";
-import { ProfileMenu } from "@/components/profile-menu";
+import { AppHeaderShell } from "@/components/app-header-shell";
 import {
   getAuthenticatedSessionIdentity,
   isSessionSwitched,
@@ -25,29 +23,22 @@ export async function AppHeader() {
     "U";
 
   return (
-    <nav className={`top-nav panel ${sessionUser ? "top-nav-auth" : "top-nav-guest"}`}>
-      <div className="top-nav-brand-row">
-        <AppBrand />
-      </div>
-      <div className={`nav-links ${sessionUser ? "nav-links-auth" : "nav-links-guest"}`}>
-        {sessionUser ? (
-          <ProfileMenu
-            name={sessionUser.name || ""}
-            email={sessionUser.email}
-            picture={sessionUser.picture}
-            initial={profileInitial}
-            isSwitched={sessionUser ? isSessionSwitched(sessionUser) : false}
-            authenticatedName={authenticatedIdentity?.name || authenticatedIdentity?.email || ""}
-            showSupportLink={hasSupportAdminEmail(sessionUser)}
-          />
-        ) : googleClientId && gsiLoginUri ? (
-          <GoogleSignInButton mode="gsi" clientId={googleClientId} loginUri={gsiLoginUri} />
-        ) : (
-          <p className="small nav-config-note">
-            Google sign-in is not configured. Set `NEXT_PUBLIC_APP_URL` and Google client IDs.
-          </p>
-        )}
-      </div>
-    </nav>
+    <AppHeaderShell
+      googleClientId={googleClientId}
+      gsiLoginUri={gsiLoginUri}
+      sessionUser={
+        sessionUser
+          ? {
+              name: sessionUser.name || "",
+              email: sessionUser.email,
+              picture: sessionUser.picture,
+            }
+          : null
+      }
+      profileInitial={profileInitial}
+      authenticatedName={authenticatedIdentity?.name || authenticatedIdentity?.email || ""}
+      isSwitched={sessionUser ? isSessionSwitched(sessionUser) : false}
+      showSupportLink={sessionUser ? hasSupportAdminEmail(sessionUser) : false}
+    />
   );
 }

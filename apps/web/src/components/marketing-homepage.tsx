@@ -1,10 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Alert } from "@/components/alert";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 
 type MarketingHomepageProps = {
   googleClientId?: string;
   gsiLoginUri?: string;
+  signInErrorMessage?: string;
 };
 
 const proofPoints = [
@@ -122,11 +124,17 @@ function MarketingImageFrame({
 export function MarketingHomepage({
   googleClientId,
   gsiLoginUri,
+  signInErrorMessage,
 }: MarketingHomepageProps) {
   const hasGoogleCta = Boolean(googleClientId && gsiLoginUri);
 
   return (
     <main className="marketing-home">
+      {signInErrorMessage ? (
+        <Alert tone="warning" className="marketing-signin-alert">
+          {signInErrorMessage}
+        </Alert>
+      ) : null}
       <section className="marketing-hero panel" aria-labelledby="marketing-home-title">
         <div className="marketing-hero-grid">
           <div className="hero-copy marketing-hero-copy">

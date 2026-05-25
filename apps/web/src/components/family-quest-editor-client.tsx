@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type DragEvent } from "react";
 import { Alert } from "@/components/alert";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
+import { QuestItemSelect } from "@/components/quest-item-select";
 import templateQuest from "@/assets/quests/template-quest.json";
+import { GAME_ITEMS } from "@/lib/items/catalog";
 import type { QuestChoice, QuestDefinition, QuestNode } from "@/lib/quests/types";
 
 type FamilyQuestEditorClientProps = {
@@ -16,6 +18,8 @@ type ValidationState = {
   score: number;
   issues: string[];
 };
+
+const QUEST_ITEM_OPTIONS = GAME_ITEMS.filter((item) => item.usableInQuests);
 
 function createQuestId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -50,18 +54,30 @@ function choiceValue(choice: QuestChoice, key: keyof QuestChoice) {
   return typeof value === "string" ? value : "";
 }
 
+function timelineImageStyle(image?: string): CSSProperties | undefined {
+  if (!image) {
+    return undefined;
+  }
+  return { "--family-quest-timeline-image": `url(${JSON.stringify(image)})` } as CSSProperties;
+}
+
 export function FamilyQuestEditorClient({ questId }: FamilyQuestEditorClientProps) {
   const [quest, setQuest] = useState<QuestDefinition>(() => cloneTemplateQuest());
   const [activeNodeId, setActiveNodeId] = useState("");
   const [validation, setValidation] = useState<ValidationState>({ score: 0, issues: [] });
   const [showValidation, setShowValidation] = useState(false);
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState("");
   const [nodeImageFiles, setNodeImageFiles] = useState<Record<string, File>>({});
+  const [nodeImagePreviewUrls, setNodeImagePreviewUrls] = useState<Record<string, string>>({});
   const [nodeAudioFiles, setNodeAudioFiles] = useState<Record<string, File>>({});
+  const [nodeAudioPreviewUrls, setNodeAudioPreviewUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(Boolean(questId));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
+  const [activeTimelineItem, setActiveTimelineItem] = useState("details");
+  const questDetailsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!questId) {
@@ -120,10 +136,54 @@ export function FamilyQuestEditorClient({ questId }: FamilyQuestEditorClientProp
     return () => window.clearTimeout(timeout);
   }, [quest]);
 
+  useEffect(() => {
+    const entries = Object.entries(nodeImageFiles).map(([nodeId, file]) => [nodeId, URL.createObjectURL(file)] as const);
+    setNodeImagePreviewUrls(Object.fromEntries(entries));
+    return () => {
+      for (const [, previewUrl] of entries) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [nodeImageFiles]);
+
+  useEffect(() => {
+    if (!coverFile) {
+      setCoverPreviewUrl("");
+      return;
+    }
+    const previewUrl = URL.createObjectURL(coverFile);
+    setCoverPreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [coverFile]);
+
+  useEffect(() => {
+    const entries = Object.entries(nodeAudioFiles).map(([nodeId, file]) => [nodeId, URL.createObjectURL(file)] as const);
+    setNodeAudioPreviewUrls(Object.fromEntries(entries));
+    return () => {
+      for (const [, previewUrl] of entries) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [nodeAudioFiles]);
+
   const activeNode = useMemo(
     () => quest.nodes.find((node) => node.id === activeNodeId) ?? quest.nodes[0] ?? null,
     [activeNodeId, quest.nodes],
   );
+
+  const coverPreview = coverPreviewUrl || quest.coverImage;
+  const activeNodeImagePreview = activeNode ? nodeImagePreviewUrls[activeNode.id] || activeNode.image : "";
+  const activeNodeAudioPreview = activeNode ? nodeAudioPreviewUrls[activeNode.id] || activeNode.audio : "";
+
+  function selectTimelineDetails() {
+    setActiveTimelineItem("details");
+    questDetailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function selectTimelineNode(nodeId: string) {
+    setActiveTimelineItem(nodeId);
+    setActiveNodeId(nodeId);
+  }
 
   function setQuestField<K extends keyof QuestDefinition>(key: K, value: QuestDefinition[K]) {
     setQuest((current) => ({ ...current, [key]: value }));
@@ -156,7 +216,7 @@ export function FamilyQuestEditorClient({ questId }: FamilyQuestEditorClientProp
   function onFileDrop(event: DragEvent<HTMLLabelElement>, kind: "cover" | "nodeImage" | "nodeAudio") {
     event.preventDefault();
     const file = event.dataTransfer.files[0];
-    if (!file || !activeNode) {
+    if (!file || (kind !== "cover" && !activeNode)) {
       return;
     }
     if (kind === "cover") {
@@ -170,7 +230,7 @@ export function FamilyQuestEditorClient({ questId }: FamilyQuestEditorClientProp
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>, kind: "cover" | "nodeImage" | "nodeAudio") {
     const file = event.target.files?.[0] ?? null;
-    if (!file || !activeNode) {
+    if (!file || (kind !== "cover" && !activeNode)) {
       return;
     }
     if (kind === "cover") {
@@ -219,7 +279,7 @@ export function FamilyQuestEditorClient({ questId }: FamilyQuestEditorClientProp
   }
 
   return (
-    <main className="panel family-page family-quest-editor-page">
+    <main className="family-page family-quest-editor-page">
       <div className="page-header-row">
         <div className="page-header-inline">
           <BackLink className="page-back-link" fallbackHref="/family" />
@@ -243,19 +303,42 @@ export function FamilyQuestEditorClient({ questId }: FamilyQuestEditorClientProp
         </section>
       ) : (
         <>
-          <section className="family-quest-topbar">
+          <section className="family-page-card family-quest-metadata">
             <Button type="button" className="family-quest-score" onClick={() => setShowValidation((open) => !open)}>
               <strong>{validation.score}/100</strong>
               <span>Rules score</span>
             </Button>
+            <div className="family-quest-metadata-item">
+              <strong>{quest.nodes.length}</strong>
+              <span>Pages</span>
+            </div>
+            <div className="family-quest-metadata-item">
+              <strong>{quest.estimatedMinutes}</strong>
+              <span>Minutes</span>
+            </div>
+            <p className="small family-quest-publish-note">
+              Published quests appear in <Link href="/quests">Quests</Link> for every family member.
+            </p>
+          </section>
+          <section className="family-quest-topbar">
             <div className="family-quest-timeline" aria-label="Quest timeline">
+              <Button
+                type="button"
+                className={`family-quest-timeline-node${activeTimelineItem === "details" ? " active" : ""}`}
+                style={timelineImageStyle(coverPreview)}
+                onClick={selectTimelineDetails}>
+                <span>1</span>
+                <strong>Quest Details</strong>
+                <small>Details</small>
+              </Button>
               {quest.nodes.map((node, index) => (
                 <Button
                   key={node.id}
                   type="button"
-                  className={`family-quest-timeline-node${node.id === activeNode?.id ? " active" : ""}`}
-                  onClick={() => setActiveNodeId(node.id)}>
-                  <span>{index + 1}</span>
+                  className={`family-quest-timeline-node${activeTimelineItem === node.id ? " active" : ""}`}
+                  style={timelineImageStyle(nodeImagePreviewUrls[node.id] || node.image)}
+                  onClick={() => selectTimelineNode(node.id)}>
+                  <span>{index + 2}</span>
                   <strong>{node.title || node.id}</strong>
                   <small>{node.type}</small>
                 </Button>
@@ -277,7 +360,7 @@ export function FamilyQuestEditorClient({ questId }: FamilyQuestEditorClientProp
             </section>
           ) : null}
           <section className="family-quest-editor-grid">
-            <div className="family-page-card family-quest-form-card">
+            <div ref={questDetailsRef} className="family-page-card family-quest-form-card">
               <h2>Quest Details</h2>
               <label>
                 <span>Title</span>
@@ -311,6 +394,9 @@ export function FamilyQuestEditorClient({ questId }: FamilyQuestEditorClientProp
               <label className="family-quest-dropzone" onDragOver={(event) => event.preventDefault()} onDrop={(event) => onFileDrop(event, "cover")}>
                 <span>Cover Image</span>
                 <input type="file" accept="image/*" onChange={(event) => onFileChange(event, "cover")} />
+                {coverPreview ? (
+                  <img src={coverPreview} alt="Cover preview" className="family-quest-media-preview family-quest-image-preview" />
+                ) : null}
                 <strong>{coverFile?.name || quest.coverImage || "Upload or drag an image"}</strong>
               </label>
             </div>
@@ -330,11 +416,17 @@ export function FamilyQuestEditorClient({ questId }: FamilyQuestEditorClientProp
                     <label className="family-quest-dropzone" onDragOver={(event) => event.preventDefault()} onDrop={(event) => onFileDrop(event, "nodeImage")}>
                       <span>Page Image</span>
                       <input type="file" accept="image/*" onChange={(event) => onFileChange(event, "nodeImage")} />
+                      {activeNodeImagePreview ? (
+                        <img src={activeNodeImagePreview} alt="Page preview" className="family-quest-media-preview family-quest-image-preview" />
+                      ) : null}
                       <strong>{nodeImageFiles[activeNode.id]?.name || activeNode.image || "Upload or drag image"}</strong>
                     </label>
                     <label className="family-quest-dropzone" onDragOver={(event) => event.preventDefault()} onDrop={(event) => onFileDrop(event, "nodeAudio")}>
                       <span>MP3 Audio</span>
                       <input type="file" accept="audio/mpeg,audio/mp3" onChange={(event) => onFileChange(event, "nodeAudio")} />
+                      {activeNodeAudioPreview ? (
+                        <audio className="family-quest-media-preview family-quest-audio-preview" src={activeNodeAudioPreview} controls preload="metadata" />
+                      ) : null}
                       <strong>{nodeAudioFiles[activeNode.id]?.name || activeNode.audio || "Upload or drag MP3"}</strong>
                     </label>
                   </div>
@@ -351,10 +443,14 @@ export function FamilyQuestEditorClient({ questId }: FamilyQuestEditorClientProp
                             <span>Description</span>
                             <input value={choice.description} onChange={(event) => setChoiceField(choice.id, "description", event.target.value)} />
                           </label>
-                          <label>
-                            <span>Required Item ID</span>
-                            <input value={choiceValue(choice, "requiredItemId")} onChange={(event) => setChoiceField(choice.id, "requiredItemId", event.target.value)} />
-                          </label>
+                          <div className="family-quest-choice-field">
+                            <span>Required Item</span>
+                            <QuestItemSelect
+                              items={QUEST_ITEM_OPTIONS}
+                              value={choiceValue(choice, "requiredItemId")}
+                              onChange={(value) => setChoiceField(choice.id, "requiredItemId", value)}
+                            />
+                          </div>
                           <label>
                             <span>Next Page</span>
                             <select value={choice.nextNodeId} onChange={(event) => setChoiceField(choice.id, "nextNodeId", event.target.value)}>
@@ -375,9 +471,14 @@ export function FamilyQuestEditorClient({ questId }: FamilyQuestEditorClientProp
               ) : null}
             </div>
           </section>
-          <p className="small">
-            Published quests appear in <Link href="/quests">Quests</Link> for every family member.
-          </p>
+          <div className="family-quest-bottom-actions">
+            <Button type="button" className="btn btn-secondary" disabled={saving} onClick={() => void saveQuest(false)}>
+              {saving ? "Saving..." : "Save Draft"}
+            </Button>
+            <Button type="button" className="btn btn-primary" disabled={saving} onClick={() => void saveQuest(true)}>
+              Publish
+            </Button>
+          </div>
         </>
       )}
     </main>

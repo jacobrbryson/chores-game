@@ -12,8 +12,8 @@ import {
 import Image from "next/image";
 import { Alert } from "@/components/alert";
 import Link from "next/link";
+import { AppTabs, type AppTabItem } from "@/components/app-tabs";
 import { Avatar } from "@/components/avatar";
-import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { ModalShell } from "@/components/modal-shell";
@@ -37,6 +37,14 @@ import {
 import { findFamilyRewardImageOption } from "@/lib/family/rewards";
 
 const STORE_ACTION_TIMEOUT_MS = 12000;
+const STORE_TAB_ORDER = ["family_awards", "customize_colors", "customize_avatar", "victory_confetti", "quest_items"];
+const STORE_TAB_LABELS: Record<string, string> = {
+  family_awards: "Family",
+  customize_colors: "Colors",
+  customize_avatar: "Avatar",
+  victory_confetti: "Confetti",
+  quest_items: "Quest",
+};
 
 type StoreSummaryResponse = {
   balance: number;
@@ -147,22 +155,40 @@ export function StorePageClient() {
     }
     return summary.categories.find((entry) => entry.id === activeCategoryId) ?? null;
   }, [activeCategoryId, summary]);
+  const orderedCategories = useMemo(() => {
+    if (!summary) {
+      return [];
+    }
+    const orderIndex = new Map(STORE_TAB_ORDER.map((id, index) => [id, index]));
+    return [...summary.categories].sort(
+      (a, b) => (orderIndex.get(a.id) ?? 999) - (orderIndex.get(b.id) ?? 999),
+    );
+  }, [summary]);
+  const selectedCategory = activeCategory ?? orderedCategories[0] ?? null;
+  const storeTabs = useMemo<AppTabItem<string>[]>(
+    () =>
+      orderedCategories.map((category) => ({
+        id: category.id,
+        label: STORE_TAB_LABELS[category.id] ?? category.name,
+      })),
+    [orderedCategories],
+  );
   const normalizedModalSearchQuery = modalSearchQuery.trim().toLowerCase();
   const filteredOptions = useMemo(() => {
-    if (!activeCategory) {
+    if (!selectedCategory) {
       return [];
     }
     if (!normalizedModalSearchQuery) {
-      return activeCategory.options;
+      return selectedCategory.options;
     }
-    return activeCategory.options.filter((option) => {
+    return selectedCategory.options.filter((option) => {
       const searchableText = [option.label, option.value, option.itemDescription]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return searchableText.includes(normalizedModalSearchQuery);
     });
-  }, [activeCategory, normalizedModalSearchQuery]);
+  }, [selectedCategory, normalizedModalSearchQuery]);
 
   const persistedThemePreference = useMemo(() => {
     if (!summary) {
@@ -421,13 +447,7 @@ export function StorePageClient() {
   }
 
   return (
-    <main className="panel family-page">
-      <div className="page-header-row">
-        <div className="page-header-inline">
-          <BackLink className="page-back-link" fallbackHref="/" />
-          <h1>Store</h1>
-        </div>
-      </div>
+    <main className="family-page store-page">
       {isLoading ? (
         <section aria-label="Loading store" aria-hidden="true" className="space-y-3">
           <div className="store-grid">
@@ -461,80 +481,51 @@ export function StorePageClient() {
       {!isLoading && error ? <Alert>Could not load store: {error}</Alert> : null}
       {!isLoading && !error && summary ? (
         <>
-          {actionError ? <Alert className="mb-3">Store update failed: {actionError}</Alert> : null}
-          {actionSuccess && !activeCategory ? (
-            <Alert tone="success" role="status" className="mb-3">
-              {actionSuccess}
-            </Alert>
-          ) : null}
-          <div className="store-grid">
-            {summary.categories.map((category) => (
-              <article key={category.id} className="store-card">
+          <AppTabs
+            ariaLabel="Store categories"
+            tabs={storeTabs}
+            activeTab={selectedCategory?.id ?? storeTabs[0]?.id ?? ""}
+            onChange={(categoryId) => {
+              if (pendingOptionId) {
+                return;
+              }
+              clearPreview();
+              setPreviewConfettiOptionId("");
+              setModalSearchQuery("");
+              setActiveCategoryId(categoryId);
+              setActionError("");
+              setActionSuccess("");
+            }}
+          />
+
+          {selectedCategory ? (
+            <section className="store-tab-panel" role="tabpanel">
+              <div className="store-tab-hero">
                 <Image
-                  src={category.imagePath}
+                  src={selectedCategory.imagePath}
                   alt=""
                   width={640}
                   height={320}
-                  loading={category.imagePath === "/store3/avatar.png" ? "eager" : "lazy"}
-                  priority={category.imagePath === "/store3/avatar.png"}
-                  className="store-card-image"
+                  loading={selectedCategory.imagePath === "/store3/avatar.png" ? "eager" : "lazy"}
+                  priority={selectedCategory.imagePath === "/store3/avatar.png"}
+                  className="store-tab-hero-image"
                 />
-                <h3>{category.name}</h3>
-                <p>{category.description}</p>
-                <Button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setActionError("");
-                    setModalSearchQuery("");
-                    setActiveCategoryId(category.id);
-                  }}>
-                  View options
-                </Button>
-              </article>
-            ))}
-          </div>
-
-          <ModalShell
-            open={Boolean(activeCategory)}
-            onRequestClose={() => {
-              if (!pendingOptionId) {
-                clearPreview();
-                setPreviewConfettiOptionId("");
-                setModalSearchQuery("");
-                setActiveCategoryId(null);
-              }
-            }}>
-            {activeCategory ? (
-              <section className="store-options-modal">
-                <header className="store-options-modal-header">
-                  <div className="store-options-modal-title-row modal-dialog-title-row">
-                    <h3>{activeCategory.name}</h3>
-                    <p className="small">Balance: {summary.balance} coins</p>
-                    <Button
-                      type="button"
-                      className="modal-close-button"
-                      onClick={() => {
-                        if (!pendingOptionId) {
-                          clearPreview();
-                          setPreviewConfettiOptionId("");
-                          setModalSearchQuery("");
-                          setActiveCategoryId(null);
-                        }
-                      }}
-                      aria-label="Close dialog"
-                      title="Close dialog">
-                      X
-                    </Button>
-                  </div>
+                <div className="store-tab-hero-copy">
+                  <h3>{selectedCategory.name}</h3>
+                  <p>{selectedCategory.description}</p>
+                  <p className="small">Balance: {summary.balance} coins</p>
+                </div>
+              </div>
+              <section className="store-options-panel">
+                <header className="store-options-panel-header">
                   <div className="store-options-search">
                     <input
                       type="search"
                       className="table-search-input w-full"
                       value={modalSearchQuery}
                       onChange={(event) => setModalSearchQuery(event.target.value)}
-                      placeholder={`Search ${activeCategory.name.toLowerCase()}...`}
-                      aria-label={`Search ${activeCategory.name}`}
+                      placeholder={`Search ${selectedCategory.name.toLowerCase()}...`}
+                      aria-label={`Search ${selectedCategory.name}`}
                     />
                   </div>
                   {actionError ? <Alert className="mt-2">Store update failed: {actionError}</Alert> : null}
@@ -545,7 +536,7 @@ export function StorePageClient() {
                   ) : null}
                 </header>
                 <div className="store-options-grid">
-                  {activeCategory.kind === "avatar" &&
+                  {selectedCategory.kind === "avatar" &&
                   summary.googlePhotoUrl &&
                   (!normalizedModalSearchQuery ||
                     "google avatar".includes(normalizedModalSearchQuery)) ? (
@@ -578,7 +569,7 @@ export function StorePageClient() {
                       </Button>
                     </article>
                   ) : null}
-                  {activeCategory.kind === "reward" && activeCategory.options.length === 0 ? (
+                  {selectedCategory.kind === "reward" && selectedCategory.options.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-left">
                       {summary.viewerRole === "admin" ? (
                         <div className="small space-y-2">
@@ -597,37 +588,37 @@ export function StorePageClient() {
                       )}
                     </div>
                   ) : null}
-                  {activeCategory.options.length > 0 && filteredOptions.length === 0 ? (
+                  {selectedCategory.options.length > 0 && filteredOptions.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-left small">
                       No items match "{modalSearchQuery.trim()}".
                     </div>
                   ) : null}
                   {filteredOptions.map((option) => {
-                    const isRewardOption = activeCategory.kind === "reward";
+                    const isRewardOption = selectedCategory.kind === "reward";
                     const rewardImage = isRewardOption ? findFamilyRewardImageOption(option.value) : null;
-                    const optionPrice = getOptionPrice(activeCategory, option);
+                    const optionPrice = getOptionPrice(selectedCategory, option);
                     const questItemQuantity = summary.questItemQuantities?.[option.id] ?? 0;
                     const questItemOwned = questItemQuantity > 0;
                     const owned = isRewardOption
                       ? false
-                      : activeCategory.kind === "quest_item"
+                      : selectedCategory.kind === "quest_item"
                         ? questItemOwned
                         : ownedSet.has(option.id);
                     const isQuestUnlockOption =
-                      activeCategory.kind === "avatar" &&
+                      selectedCategory.kind === "avatar" &&
                       option.isPurchasable === false &&
                       option.isUnlockable === true &&
                       option.unlockSource === "quest";
-                    const applied = isRewardOption ? false : isOptionApplied(activeCategory, option);
+                    const applied = isRewardOption ? false : isOptionApplied(selectedCategory, option);
                     const canAfford = summary.balance >= optionPrice;
                     const isDefaultConfettiOption =
-                      activeCategory.kind === "confetti" && option.isDefault === true;
+                      selectedCategory.kind === "confetti" && option.isDefault === true;
                     const questItemCanBuy =
-                      activeCategory.kind === "quest_item" &&
+                      selectedCategory.kind === "quest_item" &&
                       (option.itemStackable === true || !questItemOwned);
                     const requiresPurchase = isRewardOption
                       ? true
-                      : activeCategory.kind === "quest_item"
+                      : selectedCategory.kind === "quest_item"
                         ? questItemCanBuy
                         : isQuestUnlockOption
                           ? false
@@ -636,15 +627,15 @@ export function StorePageClient() {
                       pendingOptionId.length > 0 ||
                       (isQuestUnlockOption && !owned) ||
                       (requiresPurchase && !canAfford) ||
-                      (activeCategory.kind === "quest_item" && !questItemCanBuy);
+                      (selectedCategory.kind === "quest_item" && !questItemCanBuy);
                     const isPending = pendingOptionId === option.id;
-                    const canThemePreview = activeCategory.kind === "color" && Boolean(option.theme);
-                    const canConfettiPreview = activeCategory.kind === "confetti";
+                    const canThemePreview = selectedCategory.kind === "color" && Boolean(option.theme);
+                    const canConfettiPreview = selectedCategory.kind === "confetti";
                     const previewing = previewOptionId === option.id;
                     const previewingConfetti = previewConfettiOptionId === option.id;
                     const isActiveThemeCard =
-                      activeCategory.kind === "color" && applied && !previewing;
-                    const isPreviewThemeCard = activeCategory.kind === "color" && previewing;
+                      selectedCategory.kind === "color" && applied && !previewing;
+                    const isPreviewThemeCard = selectedCategory.kind === "color" && previewing;
                     const primaryColor = option.theme?.primary ?? option.value;
                     const secondaryColor = option.theme?.secondary ?? primaryColor;
                     const tertiaryColor = option.theme?.tertiary ?? primaryColor;
@@ -659,8 +650,8 @@ export function StorePageClient() {
                         className={`store-option-card${
                           isActiveThemeCard ? " is-active" : ""
                         }${isPreviewThemeCard || previewingConfetti ? " is-previewing" : ""}`}>
-                        <div className={`store-option-preview${activeCategory.kind === "reward" ? " store-option-preview-reward" : ""}`}>
-                          {activeCategory.kind === "color" ? (
+                        <div className={`store-option-preview${selectedCategory.kind === "reward" ? " store-option-preview-reward" : ""}`}>
+                          {selectedCategory.kind === "color" ? (
                             <div className="store-option-theme-preview">
                               <span
                                 className="store-option-color"
@@ -682,7 +673,7 @@ export function StorePageClient() {
                               />
                             </div>
                           ) : null}
-                          {activeCategory.kind === "avatar" ? (
+                          {selectedCategory.kind === "avatar" ? (
                             <Avatar
                               className="store-option-avatar"
                               size={72}
@@ -692,7 +683,7 @@ export function StorePageClient() {
                               alt={option.label}
                             />
                           ) : null}
-                          {activeCategory.kind === "confetti" ? (
+                          {selectedCategory.kind === "confetti" ? (
                             <div
                               className={`store-option-confetti-preview${
                                 isDefaultConfettiOption ? " is-disabled" : ""
@@ -735,7 +726,7 @@ export function StorePageClient() {
                               )}
                             </div>
                           ) : null}
-                          {activeCategory.kind === "reward" ? (
+                          {selectedCategory.kind === "reward" ? (
                             <div className="store-option-reward-image-wrap">
                               <Image
                                 src={
@@ -749,7 +740,7 @@ export function StorePageClient() {
                               />
                             </div>
                           ) : null}
-                          {activeCategory.kind === "quest_item" ? (
+                          {selectedCategory.kind === "quest_item" ? (
                             <div className="store-option-reward-image-wrap">
                               <Image
                                 src={option.itemImage || "/assets/items/placeholder.png"}
@@ -779,7 +770,7 @@ export function StorePageClient() {
                           ) : null}
                         </div>
                         <h4>{option.label}</h4>
-                        {activeCategory.kind === "quest_item" ? (
+                        {selectedCategory.kind === "quest_item" ? (
                           <p className="small">{option.itemDescription || "Usable in quests."}</p>
                         ) : null}
                         <p className="small">
@@ -787,7 +778,7 @@ export function StorePageClient() {
                             <>
                               <CoinIcon size={14} /> {optionPrice} coins
                             </>
-                          ) : activeCategory.kind === "quest_item" ? (
+                          ) : selectedCategory.kind === "quest_item" ? (
                             <>
                               <CoinIcon size={14} /> {optionPrice} coins
                               {questItemQuantity > 0 ? ` - Owned: ${questItemQuantity}` : ""}
@@ -808,12 +799,12 @@ export function StorePageClient() {
                           disabled={disabled}
                           onClick={() => {
                             if (isRewardOption) {
-                              void onPurchaseOption(activeCategory, option);
+                              void onPurchaseOption(selectedCategory, option);
                               return;
                             }
-                            if (activeCategory.kind === "quest_item") {
+                            if (selectedCategory.kind === "quest_item") {
                               if (questItemCanBuy) {
-                                void onPurchaseOption(activeCategory, option);
+                                void onPurchaseOption(selectedCategory, option);
                               }
                               return;
                             }
@@ -821,10 +812,10 @@ export function StorePageClient() {
                               return;
                             }
                             if (owned || isDefaultConfettiOption) {
-                              void applyOption(activeCategory, option);
+                              void applyOption(selectedCategory, option);
                               return;
                             }
-                            void onPurchaseOption(activeCategory, option);
+                            void onPurchaseOption(selectedCategory, option);
                           }}>
                           {isRewardOption
                             ? isPending
@@ -832,7 +823,7 @@ export function StorePageClient() {
                               : canAfford
                                 ? "Redeem"
                                 : "Not enough coins"
-                            : activeCategory.kind === "quest_item"
+                            : selectedCategory.kind === "quest_item"
                               ? isPending
                                 ? "Buying..."
                                 : questItemCanBuy
@@ -846,14 +837,14 @@ export function StorePageClient() {
                               ? "Saving..."
                               : owned
                                 ? applied
-                                  ? activeCategory.kind === "color"
+                                  ? selectedCategory.kind === "color"
                                     ? "Theme active"
-                                    : activeCategory.kind === "confetti" && isDefaultConfettiOption
+                                    : selectedCategory.kind === "confetti" && isDefaultConfettiOption
                                       ? "Confetti off"
                                     : "Applied"
-                                  : activeCategory.kind === "color"
+                                  : selectedCategory.kind === "color"
                                     ? "Set theme"
-                                    : activeCategory.kind === "confetti" && isDefaultConfettiOption
+                                    : selectedCategory.kind === "confetti" && isDefaultConfettiOption
                                       ? "Disable confetti"
                                     : "Apply"
                                 : canAfford
@@ -864,23 +855,9 @@ export function StorePageClient() {
                     );
                   })}
                 </div>
-                <div className="store-options-actions">
-                  <Button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={pendingOptionId.length > 0}
-                    onClick={() => {
-                      clearPreview();
-                      setPreviewConfettiOptionId("");
-                      setModalSearchQuery("");
-                      setActiveCategoryId(null);
-                    }}>
-                    Close
-                  </Button>
-                </div>
               </section>
-            ) : null}
-          </ModalShell>
+            </section>
+          ) : null}
 
           <ModalShell
             open={Boolean(applyNowPrompt)}

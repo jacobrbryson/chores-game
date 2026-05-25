@@ -36,6 +36,7 @@ export type FamilyMemberConfettiSummary = {
 export type FamilyMemberProfileData = {
   familyId: string;
   familyName: string;
+  viewerUid: string;
   viewerRole: ViewerRole;
   canManageAwards: boolean;
   member: FamilyResolvedMember;
@@ -247,6 +248,7 @@ export async function loadFamilyMemberProfileData(
     profile: {
       familyId: familyContext.familyId,
       familyName: familyContext.familyName,
+      viewerUid: input.viewerUid,
       viewerRole: familyContext.viewerRole,
       canManageAwards: familyContext.viewerRole === "admin",
       member,

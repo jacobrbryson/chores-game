@@ -1,23 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
+import { AppTabs, type AppTabItem } from "@/components/app-tabs";
 import { CoinIcon } from "@/components/coin-icon";
-import styles from "./dashboard-tabs.module.css";
 
 type DashboardTabsProps = {
   visible: boolean;
 };
 
-type DashboardTab = {
-  id: "chores" | "store" | "achievements" | "quests";
-  label: string;
-  href?: string;
-  disabled?: boolean;
-  tooltip?: string;
-  icon: ReactNode;
-};
+type DashboardTabId = "chores" | "store" | "achievements" | "quests";
+type DashboardTab = AppTabItem<DashboardTabId> & { icon: ReactNode };
 
 const DASHBOARD_TABS: DashboardTab[] = [
   {
@@ -49,7 +42,7 @@ const DASHBOARD_TABS: DashboardTab[] = [
     id: "store",
     label: "Store",
     href: "/store",
-    icon: <CoinIcon size={20} className={styles.storeCoin} />,
+    icon: <CoinIcon size={20} className="dashboard-store-coin" />,
   },
   {
     id: "achievements",
@@ -120,41 +113,27 @@ export function DashboardTabs({ visible }: DashboardTabsProps) {
     return null;
   }
 
+  const activeTab = DASHBOARD_TABS.find((tab) => isActiveRoute(pathname, tab.href || "/"))?.id ?? "chores";
+
   return (
-    <nav className={styles.tabs} aria-label="Dashboard sections">
-      {DASHBOARD_TABS.map((tab) => {
-        if (tab.disabled) {
-          return (
-            <span
-              key={tab.id}
-              className={`${styles.tab} ${styles.tabDisabled}`}
-              aria-disabled="true"
-              title={tab.tooltip}>
-              <span className={styles.icon}>{tab.icon}</span>
-              <span className={styles.label}>{tab.label}</span>
-            </span>
-          );
-        }
-
-        const href = tab.href || "/";
-        const active = isActiveRoute(pathname, href);
-
-        if (active) {
-          return (
-            <span key={tab.id} className={`${styles.tab} ${styles.tabActive}`} aria-current="page">
-              <span className={styles.icon}>{tab.icon}</span>
-              <span className={styles.label}>{tab.label}</span>
-            </span>
-          );
-        }
-
-        return (
-          <Link key={tab.id} href={href} className={styles.tab}>
-            <span className={styles.icon}>{tab.icon}</span>
-            <span className={styles.label}>{tab.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
+    <div className="dashboard-nav">
+      <div className="dashboard-nav-desktop">
+        <AppTabs
+          ariaLabel="Dashboard sections"
+          tabs={DASHBOARD_TABS}
+          activeTab={activeTab}
+          variant="pills"
+        />
+      </div>
+      <div className="dashboard-nav-mobile">
+        <AppTabs
+          ariaLabel="Dashboard sections"
+          tabs={DASHBOARD_TABS}
+          activeTab={activeTab}
+          variant="pills"
+          hideLabelsOnMobile
+        />
+      </div>
+    </div>
   );
 }

@@ -3,11 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AccountSwitchModal } from "@/components/account-switch-modal";
 import { Alert } from "@/components/alert";
 import { Avatar } from "@/components/avatar";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
+import { ModalShell } from "@/components/modal-shell";
 import { formatDateTime } from "@/components/profile/profile-page.utils";
 import { findFamilyRewardImageOption } from "@/lib/family/rewards";
 
@@ -40,6 +42,7 @@ type OwnedItem = {
 type FamilyMemberProfileResponse = {
   familyId: string;
   familyName: string;
+  viewerUid: string;
   viewerRole: "admin" | "player";
   canManageAwards: boolean;
   member: {
@@ -111,6 +114,15 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
   const [error, setError] = useState("");
   const [claimingAwardId, setClaimingAwardId] = useState("");
   const [claimError, setClaimError] = useState("");
+  const [pendingRemove, setPendingRemove] = useState(false);
+  const [removePending, setRemovePending] = useState(false);
+  const [memberActionError, setMemberActionError] = useState("");
+  const [switchDialogOpen, setSwitchDialogOpen] = useState(false);
+  const [switchPin, setSwitchPin] = useState("");
+  const [switchPinConfirm, setSwitchPinConfirm] = useState("");
+  const [switchPending, setSwitchPending] = useState(false);
+  const [switchError, setSwitchError] = useState("");
+  const [switchRequiresPinSetup, setSwitchRequiresPinSetup] = useState(false);
 
   const loadProfile = useCallback(async () => {
     setIsLoading(true);
@@ -146,6 +158,116 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
       .map(([category, count]) => ({ category, count }))
       .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
   }, [profile?.ownedItems]);
+
+  const canManageThisMember = Boolean(
+    profile &&
+      profile.viewerRole === "admin" &&
+      profile.member.id !== profile.viewerUid &&
+      profile.member.uid !== profile.viewerUid,
+  );
+  const canSwitchToMember = Boolean(canManageThisMember && profile?.member.role === "player");
+
+  function closeSwitchDialog() {
+    setSwitchDialogOpen(false);
+    setSwitchPin("");
+    setSwitchPinConfirm("");
+    setSwitchError("");
+    setSwitchRequiresPinSetup(false);
+  }
+
+  async function onSwitchAccount() {
+    if (!profile || switchPending) {
+      return;
+    }
+    setSwitchPending(true);
+    setSwitchError("");
+    try {
+      const response = await fetch("/api/account-switch/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberId: profile.member.id,
+          pin: switchPin,
+        }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        if (payload.error === "pin_not_configured") {
+          setSwitchRequiresPinSetup(true);
+          throw new Error("pin_not_configured");
+        }
+        throw new Error(payload.error ?? `SWITCH_ACCOUNT_HTTP_${response.status}`);
+      }
+      window.location.assign("/");
+    } catch (errorValue) {
+      setSwitchError(errorValue instanceof Error ? errorValue.message : "switch_account_failed");
+    } finally {
+      setSwitchPending(false);
+    }
+  }
+
+  async function onSetupPinAndSwitch() {
+    if (!profile || switchPending) {
+      return;
+    }
+    setSwitchPending(true);
+    setSwitchError("");
+    try {
+      const pinResponse = await fetch("/api/account-switch/pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pin: switchPin,
+          confirmPin: switchPinConfirm,
+        }),
+      });
+      if (!pinResponse.ok) {
+        const payload = (await pinResponse.json()) as { error?: string };
+        throw new Error(payload.error ?? `PIN_SETUP_HTTP_${pinResponse.status}`);
+      }
+
+      const switchResponse = await fetch("/api/account-switch/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberId: profile.member.id,
+          pin: switchPin,
+        }),
+      });
+      if (!switchResponse.ok) {
+        const payload = (await switchResponse.json()) as { error?: string };
+        throw new Error(payload.error ?? `SWITCH_ACCOUNT_HTTP_${switchResponse.status}`);
+      }
+
+      window.location.assign("/");
+    } catch (errorValue) {
+      setSwitchError(errorValue instanceof Error ? errorValue.message : "switch_account_failed");
+    } finally {
+      setSwitchPending(false);
+    }
+  }
+
+  async function onRemoveMember() {
+    if (!profile || removePending) {
+      return;
+    }
+    setRemovePending(true);
+    setMemberActionError("");
+    try {
+      const response = await fetch(`/api/family/members/${encodeURIComponent(profile.member.id)}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? `REMOVE_MEMBER_HTTP_${response.status}`);
+      }
+      window.location.assign("/family");
+    } catch (errorValue) {
+      setMemberActionError(errorValue instanceof Error ? errorValue.message : "remove_member_failed");
+      setRemovePending(false);
+      setPendingRemove(false);
+    }
+  }
 
   async function onClaimAward(awardId: string) {
     if (!profile || !profile.canManageAwards || claimingAwardId) {
@@ -187,7 +309,37 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
         <>
           <section className="profile-page-grid family-member-profile-grid">
             <article className="profile-page-avatar-card family-member-profile-card">
-              <h2>Details</h2>
+              <div className="family-member-profile-card-header">
+                <h2>Details</h2>
+                {canManageThisMember ? (
+                  <div className="family-member-profile-actions">
+                    {canSwitchToMember ? (
+                      <Button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={switchPending || removePending}
+                        onClick={() => {
+                          setSwitchDialogOpen(true);
+                          setSwitchError("");
+                          setMemberActionError("");
+                        }}>
+                        Switch To
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      className="btn member-action-remove"
+                      disabled={switchPending || removePending}
+                      onClick={() => {
+                        setPendingRemove(true);
+                        setMemberActionError("");
+                      }}>
+                      Remove
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+              {memberActionError ? <Alert>Member update failed: {memberActionError}</Alert> : null}
               <div className="profile-page-account-row">
                 <div className="profile-page-account-avatar">
                   <Avatar
@@ -333,6 +485,57 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
           </section>
         </>
       ) : null}
+      <AccountSwitchModal
+        open={switchDialogOpen}
+        onRequestClose={closeSwitchDialog}
+        memberName={profile?.member.name ?? ""}
+        pin={switchPin}
+        onPinChange={setSwitchPin}
+        confirmPin={switchPinConfirm}
+        onConfirmPinChange={setSwitchPinConfirm}
+        pending={switchPending}
+        error={switchError}
+        requiresPinSetup={switchRequiresPinSetup}
+        onConfirm={switchRequiresPinSetup ? onSetupPinAndSwitch : onSwitchAccount}
+      />
+      <ModalShell open={pendingRemove} onRequestClose={() => setPendingRemove(false)}>
+        <div className="family-modal-card">
+          {profile ? (
+            <>
+              <div className="modal-dialog-title-row family-modal-title-row">
+                <h3 className="family-modal-title">Remove Family Member</h3>
+                <Button
+                  type="button"
+                  className="modal-close-button"
+                  onClick={() => setPendingRemove(false)}
+                  aria-label="Close dialog"
+                  title="Close dialog">
+                  X
+                </Button>
+              </div>
+              <p className="mb-4 text-sm text-slate-600">
+                Remove <strong>{profile.member.name}</strong> from your family?
+              </p>
+              <div className="family-modal-actions">
+                <Button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={removePending}
+                  onClick={() => setPendingRemove(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="btn member-action-remove"
+                  disabled={removePending}
+                  onClick={onRemoveMember}>
+                  {removePending ? "Removing..." : "Remove"}
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </ModalShell>
     </main>
   );
 }

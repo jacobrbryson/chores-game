@@ -1,6 +1,7 @@
 "use client";
 
 import Script from "next/script";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/button";
 import { GoogleGIcon } from "@/components/google-g-icon";
 
@@ -28,6 +29,32 @@ function joinClasses(...classes: Array<string | undefined>) {
 }
 
 export function GoogleSignInButton(props: GoogleSignInButtonProps) {
+  const gsiWrapperRef = useRef<HTMLDivElement>(null);
+  const [isGsiRendered, setIsGsiRendered] = useState(false);
+
+  useEffect(() => {
+    if (props.mode !== "gsi") {
+      return;
+    }
+
+    function updateRenderedState() {
+      setIsGsiRendered(Boolean(gsiWrapperRef.current?.querySelector("iframe")));
+    }
+
+    updateRenderedState();
+    const observer = new MutationObserver(updateRenderedState);
+    const wrapper = gsiWrapperRef.current;
+    if (wrapper) {
+      observer.observe(wrapper, { childList: true, subtree: true });
+    }
+
+    const timeoutId = window.setTimeout(updateRenderedState, 2500);
+    return () => {
+      window.clearTimeout(timeoutId);
+      observer.disconnect();
+    };
+  }, [props.mode]);
+
   if (props.mode === "gsi") {
     const width = props.width ?? 248;
     return (
@@ -49,7 +76,17 @@ export function GoogleSignInButton(props: GoogleSignInButtonProps) {
             data-use_fedcm_for_button="false"
           />
         ) : null}
-        <div className={props.wrapperClassName ?? "google-signin-wrap"}>
+        <div
+          ref={gsiWrapperRef}
+          className={joinClasses(
+            props.wrapperClassName ?? "google-signin-wrap",
+            isGsiRendered ? "google-signin-wrap-ready" : "google-signin-wrap-loading",
+          )}
+          aria-busy={!isGsiRendered}>
+          <div className="google-signin-placeholder" aria-hidden="true">
+            <GoogleGIcon className="google-signin-placeholder-icon" />
+            <span className="google-signin-placeholder-text">Sign in with Google</span>
+          </div>
           <div
             className="g_id_signin"
             data-type="standard"

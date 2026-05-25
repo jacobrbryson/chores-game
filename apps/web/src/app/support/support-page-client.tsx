@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
+import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
 
 type SupportUser = {
   uid: string;
@@ -106,6 +107,8 @@ const TABS: Array<{ id: SupportTab; label: string }> = [
   { id: "users", label: "Users" },
   { id: "chores", label: "Chores" },
 ];
+
+const SUPPORT_TAB_IDS: readonly SupportTab[] = ["families", "users", "chores"];
 
 const METRICS: Array<{
   key: MetricKey;
@@ -324,7 +327,11 @@ function SearchInput({
 }
 
 export default function SupportPageClient() {
-  const [activeTab, setActiveTab] = useState<SupportTab>("families");
+  const [activeTab, setActiveTab] = usePersistedTab<SupportTab>({
+    storageKey: "support-page-active-tab",
+    defaultTab: "families",
+    validTabs: SUPPORT_TAB_IDS,
+  });
   const [familyQuery, setFamilyQuery] = useState("");
   const [userQuery, setUserQuery] = useState("");
   const [choreQuery, setChoreQuery] = useState("");

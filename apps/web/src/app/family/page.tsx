@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useMemo, useState } from "react";
-import { AccountSwitchModal } from "@/components/account-switch-modal";
 import { Alert } from "@/components/alert";
 import { AppMenu } from "@/components/app-menu";
 import { Avatar } from "@/components/avatar";
@@ -11,9 +10,11 @@ import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
+import { FamilySectionTabs, type FamilySectionTabId } from "@/components/family/family-section-tabs";
 import { FamilyQuestsSection } from "@/components/family-quests-section";
 import { ModalShell } from "@/components/modal-shell";
 import type { FamilySummaryResponse } from "@/lib/family/types";
+import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
 import {
   FAMILY_REWARD_IMAGE_OPTIONS,
   findFamilyRewardImageOption,
@@ -26,16 +27,6 @@ type AddMemberState = {
   name: string;
   email: string;
   role: "admin" | "player";
-};
-
-type PendingRemoveMember = {
-  id: string;
-  name: string;
-};
-
-type PendingSwitchMember = {
-  id: string;
-  name: string;
 };
 
 type FamilyMember = FamilySummaryResponse["members"][number];
@@ -75,6 +66,8 @@ type FamilyRewardsResponse = {
   viewerRole: "admin" | "player";
   rewards: FamilyReward[];
 };
+
+const FAMILY_TAB_IDS: readonly FamilySectionTabId[] = ["members", "awards", "categories", "quests"];
 
 type AddMemberFieldsProps = {
   form: AddMemberState;
@@ -218,20 +211,26 @@ function FamilyMemberStats({ member, compact = false }: { member: FamilyMember; 
   return (
     <div className={statsClassName}>
       <div className="family-member-stat">
-        <span className="family-member-stat-label">Lifetime Chores Completed</span>
+        <span className="family-member-stat-label" title="Lifetime Chores Completed">
+          Lifetime Chores Completed
+        </span>
         <strong className="family-member-stat-value">
           {formatWholeNumber(member.stats.lifetimeChoresCompleted)}
         </strong>
       </div>
       <div className="family-member-stat family-member-stat-coins">
-        <span className="family-member-stat-label">Lifetime Coins Earned</span>
+        <span className="family-member-stat-label" title="Lifetime Coins Earned">
+          Lifetime Coins Earned
+        </span>
         <strong className="family-member-stat-value">
           <CoinIcon size={14} className="family-member-stat-icon" />
           {formatWholeNumber(member.stats.lifetimeCoinsEarned)}
         </strong>
       </div>
       <div className="family-member-stat family-member-stat-current">
-        <span className="family-member-stat-label">Current Coins</span>
+        <span className="family-member-stat-label" title="Current Coins">
+          Current Coins
+        </span>
         <strong className="family-member-stat-value">
           <CoinIcon size={14} className="family-member-stat-icon" />
           {formatWholeNumber(member.stats.currentCoins)}
@@ -246,19 +245,7 @@ function memberProfileHref(member: FamilyMember) {
 }
 
 function canLinkToMemberProfile(member: FamilyMember) {
-  return !(member.role === "player" && member.status !== "active");
-}
-
-function canReinviteMember(member: FamilyMember) {
-  return member.status !== "active";
-}
-
-function canSwitchToMember(member: FamilyMember) {
-  return member.role === "player";
-}
-
-function memberMenuKey(memberId: string, surface: "desktop" | "mobile") {
-  return `${surface}:${memberId}`;
+  return true;
 }
 
 function ActionMenuDots() {
@@ -268,6 +255,62 @@ function ActionMenuDots() {
       <span />
       <span />
     </span>
+  );
+}
+
+function MembersSkeleton() {
+  return (
+    <div className="family-table-wrap family-table-desktop" aria-label="Loading members">
+      <table className="family-table">
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Status / Last Sign In</th>
+            <th>Stats</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: 3 }).map((_, index) => (
+            <tr key={index}>
+              <td>
+                <div className="family-skeleton family-skeleton-row" />
+              </td>
+              <td>
+                <div className="family-skeleton family-skeleton-row" />
+              </td>
+              <td>
+                <div className="family-skeleton family-skeleton-row" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AwardsSkeleton() {
+  return (
+    <div className="family-category-manage-list" aria-label="Loading awards">
+      <div className="family-skeleton family-skeleton-reward" />
+      <div className="family-skeleton family-skeleton-reward" />
+    </div>
+  );
+}
+
+function CategoriesSkeleton() {
+  return (
+    <section className="family-page-card family-categories-card" aria-label="Loading categories">
+      <div className="family-page-card-header">
+        <div className="family-skeleton family-skeleton-title" />
+        <div className="family-skeleton family-skeleton-button" />
+      </div>
+      <div className="family-skeleton-chip-row">
+        <div className="family-skeleton family-skeleton-chip" />
+        <div className="family-skeleton family-skeleton-chip" />
+        <div className="family-skeleton family-skeleton-chip" />
+      </div>
+    </section>
   );
 }
 
@@ -282,21 +325,12 @@ export default function FamilyPage() {
   const [error, setError] = useState("");
   const [form, setForm] = useState<AddMemberState>(initialMemberState);
   const [saving, setSaving] = useState(false);
-  const [memberActionLoading, setMemberActionLoading] = useState<{
-    memberId: string;
-    action: "reinvite" | "remove";
-  } | null>(null);
-  const [memberActionError, setMemberActionError] = useState("");
-  const [pendingRemoveMember, setPendingRemoveMember] =
-    useState<PendingRemoveMember | null>(null);
-  const [pendingSwitchMember, setPendingSwitchMember] = useState<PendingSwitchMember | null>(null);
-  const [switchPin, setSwitchPin] = useState("");
-  const [switchPinConfirm, setSwitchPinConfirm] = useState("");
-  const [switchPending, setSwitchPending] = useState(false);
-  const [switchError, setSwitchError] = useState("");
-  const [switchRequiresPinSetup, setSwitchRequiresPinSetup] = useState(false);
-  const [openMemberMenuId, setOpenMemberMenuId] = useState("");
   const [showAddMemberForm, setShowAddMemberForm] = useState(false);
+  const [activeFamilyTab, setActiveFamilyTab] = usePersistedTab<FamilySectionTabId>({
+    storageKey: "family-page-active-tab",
+    defaultTab: "members",
+    validTabs: FAMILY_TAB_IDS,
+  });
 
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(initialCategoryFormState);
@@ -394,37 +428,6 @@ export default function FamilyPage() {
       setError(message);
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function onMemberAction(memberId: string, action: "reinvite" | "remove") {
-    if (memberActionLoading) {
-      return;
-    }
-    setMemberActionError("");
-    setMemberActionLoading({ memberId, action });
-    try {
-      const endpoint =
-        action === "reinvite"
-          ? `/api/family/members/${memberId}/reinvite`
-          : `/api/family/members/${memberId}`;
-      const response = await fetch(endpoint, {
-        method: action === "reinvite" ? "POST" : "DELETE",
-      });
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        throw new Error(body.error ?? `${action}_failed`);
-      }
-      await loadSummary();
-    } catch (actionError) {
-      const message =
-        actionError instanceof Error ? actionError.message : "member_action_failed";
-      setMemberActionError(message);
-    } finally {
-      setMemberActionLoading(null);
-      if (action === "remove") {
-        setPendingRemoveMember(null);
-      }
     }
   }
 
@@ -530,114 +533,8 @@ export default function FamilyPage() {
     setShowRewardEditor(false);
   }
 
-  async function onSwitchAccount() {
-    if (!pendingSwitchMember || switchPending) {
-      return;
-    }
-    setSwitchPending(true);
-    setSwitchError("");
-    try {
-      const response = await fetch("/api/account-switch/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          memberId: pendingSwitchMember.id,
-          pin: switchPin,
-        }),
-      });
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        if (body.error === "pin_not_configured") {
-          setSwitchRequiresPinSetup(true);
-          throw new Error("pin_not_configured");
-        }
-        throw new Error(body.error ?? `SWITCH_ACCOUNT_HTTP_${response.status}`);
-      }
-      if (typeof window !== "undefined") {
-        window.location.assign("/");
-      }
-    } catch (errorValue) {
-      setSwitchError(errorValue instanceof Error ? errorValue.message : "switch_account_failed");
-    } finally {
-      setSwitchPending(false);
-    }
-  }
-
-  async function onSetupPinAndSwitch() {
-    if (!pendingSwitchMember || switchPending) {
-      return;
-    }
-    setSwitchPending(true);
-    setSwitchError("");
-    try {
-      const pinResponse = await fetch("/api/account-switch/pin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pin: switchPin,
-          confirmPin: switchPinConfirm,
-        }),
-      });
-      if (!pinResponse.ok) {
-        const body = (await pinResponse.json()) as { error?: string };
-        throw new Error(body.error ?? `PIN_SETUP_HTTP_${pinResponse.status}`);
-      }
-
-      const switchResponse = await fetch("/api/account-switch/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          memberId: pendingSwitchMember.id,
-          pin: switchPin,
-        }),
-      });
-      if (!switchResponse.ok) {
-        const body = (await switchResponse.json()) as { error?: string };
-        throw new Error(body.error ?? `SWITCH_ACCOUNT_HTTP_${switchResponse.status}`);
-      }
-
-      if (typeof window !== "undefined") {
-        window.location.assign("/");
-      }
-    } catch (errorValue) {
-      setSwitchError(errorValue instanceof Error ? errorValue.message : "switch_account_failed");
-    } finally {
-      setSwitchPending(false);
-    }
-  }
-
-  function openSwitchMemberModal(member: PendingSwitchMember) {
-    setPendingSwitchMember(member);
-    setSwitchPin("");
-    setSwitchPinConfirm("");
-    setSwitchError("");
-    setSwitchRequiresPinSetup(false);
-  }
-
-  function closeSwitchMemberModal() {
-    setPendingSwitchMember(null);
-    setSwitchPin("");
-    setSwitchPinConfirm("");
-    setSwitchError("");
-    setSwitchRequiresPinSetup(false);
-  }
-
-  function closeMemberMenu() {
-    setOpenMemberMenuId("");
-  }
-
-  function setMemberMenuOpen(memberId: string, open: boolean) {
-    setOpenMemberMenuId(open ? memberId : "");
-    if (open) {
-      setOpenRewardMenuId("");
-    }
-  }
-
   function setRewardMenuOpen(rewardId: string, open: boolean) {
     setOpenRewardMenuId(open ? rewardId : "");
-    if (open) {
-      setOpenMemberMenuId("");
-    }
   }
 
   function openAddRewardDialog() {
@@ -863,64 +760,30 @@ export default function FamilyPage() {
     summary?.members.find(
       (member) => member.uid === summary.viewerUid || member.id === summary.viewerUid,
     ) ?? null;
-  const viewerUid = summary?.viewerUid ?? "";
   const canManageMembers = Boolean(summary?.noFamily) || viewerMember?.role === "admin";
 
   return (
     <>
-      <main className="panel family-page">
+      <main className="family-page">
           <div className="page-header-row">
             <div className="page-header-inline">
               <BackLink className="page-back-link" fallbackHref="/" />
-              <h1>Family Members</h1>
+              <h1>Family</h1>
             </div>
-            {canManageMembers ? (
-              <div className="family-page-header-actions">
-                <Button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => setShowAddMemberForm(true)}>
-                  Add Family Member
-                </Button>
-              </div>
-            ) : null}
           </div>
 
           {!isLoading && error ? <Alert>Could not load members: {error}</Alert> : null}
+          <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-3">
+              <FamilySectionTabs activeTab={activeFamilyTab} onChange={setActiveFamilyTab} />
+            </div>
+            <div className="p-4">
           {isLoading && !error ? (
             <div className="family-page-grid" aria-hidden="true">
-              <section className="family-page-card" aria-label="Loading members">
-                <div className="family-page-card-header">
-                  <div className="family-skeleton family-skeleton-title" />
-                  <div className="family-skeleton family-skeleton-subtitle" />
-                </div>
-                <div className="family-skeleton-stack">
-                  <div className="family-skeleton family-skeleton-row" />
-                  <div className="family-skeleton family-skeleton-row" />
-                  <div className="family-skeleton family-skeleton-row" />
-                </div>
-              </section>
-              <section className="family-page-card family-categories-card" aria-label="Loading categories">
-                <div className="family-page-card-header">
-                  <div className="family-skeleton family-skeleton-title" />
-                  <div className="family-skeleton family-skeleton-button" />
-                </div>
-                <div className="family-skeleton-chip-row">
-                  <div className="family-skeleton family-skeleton-chip" />
-                  <div className="family-skeleton family-skeleton-chip" />
-                  <div className="family-skeleton family-skeleton-chip" />
-                </div>
-              </section>
-              <section className="family-page-card family-categories-card" aria-label="Loading awards">
-                <div className="family-page-card-header">
-                  <div className="family-skeleton family-skeleton-title" />
-                  <div className="family-skeleton family-skeleton-button" />
-                </div>
-                <div className="family-skeleton-stack">
-                  <div className="family-skeleton family-skeleton-reward" />
-                  <div className="family-skeleton family-skeleton-reward" />
-                </div>
-              </section>
+              {activeFamilyTab === "members" ? <MembersSkeleton /> : null}
+              {activeFamilyTab === "awards" ? <AwardsSkeleton /> : null}
+              {activeFamilyTab === "categories" ? <CategoriesSkeleton /> : null}
+              {activeFamilyTab === "quests" ? <AwardsSkeleton /> : null}
             </div>
           ) : null}
           {!isLoading && !error ? (
@@ -937,152 +800,86 @@ export default function FamilyPage() {
                       app will create your family with you as the admin.
                     </p>
                   ) : null}
-                  {memberActionError ? <Alert>Member update failed: {memberActionError}</Alert> : null}
                   <div className="family-page-grid">
-                    <section className="family-page-card" aria-label="Family members">
-                      <div className="family-page-card-header">
-                        <h2>Members</h2>
-                        <p className="small family-page-subhead">
-                          {members.length} member{members.length === 1 ? "" : "s"}
-                        </p>
-                      </div>
+                    {activeFamilyTab === "members" ? (
+                    <section aria-label="Family members">
                       <div className="family-table-wrap family-table-desktop">
                         <table className="family-table">
                           <thead>
                             <tr>
-                              <th>Name</th>
-                              <th>Email</th>
-                              <th>Role</th>
-                              <th>Status</th>
-                              <th>Game Stats</th>
-                              <th>Last Sign In</th>
-                              <th />
+                              <th>Member</th>
+                              <th>Status / Last Sign In</th>
+                              <th>Stats</th>
                             </tr>
                           </thead>
                           <tbody>
                             {members.length === 0 ? (
                               <tr>
-                                <td colSpan={7}>No family members found.</td>
+                                <td colSpan={3}>No family members found.</td>
                               </tr>
                             ) : (
-                              members.map((member) => (
-                                <tr key={member.id}>
-                                  <td>
-                                    {canLinkToMemberProfile(member) ? (
-                                      <Link href={memberProfileHref(member)} className="family-member-link table-assignee-cell">
-                                        <Avatar
-                                          className="completion-chart-avatar"
-                                          size={32}
-                                          borderWidth={1}
-                                          name={member.name}
-                                          avatarId={member.avatarId}
-                                          photoUrl={member.avatarPhotoUrl}
-                                          primaryColor={member.dashboardPrimaryColor}
-                                          secondaryColor={member.dashboardPrimaryColor}
-                                          fallbackColor={member.dashboardPrimaryColor ? "#ffffff" : undefined}
-                                          referrerPolicy="no-referrer"
-                                        />
-                                        <span className="family-member-link-label">{member.name}</span>
-                                      </Link>
-                                    ) : (
-                                      <span className="table-assignee-cell">
-                                        <Avatar
-                                          className="completion-chart-avatar"
-                                          size={32}
-                                          borderWidth={1}
-                                          name={member.name}
-                                          avatarId={member.avatarId}
-                                          photoUrl={member.avatarPhotoUrl}
-                                          primaryColor={member.dashboardPrimaryColor}
-                                          secondaryColor={member.dashboardPrimaryColor}
-                                          fallbackColor={member.dashboardPrimaryColor ? "#ffffff" : undefined}
-                                          referrerPolicy="no-referrer"
-                                        />
-                                        <span className="family-member-link-label">{member.name}</span>
+                              members.map((member) => {
+                                const memberHref = memberProfileHref(member);
+                                return (
+                                <tr
+                                  key={member.id}
+                                  className="family-member-table-row"
+                                  role="link"
+                                  tabIndex={0}
+                                  onClick={() => {
+                                    window.location.assign(memberHref);
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                      event.preventDefault();
+                                      window.location.assign(memberHref);
+                                    }
+                                  }}>
+                                  <td title={`${member.name}${member.email ? ` - ${member.email}` : ""} - ${humanizeEnum(member.role)}`}>
+                                    <span className="table-assignee-cell">
+                                      <Avatar
+                                        className="completion-chart-avatar"
+                                        size={32}
+                                        borderWidth={1}
+                                        name={member.name}
+                                        avatarId={member.avatarId}
+                                        photoUrl={member.avatarPhotoUrl}
+                                        primaryColor={member.dashboardPrimaryColor}
+                                        secondaryColor={member.dashboardPrimaryColor}
+                                        fallbackColor={member.dashboardPrimaryColor ? "#ffffff" : undefined}
+                                        referrerPolicy="no-referrer"
+                                      />
+                                      <span className="family-member-table-copy">
+                                        <span className="family-member-table-name-row">
+                                          <span className="family-member-link-label" title={member.name}>
+                                            {member.name}
+                                          </span>
+                                          <EnumChip
+                                            label={humanizeEnum(member.role)}
+                                            tone={memberRoleTone(member.role)}
+                                          />
+                                        </span>
+                                        <span className="family-member-email" title={member.email || "-"}>
+                                          {member.email || "-"}
+                                        </span>
                                       </span>
-                                    )}
+                                    </span>
                                   </td>
-                                  <td>{member.email || "-"}</td>
-                                  <td>
-                                    <EnumChip
-                                      label={humanizeEnum(member.role)}
-                                      tone={memberRoleTone(member.role)}
-                                    />
-                                  </td>
-                                  <td>
+                                  <td title={`${humanizeEnum(member.status)} - ${memberLastSignInLabel(member)}`}>
                                     <EnumChip
                                       label={humanizeEnum(member.status)}
                                       tone={memberStatusTone(member.status)}
                                     />
+                                    <span className="family-member-table-secondary">
+                                      {memberLastSignInLabel(member)}
+                                    </span>
                                   </td>
                                   <td className="family-member-stats-cell">
                                     <FamilyMemberStats member={member} compact />
                                   </td>
-                                  <td>{memberLastSignInLabel(member)}</td>
-                                  <td>
-                                    {canManageMembers &&
-                                    member.id !== viewerUid &&
-                                    member.uid !== viewerUid ? (
-                                      <AppMenu
-                                        open={openMemberMenuId === memberMenuKey(member.id, "desktop")}
-                                        onOpenChange={(open) =>
-                                          setMemberMenuOpen(memberMenuKey(member.id, "desktop"), open)
-                                        }
-                                        wrapperClassName="flex items-center justify-end"
-                                        triggerClassName="btn btn-secondary member-action-btn"
-                                        triggerDisabled={Boolean(memberActionLoading) || switchPending}
-                                        triggerTitle="Member actions"
-                                        triggerAriaLabel={`Open actions for ${member.name}`}
-                                        panelClassName="app-menu-panel family-action-dropdown"
-                                        trigger={<ActionMenuDots />}>
-                                        {canSwitchToMember(member) ? (
-                                          <Button
-                                            type="button"
-                                            className="menu-action-link menu-action-link-full"
-                                            onClick={() => {
-                                              closeMemberMenu();
-                                              openSwitchMemberModal({
-                                                id: member.id,
-                                                name: member.name,
-                                              });
-                                            }}>
-                                            Switch To
-                                          </Button>
-                                        ) : null}
-                                        {canReinviteMember(member) ? (
-                                          <Button
-                                            type="button"
-                                            className="menu-action-link menu-action-link-full"
-                                            onClick={() => {
-                                              closeMemberMenu();
-                                              void onMemberAction(member.id, "reinvite");
-                                            }}>
-                                            {memberActionLoading?.memberId === member.id &&
-                                            memberActionLoading.action === "reinvite"
-                                              ? "Working..."
-                                              : "Re-invite"}
-                                          </Button>
-                                        ) : null}
-                                        <Button
-                                          type="button"
-                                          className="menu-action-link menu-action-link-full menu-action-link-danger"
-                                          onClick={() => {
-                                            closeMemberMenu();
-                                            setPendingRemoveMember({
-                                              id: member.id,
-                                              name: member.name,
-                                            });
-                                          }}>
-                                          {memberActionLoading?.memberId === member.id &&
-                                          memberActionLoading.action === "remove"
-                                            ? "Working..."
-                                            : "Remove"}
-                                        </Button>
-                                      </AppMenu>
-                                    ) : null}
-                                  </td>
                                 </tr>
-                              ))
+                                );
+                              })
                             )}
                           </tbody>
                         </table>
@@ -1139,123 +936,91 @@ export default function FamilyPage() {
                                 </div>
                               </div>
                               <FamilyMemberStats member={member} />
-                              {canManageMembers &&
-                              member.id !== viewerUid &&
-                              member.uid !== viewerUid ? (
-                                <AppMenu
-                                  open={openMemberMenuId === memberMenuKey(member.id, "mobile")}
-                                  onOpenChange={(open) =>
-                                    setMemberMenuOpen(memberMenuKey(member.id, "mobile"), open)
-                                  }
-                                  wrapperClassName="flex justify-end"
-                                  triggerClassName="btn btn-secondary member-action-btn"
-                                  triggerDisabled={Boolean(memberActionLoading) || switchPending}
-                                  triggerTitle="Member actions"
-                                  triggerAriaLabel={`Open actions for ${member.name}`}
-                                  panelClassName="app-menu-panel family-action-dropdown"
-                                  trigger={<ActionMenuDots />}>
-                                  {canSwitchToMember(member) ? (
-                                    <Button
-                                      type="button"
-                                      className="menu-action-link menu-action-link-full"
-                                      onClick={() => {
-                                        closeMemberMenu();
-                                        openSwitchMemberModal({
-                                          id: member.id,
-                                          name: member.name,
-                                        });
-                                      }}>
-                                      Switch To
-                                    </Button>
-                                  ) : null}
-                                  {canReinviteMember(member) ? (
-                                    <Button
-                                      type="button"
-                                      className="menu-action-link menu-action-link-full"
-                                      onClick={() => {
-                                        closeMemberMenu();
-                                        void onMemberAction(member.id, "reinvite");
-                                      }}>
-                                      {memberActionLoading?.memberId === member.id &&
-                                      memberActionLoading.action === "reinvite"
-                                        ? "Working..."
-                                        : "Re-invite"}
-                                    </Button>
-                                  ) : null}
-                                  <Button
-                                    type="button"
-                                    className="menu-action-link menu-action-link-full menu-action-link-danger"
-                                    onClick={() => {
-                                      closeMemberMenu();
-                                      setPendingRemoveMember({
-                                        id: member.id,
-                                        name: member.name,
-                                      });
-                                    }}>
-                                    {memberActionLoading?.memberId === member.id &&
-                                    memberActionLoading.action === "remove"
-                                      ? "Working..."
-                                      : "Remove"}
-                                  </Button>
-                                </AppMenu>
-                              ) : null}
                             </article>
                           ))
                         )}
                       </div>
-                    </section>
-                    <section className="family-page-card family-categories-card" aria-label="Categories">
-                      <div className="family-categories-card-header">
-                        <div className="family-categories-card-title">
-                          <h2>Categories</h2>
-                          <p className="small">
-                            {categories.length} categor{categories.length === 1 ? "y" : "ies"}
-                          </p>
-                        </div>
-                        {canManageMembers ? (
+                      {canManageMembers ? (
+                        <div className="mt-4 flex justify-center">
                           <Button
                             type="button"
-                            className="btn btn-secondary"
-                            onClick={() => {
-                              setShowCategoryManager(true);
-                              setCategoryError("");
-                            }}>
-                            Manage Categories
+                            className="btn btn-primary"
+                            onClick={() => setShowAddMemberForm(true)}>
+                            Add Family Member
                           </Button>
-                        ) : null}
-                      </div>
+                        </div>
+                      ) : null}
+                    </section>
+                    ) : null}
+                    {activeFamilyTab === "categories" ? (
+                    <section aria-label="Categories">
                       {categories.length > 0 ? (
-                        <div className="family-category-chip-row">
+                        <div className="family-category-manage-list">
                           {categories.map((category) => (
-                            <span
-                              key={category.id}
-                              className="family-category-chip"
-                              style={{ "--category-color": category.color } as CSSProperties}>
-                              {category.name}
-                            </span>
+                            <div key={category.id} className="family-category-manage-item">
+                              <span
+                                className="family-category-chip"
+                                style={{ "--category-color": category.color } as CSSProperties}>
+                                {category.name}
+                              </span>
+                              {canManageMembers ? (
+                                <div className="member-actions">
+                                  <Button
+                                    type="button"
+                                    className="btn btn-secondary member-action-btn"
+                                    disabled={Boolean(categoryActionLoading) || categorySaving}
+                                    onClick={() => {
+                                      onEditCategory(category);
+                                      setShowCategoryManager(true);
+                                    }}>
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    className="btn member-action-remove"
+                                    disabled={Boolean(categoryActionLoading) || categorySaving}
+                                    onClick={() =>
+                                      setPendingRemoveCategory({
+                                        id: category.id,
+                                        name: category.name,
+                                      })
+                                    }>
+                                    {categoryActionLoading?.categoryId === category.id ? "Working..." : "Delete"}
+                                  </Button>
+                                </div>
+                              ) : null}
+                            </div>
                           ))}
                         </div>
                       ) : (
-                        <p className="small">No categories yet.</p>
+                        <Alert tone="info" role="status" className="family-awards-info-card">
+                          <div className="grid gap-1">
+                            <strong>Categories organize chores into clear household areas.</strong>
+                            <span>
+                              Parents create categories such as Kitchen, Bedrooms, Pets, or Yard so chores are easier
+                              to group and scan. Everyone sees categories wherever chores are created or reviewed, and
+                              they help your family keep recurring work understandable before the list gets long.
+                            </span>
+                          </div>
+                        </Alert>
                       )}
-                    </section>
-                    <section className="family-page-card family-categories-card" aria-label="Family awards">
-                      <div className="family-categories-card-header">
-                        <div className="family-categories-card-title">
-                          <h2>Family Awards</h2>
-                          <p className="small">
-                            {familyRewards.length} reward{familyRewards.length === 1 ? "" : "s"}
-                          </p>
-                        </div>
-                        {canManageMembers ? (
+                      {canManageMembers ? (
+                        <div className="mt-4 flex justify-center">
                           <Button
                             type="button"
-                            className="btn btn-secondary"
-                            onClick={openAddRewardDialog}>
-                            Add Award
+                            className="btn btn-primary"
+                            onClick={() => {
+                              resetCategoryEditor();
+                              setShowCategoryManager(true);
+                            }}>
+                            Add Category
                           </Button>
-                        ) : null}
-                      </div>
+                        </div>
+                      ) : null}
+                    </section>
+                    ) : null}
+                    {activeFamilyTab === "awards" ? (
+                    <section aria-label="Family awards">
                       {rewardLoadError ? <Alert>Could not load rewards: {rewardLoadError}</Alert> : null}
                       {orderedFamilyRewards.length > 0 ? (
                         <div className="family-category-manage-list">
@@ -1357,15 +1122,38 @@ export default function FamilyPage() {
                           })}
                         </div>
                       ) : (
-                        <p className="small">No custom rewards yet.</p>
+                        <Alert tone="info" role="status" className="family-awards-info-card">
+                          <div className="grid gap-1">
+                            <strong>Family awards are custom prizes kids can redeem with coins.</strong>
+                            <span>
+                              Parents create awards like extra screen time, a special snack, or a weekend activity.
+                              Kids earn coins from chores, spend them on available awards, and parents can later
+                              review and claim the reward from each member profile. Add awards whenever your family
+                              wants clear, trackable goals beyond avatar and store items.
+                            </span>
+                          </div>
+                        </Alert>
                       )}
+                      {canManageMembers ? (
+                        <div className="mt-4 flex justify-center">
+                          <Button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={openAddRewardDialog}>
+                            Add Award
+                          </Button>
+                        </div>
+                      ) : null}
                     </section>
-                    <FamilyQuestsSection />
+                    ) : null}
+                    {activeFamilyTab === "quests" ? <FamilyQuestsSection /> : null}
                   </div>
                 </>
               )}
             </>
           ) : null}
+            </div>
+          </section>
       </main>
 
       <ModalShell open={showAddMemberForm} onRequestClose={() => setShowAddMemberForm(false)}>
@@ -1405,7 +1193,7 @@ export default function FamilyPage() {
       <ModalShell open={showCategoryManager} onRequestClose={() => setShowCategoryManager(false)}>
         <div className="family-modal-card">
           <div className="modal-dialog-title-row family-modal-title-row">
-          <h3 className="family-modal-title">Manage Categories</h3>
+          <h3 className="family-modal-title">{editingCategoryId ? "Edit Category" : "Add Category"}</h3>
           <Button
             type="button"
             className="modal-close-button"
@@ -1415,7 +1203,6 @@ export default function FamilyPage() {
             X
           </Button>
         </div>
-          <p className="small mb-2">Create, recolor, rename, and remove chore categories.</p>
           <form className="flex w-full flex-col gap-3" onSubmit={onSaveCategory}>
             <label className="flex w-full flex-col gap-1.5">
               <span className="text-sm font-medium text-slate-700">Category Name</span>
@@ -1475,44 +1262,6 @@ export default function FamilyPage() {
             </div>
           </form>
 
-          <div className="family-category-manage-list">
-            {categories.length === 0 ? (
-              <p className="small">No categories yet.</p>
-            ) : (
-              categories.map((category) => (
-                <div key={category.id} className="family-category-manage-item">
-                  <span
-                    className="family-category-chip"
-                    style={{ "--category-color": category.color } as CSSProperties}>
-                    {category.name}
-                  </span>
-                  <div className="member-actions">
-                    <Button
-                      type="button"
-                      className="btn btn-secondary member-action-btn"
-                      disabled={Boolean(categoryActionLoading) || categorySaving}
-                      onClick={() => onEditCategory(category)}>
-                      Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      className="btn member-action-remove"
-                      disabled={Boolean(categoryActionLoading) || categorySaving}
-                      onClick={() =>
-                        setPendingRemoveCategory({
-                          id: category.id,
-                          name: category.name,
-                        })
-                      }>
-                      {categoryActionLoading?.categoryId === category.id
-                        ? "Working..."
-                        : "Delete"}
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
         </div>
       </ModalShell>
 
@@ -1685,20 +1434,6 @@ export default function FamilyPage() {
         </div>
       </ModalShell>
 
-      <AccountSwitchModal
-        open={Boolean(pendingSwitchMember)}
-        onRequestClose={closeSwitchMemberModal}
-        memberName={pendingSwitchMember?.name ?? ""}
-        pin={switchPin}
-        onPinChange={setSwitchPin}
-        confirmPin={switchPinConfirm}
-        onConfirmPinChange={setSwitchPinConfirm}
-        pending={switchPending}
-        error={switchError}
-        requiresPinSetup={switchRequiresPinSetup}
-        onConfirm={switchRequiresPinSetup ? onSetupPinAndSwitch : onSwitchAccount}
-      />
-
       <ModalShell
         open={Boolean(pendingRemoveReward)}
         onRequestClose={() => setPendingRemoveReward(null)}>
@@ -1738,50 +1473,6 @@ export default function FamilyPage() {
                   disabled={Boolean(rewardActionLoading)}
                   onClick={onDeleteReward}>
                   {rewardActionLoading ? "Deleting..." : "Delete"}
-                </Button>
-              </div>
-            </>
-          ) : null}
-        </div>
-      </ModalShell>
-
-      <ModalShell
-        open={Boolean(pendingRemoveMember)}
-        onRequestClose={() => setPendingRemoveMember(null)}>
-        <div className="family-modal-card">
-          {pendingRemoveMember ? (
-            <>
-              <div className="modal-dialog-title-row family-modal-title-row">
-          <h3 className="family-modal-title">Remove Family Member</h3>
-          <Button
-            type="button"
-            className="modal-close-button"
-            onClick={() => setPendingRemoveMember(null)}
-            aria-label="Close dialog"
-            title="Close dialog">
-            X
-          </Button>
-        </div>
-              <p className="mb-4 text-sm text-slate-600">
-                Remove <strong>{pendingRemoveMember.name}</strong> from your family?
-              </p>
-              <div className="family-modal-actions">
-                <Button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={Boolean(memberActionLoading)}
-                  onClick={() => setPendingRemoveMember(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  className="btn member-action-remove"
-                  disabled={Boolean(memberActionLoading)}
-                  onClick={() => onMemberAction(pendingRemoveMember.id, "remove")}>
-                  {memberActionLoading?.memberId === pendingRemoveMember.id &&
-                  memberActionLoading.action === "remove"
-                    ? "Removing..."
-                    : "Remove"}
                 </Button>
               </div>
             </>

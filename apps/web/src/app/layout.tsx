@@ -5,7 +5,6 @@ import "./globals.css";
 import { AppFooter } from "@/components/app-footer";
 import { AppHeader } from "@/components/app-header";
 import { AchievementUnlockListener } from "@/components/achievements/achievement-unlock-listener";
-import { DashboardTabs } from "@/components/dashboard-tabs";
 import { NavigationHistoryTracker } from "@/components/navigation-history-tracker";
 import { PartyConfettiOverlay } from "@/components/party-confetti-overlay";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
@@ -58,7 +57,6 @@ export default async function RootLayout({
           <div className="container app-layout">
             <div className="app-main">
               <AppHeader />
-              <DashboardTabs visible={Boolean(sessionUser)} />
               {children}
             </div>
             <AppFooter />
