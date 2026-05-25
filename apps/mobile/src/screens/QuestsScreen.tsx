@@ -6,7 +6,11 @@ import { AppScreen, Badge, Button, Card, EmptyState, ErrorState, LoadingState, S
 
 type Quest = { questId: string; title: string; subtitle?: string; completionStatus?: string; actionLabel?: string };
 
-export function QuestsScreen() {
+type Props = {
+  right?: React.ReactNode;
+};
+
+export function QuestsScreen({ right }: Props) {
   const [state, setState] = useState<{ loading: boolean; error?: string; items: Quest[] }>({ loading: true, items: [] });
 
   useEffect(() => {
@@ -16,7 +20,7 @@ export function QuestsScreen() {
   }, []);
 
   return (
-    <AppScreen title="Quests" subtitle="Story adventures">
+    <AppScreen title="Quests" subtitle="Story adventures" right={right}>
       {state.loading ? <LoadingState label="Loading quests..." /> : null}
       {state.error ? <ErrorState message={`Could not load quests: ${state.error}`} /> : null}
       {!state.loading && !state.error ? (

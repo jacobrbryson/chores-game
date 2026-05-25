@@ -1,4 +1,5 @@
 import { createApiClient } from "@packages/api-client";
+import { Platform } from "react-native";
 
 const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api/v1";
 export const appBaseUrl = baseUrl.replace(/\/api\/v1\/?$/, "");
@@ -37,4 +38,23 @@ export async function signInWithGoogleIdToken(idToken: string) {
     throw new Error(String(json?.error ?? "mobile_google_auth_failed"));
   }
   return json.data;
+}
+
+export async function signOut() {
+  const response = await fetch(`${appBaseUrl}/api/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+    redirect: "manual",
+  });
+  if (response.status >= 400) {
+    throw new Error(`logout_failed_${response.status}`);
+  }
+  if (Platform.OS !== "web") {
+    try {
+      const { GoogleSignin } = require("@react-native-google-signin/google-signin");
+      await GoogleSignin.signOut();
+    } catch (error) {
+      console.warn("[MOBILE_GOOGLE_SIGNOUT_WARNING]", error);
+    }
+  }
 }

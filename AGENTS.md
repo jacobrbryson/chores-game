@@ -84,6 +84,11 @@ Build a family chore game where:
   - `GOOGLE_CLIENT_ID`
   - `GOOGLE_CLIENT_SECRET` (required for Google Tasks OAuth code exchange)
   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+  - `GOOGLE_ANDROID_CLIENT_ID` (required for server-side verification of Android Google Sign-In ID tokens)
+  - `GOOGLE_IOS_CLIENT_ID` (required for server-side verification of iOS Google Sign-In ID tokens)
+  - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (recommended for Expo/browser-based Google auth flows)
+  - `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` (required for native Android mobile Google Sign-In)
+  - `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` (required for native iOS mobile Google Sign-In)
   - `NEXT_PUBLIC_APP_URL` (required canonical web app origin for auth and OAuth redirects)
   - `FIREBASE_PROJECT_ID`
   - `FIREBASE_WEB_API_KEY`

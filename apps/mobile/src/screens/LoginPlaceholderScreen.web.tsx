@@ -13,23 +13,33 @@ type Props = {
 };
 
 export function LoginPlaceholderScreen({ onSignedIn }: Props) {
-  const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+  const webClientId =
+    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ??
+    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ??
+    "";
+  const [error, setError] = React.useState("");
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId,
+    webClientId,
   });
 
   React.useEffect(() => {
     if (response?.type !== "success") {
+      if (response?.type === "error") {
+        setError("Google sign-in failed before the app could create a session.");
+      }
       return;
     }
     const idToken = response.params?.id_token;
     if (!idToken) {
+      setError("Google sign-in completed without an ID token.");
       return;
     }
+    setError("");
     signInWithGoogleIdToken(idToken)
       .then(() => onSignedIn?.())
-      .catch((error) => {
-        console.error("[MOBILE_GOOGLE_SIGNIN_ERROR]", error);
+      .catch((nextError) => {
+        console.error("[MOBILE_WEB_GOOGLE_SIGNIN_ERROR]", nextError);
+        setError(nextError instanceof Error && nextError.message ? nextError.message : "Google sign-in failed.");
       });
   }, [onSignedIn, response]);
 
@@ -42,17 +52,20 @@ export function LoginPlaceholderScreen({ onSignedIn }: Props) {
             You are currently signed out. To continue in the mobile app, sign in with the same Google account you use for Family Chores on web.
           </Text>
           <Text style={styles.text}>
-            This mobile login will use the same Google client setup as the web app (`NEXT_PUBLIC_GOOGLE_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_CLIENT_ID`).
+            Browser builds use the web OAuth client. Native Android and iOS builds use the Google Sign-In SDK directly instead of a browser redirect flow.
           </Text>
           <Button
             label="Sign in with Google"
             onPress={() => {
-              if (!request || !clientId) return;
+              if (!request || !webClientId) return;
               promptAsync();
             }}
-            disabled={!request || !clientId}
+            disabled={!request || !webClientId}
           />
-          {!clientId ? <Text style={styles.error}>Missing `EXPO_PUBLIC_GOOGLE_CLIENT_ID` in mobile env.</Text> : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {!webClientId ? (
+            <Text style={styles.error}>Missing `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in mobile env.</Text>
+          ) : null}
         </View>
       </Card>
     </AppScreen>

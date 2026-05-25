@@ -6,7 +6,11 @@ import { AppScreen, Badge, Card, EmptyState, ErrorState, LoadingState, ProgressB
 
 type Achievement = { id?: string; achievementId?: string; title: string; wittyTitle?: string; description?: string; percent?: number; percentComplete?: number; completed?: boolean; restricted?: boolean };
 
-export function AchievementsScreen() {
+type Props = {
+  right?: React.ReactNode;
+};
+
+export function AchievementsScreen({ right }: Props) {
   const [state, setState] = useState<{ loading: boolean; error?: string; items: Achievement[] }>({ loading: true, items: [] });
 
   useEffect(() => {
@@ -16,7 +20,7 @@ export function AchievementsScreen() {
   }, []);
 
   return (
-    <AppScreen title="Achievements" subtitle="Progress and unlocks">
+    <AppScreen title="Achievements" subtitle="Progress and unlocks" right={right}>
       {state.loading ? <LoadingState label="Loading achievements..." /> : null}
       {state.error ? <ErrorState message={`Could not load achievements: ${state.error}`} /> : null}
       {!state.loading && !state.error ? (

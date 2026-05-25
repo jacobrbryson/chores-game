@@ -39,6 +39,14 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: GOOGLE_ANDROID_CLIENT_ID
+    secret: GOOGLE_ANDROID_CLIENT_ID
+    availability:
+      - RUNTIME
+  - variable: GOOGLE_IOS_CLIENT_ID
+    secret: GOOGLE_IOS_CLIENT_ID
+    availability:
+      - RUNTIME
   - variable: GOOGLE_CLIENT_SECRET
     secret: GOOGLE_CLIENT_SECRET
     availability:

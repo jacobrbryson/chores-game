@@ -32,6 +32,17 @@ type FirebaseSession = {
   photoUrl?: string;
 };
 
+function getAllowedGoogleAudiences() {
+  return [
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_ANDROID_CLIENT_ID,
+    process.env.GOOGLE_IOS_CLIENT_ID,
+  ]
+    .map((value) => value?.trim() ?? "")
+    .filter((value, index, values) => value.length > 0 && values.indexOf(value) === index);
+}
+
 async function verifyGoogleCredential(idToken: string) {
   const url = new URL("https://oauth2.googleapis.com/tokeninfo");
   url.searchParams.set("id_token", idToken);
@@ -40,11 +51,11 @@ async function verifyGoogleCredential(idToken: string) {
     throw new Error(`GOOGLE_TOKENINFO_HTTP_${response.status}`);
   }
   const tokenInfo = (await response.json()) as GoogleTokenInfo;
-  const expectedClientId = process.env.GOOGLE_CLIENT_ID;
-  if (!expectedClientId) {
+  const allowedAudiences = getAllowedGoogleAudiences();
+  if (allowedAudiences.length === 0) {
     throw new Error("GOOGLE_CLIENT_ID_MISSING");
   }
-  if (tokenInfo.aud !== expectedClientId) {
+  if (!allowedAudiences.includes(tokenInfo.aud)) {
     throw new Error("GOOGLE_AUDIENCE_MISMATCH");
   }
   return tokenInfo;
@@ -200,4 +211,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "google_signin_failed" }, { status: 401 });
   }
 }
-

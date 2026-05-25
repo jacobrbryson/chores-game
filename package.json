@@ -1,26 +1,32 @@
 {
-	"name": "chores-game",
-	"private": true,
-	"workspaces": [
-		"apps/*",
-		"packages/*"
-	],
-	"scripts": {
-		"dev": "npm run dev --workspaces --if-present --parallel",
-		"dev:web": "npm run dev -w @apps/web",
-		"dev:mobile": "npm run dev -w @apps/mobile",
-		"dev:ws": "npm run dev -w @apps/ws",
-		"build": "npm run build --workspaces --if-present",
-		"typecheck": "npm run typecheck --workspaces --if-present",
-		"lint": "npm run lint --workspaces --if-present",
-		"test": "npm run test --workspaces --if-present",
-		"wallet:rebuild": "node scripts/rebuild-wallet-balances.mjs",
-		"admin:grant-confetti": "node scripts/admin/grant-all-confetti-options.mjs"
-	},
-	"overrides": {
-		"minimatch": "^10.2.1"
-	},
-	"dependencies": {
-		"firebase": "^12.9.0"
-	}
+  "name": "chores-game",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present --parallel",
+    "dev:web": "npm run dev -w @apps/web",
+    "dev:mobile": "npm run dev -w @apps/mobile",
+    "dev:ws": "npm run dev -w @apps/ws",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "wallet:rebuild": "node scripts/rebuild-wallet-balances.mjs",
+    "admin:grant-confetti": "node scripts/admin/grant-all-confetti-options.mjs",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
+  },
+  "overrides": {
+    "minimatch": "^10.2.1"
+  },
+  "dependencies": {
+    "firebase": "^12.9.0",
+    "expo": "~54.0.34",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  },
+  "version": "1.0.0"
 }

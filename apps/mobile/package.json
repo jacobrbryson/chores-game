@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@react-native-google-signin/google-signin": "^16.1.2",
     "@packages/api-client": "file:../../packages/api-client",
     "@packages/core": "file:../../packages/core",
     "expo": "^54.0.0",

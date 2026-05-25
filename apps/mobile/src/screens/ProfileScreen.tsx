@@ -20,7 +20,11 @@ type MeResponse = {
   role: string;
 };
 
-export function ProfileScreen() {
+type Props = {
+  right?: React.ReactNode;
+};
+
+export function ProfileScreen({ right }: Props) {
   const [state, setState] = useState<{ loading: boolean; error?: string; data: ProfileData | null }>({ loading: true, data: null });
 
   useEffect(() => {
@@ -52,7 +56,7 @@ export function ProfileScreen() {
   }, []);
 
   return (
-    <AppScreen title="Profile" subtitle="Your account">
+    <AppScreen title="Profile" subtitle="Your account" right={right}>
       {state.loading ? <LoadingState label="Loading profile..." /> : null}
       {state.error ? <ErrorState message={`Could not load profile: ${state.error}`} /> : null}
       {!state.loading && !state.error && state.data ? (

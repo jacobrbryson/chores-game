@@ -9,7 +9,11 @@ type HomeData = {
   balance: number;
 };
 
-export function HomeScreen() {
+type Props = {
+  right?: React.ReactNode;
+};
+
+export function HomeScreen({ right }: Props) {
   const [state, setState] = useState<{ loading: boolean; error?: string; data: HomeData }>({
     loading: true,
     data: { chores: [], balance: 0 },
@@ -40,7 +44,7 @@ export function HomeScreen() {
   const greeting = useMemo(() => (choreCount > 0 ? `You have ${choreCount} chores ready.` : "You're all caught up for now."), [choreCount]);
 
   return (
-    <AppScreen title="Home" subtitle="Your family dashboard">
+    <AppScreen title="Home" subtitle="Your family dashboard" right={right}>
       <Card>
         <SectionHeader title="Today" right={<CoinPill value={state.data.balance} />} />
         <Text style={styles.greeting}>{greeting}</Text>

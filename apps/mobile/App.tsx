@@ -10,8 +10,17 @@ import { LoginPlaceholderScreen } from "@/screens/LoginPlaceholderScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { QuestsScreen } from "@/screens/QuestsScreen";
 import { RewardsScreen } from "@/screens/RewardsScreen";
+import { MobileProfileMenu } from "@/components/ui";
 
 type TabKey = "home" | "chores" | "rewards" | "quests" | "achievements" | "profile" | "login";
+
+type SessionMe = {
+  uid: string;
+  memberId?: string;
+  name: string;
+  email: string;
+  role: string;
+};
 
 const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: "home", label: "Home", icon: "??" },
@@ -26,38 +35,71 @@ const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
 export default function App() {
   const [tab, setTab] = useState<TabKey>("home");
   const [authState, setAuthState] = useState<"checking" | "authenticated" | "unauthenticated">("checking");
+  const [sessionMe, setSessionMe] = useState<SessionMe | null>(null);
 
-  useEffect(() => {
+  function refreshSession() {
     let cancelled = false;
-    apiClient.auth
+    const promise = apiClient.auth
       .me()
-      .then(() => {
+      .then((me) => {
         if (cancelled) return;
+        setSessionMe(me as SessionMe);
         setAuthState("authenticated");
       })
       .catch(() => {
         if (cancelled) return;
+        setSessionMe(null);
         setAuthState("unauthenticated");
       });
+    return {
+      promise,
+      cancel() {
+        cancelled = true;
+      },
+    };
+  }
+
+  useEffect(() => {
+    const sessionRequest = refreshSession();
     return () => {
-      cancelled = true;
+      sessionRequest.cancel();
     };
   }, []);
 
+  const headerRight = authState === "authenticated" ? (
+    <MobileProfileMenu
+      name={sessionMe?.name}
+      email={sessionMe?.email}
+      onOpenProfile={() => setTab("profile")}
+      onLoggedOut={() => {
+        setSessionMe(null);
+        setTab("home");
+        setAuthState("unauthenticated");
+      }}
+    />
+  ) : null;
+
   const screen = useMemo(() => {
     if (authState !== "authenticated") {
-      return <LoginPlaceholderScreen onSignedIn={() => setAuthState("authenticated")} />;
+      return (
+        <LoginPlaceholderScreen
+          onSignedIn={() => {
+            const sessionRequest = refreshSession();
+            void sessionRequest.promise;
+          }}
+        />
+      );
     }
     switch (tab) {
-      case "chores": return <ChoresScreen />;
-      case "rewards": return <RewardsScreen />;
-      case "quests": return <QuestsScreen />;
-      case "achievements": return <AchievementsScreen />;
-      case "profile": return <ProfileScreen />;
+      case "chores": return <ChoresScreen right={headerRight} />;
+      case "rewards": return <RewardsScreen right={headerRight} />;
+      case "quests": return <QuestsScreen right={headerRight} />;
+      case "achievements": return <AchievementsScreen right={headerRight} />;
+      case "profile": return <ProfileScreen right={headerRight} />;
       case "login": return <LoginPlaceholderScreen />;
-      default: return <HomeScreen />;
+      default: return <HomeScreen right={headerRight} />;
     }
-  }, [authState, tab]);
+  }, [authState, headerRight, tab]);
 
   if (authState === "checking") {
     return (

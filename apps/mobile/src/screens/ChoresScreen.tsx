@@ -15,7 +15,11 @@ type ChoreItem = {
   choreType?: string;
 };
 
-export function ChoresScreen() {
+type Props = {
+  right?: React.ReactNode;
+};
+
+export function ChoresScreen({ right }: Props) {
   const [state, setState] = useState<{ loading: boolean; error?: string; items: ChoreItem[] }>({ loading: true, items: [] });
 
   useEffect(() => {
@@ -29,7 +33,7 @@ export function ChoresScreen() {
   }, []);
 
   return (
-    <AppScreen title="Chores" subtitle="Assignments and completion">
+    <AppScreen title="Chores" subtitle="Assignments and completion" right={right}>
       {state.loading ? <LoadingState label="Loading chores..." /> : null}
       {state.error ? <ErrorState message={`Could not load chores: ${state.error}`} /> : null}
 

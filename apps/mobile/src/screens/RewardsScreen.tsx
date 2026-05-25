@@ -6,7 +6,11 @@ import { AppScreen, Button, Card, CoinPill, EmptyState, ErrorState, LoadingState
 
 type Reward = { id: string; title: string; coinCost: number; available?: boolean; imageId?: string };
 
-export function RewardsScreen() {
+type Props = {
+  right?: React.ReactNode;
+};
+
+export function RewardsScreen({ right }: Props) {
   const [state, setState] = useState<{ loading: boolean; error?: string; items: Reward[] }>({ loading: true, items: [] });
 
   useEffect(() => {
@@ -16,7 +20,7 @@ export function RewardsScreen() {
   }, []);
 
   return (
-    <AppScreen title="Rewards" subtitle="Store and family awards">
+    <AppScreen title="Rewards" subtitle="Store and family awards" right={right}>
       {state.loading ? <LoadingState label="Loading rewards..." /> : null}
       {state.error ? <ErrorState message={`Could not load rewards: ${state.error}`} /> : null}
       {!state.loading && !state.error ? (
