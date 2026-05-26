@@ -25,6 +25,12 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@packages/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@packages/core/*": [
+        "../../packages/core/*"
       ]
     }
   },

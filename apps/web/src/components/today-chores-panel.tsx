@@ -26,6 +26,7 @@ import Link from "next/link";
 import { TodayChoreCard } from "@/components/today-chore-card";
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { Line } from "react-chartjs-2";
+import { getDashboardChorePage } from "@packages/core/src/chore-dashboard";
 import type { FamilySnapshotChore, FamilySnapshotMember } from "@/lib/family/types";
 import {
   parseCompletionWindow,
@@ -170,6 +171,7 @@ const QUICK_SORT_DEFAULT_DIRECTION: Record<QuickSortKey, QuickSortDirection> = {
 };
 const QUICK_SORT_KEYS: QuickSortKey[] = ["coin_value", "frequency", "alphabetical"];
 const QUICK_SORT_DIRECTIONS: QuickSortDirection[] = ["asc", "desc"];
+const CHORE_PAGE_SIZE = 10;
 
 
 ChartJS.register(
@@ -382,6 +384,7 @@ export function TodayChoresPanel({
   const [hoveredCompletionRowMemberId, setHoveredCompletionRowMemberId] = useState<string | null>(null);
   const [hoveredCompletionChartMemberId, setHoveredCompletionChartMemberId] = useState<string | null>(null);
   const [completionStatsRefreshTick, setCompletionStatsRefreshTick] = useState(0);
+  const [visibleChoreCount, setVisibleChoreCount] = useState(CHORE_PAGE_SIZE);
   const mobileActionsRef = useRef<HTMLDivElement | null>(null);
   const completionHideTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -704,6 +707,13 @@ export function TodayChoresPanel({
     }
     return sortedOpenChores.filter((chore) => choreMatchesMember(chore, selectedChoreMember));
   }, [selectedChoreMember, selectedChoreScope, sortedOpenChores]);
+  const visibleChorePage = useMemo(
+    () => getDashboardChorePage(visibleChores, visibleChoreCount),
+    [visibleChoreCount, visibleChores],
+  );
+  useEffect(() => {
+    setVisibleChoreCount(CHORE_PAGE_SIZE);
+  }, [selectedChoreScope, quickSortState, chores]);
   const hasBusyChoreAction = Object.keys(busyActionsById).length > 0;
   const hasPendingCreates = Object.keys(pendingCreateChoresByRequestId).length > 0;
   const hasPendingDeletes = Object.keys(pendingDeleteChoreIds).length > 0;
@@ -1532,7 +1542,7 @@ export function TodayChoresPanel({
           ) : (
             <div className="flex flex-col gap-3">
               <ul className="family-list">
-                {visibleChores.map((chore) => (
+                {visibleChorePage.visibleItems.map((chore) => (
                   <TodayChoreCard
                     key={chore.id}
                     chore={chore}
@@ -1601,6 +1611,14 @@ export function TodayChoresPanel({
                   />
                 ))}
               </ul>
+              {visibleChorePage.hasMore ? (
+                <Button
+                  type="button"
+                  className="btn btn-secondary today-chores-load-more"
+                  onClick={() => setVisibleChoreCount((current) => current + CHORE_PAGE_SIZE)}>
+                  Load More
+                </Button>
+              ) : null}
             </div>
           )}
         </div>

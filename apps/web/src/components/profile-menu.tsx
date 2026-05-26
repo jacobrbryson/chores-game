@@ -85,6 +85,8 @@ type ProfileMenuProps = {
   isSwitched?: boolean;
   authenticatedName?: string;
   showSupportLink?: boolean;
+  triggerVariant?: "avatar" | "main-nav";
+  triggerLabel?: string;
 };
 
 type SwitchableMember = FamilySummaryResponse["members"][number];
@@ -181,6 +183,8 @@ export function ProfileMenu({
   isSwitched = false,
   authenticatedName = "",
   showSupportLink = false,
+  triggerVariant = "avatar",
+  triggerLabel = "More",
 }: ProfileMenuProps) {
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState(name);
@@ -517,12 +521,14 @@ export function ProfileMenu({
         open={open}
         onOpenChange={setOpen}
         wrapperClassName="profile-menu"
-        triggerClassName="profile-menu-trigger"
+        triggerClassName={`profile-menu-trigger${
+          triggerVariant === "main-nav" ? " main-nav-button main-nav-more-button" : ""
+        }`}
         triggerTitle="Open profile menu"
         triggerAriaLabel="Open profile menu"
         panelClassName="app-menu-panel profile-dropdown"
         trigger={
-          <span className="profile-avatar-wrap">
+          <span className={`profile-avatar-wrap${triggerVariant === "main-nav" ? " profile-avatar-wrap-main-nav" : ""}`}>
             <span className="profile-avatar-anchor">
               <Avatar
                 className="profile-avatar"

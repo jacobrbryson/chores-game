@@ -55,22 +55,25 @@ body {
 }
 
 .app-header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 60;
-  margin-bottom: 20px;
+  box-sizing: border-box;
+  width: min(100%, 1100px);
+  margin: 0 auto;
+  max-width: 1100px;
+  padding: 0 24px;
 }
 
 .top-nav {
-  --top-nav-motion-duration: 260ms;
-  --top-nav-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
   isolation: isolate;
-  display: grid;
-  gap: 6px;
-  padding: 12px 12px 10px;
+  padding: 0;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
+  overflow: visible;
   background:
     radial-gradient(220px 120px at 6% 8%, color-mix(in srgb, var(--accent) 22%, #ffffff), transparent 72%),
     radial-gradient(240px 140px at 95% 0%, color-mix(in srgb, #f59e0b 18%, #ffffff), transparent 74%),
@@ -80,23 +83,14 @@ body {
       color-mix(in srgb, rgba(255, 255, 255, 0.96) 88%, var(--brand) 12%)
     );
   backdrop-filter: blur(12px);
-  transition:
-    gap var(--top-nav-motion-duration) var(--top-nav-motion-ease),
-    padding-top var(--top-nav-motion-duration) var(--top-nav-motion-ease),
-    padding-bottom var(--top-nav-motion-duration) var(--top-nav-motion-ease),
-    padding-right var(--top-nav-motion-duration) var(--top-nav-motion-ease);
 }
 
 .top-nav-guest {
-  gap: 8px;
+  padding: 10px;
 }
 
 .top-nav-auth {
-  gap: 6px;
-  --top-nav-profile-size: 42px;
-  --top-nav-profile-top: 12px;
-  --top-nav-profile-bottom-gap: 8px;
-  padding-right: 78px;
+  min-height: 70px;
 }
 
 .top-nav::after {
@@ -115,40 +109,6 @@ body {
 .top-nav > * {
   position: relative;
   z-index: 1;
-}
-
-.top-nav-brand-row {
-  min-width: 0;
-  overflow: hidden;
-  max-height: 84px;
-  opacity: 1;
-  transform: translateY(0);
-  transform-origin: top left;
-  will-change: max-height, opacity, transform;
-  transition:
-    max-height var(--top-nav-motion-duration) var(--top-nav-motion-ease),
-    opacity 180ms ease,
-    transform var(--top-nav-motion-duration) var(--top-nav-motion-ease);
-}
-
-.top-nav-condensed {
-  gap: 6px;
-  padding-top: 6px;
-  padding-bottom: 8px;
-}
-
-.top-nav-condensed .top-nav-brand-row {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-12px) scaleY(0.94);
-}
-
-.top-nav-condensed .top-nav-controls {
-  align-items: center;
-}
-
-.top-nav-condensed.top-nav-auth .nav-links {
-  top: calc(100% - var(--top-nav-profile-size) - var(--top-nav-profile-bottom-gap));
 }
 
 .brand {
@@ -216,38 +176,112 @@ body {
   min-width: 0;
 }
 
-.top-nav-controls {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.top-nav-auth .top-nav-controls {
-  grid-template-columns: minmax(0, 1fr);
-  position: static;
-}
-
-.top-nav-guest .top-nav-controls {
-  grid-template-columns: 1fr;
-}
-
-.top-nav-auth .nav-links {
-  position: absolute;
-  top: var(--top-nav-profile-top);
-  right: 12px;
-  justify-self: auto;
-  align-self: auto;
-  will-change: top;
-  transition:
-    top var(--top-nav-motion-duration) var(--top-nav-motion-ease);
-}
-
 .top-nav-guest .nav-links {
   width: 100%;
   justify-content: center;
   justify-self: center;
+}
+
+.main-nav {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
+  width: 100%;
+}
+
+.main-nav > .profile-menu {
+  width: 100%;
+  align-items: stretch;
+}
+
+.main-nav-button {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  min-height: 70px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--line) 78%, #ffffff);
+  border-radius: 0;
+  padding: 10px 8px;
+  background: transparent;
+  color: #1d4c81;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.05;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.main-nav-button:first-child {
+  border-bottom-left-radius: 12px;
+}
+
+.main-nav-button:last-child {
+  border-right: 0;
+  border-bottom-right-radius: 12px;
+}
+
+.main-nav-button:hover,
+.main-nav-button:focus-visible,
+.main-nav-button-active,
+.main-nav-button[aria-expanded="true"] {
+  background: linear-gradient(180deg, #ffffff, #e8f5ff);
+  color: #103c6d;
+  text-decoration: none;
+}
+
+.main-nav-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand) 44%, transparent);
+  outline-offset: -3px;
+}
+
+.main-nav-icon {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.main-nav-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.main-nav-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  overflow-wrap: anywhere;
+}
+
+.main-nav-more-button {
+  width: 100%;
+}
+
+.profile-avatar-wrap-main-nav {
+  gap: 3px;
+}
+
+.profile-avatar-wrap-main-nav .profile-avatar {
+  --avatar-size: 28px;
+  --avatar-border-width: 2px;
+  box-shadow: 0 5px 12px rgba(35, 83, 141, 0.16);
+}
+
+.profile-avatar-wrap-main-nav .profile-avatar-store-chip {
+  display: inline-flex;
+  margin-top: -2px;
+  padding: 2px 7px;
+  font-size: 0.62rem;
 }
 
 .dashboard-nav {
@@ -3861,6 +3895,11 @@ white-space: nowrap;
   box-shadow: 0 1px 3px color-mix(in srgb, var(--theme-tertiary, var(--foreground)) 14%, transparent);
 }
 
+.today-chores-load-more {
+  align-self: stretch;
+  min-height: 42px;
+}
+
 .today-chores-sort-menu-wrap {
   display: inline-flex;
 }
@@ -5882,6 +5921,7 @@ a.family-award-claim-card:focus-visible {
 
 .app-main {
   flex: 1 0 auto;
+  padding-top: 90px;
 }
 
 .app-footer {
@@ -5891,6 +5931,12 @@ a.family-award-claim-card:focus-visible {
     radial-gradient(180px 80px at 5% 0%, #c6e5ff66, transparent 72%),
     radial-gradient(180px 80px at 95% 100%, #b4e6df55, transparent 70%),
     linear-gradient(180deg, #ffffff, #f2f8ff);
+}
+
+.app-footer-brand {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
 }
 
 .app-footer-content {
@@ -5986,6 +6032,11 @@ a.family-award-claim-card:focus-visible {
 }
 
 @media (max-width: 700px) {
+  .top-nav,
+  .top-nav-auth {
+    padding: 0;
+  }
+
   .app-footer {
     padding: 11px 12px;
   }
@@ -5999,8 +6050,12 @@ a.family-award-claim-card:focus-visible {
 }
 
 @media (max-width: 560px) {
+  .app-header {
+    padding: 0;
+  }
+
   .top-nav {
-    padding: 10px 8px 8px;
+    padding: 0;
   }
 
   .top-nav-controls {
@@ -6031,6 +6086,28 @@ a.family-award-claim-card:focus-visible {
 
   .nav-links-guest .nav-config-note {
     text-align: center;
+  }
+
+  .app-main {
+    padding-top: 78px;
+  }
+
+  .main-nav-button {
+    min-height: 64px;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 2px;
+    font-size: 0.68rem;
+  }
+
+  .main-nav-more-button {
+    min-height: 64px;
+  }
+
+  .main-nav-icon,
+  .main-nav-icon svg {
+    width: 22px;
+    height: 22px;
   }
 
   .dashboard-nav-menu-trigger {

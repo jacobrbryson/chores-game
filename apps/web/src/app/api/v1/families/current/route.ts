@@ -7,8 +7,14 @@ export async function GET(request: NextRequest) {
     return fail(String(upstream.json?.error ?? "upstream_error"), "Failed to fetch family", upstream.status, upstream.json);
   }
   const payload = {
+    viewerUid: upstream.json.viewerUid ?? "",
+    viewerAssigneeAliases: upstream.json.viewerAssigneeAliases ?? [],
+    wsAuthToken: upstream.json.wsAuthToken ?? "",
     family: upstream.json.family ?? null,
     members: upstream.json.members ?? [],
+    categories: upstream.json.categories ?? [],
+    choresToday: upstream.json.choresToday ?? [],
+    pendingInvite: upstream.json.pendingInvite ?? null,
     noFamily: Boolean(upstream.json.noFamily),
   };
   return ok(payload);

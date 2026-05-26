@@ -7,6 +7,9 @@ export const MeSchema = z.object({
   name: z.string().default(""),
   email: z.string().default(""),
   role: RoleSchema,
+  picture: z.string().default(""),
+  avatarUrl: z.string().default(""),
+  balance: z.number().int().nonnegative().default(0),
 });
 
 export const MeResponseSchema = MeSchema;

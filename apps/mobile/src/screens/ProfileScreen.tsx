@@ -9,6 +9,7 @@ type ProfileData = {
   email: string;
   role: string;
   balance: number;
+  avatarUrl: string;
   achievementCount: number;
 };
 
@@ -18,6 +19,9 @@ type MeResponse = {
   name: string;
   email: string;
   role: string;
+  picture?: string;
+  avatarUrl?: string;
+  balance?: number;
 };
 
 type Props = {
@@ -45,7 +49,8 @@ export function ProfileScreen({ right }: Props) {
             name: me.name || "Family Member",
             email: me.email || "",
             role: me.role || "player",
-            balance: 0,
+            balance: typeof me.balance === "number" ? me.balance : 0,
+            avatarUrl: me.avatarUrl || me.picture || "",
             achievementCount: count,
           },
         });
@@ -63,7 +68,7 @@ export function ProfileScreen({ right }: Props) {
         <>
           <Card>
             <View style={styles.topRow}>
-              <AvatarBadge name={state.data.name} />
+              <AvatarBadge name={state.data.name} imageUrl={state.data.avatarUrl} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{state.data.name}</Text>
                 <Text style={styles.email}>{state.data.email || "No email"}</Text>

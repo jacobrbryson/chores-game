@@ -1,13 +1,17 @@
 import React from "react";
-import { Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { appBaseUrl, signOut } from "@/lib/api";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 
 type Props = {
   email?: string;
   name?: string;
+  avatarUrl?: string;
+  coinBalance?: number;
   onOpenProfile?: () => void;
   onLoggedOut?: () => void;
+  triggerVariant?: "avatar" | "main-nav";
+  triggerLabel?: string;
 };
 
 type MenuAction = {
@@ -20,7 +24,16 @@ function normalizeWebUrl(path: string) {
   return `${appBaseUrl}${path}`;
 }
 
-export function MobileProfileMenu({ email = "", name = "", onOpenProfile, onLoggedOut }: Props) {
+export function MobileProfileMenu({
+  email = "",
+  name = "",
+  avatarUrl = "",
+  coinBalance = 0,
+  onOpenProfile,
+  onLoggedOut,
+  triggerVariant = "avatar",
+  triggerLabel = "More",
+}: Props) {
   const [open, setOpen] = React.useState(false);
   const [pendingLogout, setPendingLogout] = React.useState(false);
   const initial = (name.trim()[0] || email.trim()[0] || "U").toUpperCase();
@@ -70,15 +83,37 @@ export function MobileProfileMenu({ email = "", name = "", onOpenProfile, onLogg
         accessibilityRole="button"
         accessibilityLabel="Open profile menu"
         onPress={() => setOpen(true)}
-        style={({ pressed }) => [styles.trigger, pressed && styles.triggerPressed]}>
-        <Text style={styles.triggerText}>{initial}</Text>
+        style={({ pressed }) => [
+          styles.trigger,
+          triggerVariant === "main-nav" && styles.navTrigger,
+          pressed && styles.triggerPressed,
+        ]}>
+        <View style={[styles.triggerAvatar, triggerVariant === "main-nav" && styles.navTriggerAvatar]}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+          ) : (
+            <Text style={styles.triggerText}>{initial}</Text>
+          )}
+        </View>
+        {triggerVariant === "main-nav" ? (
+          <View style={styles.coinChip}>
+            <Text style={styles.coinIcon}>$</Text>
+            <Text style={styles.coinText}>{coinBalance}</Text>
+          </View>
+        ) : (
+          <Text style={styles.navLabel}>{triggerLabel}</Text>
+        )}
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => undefined}>
             <View style={styles.header}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{initial}</Text>
+                {avatarUrl ? (
+                  <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+                ) : (
+                  <Text style={styles.avatarText}>{initial}</Text>
+                )}
               </View>
               <View style={styles.identity}>
                 <Text style={styles.name}>{name || "Signed In"}</Text>
@@ -122,10 +157,37 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  navTrigger: { width: "100%", height: "100%", borderRadius: 0, gap: 3 },
+  triggerPressed: { transform: [{ scale: 0.97 }] },
+  triggerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
     backgroundColor: colors.brand,
   },
-  triggerPressed: { transform: [{ scale: 0.97 }] },
+  navTriggerAvatar: { width: 27, height: 27, borderRadius: 14 },
+  avatarImage: { width: "100%", height: "100%" },
   triggerText: { color: "#fff", fontSize: typography.small, fontWeight: "800" },
+  navLabel: { color: colors.brandStrong, fontSize: typography.tiny, fontWeight: "800" },
+  coinChip: {
+    minHeight: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: "#f3c96c",
+    backgroundColor: "#ffe8ad",
+    paddingHorizontal: 6,
+  },
+  coinIcon: { color: "#845205", fontSize: 9, fontWeight: "900" },
+  coinText: { color: "#845205", fontSize: typography.tiny, fontWeight: "900" },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.28)",

@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const gcsAssetBaseUrl = process.env.NEXT_PUBLIC_GCS_ASSET_BASE_URL?.replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["@packages/core"],
   images: {
     // Prevent Next image optimizer cache from serving stale local assets
     // when files are replaced at the same URL during active development.

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AppBrand } from "@/components/app-brand";
 
 type FooterIconName = "copyright" | "privacy" | "terms" | "orcwood";
 
@@ -99,6 +100,9 @@ export function AppFooter() {
 
   return (
     <footer className="app-footer panel" aria-label="Site footer">
+      <div className="app-footer-brand">
+        <AppBrand />
+      </div>
       <div className="app-footer-content">
         <p className="app-footer-item">
           <FooterItemIcon name="copyright" />

@@ -26,6 +26,126 @@ export async function apiFetch(path: string, init?: RequestInit) {
   return json?.ok ? json.data : json;
 }
 
+export type MobileStoreSummary = {
+  balance: number;
+  avatarUrl: string;
+};
+
+export type MobileFamilyMember = {
+  id: string;
+  uid?: string;
+  name: string;
+  email?: string;
+  role: "admin" | "player";
+  status: "active" | "invited";
+  dashboardPrimaryColor?: string;
+  avatarId?: string;
+  avatarPhotoUrl?: string;
+  stats?: {
+    currentCoins?: number;
+  };
+};
+
+export type MobileFamilyChore = {
+  id: string;
+  title: string;
+  status: string;
+  sortOrder?: number;
+  assigneeId?: string;
+  assigneeIds?: string[];
+  assigneeScope?: "single" | "multiple" | "family";
+  assigneeName?: string;
+  assigneePrimaryColor?: string;
+  assigneeAvatarId?: string;
+  assigneeAvatarPhotoUrl?: string;
+  categories?: Array<{ id: string; name: string; color: string }>;
+  coinValue?: number;
+  requireApproval?: boolean;
+  choreType?: string;
+  createdAt?: string;
+};
+
+export type MobileFamilySummary = {
+  viewerUid: string;
+  viewerAssigneeAliases?: string[];
+  noFamily: boolean;
+  family: null | { id: string; name: string };
+  members: MobileFamilyMember[];
+  choresToday: MobileFamilyChore[];
+};
+
+export async function fetchMobileStoreSummary(): Promise<MobileStoreSummary> {
+  const response = await fetch(`${appBaseUrl}/api/store`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+  const summary = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(String(summary?.error ?? `store_summary_failed_${response.status}`));
+  }
+
+  const avatarPhotoUrl = typeof summary?.avatarPhotoUrl === "string" ? summary.avatarPhotoUrl.trim() : "";
+  const avatarId = typeof summary?.avatarId === "string" ? summary.avatarId.trim() : "";
+  const googlePhotoUrl = typeof summary?.googlePhotoUrl === "string" ? summary.googlePhotoUrl.trim() : "";
+
+  return {
+    balance: typeof summary?.balance === "number" ? Math.max(0, summary.balance) : 0,
+    avatarUrl: (avatarId ? `${appBaseUrl}/avatars/default/${encodeURIComponent(avatarId)}` : "") || avatarPhotoUrl || googlePhotoUrl,
+  };
+}
+
+export async function fetchMobileFamilySummary(): Promise<MobileFamilySummary> {
+  const summary = await apiClient.families.getCurrent() as MobileFamilySummary;
+  return {
+    viewerUid: typeof summary.viewerUid === "string" ? summary.viewerUid : "",
+    viewerAssigneeAliases: Array.isArray(summary.viewerAssigneeAliases) ? summary.viewerAssigneeAliases : [],
+    noFamily: Boolean(summary.noFamily),
+    family: summary.family ?? null,
+    members: Array.isArray(summary.members) ? summary.members : [],
+    choresToday: Array.isArray(summary.choresToday) ? summary.choresToday : [],
+  };
+}
+
+export async function patchMobileChore(choreId: string, body: Record<string, unknown>) {
+  const response = await fetch(`${appBaseUrl}/api/chores/${encodeURIComponent(choreId)}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(String(json?.error ?? `patch_chore_failed_${response.status}`));
+  }
+  return json;
+}
+
+export async function deleteMobileChore(choreId: string) {
+  const response = await fetch(`${appBaseUrl}/api/chores/${encodeURIComponent(choreId)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(String(json?.error ?? `delete_chore_failed_${response.status}`));
+  }
+  return json;
+}
+
+export async function reorderMobileChores(orderedChoreIds: string[]) {
+  const response = await fetch(`${appBaseUrl}/api/chores`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "reorder", orderedChoreIds }),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(String(json?.error ?? `reorder_chores_failed_${response.status}`));
+  }
+  return json;
+}
+
 export async function signInWithGoogleIdToken(idToken: string) {
   const response = await fetch(`${appBaseUrl}/api/auth/google/mobile`, {
     method: "POST",

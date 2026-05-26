@@ -192,6 +192,7 @@ export async function POST(request: NextRequest) {
         role: result.role,
         email: normalizedEmail,
         name: tokenInfo.name ?? firebaseSession.displayName ?? "",
+        picture: tokenInfo.picture ?? firebaseSession.photoUrl ?? "",
       },
     });
     setSessionUserCookie(response, {

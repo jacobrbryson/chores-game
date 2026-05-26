@@ -1,18 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import type { MainNavigationItemId } from "@packages/core/src/main-navigation";
 import { apiClient } from "@/lib/api";
-import { colors, radius, spacing, typography } from "@/theme";
+import { colors, spacing, typography } from "@/theme";
 import { AchievementsScreen } from "@/screens/AchievementsScreen";
-import { ChoresScreen } from "@/screens/ChoresScreen";
 import { HomeScreen } from "@/screens/HomeScreen";
 import { LoginPlaceholderScreen } from "@/screens/LoginPlaceholderScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { QuestsScreen } from "@/screens/QuestsScreen";
 import { RewardsScreen } from "@/screens/RewardsScreen";
-import { MobileProfileMenu } from "@/components/ui";
+import { MainNavigation } from "@/components/ui";
 
-type TabKey = "home" | "chores" | "rewards" | "quests" | "achievements" | "profile" | "login";
+type TabKey = MainNavigationItemId | "profile" | "login";
 
 type SessionMe = {
   uid: string;
@@ -20,35 +20,35 @@ type SessionMe = {
   name: string;
   email: string;
   role: string;
+  picture?: string;
+  avatarUrl?: string;
+  balance?: number;
 };
 
-const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
-  { key: "home", label: "Home", icon: "??" },
-  { key: "chores", label: "Chores", icon: "?" },
-  { key: "rewards", label: "Rewards", icon: "??" },
-  { key: "quests", label: "Quests", icon: "??" },
-  { key: "achievements", label: "Achievements", icon: "?" },
-  { key: "profile", label: "Profile", icon: "??" },
-  { key: "login", label: "Login", icon: "??" },
-];
-
 export default function App() {
-  const [tab, setTab] = useState<TabKey>("home");
+  const [tab, setTab] = useState<TabKey>("dashboard");
   const [authState, setAuthState] = useState<"checking" | "authenticated" | "unauthenticated">("checking");
   const [sessionMe, setSessionMe] = useState<SessionMe | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [coinBalance, setCoinBalance] = useState(0);
 
   function refreshSession() {
     let cancelled = false;
     const promise = apiClient.auth
       .me()
-      .then((me) => {
+      .then(async (me) => {
         if (cancelled) return;
-        setSessionMe(me as SessionMe);
+        const nextSession = me as SessionMe;
+        setSessionMe(nextSession);
+        setAvatarUrl(nextSession.avatarUrl || nextSession.picture || "");
+        setCoinBalance(typeof nextSession.balance === "number" ? nextSession.balance : 0);
         setAuthState("authenticated");
       })
       .catch(() => {
         if (cancelled) return;
         setSessionMe(null);
+        setAvatarUrl("");
+        setCoinBalance(0);
         setAuthState("unauthenticated");
       });
     return {
@@ -66,19 +66,6 @@ export default function App() {
     };
   }, []);
 
-  const headerRight = authState === "authenticated" ? (
-    <MobileProfileMenu
-      name={sessionMe?.name}
-      email={sessionMe?.email}
-      onOpenProfile={() => setTab("profile")}
-      onLoggedOut={() => {
-        setSessionMe(null);
-        setTab("home");
-        setAuthState("unauthenticated");
-      }}
-    />
-  ) : null;
-
   const screen = useMemo(() => {
     if (authState !== "authenticated") {
       return (
@@ -91,15 +78,14 @@ export default function App() {
       );
     }
     switch (tab) {
-      case "chores": return <ChoresScreen right={headerRight} />;
-      case "rewards": return <RewardsScreen right={headerRight} />;
-      case "quests": return <QuestsScreen right={headerRight} />;
-      case "achievements": return <AchievementsScreen right={headerRight} />;
-      case "profile": return <ProfileScreen right={headerRight} />;
+      case "store": return <RewardsScreen />;
+      case "quests": return <QuestsScreen />;
+      case "achievements": return <AchievementsScreen />;
+      case "profile": return <ProfileScreen />;
       case "login": return <LoginPlaceholderScreen />;
-      default: return <HomeScreen right={headerRight} />;
+      default: return <HomeScreen />;
     }
-  }, [authState, headerRight, tab]);
+  }, [authState, tab]);
 
   if (authState === "checking") {
     return (
@@ -117,25 +103,25 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.safe}>
-        <View style={styles.screen}>{screen}</View>
         {authState === "authenticated" ? (
-          <View style={styles.tabBar}>
-            {tabs.map((item) => {
-              const active = tab === item.key;
-              return (
-                <Pressable
-                  key={item.key}
-                  accessibilityRole="button"
-                  onPress={() => setTab(item.key)}
-                  style={({ pressed }) => [styles.tab, active && styles.tabActive, pressed && styles.tabPressed]}
-                >
-                  <Text style={styles.icon}>{item.icon}</Text>
-                  <Text style={[styles.label, active && styles.labelActive]}>{item.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <MainNavigation
+            activeTab={tab === "profile" || tab === "login" ? "more" : tab}
+            name={sessionMe?.name}
+            email={sessionMe?.email}
+            avatarUrl={avatarUrl}
+            coinBalance={coinBalance}
+            onNavigate={(nextTab) => setTab(nextTab)}
+            onOpenProfile={() => setTab("profile")}
+            onLoggedOut={() => {
+              setSessionMe(null);
+              setAvatarUrl("");
+              setCoinBalance(0);
+              setTab("dashboard");
+              setAuthState("unauthenticated");
+            }}
+          />
         ) : null}
+        <View style={styles.screen}>{screen}</View>
       </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -153,27 +139,4 @@ const styles = StyleSheet.create({
   },
   checkingTitle: { fontSize: typography.h3, fontWeight: "800", color: colors.text },
   checkingBody: { fontSize: typography.body, color: colors.muted, textAlign: "center" },
-  tabBar: {
-    flexDirection: "row",
-    backgroundColor: "#ffffff",
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.md,
-    paddingTop: spacing.sm,
-    gap: spacing.xs,
-  },
-  tab: {
-    minHeight: 48,
-    flex: 1,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#eef6ff",
-  },
-  tabActive: { backgroundColor: colors.brand },
-  tabPressed: { transform: [{ scale: 0.98 }] },
-  icon: { fontSize: 14, marginBottom: 1 },
-  label: { fontSize: typography.tiny, color: colors.brandStrong, fontWeight: "800" },
-  labelActive: { color: "#fff" },
 });

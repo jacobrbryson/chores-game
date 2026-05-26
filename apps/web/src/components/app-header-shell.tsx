@@ -1,10 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AppBrand } from "@/components/app-brand";
-import { DashboardTabs } from "@/components/dashboard-tabs";
 import { GoogleSignInButton } from "@/components/google-signin-button";
-import { ProfileMenu } from "@/components/profile-menu";
+import { MainNavigation } from "@/components/main-navigation";
 
 type AppHeaderShellProps = {
   googleClientId?: string;
@@ -31,47 +28,20 @@ export function AppHeaderShell({
   isSwitched,
   showSupportLink,
 }: AppHeaderShellProps) {
-  const [isCondensed, setIsCondensed] = useState(false);
-
-  useEffect(() => {
-    function updateCondensed() {
-      const nextScrollY = window.scrollY;
-      setIsCondensed((current) => {
-        if (current) {
-          return nextScrollY > 36;
-        }
-        return nextScrollY > 56;
-      });
-    }
-
-    updateCondensed();
-    window.addEventListener("scroll", updateCondensed, { passive: true });
-    return () => window.removeEventListener("scroll", updateCondensed);
-  }, []);
-
   return (
     <header className={`app-header ${sessionUser ? "app-header-auth" : "app-header-guest"}`}>
-      <nav
-        className={`top-nav panel ${sessionUser ? "top-nav-auth" : "top-nav-guest"}${
-          isCondensed ? " top-nav-condensed" : ""
-        }`}>
-        <div className="top-nav-brand-row">
-          <AppBrand />
-        </div>
-        <div className="top-nav-controls">
-          <DashboardTabs visible={Boolean(sessionUser)} />
-          <div className={`nav-links ${sessionUser ? "nav-links-auth" : "nav-links-guest"}`}>
-            {sessionUser ? (
-              <ProfileMenu
-                name={sessionUser.name || ""}
-                email={sessionUser.email}
-                picture={sessionUser.picture}
-                initial={profileInitial}
-                isSwitched={isSwitched}
-                authenticatedName={authenticatedName}
-                showSupportLink={showSupportLink}
-              />
-            ) : googleClientId && gsiLoginUri ? (
+      <div className={`top-nav panel ${sessionUser ? "top-nav-auth" : "top-nav-guest"}`}>
+        {sessionUser ? (
+          <MainNavigation
+            sessionUser={sessionUser}
+            profileInitial={profileInitial}
+            authenticatedName={authenticatedName}
+            isSwitched={isSwitched}
+            showSupportLink={showSupportLink}
+          />
+        ) : (
+          <div className="nav-links nav-links-guest">
+            {googleClientId && gsiLoginUri ? (
               <GoogleSignInButton mode="gsi" clientId={googleClientId} loginUri={gsiLoginUri} />
             ) : (
               <p className="small nav-config-note">
@@ -79,8 +49,8 @@ export function AppHeaderShell({
               </p>
             )}
           </div>
-        </div>
-      </nav>
+        )}
+      </div>
     </header>
   );
 }
