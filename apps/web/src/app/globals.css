@@ -111,6 +111,87 @@ body {
   z-index: 1;
 }
 
+.app-breadcrumbs {
+  margin: 14px 0;
+  padding: 0 2px;
+}
+
+.app-breadcrumb-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.app-breadcrumb-link,
+.app-breadcrumb-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  color: #234a76;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-decoration: none;
+}
+
+.app-breadcrumb-root {
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 84%, #ffffff);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-soft) 78%, #ffffff);
+}
+
+.app-breadcrumb-link:hover,
+.app-breadcrumb-link:focus-visible {
+  color: #163d69;
+  text-decoration: none;
+}
+
+.app-breadcrumb-link:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand) 38%, transparent);
+  outline-offset: 2px;
+}
+
+.app-breadcrumb-current {
+  color: #143457;
+  font-weight: 800;
+}
+
+.app-breadcrumb-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+
+.app-breadcrumb-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-breadcrumb-separator {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .brand {
   margin: 0;
   display: inline-flex;
@@ -5405,6 +5486,16 @@ a.family-award-claim-card:focus-visible {
 }
 
 @media (max-width: 700px) {
+  .app-breadcrumbs {
+    margin: 12px 0;
+    padding: 0;
+  }
+
+  .app-breadcrumb-link,
+  .app-breadcrumb-current {
+    font-size: 0.88rem;
+  }
+
   .container {
     padding: 14px;
   }

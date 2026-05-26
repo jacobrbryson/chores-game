@@ -8,7 +8,7 @@ type Props = {
 
 export function HomeScreen({ right }: Props) {
   return (
-    <AppScreen title="Dashboard" subtitle="Your family chore board" right={right}>
+    <AppScreen title="Dashboard" right={right}>
       <MobileDashboardChoresPanel />
     </AppScreen>
   );

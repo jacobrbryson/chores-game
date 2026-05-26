@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Suspense } from "react";
 import "./globals.css";
+import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { AppFooter } from "@/components/app-footer";
 import { AppHeader } from "@/components/app-header";
 import { AchievementUnlockListener } from "@/components/achievements/achievement-unlock-listener";
@@ -57,6 +58,7 @@ export default async function RootLayout({
           <div className="container app-layout">
             <div className="app-main">
               <AppHeader />
+              <AppBreadcrumbs />
               {children}
             </div>
             <AppFooter />

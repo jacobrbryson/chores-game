@@ -588,3 +588,7 @@ Build a family chore game where:
   - Profile now includes Developer API token creation, disable, soft-delete, re-issue, usage, and audit views; raw tokens are shown only on create/re-issue.
   - Public API requests use `Authorization: Bearer <token>`, structured audit/logging, request IDs, and a UTC daily quota of 1,000 requests per token with rate-limit headers.
   - OpenAPI JSON is served at `/api/docs/openapi.json`; Swagger UI is available at `/docs/api` and `/api/docs`.
+- Shared breadcrumbs update (2026-05-26):
+  - Web and mobile app surfaces now show a shared breadcrumb treatment between navigation and page content.
+  - Breadcrumb root is the branded `Family Chores` item with logo, followed by the current page label.
+  - Mobile dashboard removed the old `Dashboard` / `Your family chore board` heading in favor of the breadcrumb strip.

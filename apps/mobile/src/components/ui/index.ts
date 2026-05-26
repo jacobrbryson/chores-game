@@ -1,4 +1,5 @@
 export * from "./AppScreen";
+export * from "./AppBreadcrumbs";
 export * from "./AppHeader";
 export * from "./Card";
 export * from "./Button";
