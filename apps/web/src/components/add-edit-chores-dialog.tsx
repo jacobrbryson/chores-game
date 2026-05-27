@@ -795,7 +795,7 @@ export function AddEditChoresDialog({
     typeof document !== "undefined"
       ? createPortal(
           <ul
-            className="z-[70] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+            className="z-[160] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg"
             style={{
               position: "fixed",
               top: suggestionMenuPosition.top,
@@ -891,8 +891,16 @@ export function AddEditChoresDialog({
                   ariaLabel="Assignees"
                   values={assigneeIds}
                   onChange={(nextValues) => {
-                    if (nextValues.includes(FAMILY_ASSIGNEE_OPTION_ID)) {
+                    const hadFamilySelected = assigneeIds.includes(FAMILY_ASSIGNEE_OPTION_ID);
+                    const hasFamilySelected = nextValues.includes(FAMILY_ASSIGNEE_OPTION_ID);
+                    if (!hadFamilySelected && hasFamilySelected) {
                       setAssigneeIds([FAMILY_ASSIGNEE_OPTION_ID]);
+                      return;
+                    }
+                    if (hadFamilySelected && hasFamilySelected) {
+                      setAssigneeIds(
+                        nextValues.filter((value) => value !== FAMILY_ASSIGNEE_OPTION_ID),
+                      );
                       return;
                     }
                     setAssigneeIds(nextValues);

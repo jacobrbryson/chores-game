@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { mainNavigationItems } from "@packages/core/src/main-navigation";
+import { mainNavigationItems } from "@/lib/ui/main-navigation";
 import { MainNavIcon } from "@/components/main-nav-icons";
 import { ProfileMenu } from "@/components/profile-menu";
 

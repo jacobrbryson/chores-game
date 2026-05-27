@@ -31,6 +31,57 @@ export type MobileStoreSummary = {
   avatarUrl: string;
 };
 
+export type MobileStoreOption = {
+  id: string;
+  label: string;
+  value: string;
+  price?: number;
+  itemImage?: string;
+  itemDescription?: string;
+  itemStackable?: boolean;
+  isPurchasable?: boolean;
+  isUnlockable?: boolean;
+  unlockSource?: "quest" | "store";
+  unlockLabel?: string;
+  isDefault?: boolean;
+  theme?: {
+    primary: string;
+    secondary: string;
+    tertiary: string;
+  };
+  confetti?: {
+    colors: string[];
+    shapes: Array<"rect" | "circle" | "streamer">;
+  };
+};
+
+export type MobileStoreCategory = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  imagePath: string;
+  kind: "color" | "avatar" | "confetti" | "reward" | "quest_item";
+  options: MobileStoreOption[];
+};
+
+export type MobileStoreState = {
+  balance: number;
+  ownedOptionIds: string[];
+  questItemQuantities: Record<string, number>;
+  dashboardPrimaryColor: string;
+  themeOptionId: string;
+  themePrimaryColor: string;
+  themeSecondaryColor: string;
+  themeTertiaryColor: string;
+  avatarId: string;
+  avatarPhotoUrl?: string;
+  googlePhotoUrl?: string;
+  selectedConfettiOptionId: string;
+  viewerRole?: "admin" | "player";
+  categories: MobileStoreCategory[];
+};
+
 export type MobileFamilyMember = {
   id: string;
   uid?: string;
@@ -46,6 +97,12 @@ export type MobileFamilyMember = {
   };
 };
 
+export type MobileFamilyCategory = {
+  id: string;
+  name: string;
+  color: string;
+};
+
 export type MobileFamilyChore = {
   id: string;
   title: string;
@@ -59,10 +116,22 @@ export type MobileFamilyChore = {
   assigneeAvatarId?: string;
   assigneeAvatarPhotoUrl?: string;
   categories?: Array<{ id: string; name: string; color: string }>;
+  categoryIds?: string[];
   coinValue?: number;
   requireApproval?: boolean;
   choreType?: string;
+  dueDate?: string;
+  details?: string;
+  recurrenceType?: string;
+  recurrenceInterval?: number;
+  recurrenceUnit?: string;
+  source?: "manual" | "google_tasks";
   createdAt?: string;
+};
+
+export type MobileChoreDetail = MobileFamilyChore & {
+  assigneeIds?: string[];
+  assigneeScope?: "single" | "multiple" | "family";
 };
 
 export type MobileFamilySummary = {
@@ -71,18 +140,122 @@ export type MobileFamilySummary = {
   noFamily: boolean;
   family: null | { id: string; name: string };
   members: MobileFamilyMember[];
+  categories?: MobileFamilyCategory[];
   choresToday: MobileFamilyChore[];
 };
 
+export type MobileQuestChoice = {
+  id: string;
+  label: string;
+  description: string;
+  requiredItemId: string;
+  requiredItemName: string;
+  requiredItemImage: string;
+  consumeItem: boolean;
+  allowPurchaseIfMissing: boolean;
+  purchaseAndUseImmediately: boolean;
+  purchasable: boolean;
+  canAfford: boolean;
+  price: number;
+  ownedQuantity: number;
+  owned: boolean;
+  madeBefore: boolean;
+  disabled: boolean;
+  actionText: string;
+  unavailableText: string;
+};
+
+export type MobileQuestNode =
+  | {
+      type: "story";
+      id: string;
+      title: string;
+      image?: string;
+      audio?: string;
+      text: string;
+      choices: MobileQuestChoice[];
+    }
+  | {
+      type: "ending";
+      id: string;
+      title: string;
+      image?: string;
+      audio?: string;
+      text: string;
+      ending: {
+        endingId: string;
+        replayHint?: string;
+        rewardSummary: string;
+        rewards: {
+          coins: number;
+          items: string[];
+          achievements: string[];
+        };
+      };
+    };
+
+export type MobileQuestProgress = {
+  status: "not_started" | "in_progress" | "completed";
+  endingsReached: string[];
+};
+
+export type MobileQuestLibraryEntry = {
+  questId: string;
+  title: string;
+  subtitle?: string;
+  author?: string;
+  coverImage?: string;
+  summary?: string;
+  ageRange?: string;
+  estimatedMinutes?: number;
+  difficulty?: string;
+  completionStatus: MobileQuestProgress["status"];
+  endingsDiscovered?: number;
+  totalEndings?: number;
+  actionLabel?: "Start" | "Continue" | "Replay";
+  locked?: boolean;
+  prizeHighlights?: Array<{ id: string; label: string; image?: string }>;
+};
+
+export type MobileQuestState = {
+  quest: {
+    id: string;
+    title: string;
+    subtitle: string;
+    meta: { totalEndings: number };
+  };
+  progress: MobileQuestProgress;
+  walletBalance: number;
+  currentNode: MobileQuestNode | null;
+};
+
+export type MobileQuestChoiceResult = {
+  progress: MobileQuestProgress;
+  walletBalance: number;
+  currentNode: MobileQuestNode;
+  transaction: {
+    spentCoins: number;
+    rewardCoins: number;
+    rewardItemIds: string[];
+    earnedAchievements: string[];
+  };
+  ending: null | {
+    endingId: string;
+    isNewEnding: boolean;
+    endingsDiscovered: number;
+    totalEndings: number;
+    replayHint: string;
+    rewardSummary: string;
+    rewards: {
+      coins: number;
+      items: string[];
+      achievements: string[];
+    };
+  };
+};
+
 export async function fetchMobileStoreSummary(): Promise<MobileStoreSummary> {
-  const response = await fetch(`${appBaseUrl}/api/store`, {
-    credentials: "include",
-    cache: "no-store",
-  });
-  const summary = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(String(summary?.error ?? `store_summary_failed_${response.status}`));
-  }
+  const summary = await apiFetch("/store");
 
   const avatarPhotoUrl = typeof summary?.avatarPhotoUrl === "string" ? summary.avatarPhotoUrl.trim() : "";
   const avatarId = typeof summary?.avatarId === "string" ? summary.avatarId.trim() : "";
@@ -94,42 +267,154 @@ export async function fetchMobileStoreSummary(): Promise<MobileStoreSummary> {
   };
 }
 
+export function toAppAssetUrl(path: string) {
+  if (!path) {
+    return "";
+  }
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+  return `${appBaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+export async function fetchMobileQuests(): Promise<{
+  items: MobileQuestLibraryEntry[];
+  hasUnlockedQuestPack: boolean;
+}> {
+  const payload = await apiFetch("/quests");
+  const items = Array.isArray(payload?.items) ? payload.items as MobileQuestLibraryEntry[] : [];
+  return {
+    items,
+    hasUnlockedQuestPack: payload?.meta?.hasUnlockedQuestPack === true,
+  };
+}
+
+export async function fetchMobileQuestState(questId: string): Promise<MobileQuestState> {
+  return apiFetch(`/quests/${encodeURIComponent(questId)}`) as Promise<MobileQuestState>;
+}
+
+export async function startMobileQuest(questId: string): Promise<Pick<MobileQuestState, "progress" | "walletBalance" | "currentNode">> {
+  return apiFetch(`/quests/${encodeURIComponent(questId)}/start`, { method: "POST" });
+}
+
+export async function chooseMobileQuestPath(questId: string, choiceId: string): Promise<MobileQuestChoiceResult> {
+  return apiFetch(`/quests/${encodeURIComponent(questId)}/choice`, {
+    method: "POST",
+    body: JSON.stringify({ choiceId, purchaseIfMissing: true }),
+  });
+}
+
+export async function replayMobileQuest(questId: string): Promise<{ progress: MobileQuestProgress }> {
+  return apiFetch(`/quests/${encodeURIComponent(questId)}/replay`, { method: "POST" });
+}
+
+export async function fetchMobileStoreState(): Promise<MobileStoreState> {
+  const summary = await apiFetch("/store");
+
+  return {
+    balance: typeof summary?.balance === "number" ? Math.max(0, summary.balance) : 0,
+    ownedOptionIds: Array.isArray(summary?.ownedOptionIds) ? summary.ownedOptionIds.filter((value: unknown) => typeof value === "string") : [],
+    questItemQuantities: typeof summary?.questItemQuantities === "object" && summary?.questItemQuantities
+      ? summary.questItemQuantities as Record<string, number>
+      : {},
+    dashboardPrimaryColor: typeof summary?.dashboardPrimaryColor === "string" ? summary.dashboardPrimaryColor : "",
+    themeOptionId: typeof summary?.themeOptionId === "string" ? summary.themeOptionId : "",
+    themePrimaryColor: typeof summary?.themePrimaryColor === "string" ? summary.themePrimaryColor : "",
+    themeSecondaryColor: typeof summary?.themeSecondaryColor === "string" ? summary.themeSecondaryColor : "",
+    themeTertiaryColor: typeof summary?.themeTertiaryColor === "string" ? summary.themeTertiaryColor : "",
+    avatarId: typeof summary?.avatarId === "string" ? summary.avatarId : "",
+    avatarPhotoUrl: typeof summary?.avatarPhotoUrl === "string" ? summary.avatarPhotoUrl : "",
+    googlePhotoUrl: typeof summary?.googlePhotoUrl === "string" ? summary.googlePhotoUrl : "",
+    selectedConfettiOptionId: typeof summary?.selectedConfettiOptionId === "string" ? summary.selectedConfettiOptionId : "",
+    viewerRole: summary?.viewerRole === "admin" ? "admin" : "player",
+    categories: Array.isArray(summary?.categories) ? summary.categories as MobileStoreCategory[] : [],
+  };
+}
+
+export async function postMobileStoreAction(body: Record<string, unknown>) {
+  return apiFetch("/store", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchMobileFamilySummary(): Promise<MobileFamilySummary> {
-  const summary = await apiClient.families.getCurrent() as MobileFamilySummary;
+  const summary = await apiFetch("/families/current") as MobileFamilySummary;
   return {
     viewerUid: typeof summary.viewerUid === "string" ? summary.viewerUid : "",
     viewerAssigneeAliases: Array.isArray(summary.viewerAssigneeAliases) ? summary.viewerAssigneeAliases : [],
     noFamily: Boolean(summary.noFamily),
     family: summary.family ?? null,
     members: Array.isArray(summary.members) ? summary.members : [],
+    categories: Array.isArray(summary.categories) ? summary.categories : [],
     choresToday: Array.isArray(summary.choresToday) ? summary.choresToday : [],
   };
 }
 
 export async function patchMobileChore(choreId: string, body: Record<string, unknown>) {
-  const response = await fetch(`${appBaseUrl}/api/chores/${encodeURIComponent(choreId)}`, {
+  return apiFetch(`/chores/${encodeURIComponent(choreId)}`, {
     method: "PATCH",
-    credentials: "include",
-    headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  const json = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(String(json?.error ?? `patch_chore_failed_${response.status}`));
-  }
-  return json;
+}
+
+export async function editMobileChore(choreId: string, body: Record<string, unknown>) {
+  return apiFetch(`/chores/${encodeURIComponent(choreId)}/edit`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function completeMobileChore(choreId: string) {
+  return apiFetch(`/chores/${encodeURIComponent(choreId)}/complete`, {
+    method: "POST",
+  });
+}
+
+export async function createMobileChore(body: Record<string, unknown>) {
+  return apiFetch("/chores", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchMobileChore(choreId: string): Promise<MobileChoreDetail> {
+  const json = await apiFetch(`/chores/${encodeURIComponent(choreId)}`);
+  const chore = json?.chore ?? {};
+  return {
+    id: typeof chore.id === "string" ? chore.id : choreId,
+    title: typeof chore.title === "string" ? chore.title : "",
+    status: typeof chore.status === "string" ? chore.status : "Open",
+    sortOrder: typeof chore.sortOrder === "number" ? chore.sortOrder : undefined,
+    assigneeId: typeof chore.assigneeId === "string" ? chore.assigneeId : undefined,
+    assigneeIds: Array.isArray(chore.assigneeIds) ? chore.assigneeIds.filter((value: unknown) => typeof value === "string") : [],
+    assigneeScope:
+      chore.assigneeScope === "family" || chore.assigneeScope === "multiple" || chore.assigneeScope === "single"
+        ? chore.assigneeScope
+        : "single",
+    assigneeName: typeof chore.assigneeName === "string" ? chore.assigneeName : undefined,
+    assigneePrimaryColor: typeof chore.assigneePrimaryColor === "string" ? chore.assigneePrimaryColor : undefined,
+    assigneeAvatarId: typeof chore.assigneeAvatarId === "string" ? chore.assigneeAvatarId : undefined,
+    assigneeAvatarPhotoUrl: typeof chore.assigneeAvatarPhotoUrl === "string" ? chore.assigneeAvatarPhotoUrl : undefined,
+    categories: Array.isArray(chore.categories) ? chore.categories : [],
+    categoryIds: Array.isArray(chore.categoryIds) ? chore.categoryIds.filter((value: unknown) => typeof value === "string") : [],
+    coinValue: typeof chore.coinValue === "number" ? chore.coinValue : 0,
+    requireApproval: Boolean(chore.requireApproval),
+    choreType: typeof chore.choreType === "string" ? chore.choreType : undefined,
+    dueDate: typeof chore.dueDate === "string" ? chore.dueDate : "",
+    details: typeof chore.details === "string" ? chore.details : "",
+    recurrenceType: typeof chore.recurrenceType === "string" ? chore.recurrenceType : undefined,
+    recurrenceInterval: typeof chore.recurrenceInterval === "number" ? chore.recurrenceInterval : undefined,
+    recurrenceUnit: typeof chore.recurrenceUnit === "string" ? chore.recurrenceUnit : undefined,
+    source: chore.source === "google_tasks" ? "google_tasks" : "manual",
+    createdAt: typeof chore.createdAt === "string" ? chore.createdAt : undefined,
+  };
 }
 
 export async function deleteMobileChore(choreId: string) {
-  const response = await fetch(`${appBaseUrl}/api/chores/${encodeURIComponent(choreId)}`, {
+  return apiFetch(`/chores/${encodeURIComponent(choreId)}`, {
     method: "DELETE",
-    credentials: "include",
   });
-  const json = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(String(json?.error ?? `delete_chore_failed_${response.status}`));
-  }
-  return json;
 }
 
 export async function reorderMobileChores(orderedChoreIds: string[]) {

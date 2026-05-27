@@ -47,6 +47,15 @@ service cloud.firestore {
         );
     }
 
+    function canFamilyMemberReadUserEconomy(uid) {
+      let requesterFamilyId = primaryFamilyIdForUser(request.auth.uid);
+      return isSignedIn()
+        && requesterFamilyId is string
+        && requesterFamilyId != ""
+        && isFamilyMember(requesterFamilyId)
+        && userBelongsToFamily(uid, requesterFamilyId);
+    }
+
     function memberDocPathByUid(familyId) {
       return /databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid);
     }
@@ -710,7 +719,7 @@ service cloud.firestore {
       allow delete: if false;
 
       match /walletLedger/{entryId} {
-        allow read: if isSelf(uid) || canAdminManageUser(uid);
+        allow read: if isSelf(uid) || canAdminManageUser(uid) || canFamilyMemberReadUserEconomy(uid);
         allow create: if canSelfCreateWalletLedger(uid, entryId) || canAdminCreateWalletLedger(uid, entryId);
         allow update, delete: if false;
       }

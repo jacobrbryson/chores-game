@@ -1,13 +1,14 @@
 "use client";
 
-import { CSSProperties, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
+import { AppMenu } from "@/components/app-menu";
 import { Button } from "@/components/button";
 import { ChoreCategoriesChip } from "@/components/chore-categories-chip";
 import { CoinIcon } from "@/components/coin-icon";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
+import { MenuActionButton } from "@/components/menu-action-button";
 import { ModalShell } from "@/components/modal-shell";
+import { CSSProperties, useState } from "react";
 import type { FamilySnapshotChore } from "@/lib/family/types";
 
 type TodayChoreCardProps = {
@@ -16,6 +17,8 @@ type TodayChoreCardProps = {
   canManageActions: boolean;
   canComplete: boolean;
   canReorder?: boolean;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
   isDragging?: boolean;
   isDragOver?: boolean;
   dropIndicatorPosition?: "before" | "after" | null;
@@ -29,6 +32,8 @@ type TodayChoreCardProps = {
     choreId: string,
     source?: { clientX: number; clientY: number },
   ) => Promise<void> | void;
+  onMoveUp?: (choreId: string) => Promise<void> | void;
+  onMoveDown?: (choreId: string) => Promise<void> | void;
   onDragStart?: (choreId: string) => void;
   onDragOver?: (choreId: string, position: "before" | "after") => void;
   onDrop?: (choreId: string, position: "before" | "after") => void;
@@ -67,6 +72,8 @@ export function TodayChoreCard({
   canManageActions,
   canComplete,
   canReorder = false,
+  canMoveUp = false,
+  canMoveDown = false,
   isDragging = false,
   isDragOver = false,
   dropIndicatorPosition = null,
@@ -77,6 +84,8 @@ export function TodayChoreCard({
   isDeletePending = false,
   onDelete,
   onComplete,
+  onMoveUp,
+  onMoveDown,
   onDragStart,
   onDragOver,
   onDrop,
@@ -86,67 +95,11 @@ export function TodayChoreCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const triggerRef = useRef<HTMLDivElement | null>(null);
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
   const assigneePrimaryColor = getSafeHexColor(chore.assigneePrimaryColor);
   const assigneeAvatarId = chore.assigneeAvatarId?.trim() || "";
   const assigneeAvatarPhotoUrl = chore.assigneeAvatarPhotoUrl?.trim() || "";
   const isMultiOrFamilyAssignee =
     chore.assigneeScope === "family" || (chore.assigneeIds?.length ?? 0) > 1;
-
-  function updateMenuPosition() {
-    if (!triggerRef.current || typeof window === "undefined") {
-      return;
-    }
-    const rect = triggerRef.current.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const menuWidth = 128;
-    const margin = 8;
-    const left = Math.max(
-      margin,
-      Math.min(rect.right - menuWidth, viewportWidth - menuWidth - margin),
-    );
-    setMenuPosition({
-      top: rect.bottom + 6,
-      left,
-    });
-  }
-
-  useEffect(() => {
-    if (!menuOpen) {
-      return;
-    }
-    updateMenuPosition();
-
-    function onPointerDown(event: MouseEvent | TouchEvent) {
-      const target = event.target as Node | null;
-      if (!target) {
-        return;
-      }
-      if (triggerRef.current?.contains(target) || dropdownRef.current?.contains(target)) {
-        return;
-      }
-      setMenuOpen(false);
-    }
-    function onWindowChange() {
-      updateMenuPosition();
-    }
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("touchstart", onPointerDown);
-    window.addEventListener("resize", onWindowChange);
-    window.addEventListener("scroll", onWindowChange, true);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("touchstart", onPointerDown);
-      window.removeEventListener("resize", onWindowChange);
-      window.removeEventListener("scroll", onWindowChange, true);
-    };
-  }, [menuOpen]);
 
   return (
     <li
@@ -257,50 +210,9 @@ export function TodayChoreCard({
                 <CoinIcon size={20} />
                 <span>{getDisplayedCoinValue(chore)}</span>
               </span>
-              {canManageActions ? (
-                <div className="relative" ref={triggerRef}>
-                  <Button
-                    type="button"
-                    aria-label="Chore options"
-                    aria-expanded={menuOpen}
-                    className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-                    onClick={() => setMenuOpen((current) => !current)}>
-                    <span className="text-lg leading-none">...</span>
-                  </Button>
-                </div>
-              ) : null}
             </div>
           </div>
         </div>
-        {canManageActions && menuOpen && menuPosition && typeof document !== "undefined"
-          ? createPortal(
-              <div
-                ref={dropdownRef}
-                className="fixed z-[90] mt-1 w-32 rounded-md border border-slate-200 bg-white p-1 shadow-lg"
-                style={{ top: menuPosition.top, left: menuPosition.left }}>
-                <Button
-                  type="button"
-                  className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setEditDialogOpen(true);
-                  }}>
-                  Edit
-                </Button>
-                <Button
-                  type="button"
-                  className="block w-full rounded px-2 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
-                  disabled={disabled}
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setConfirmDeleteOpen(true);
-                  }}>
-                  {busyAction === "delete" ? "Deleting..." : "Delete"}
-                </Button>
-              </div>,
-              document.body,
-            )
-          : null}
         <ModalShell
           open={canManageActions && confirmDeleteOpen}
           onRequestClose={() => setConfirmDeleteOpen(false)}>
@@ -340,29 +252,81 @@ export function TodayChoreCard({
             </div>
           </div>
         </ModalShell>
-        <Button
-          type="button"
-          className="btn btn-secondary h-10 w-full disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={disabled || !canComplete}
-          onClick={(event) =>
-            void onComplete(chore.id, {
-              clientX: event.clientX,
-              clientY: event.clientY,
-            })
-          }>
-          <span aria-hidden="true" className="text-lg leading-none">
-            &#x2713;
-          </span>
-          {busyAction === "complete"
-            ? "Marking..."
-            : canComplete
-              ? isMultiOrFamilyAssignee && isAdminViewer
-                ? "Complete and Approve..."
-                : chore.requireApproval && isAdminViewer
-                  ? "Complete and Approve"
-                : "Mark as Complete"
-              : "Only assignee can complete"}
-        </Button>
+        <div className="today-chore-action-group flex items-stretch gap-0">
+          <Button
+            type="button"
+            className={`btn btn-secondary today-chore-complete-btn h-10 disabled:cursor-not-allowed disabled:opacity-60${
+              canManageActions ? " flex-1" : " w-full"
+            }`}
+            disabled={disabled || !canComplete}
+            onClick={(event) =>
+              void onComplete(chore.id, {
+                clientX: event.clientX,
+                clientY: event.clientY,
+              })
+            }>
+            <span aria-hidden="true" className="text-lg leading-none">
+              &#x2713;
+            </span>
+            {busyAction === "complete"
+              ? "Marking..."
+              : canComplete
+                ? isMultiOrFamilyAssignee && isAdminViewer
+                  ? "Complete and Approve..."
+                  : chore.requireApproval && isAdminViewer
+                    ? "Complete and Approve"
+                    : "Mark as Complete"
+                : "Only assignee can complete"}
+          </Button>
+          {canManageActions ? (
+            <AppMenu
+              open={menuOpen}
+              onOpenChange={setMenuOpen}
+              wrapperClassName="flex shrink-0 items-stretch self-stretch"
+              triggerClassName="btn btn-secondary member-action-btn today-chore-options-btn h-10"
+              triggerAriaLabel="Chore options"
+              panelClassName="app-menu-panel family-action-dropdown today-chore-action-menu"
+              trigger={<span className="text-lg leading-none">&#9776;</span>}>
+              <MenuActionButton
+                fullWidth
+                onClick={() => {
+                  setMenuOpen(false);
+                  setEditDialogOpen(true);
+                }}>
+                Edit
+              </MenuActionButton>
+              <MenuActionButton
+                fullWidth
+                className="menu-action-link-danger"
+                disabled={disabled}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setConfirmDeleteOpen(true);
+                }}>
+                {busyAction === "delete" ? "Deleting..." : "Delete"}
+              </MenuActionButton>
+              <MenuActionButton
+                fullWidth
+                className="menu-action-divider-top"
+                disabled={disabled || !canReorder || !canMoveUp}
+                onClick={() => {
+                  setMenuOpen(false);
+                  void onMoveUp?.(chore.id);
+                }}>
+                Move Up
+              </MenuActionButton>
+              <MenuActionButton
+                fullWidth
+                disabled={disabled || !canReorder || !canMoveDown}
+                onClick={() => {
+                  setMenuOpen(false);
+                  void onMoveDown?.(chore.id);
+                }}>
+                Move Down
+              </MenuActionButton>
+            </AppMenu>
+          ) : null}
+        </div>
       </div>
     </li>
   );

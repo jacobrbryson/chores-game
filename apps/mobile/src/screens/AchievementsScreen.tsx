@@ -1,62 +1,214 @@
-import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { StyleSheet, Switch, Text, View } from "react-native";
 import { apiFetch } from "@/lib/api";
+import {
+  loadAchievementsPreferences,
+  saveAchievementsPreferences,
+} from "@/lib/mobile-preferences";
 import { colors, spacing, typography } from "@/theme";
-import { AppScreen, Badge, Card, EmptyState, ErrorState, LoadingState, ProgressBar, SectionHeader } from "@/components/ui";
+import { MobileAchievementCard, type MobileAchievement } from "@/components/MobileAchievementCard";
+import { AppScreen, Badge, Button, Card, EmptyState, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
 
-type Achievement = { id?: string; achievementId?: string; title: string; wittyTitle?: string; description?: string; percent?: number; percentComplete?: number; completed?: boolean; restricted?: boolean };
+type AudienceFilter = "all" | "player" | "admin";
+
+type AchievementPayload = {
+  viewerUid?: string;
+  viewerRole?: "admin" | "player";
+  achievements?: MobileAchievement[];
+  items?: MobileAchievement[];
+};
 
 type Props = {
   right?: React.ReactNode;
+  onGoDashboard?: () => void;
 };
 
-export function AchievementsScreen({ right }: Props) {
-  const [state, setState] = useState<{ loading: boolean; error?: string; items: Achievement[] }>({ loading: true, items: [] });
+function audienceLabel(value: AudienceFilter) {
+  if (value === "player") {
+    return "Player";
+  }
+  if (value === "admin") {
+    return "Parent";
+  }
+  return "All";
+}
+
+export function AchievementsScreen({ right, onGoDashboard }: Props) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [items, setItems] = useState<MobileAchievement[]>([]);
+  const [viewerRole, setViewerRole] = useState<"admin" | "player">("player");
+  const [viewerKey, setViewerKey] = useState("default");
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>("all");
+  const [hideComplete, setHideComplete] = useState(false);
 
   useEffect(() => {
+    let active = true;
     apiFetch("/achievements")
-      .then((res) => setState({ loading: false, items: Array.isArray(res?.items) ? res.items : [] }))
-      .catch((err: unknown) => setState({ loading: false, error: err instanceof Error ? err.message : "achievements_unavailable", items: [] }));
+      .then((response) => {
+        if (!active) {
+          return;
+        }
+        const payload = response as AchievementPayload;
+        const nextItems = Array.isArray(payload.achievements)
+          ? payload.achievements
+          : Array.isArray(payload.items)
+            ? payload.items
+            : [];
+        setItems(nextItems);
+        setViewerRole(payload.viewerRole === "admin" ? "admin" : "player");
+        const nextViewerKey = typeof payload.viewerUid === "string" && payload.viewerUid ? payload.viewerUid : "default";
+        setViewerKey(nextViewerKey);
+        void loadAchievementsPreferences(nextViewerKey).then((preferences) => {
+          if (!active) {
+            return;
+          }
+          setHideComplete(preferences.hideComplete);
+        });
+        setError("");
+      })
+      .catch((loadError: unknown) => {
+        if (!active) {
+          return;
+        }
+        setError(loadError instanceof Error ? loadError.message : "achievements_unavailable");
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
+  useEffect(() => {
+    if (!viewerKey) {
+      return;
+    }
+    void saveAchievementsPreferences(viewerKey, { hideComplete });
+  }, [hideComplete, viewerKey]);
+
+  const orderedItems = useMemo(() => {
+    let filtered = [...items];
+    if (viewerRole === "player") {
+      filtered = filtered.filter((item) => item.audience === "player");
+    } else if (audienceFilter !== "all") {
+      filtered = filtered.filter((item) => item.audience === audienceFilter);
+    }
+    if (hideComplete) {
+      filtered = filtered.filter((item) => !item.completed);
+    }
+    return filtered.sort((a, b) => {
+      if (b.percentComplete !== a.percentComplete) {
+        return b.percentComplete - a.percentComplete;
+      }
+      if (viewerRole === "player" && a.audience !== b.audience) {
+        return a.audience === "player" ? -1 : 1;
+      }
+      return a.sortOrder - b.sortOrder;
+    });
+  }, [audienceFilter, hideComplete, items, viewerRole]);
+
+  const totals = useMemo(() => {
+    let visibleItems = [...items];
+    if (viewerRole === "player") {
+      visibleItems = visibleItems.filter((item) => item.audience === "player");
+    } else if (audienceFilter !== "all") {
+      visibleItems = visibleItems.filter((item) => item.audience === audienceFilter);
+    }
+    return {
+      total: visibleItems.length,
+      completed: visibleItems.filter((item) => item.completed).length,
+    };
+  }, [audienceFilter, items, viewerRole]);
+
   return (
-    <AppScreen title="Achievements" subtitle="Progress and unlocks" right={right}>
-      {state.loading ? <LoadingState label="Loading achievements..." /> : null}
-      {state.error ? <ErrorState message={`Could not load achievements: ${state.error}`} /> : null}
-      {!state.loading && !state.error ? (
-        <Card>
-          <SectionHeader title="Achievement Board" />
-          {state.items.length === 0 ? (
-            <EmptyState message="No achievements found yet." />
-          ) : (
-            <View style={styles.list}>
-              {state.items.map((item, i) => {
-                const percent = item.percent ?? item.percentComplete ?? 0;
-                const completed = Boolean(item.completed);
-                return (
-                  <View key={item.id ?? item.achievementId ?? String(i)} style={[styles.row, item.restricted && styles.restricted]}>
-                    <View style={styles.titleRow}>
-                      <Text style={styles.title}>{item.wittyTitle || item.title}</Text>
-                      <Badge label={completed ? "Unlocked" : "Locked"} tone={completed ? "success" : "default"} />
-                    </View>
-                    <Text style={styles.desc}>{item.description || item.title}</Text>
-                    <ProgressBar value={percent} />
-                  </View>
-                );
-              })}
+    <AppScreen title="Achievements" subtitle="Progress and unlocks" right={right} onPressBreadcrumbRoot={onGoDashboard}>
+      {loading ? <LoadingState label="Loading achievements..." /> : null}
+      {error ? <ErrorState message={`Could not load achievements: ${error}`} /> : null}
+      {!loading && !error ? (
+        <>
+          {viewerRole === "admin" ? (
+            <Card>
+              <SectionHeader title="Audience" />
+              <View style={styles.filterRow}>
+                {(["all", "player", "admin"] as const).map((value) => (
+                  <Button
+                    key={value}
+                    label={audienceLabel(value)}
+                    variant={audienceFilter === value ? "primary" : "secondary"}
+                    onPress={() => setAudienceFilter(value)}
+                  />
+                ))}
+              </View>
+            </Card>
+          ) : null}
+
+          <Card>
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryBadges}>
+                <Badge label={`Total ${totals.total}`} />
+                <Badge label={`Completed ${totals.completed}`} tone="success" />
+              </View>
+              <View style={styles.toggleWrap}>
+                <Text style={styles.toggleLabel}>Hide Complete</Text>
+                <Switch
+                  value={hideComplete}
+                  onValueChange={setHideComplete}
+                  trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
+                  thumbColor={hideComplete ? colors.brand : "#ffffff"}
+                />
+              </View>
             </View>
-          )}
-        </Card>
+          </Card>
+
+          <Card>
+            <SectionHeader title="Achievement Board" />
+            {orderedItems.length === 0 ? (
+              <EmptyState message="No achievements match the current filters." />
+            ) : (
+              <View style={styles.list}>
+                {orderedItems.map((item) => (
+                  <MobileAchievementCard key={item.id} achievement={item} />
+                ))}
+              </View>
+            )}
+          </Card>
+        </>
       ) : null}
     </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  list: { gap: spacing.sm },
-  row: { borderWidth: 1, borderColor: colors.line, borderRadius: 12, backgroundColor: "#fff", padding: spacing.sm, gap: spacing.sm },
-  restricted: { opacity: 0.7 },
-  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
-  title: { fontSize: typography.body, color: colors.text, fontWeight: "800", flex: 1 },
-  desc: { fontSize: typography.small, color: colors.muted },
+  filterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  summaryRow: {
+    gap: spacing.sm,
+  },
+  summaryBadges: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  toggleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  toggleLabel: {
+    fontSize: typography.body,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  list: {
+    gap: spacing.sm,
+  },
 });

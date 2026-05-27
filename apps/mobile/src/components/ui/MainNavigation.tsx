@@ -23,9 +23,27 @@ function IconView({ icon }: { icon: MainNavigationIcon }) {
   if (icon === "list") {
     return (
       <View style={styles.listIcon}>
-        <View style={styles.listIconLine} />
-        <View style={styles.listIconLine} />
-        <View style={styles.listIconLine} />
+        <View style={styles.listIconRow}>
+          <View style={styles.listIconCheck}>
+            <View style={[styles.listIconCheckStroke, styles.listIconCheckStem]} />
+            <View style={[styles.listIconCheckStroke, styles.listIconCheckKick]} />
+          </View>
+          <View style={styles.listIconLine} />
+        </View>
+        <View style={styles.listIconRow}>
+          <View style={styles.listIconCheck}>
+            <View style={[styles.listIconCheckStroke, styles.listIconCheckStem]} />
+            <View style={[styles.listIconCheckStroke, styles.listIconCheckKick]} />
+          </View>
+          <View style={styles.listIconLine} />
+        </View>
+        <View style={styles.listIconRow}>
+          <View style={styles.listIconCheck}>
+            <View style={[styles.listIconCheckStroke, styles.listIconCheckStem]} />
+            <View style={[styles.listIconCheckStroke, styles.listIconCheckKick]} />
+          </View>
+          <View style={styles.listIconLine} />
+        </View>
       </View>
     );
   }
@@ -48,7 +66,7 @@ function IconView({ icon }: { icon: MainNavigationIcon }) {
   if (icon === "shield") {
     return (
       <View style={styles.shieldIcon}>
-        <Text style={styles.shieldIconText}>V</Text>
+        <Text style={styles.shieldIconText}>Y</Text>
       </View>
     );
   }
@@ -123,12 +141,34 @@ const styles = StyleSheet.create({
     borderRightColor: colors.line,
     paddingHorizontal: 2,
     paddingVertical: spacing.xs,
+    gap: 4,
   },
   itemActive: { backgroundColor: "#e8f5ff" },
   itemPressed: { opacity: 0.76 },
-  iconSlot: { width: 24, height: 24 },
-  listIcon: { width: 24, height: 24, justifyContent: "center", gap: 4 },
-  listIconLine: { height: 3, borderRadius: 2, backgroundColor: colors.brandStrong },
+  iconSlot: { width: 20, height: 20 },
+  listIcon: { width: 20, height: 20, justifyContent: "center", gap: 2 },
+  listIconRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  listIconCheck: { width: 6, height: 6, position: "relative" },
+  listIconCheckStroke: {
+    position: "absolute",
+    borderRadius: 999,
+    backgroundColor: "#16a34a",
+  },
+  listIconCheckStem: {
+    width: 2,
+    height: 3.5,
+    left: 1,
+    top: 2,
+    transform: [{ rotate: "-42deg" }],
+  },
+  listIconCheckKick: {
+    width: 2,
+    height: 5.25,
+    right: 1,
+    top: 0.5,
+    transform: [{ rotate: "42deg" }],
+  },
+  listIconLine: { flex: 1, height: 2, borderRadius: 999, backgroundColor: colors.brandStrong },
   coinIcon: {
     width: 24,
     height: 24,
@@ -166,6 +206,6 @@ const styles = StyleSheet.create({
     borderColor: "#3f6212",
   },
   shieldIconText: { color: "#3f6212", fontSize: 11, fontWeight: "900" },
-  label: { color: colors.brandStrong, fontSize: typography.tiny, fontWeight: "800" },
+  label: { color: colors.brandStrong, fontSize: typography.tiny, fontWeight: "800", lineHeight: 12 },
   labelActive: { color: colors.text },
 });

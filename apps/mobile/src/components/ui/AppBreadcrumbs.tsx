@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { getMobileBreadcrumbTrail } from "@packages/core/src/breadcrumbs";
 import { colors, radius, spacing, typography } from "@/theme";
 
@@ -7,40 +7,61 @@ const brandIcon = require("../../../../web/public/icons/web-app-manifest-192x192
 
 type Props = {
   pageLabel: string;
+  subtitle?: string;
+  onPressRoot?: () => void;
 };
 
-export function AppBreadcrumbs({ pageLabel }: Props) {
+export function AppBreadcrumbs({ pageLabel, subtitle, onPressRoot }: Props) {
   const items = getMobileBreadcrumbTrail(pageLabel);
 
   return (
-    <View style={styles.row}>
-      {items.map((item, index) => {
-        const isCurrent = index === items.length - 1;
-        const isRoot = index === 0;
+    <View style={styles.wrapper}>
+      <View style={styles.row}>
+        {items.map((item, index) => {
+          const isCurrent = index === items.length - 1;
+          const isRoot = index === 0;
 
-        return (
-          <React.Fragment key={`${item.label}-${index}`}>
-            {isRoot ? (
-              <View style={styles.rootChip}>
-                <Image source={brandIcon} style={styles.logo} />
-                <Text style={styles.rootText} numberOfLines={1}>
+          return (
+            <React.Fragment key={`${item.label}-${index}`}>
+              {isRoot ? (
+                onPressRoot ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Go to dashboard"
+                    onPress={onPressRoot}
+                    style={({ pressed }) => [styles.rootChip, pressed && styles.rootChipPressed]}>
+                    <Image source={brandIcon} style={styles.logo} />
+                    <Text style={styles.rootText} numberOfLines={1}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <View style={styles.rootChip}>
+                    <Image source={brandIcon} style={styles.logo} />
+                    <Text style={styles.rootText} numberOfLines={1}>
+                      {item.label}
+                    </Text>
+                  </View>
+                )
+              ) : (
+                <Text style={styles.currentText} numberOfLines={1}>
                   {item.label}
                 </Text>
-              </View>
-            ) : (
-              <Text style={styles.currentText} numberOfLines={1}>
-                {item.label}
-              </Text>
-            )}
-            {!isCurrent ? <Text style={styles.separator}>{">"}</Text> : null}
-          </React.Fragment>
-        );
-      })}
+              )}
+              {!isCurrent ? <Text style={styles.separator}>{">"}</Text> : null}
+            </React.Fragment>
+          );
+        })}
+      </View>
+      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    gap: spacing.xs,
+  },
   row: {
     minWidth: 0,
     flexDirection: "row",
@@ -71,6 +92,9 @@ const styles = StyleSheet.create({
     fontSize: typography.small,
     fontWeight: "800",
   },
+  rootChipPressed: {
+    opacity: 0.82,
+  },
   separator: {
     color: colors.muted,
     fontSize: typography.small,
@@ -82,5 +106,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: typography.h3,
     fontWeight: "800",
+  },
+  subtitle: {
+    paddingLeft: spacing.sm,
+    color: colors.muted,
+    fontSize: typography.small,
+    fontWeight: "700",
   },
 });

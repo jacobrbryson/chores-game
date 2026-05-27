@@ -1,6 +1,7 @@
 import React from "react";
 import { Image, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { appBaseUrl, signOut } from "@/lib/api";
+import { AvatarBadge } from "@/components/ui/AvatarBadge";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 
 type Props = {
@@ -88,13 +89,12 @@ export function MobileProfileMenu({
           triggerVariant === "main-nav" && styles.navTrigger,
           pressed && styles.triggerPressed,
         ]}>
-        <View style={[styles.triggerAvatar, triggerVariant === "main-nav" && styles.navTriggerAvatar]}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
-          ) : (
-            <Text style={styles.triggerText}>{initial}</Text>
-          )}
-        </View>
+        <AvatarBadge
+          name={name || email || initial}
+          imageUrl={avatarUrl}
+          color={colors.brand}
+          size={triggerVariant === "main-nav" ? 27 : 36}
+        />
         {triggerVariant === "main-nav" ? (
           <View style={styles.coinChip}>
             <Text style={styles.coinIcon}>$</Text>
@@ -108,13 +108,7 @@ export function MobileProfileMenu({
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => undefined}>
             <View style={styles.header}>
-              <View style={styles.avatar}>
-                {avatarUrl ? (
-                  <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
-                ) : (
-                  <Text style={styles.avatarText}>{initial}</Text>
-                )}
-              </View>
+              <AvatarBadge name={name || email || initial} imageUrl={avatarUrl} color={colors.brand} size={40} />
               <View style={styles.identity}>
                 <Text style={styles.name}>{name || "Signed In"}</Text>
                 <Text style={styles.email}>{email || "Family Chores account"}</Text>
@@ -161,18 +155,6 @@ const styles = StyleSheet.create({
   },
   navTrigger: { width: "100%", height: "100%", borderRadius: 0, gap: 3 },
   triggerPressed: { transform: [{ scale: 0.97 }] },
-  triggerAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    backgroundColor: colors.brand,
-  },
-  navTriggerAvatar: { width: 27, height: 27, borderRadius: 14 },
-  avatarImage: { width: "100%", height: "100%" },
-  triggerText: { color: "#fff", fontSize: typography.small, fontWeight: "800" },
   navLabel: { color: colors.brandStrong, fontSize: typography.tiny, fontWeight: "800" },
   coinChip: {
     minHeight: 16,
@@ -205,15 +187,6 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   header: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.brand,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { color: "#fff", fontSize: typography.body, fontWeight: "800" },
   identity: { flex: 1, gap: 2 },
   name: { color: colors.text, fontSize: typography.body, fontWeight: "800" },
   email: { color: colors.muted, fontSize: typography.tiny },

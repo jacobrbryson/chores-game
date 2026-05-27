@@ -4,12 +4,14 @@ import { MobileDashboardChoresPanel } from "@/components/MobileDashboardChoresPa
 
 type Props = {
   right?: React.ReactNode;
+  onGoDashboard?: () => void;
+  onOpenAllChores?: () => void;
 };
 
-export function HomeScreen({ right }: Props) {
+export function HomeScreen({ right, onOpenAllChores }: Props) {
   return (
     <AppScreen title="Dashboard" right={right}>
-      <MobileDashboardChoresPanel />
+      <MobileDashboardChoresPanel onOpenAllChores={onOpenAllChores} />
     </AppScreen>
   );
 }

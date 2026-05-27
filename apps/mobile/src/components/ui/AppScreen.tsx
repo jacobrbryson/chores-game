@@ -1,16 +1,17 @@
 import React from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { colors, spacing, typography } from "@/theme";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { colors, spacing } from "@/theme";
 import { AppBreadcrumbs } from "@/components/ui/AppBreadcrumbs";
 
 type Props = {
   title: string;
   subtitle?: string;
   right?: React.ReactNode;
+  onPressBreadcrumbRoot?: () => void;
   children: React.ReactNode;
 };
 
-export function AppScreen({ title, subtitle, right, children }: Props) {
+export function AppScreen({ title, subtitle, right, onPressBreadcrumbRoot, children }: Props) {
   return (
     <View style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -18,11 +19,14 @@ export function AppScreen({ title, subtitle, right, children }: Props) {
           <View style={styles.pageBlock}>
             <View style={styles.topRow}>
               <View style={styles.breadcrumbSlot}>
-                <AppBreadcrumbs pageLabel={title} />
+                <AppBreadcrumbs
+                  pageLabel={title}
+                  subtitle={subtitle}
+                  onPressRoot={onPressBreadcrumbRoot}
+                />
               </View>
               {right ? <View style={styles.rightSlot}>{right}</View> : null}
             </View>
-            {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
           </View>
           {children}
         </View>
@@ -38,6 +42,5 @@ const styles = StyleSheet.create({
   pageBlock: { gap: spacing.xs, paddingTop: spacing.md },
   topRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   breadcrumbSlot: { flex: 1, minWidth: 0 },
-  subtitle: { fontSize: typography.small, color: colors.muted },
   rightSlot: { flexShrink: 0, alignItems: "flex-end", justifyContent: "center" },
 });

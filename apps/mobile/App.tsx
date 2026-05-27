@@ -5,6 +5,7 @@ import type { MainNavigationItemId } from "@packages/core/src/main-navigation";
 import { apiClient } from "@/lib/api";
 import { colors, spacing, typography } from "@/theme";
 import { AchievementsScreen } from "@/screens/AchievementsScreen";
+import { ChoresScreen } from "@/screens/ChoresScreen";
 import { HomeScreen } from "@/screens/HomeScreen";
 import { LoginPlaceholderScreen } from "@/screens/LoginPlaceholderScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
@@ -12,7 +13,7 @@ import { QuestsScreen } from "@/screens/QuestsScreen";
 import { RewardsScreen } from "@/screens/RewardsScreen";
 import { MainNavigation } from "@/components/ui";
 
-type TabKey = MainNavigationItemId | "profile" | "login";
+type TabKey = MainNavigationItemId | "profile" | "login" | "all-chores";
 
 type SessionMe = {
   uid: string;
@@ -77,13 +78,19 @@ export default function App() {
         />
       );
     }
+    const goDashboard = () => setTab("dashboard");
+    const refreshSessionState = () => {
+      const sessionRequest = refreshSession();
+      void sessionRequest.promise;
+    };
     switch (tab) {
-      case "store": return <RewardsScreen />;
-      case "quests": return <QuestsScreen />;
-      case "achievements": return <AchievementsScreen />;
-      case "profile": return <ProfileScreen />;
+      case "store": return <RewardsScreen onGoDashboard={goDashboard} onStoreUpdated={refreshSessionState} />;
+      case "quests": return <QuestsScreen onGoDashboard={goDashboard} />;
+      case "achievements": return <AchievementsScreen onGoDashboard={goDashboard} />;
+      case "profile": return <ProfileScreen onGoDashboard={goDashboard} />;
+      case "all-chores": return <ChoresScreen onGoDashboard={goDashboard} />;
       case "login": return <LoginPlaceholderScreen />;
-      default: return <HomeScreen />;
+      default: return <HomeScreen onOpenAllChores={() => setTab("all-chores")} />;
     }
   }, [authState, tab]);
 
@@ -105,7 +112,7 @@ export default function App() {
       <SafeAreaView style={styles.safe}>
         {authState === "authenticated" ? (
           <MainNavigation
-            activeTab={tab === "profile" || tab === "login" ? "more" : tab}
+            activeTab={tab === "profile" || tab === "login" ? "more" : tab === "all-chores" ? "dashboard" : tab}
             name={sessionMe?.name}
             email={sessionMe?.email}
             avatarUrl={avatarUrl}

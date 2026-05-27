@@ -1,58 +1,171 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { apiFetch } from "@/lib/api";
-import { colors, spacing, typography } from "@/theme";
-import { AppScreen, Badge, Button, Card, EmptyState, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
-
-type Quest = { questId: string; title: string; subtitle?: string; completionStatus?: string; actionLabel?: string };
+import {
+  chooseMobileQuestPath,
+  fetchMobileQuestState,
+  fetchMobileQuests,
+  replayMobileQuest,
+  startMobileQuest,
+  type MobileQuestState,
+} from "@/lib/api";
+import { AppScreen } from "@/components/ui";
+import { MobileQuestLibrary, type MobileQuestLibraryState } from "@/components/MobileQuestLibrary";
+import { MobileQuestReader, type MobileQuestReaderState } from "@/components/MobileQuestReader";
 
 type Props = {
   right?: React.ReactNode;
+  onGoDashboard?: () => void;
 };
 
-export function QuestsScreen({ right }: Props) {
-  const [state, setState] = useState<{ loading: boolean; error?: string; items: Quest[] }>({ loading: true, items: [] });
+export function QuestsScreen({ right, onGoDashboard }: Props) {
+  const [library, setLibrary] = useState<MobileQuestLibraryState>({ loading: true, items: [], hasUnlockedQuestPack: false });
+  const [selectedQuestId, setSelectedQuestId] = useState("");
+  const [reader, setReader] = useState<MobileQuestReaderState>(() => emptyReaderState());
+  const [isStarting, setIsStarting] = useState(false);
+  const [pendingChoiceId, setPendingChoiceId] = useState("");
+  const [isReplaying, setIsReplaying] = useState(false);
 
   useEffect(() => {
-    apiFetch("/quests")
-      .then((res) => setState({ loading: false, items: Array.isArray(res?.items) ? res.items : [] }))
-      .catch((err: unknown) => setState({ loading: false, error: err instanceof Error ? err.message : "quests_unavailable", items: [] }));
+    void loadLibrary();
   }, []);
 
+  async function loadLibrary() {
+    setLibrary((current) => ({ ...current, loading: true, error: undefined }));
+    try {
+      const payload = await fetchMobileQuests();
+      setLibrary({ loading: false, items: payload.items, hasUnlockedQuestPack: payload.hasUnlockedQuestPack });
+    } catch (err: unknown) {
+      setLibrary({
+        loading: false,
+        error: err instanceof Error ? err.message : "quests_unavailable",
+        items: [],
+        hasUnlockedQuestPack: false,
+      });
+    }
+  }
+
+  async function openQuest(questId: string) {
+    setSelectedQuestId(questId);
+    setReader({ ...emptyReaderState(), loading: true });
+    try {
+      setReader(toReaderState(await fetchMobileQuestState(questId)));
+    } catch (err: unknown) {
+      setReader({
+        ...emptyReaderState(),
+        loading: false,
+        error: err instanceof Error ? err.message : "quest_load_failed",
+      });
+    }
+  }
+
+  async function startQuest() {
+    if (!selectedQuestId) {
+      return;
+    }
+    setIsStarting(true);
+    setReader((current) => ({ ...current, error: undefined, lastEnding: null, lastTransaction: null }));
+    try {
+      const payload = await startMobileQuest(selectedQuestId);
+      setReader((current) => ({
+        ...current,
+        loading: false,
+        progress: payload.progress,
+        walletBalance: payload.walletBalance,
+        currentNode: payload.currentNode,
+      }));
+      void loadLibrary();
+    } catch (err: unknown) {
+      setReader((current) => ({ ...current, error: err instanceof Error ? err.message : "quest_start_failed" }));
+    } finally {
+      setIsStarting(false);
+    }
+  }
+
+  async function choosePath(choiceId: string) {
+    if (!selectedQuestId || pendingChoiceId) {
+      return;
+    }
+    setPendingChoiceId(choiceId);
+    setReader((current) => ({ ...current, error: undefined }));
+    try {
+      const payload = await chooseMobileQuestPath(selectedQuestId, choiceId);
+      setReader((current) => ({
+        ...current,
+        loading: false,
+        progress: payload.progress,
+        walletBalance: payload.walletBalance,
+        currentNode: payload.currentNode,
+        lastEnding: payload.ending,
+        lastTransaction: payload.transaction,
+      }));
+      void loadLibrary();
+    } catch (err: unknown) {
+      setReader((current) => ({ ...current, error: err instanceof Error ? err.message : "quest_choice_failed" }));
+    } finally {
+      setPendingChoiceId("");
+    }
+  }
+
+  async function replayQuest() {
+    if (!selectedQuestId || isReplaying) {
+      return;
+    }
+    setIsReplaying(true);
+    setReader((current) => ({ ...current, error: undefined }));
+    try {
+      await replayMobileQuest(selectedQuestId);
+      await startQuest();
+    } catch (err: unknown) {
+      setReader((current) => ({ ...current, error: err instanceof Error ? err.message : "quest_replay_failed" }));
+    } finally {
+      setIsReplaying(false);
+    }
+  }
+
   return (
-    <AppScreen title="Quests" subtitle="Story adventures" right={right}>
-      {state.loading ? <LoadingState label="Loading quests..." /> : null}
-      {state.error ? <ErrorState message={`Could not load quests: ${state.error}`} /> : null}
-      {!state.loading && !state.error ? (
-        <Card style={styles.darkCard}>
-          <SectionHeader title="Quest Library" />
-          {state.items.length === 0 ? (
-            <EmptyState message="No quests available yet." />
-          ) : (
-            <View style={styles.list}>
-              {state.items.map((quest) => (
-                <View key={quest.questId} style={styles.questCard}>
-                  <Text style={styles.title}>{quest.title}</Text>
-                  {quest.subtitle ? <Text style={styles.desc}>{quest.subtitle}</Text> : null}
-                  <View style={styles.row}>
-                    <Badge label={(quest.completionStatus ?? "not_started").replaceAll("_", " ")} />
-                    <Button label={quest.actionLabel ?? "Start"} />
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </Card>
-      ) : null}
+    <AppScreen title="Quests" subtitle={selectedQuestId ? "Interactive story" : "Story adventures"} right={right} onPressBreadcrumbRoot={onGoDashboard}>
+      {selectedQuestId ? (
+        <MobileQuestReader
+          state={reader}
+          isStarting={isStarting}
+          pendingChoiceId={pendingChoiceId}
+          isReplaying={isReplaying}
+          onBack={() => {
+            setSelectedQuestId("");
+            setReader(emptyReaderState());
+          }}
+          onStart={startQuest}
+          onChoose={choosePath}
+          onReplay={replayQuest}
+        />
+      ) : (
+        <MobileQuestLibrary state={library} onRefresh={loadLibrary} onOpenQuest={openQuest} />
+      )}
     </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  darkCard: { backgroundColor: colors.questDark, borderColor: "#334155" },
-  list: { gap: spacing.sm },
-  questCard: { borderWidth: 1, borderColor: "#334155", borderRadius: 12, padding: spacing.sm, backgroundColor: "#0f172a", gap: spacing.sm },
-  title: { fontSize: typography.body, fontWeight: "800", color: "#f8fafc" },
-  desc: { fontSize: typography.small, color: "#94a3b8" },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
-});
+function emptyReaderState(): MobileQuestReaderState {
+  return {
+    loading: false,
+    questTitle: "",
+    progress: null,
+    walletBalance: 0,
+    currentNode: null,
+    totalEndings: 0,
+    lastEnding: null,
+    lastTransaction: null,
+  };
+}
+
+function toReaderState(payload: MobileQuestState): MobileQuestReaderState {
+  return {
+    loading: false,
+    questTitle: payload.quest?.title ?? "",
+    progress: payload.progress,
+    walletBalance: payload.walletBalance,
+    currentNode: payload.currentNode,
+    totalEndings: payload.quest?.meta?.totalEndings ?? 0,
+    lastEnding: null,
+    lastTransaction: null,
+  };
+}

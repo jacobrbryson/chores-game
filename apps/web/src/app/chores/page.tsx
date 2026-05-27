@@ -5,11 +5,10 @@ import { createPortal } from "react-dom";
 import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
 import { Alert } from "@/components/alert";
 import { Avatar } from "@/components/avatar";
-import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
-import { ChoreCategoriesChip } from "@/components/chore-categories-chip";
+import { ChipOverflowRow } from "@/components/chip-overflow-row";
+import { ChoreListCard } from "@/components/chore-list-card";
 import { CoinIcon } from "@/components/coin-icon";
-import { EnumChip } from "@/components/enum-chip";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
 import type { TailwindSelectOption } from "@/components/tailwind-select";
@@ -39,6 +38,7 @@ type ChoreRow = {
   assigneeName: string;
   assigneeAvatarId?: string;
   assigneeAvatarPhotoUrl?: string;
+  assigneePrimaryColor?: string;
   details?: string;
   dueDate: string;
   categoryIds?: string[];
@@ -157,7 +157,7 @@ function getStatusLabel(chore: Pick<ChoreRow, "status" | "requireApproval">) {
   return chore.status;
 }
 
-function statusTone(status: string) {
+function statusTone(status: string): "blue" | "green" | "rose" | "slate" {
   if (status === "Open") {
     return "blue";
   }
@@ -607,13 +607,13 @@ export default function ChoresPage() {
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState<ChoreSortBy>("completedAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [realtimeContext, setRealtimeContext] = useState<{ familyId: string; authToken: string } | null>(null);
   const canCreateChores = viewerRole === "admin" || viewerRole === "player";
   const playerSeeAndDoMode = viewerRole === "player";
   const requestSeqRef = useRef(0);
   const loadAbortRef = useRef<AbortController | null>(null);
   const shouldApplySearch = query.trim().length >= 3;
-  const hasShortSearch = searchInput.trim().length > 0 && searchInput.trim().length < 3;
   const [routeFilters, setRouteFilters] = useState<RouteFilterState>(() => {
     if (typeof window === "undefined") {
       return {
@@ -971,6 +971,53 @@ export default function ChoresPage() {
     setRouteFilters(parseRouteFilters(window.location.search));
     setPage(1);
   }
+
+  const filterChipItems = useMemo(() => {
+    const items = [
+      {
+        id: "all",
+        label: "All",
+        active: statusFilter === "",
+        onSelect: () => updateStatusRouteFilter(""),
+      },
+    ];
+
+    if (viewerRole === "admin") {
+      items.push({
+        id: "needs_approval",
+        label: "Needs Approval",
+        active: statusFilter === "needs_approval",
+        onSelect: () => updateStatusRouteFilter("needs_approval"),
+      });
+    }
+
+    items.push({
+      id: "completed",
+      label: "Completed",
+      active: statusFilter === "completed",
+      onSelect: () => updateStatusRouteFilter("completed"),
+    });
+
+    return items;
+  }, [statusFilter, updateStatusRouteFilter, viewerRole]);
+
+  const sortChipItems = useMemo(
+    () =>
+      [
+        ["title", "Title"],
+        ["status", "Status"],
+        ["assigneeName", "Assignee"],
+        ["dueDate", "Due"],
+        ["completedAt", "Completed"],
+        ["coinValue", "Coins"],
+      ].map(([column, label]) => ({
+        id: column,
+        label: sortLabel(column as ChoreSortBy, label),
+        active: sortBy === column,
+        onSelect: () => onSort(column as ChoreSortBy),
+      })),
+    [onSort, sortBy, sortLabel],
+  );
 
   async function onRemoveChore(choreId: string) {
     if (hasBusyAction) {
@@ -1380,7 +1427,7 @@ export default function ChoresPage() {
 
   return (
     <>
-      <main className="panel family-page">
+      <main className="family-page">
           <AddEditChoresDialog
             chore={
               editingChore
@@ -1412,43 +1459,37 @@ export default function ChoresPage() {
             }}
             hideTrigger
           />
-          <div className="page-header-row">
-            <div className="page-header-inline">
-              <BackLink className="page-back-link" fallbackHref="/" />
-              <h1>All Chores</h1>
+          <section className="family-page-card chores-controls-card" aria-label="Chore controls">
+            <div className="chores-controls-search-row">
+              <input
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Search chores (3+ chars)"
+                className="table-search-input chores-controls-search-input"
+                aria-label="Search chores"
+              />
+              <Button
+                type="button"
+                className="btn btn-secondary chores-controls-toggle"
+                aria-label={filtersExpanded ? "Collapse chore controls" : "Expand chore controls"}
+                aria-expanded={filtersExpanded}
+                onClick={() => setFiltersExpanded((current) => !current)}>
+                {filtersExpanded ? "v" : ">"}
+              </Button>
             </div>
-          </div>
-          <div className="table-controls">
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search chores (3+ chars)"
-              className="table-search-input"
-            />
-            {viewerRole === "admin" ? (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  className={statusFilter === "" ? "btn btn-primary" : "btn btn-secondary"}
-                  onClick={() => updateStatusRouteFilter("")}>
-                  All
-                </Button>
-                <Button
-                  type="button"
-                  className={statusFilter === "needs_approval" ? "btn btn-primary" : "btn btn-secondary"}
-                  onClick={() => updateStatusRouteFilter("needs_approval")}>
-                  Needs Approval
-                </Button>
-                <Button
-                  type="button"
-                  className={statusFilter === "completed" ? "btn btn-primary" : "btn btn-secondary"}
-                  onClick={() => updateStatusRouteFilter("completed")}>
-                  Completed
-                </Button>
-              </div>
+            {filtersExpanded ? (
+              <>
+                <div className="chores-controls-option-row">
+                  <p className="chores-controls-label">Filters</p>
+                  <ChipOverflowRow items={filterChipItems} />
+                </div>
+                <div className="chores-controls-option-row">
+                  <p className="chores-controls-label">Sorting</p>
+                  <ChipOverflowRow items={sortChipItems} />
+                </div>
+              </>
             ) : null}
-            {hasShortSearch ? <p className="small">Type at least 3 characters to filter.</p> : null}
-          </div>
+          </section>
           {isLoading ? (
             <section aria-label="Loading chores" aria-hidden="true" className="space-y-3">
               <div className="family-skeleton-chip-row">
@@ -1456,36 +1497,11 @@ export default function ChoresPage() {
                 <div className="family-skeleton family-skeleton-chip" />
                 <div className="family-skeleton family-skeleton-chip" />
               </div>
-              <div className="family-table-wrap">
-                <table className="family-table">
-                  <thead>
-                    <tr>
-                      <th><div className="family-skeleton family-skeleton-chip" /></th>
-                      <th><div className="family-skeleton family-skeleton-title" /></th>
-                      <th><div className="family-skeleton family-skeleton-title" /></th>
-                      <th><div className="family-skeleton family-skeleton-title" /></th>
-                      <th><div className="family-skeleton family-skeleton-title" /></th>
-                      <th><div className="family-skeleton family-skeleton-title" /></th>
-                      <th><div className="family-skeleton family-skeleton-title" /></th>
-                      <th><div className="family-skeleton family-skeleton-title" /></th>
-                      <th><div className="family-skeleton family-skeleton-chip" /></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td colSpan={9}><div className="family-skeleton family-skeleton-row" /></td>
-                    </tr>
-                    <tr>
-                      <td colSpan={9}><div className="family-skeleton family-skeleton-row" /></td>
-                    </tr>
-                    <tr>
-                      <td colSpan={9}><div className="family-skeleton family-skeleton-row" /></td>
-                    </tr>
-                    <tr>
-                      <td colSpan={9}><div className="family-skeleton family-skeleton-row" /></td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div className="space-y-3">
+                <div className="family-skeleton family-skeleton-row" />
+                <div className="family-skeleton family-skeleton-row" />
+                <div className="family-skeleton family-skeleton-row" />
+                <div className="family-skeleton family-skeleton-row" />
               </div>
             </section>
           ) : null}
@@ -1508,168 +1524,129 @@ export default function ChoresPage() {
                 </div>
               ) : (
                 <>
-                  <div className="family-page-subhead chores-table-subhead">
-                    <p className="small chores-table-total">
-                      {total} chore{total === 1 ? "" : "s"}
-                    </p>
-                    {selectedCount > 0 ? (
-                      <div className="chores-table-bulk-actions">
-                        <span className="small chores-table-selected-count">
-                          {selectedCount} selected
-                          {bulkActionState ? ` (${bulkActionState.completed}/${bulkActionState.total})` : ""}
-                        </span>
-                        <BulkActionsMenu
-                          disabled={hasBusyAction}
-                          selectedUndoCount={selectedUndoCount}
-                          selectedApproveCount={selectedApproveCount}
-                          busyAction={bulkActionState?.action ?? ""}
-                          onDeleteRequested={() => setPendingBulkDeleteOpen(true)}
-                          onUndoCompletion={() =>
-                            void onBulkAction(
-                              "undo_complete",
-                              Object.entries(selectedChoreStateById)
-                                .filter(([, entry]) => entry.canUndoCompletion)
-                                .map(([choreId]) => choreId),
-                            )
-                          }
-                          onApprove={() =>
-                            void onBulkAction(
-                              "approve",
-                              Object.entries(selectedChoreStateById)
-                                .filter(([, entry]) => entry.canApprove)
-                                .map(([choreId]) => choreId),
-                            )
-                          }
-                          canSetCategories={viewerRole === "admin"}
-                          onSetCategoriesRequested={() => {
-                            setBulkCategoryIds([]);
-                            setPendingBulkSetCategoriesOpen(true);
-                          }}
+                  <section className="family-page-card" aria-label="Chore list">
+                    <div className="family-page-card-header chores-table-subhead">
+                      <p className="small chores-table-total">
+                        {total} chore{total === 1 ? "" : "s"}
+                      </p>
+                      {selectedCount > 0 ? (
+                        <div className="chores-table-bulk-actions">
+                          <span className="small chores-table-selected-count">
+                            {selectedCount} selected
+                            {bulkActionState ? ` (${bulkActionState.completed}/${bulkActionState.total})` : ""}
+                          </span>
+                          <BulkActionsMenu
+                            disabled={hasBusyAction}
+                            selectedUndoCount={selectedUndoCount}
+                            selectedApproveCount={selectedApproveCount}
+                            busyAction={bulkActionState?.action ?? ""}
+                            onDeleteRequested={() => setPendingBulkDeleteOpen(true)}
+                            onUndoCompletion={() =>
+                              void onBulkAction(
+                                "undo_complete",
+                                Object.entries(selectedChoreStateById)
+                                  .filter(([, entry]) => entry.canUndoCompletion)
+                                  .map(([choreId]) => choreId),
+                              )
+                            }
+                            onApprove={() =>
+                              void onBulkAction(
+                                "approve",
+                                Object.entries(selectedChoreStateById)
+                                  .filter(([, entry]) => entry.canApprove)
+                                  .map(([choreId]) => choreId),
+                              )
+                            }
+                            canSetCategories={viewerRole === "admin"}
+                            onSetCategoriesRequested={() => {
+                              setBulkCategoryIds([]);
+                              setPendingBulkSetCategoriesOpen(true);
+                            }}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white/80 p-3">
+                      <label className="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
+                        <input
+                          ref={selectAllRef}
+                          type="checkbox"
+                          aria-label="Select all chores on this page"
+                          checked={allSelectableOnPageSelected}
+                          disabled={selectableChoreIdsOnPage.length === 0 || hasBusyAction}
+                          onChange={(event) => onToggleSelectAllCurrentPage(event.target.checked)}
+                          className="h-5 w-5 rounded border-slate-300 text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
                         />
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="family-table-wrap">
-                    <table className="family-table">
-                      <thead>
-                        <tr>
-                          <th>
-                            <input
-                              ref={selectAllRef}
-                              type="checkbox"
-                              aria-label="Select all chores on this page"
-                              checked={allSelectableOnPageSelected}
-                              disabled={selectableChoreIdsOnPage.length === 0 || hasBusyAction}
-                              onChange={(event) => onToggleSelectAllCurrentPage(event.target.checked)}
+                        Select all on this page
+                      </label>
+                      {statusFilter === "needs_approval" ? (
+                        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-amber-800">
+                          Approval queue
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="space-y-3">
+                      {chores.map((chore) => (
+                        <ChoreListCard
+                          key={chore.id}
+                          chore={chore}
+                          checked={Boolean(selectedChoreStateById[chore.id])}
+                          selectable={canManageBulkActionsForChore(chore)}
+                          disabled={hasBusyAction}
+                          statusLabel={getStatusLabel(chore)}
+                          statusTone={statusTone(chore.status)}
+                          completedDate={formatCompletedDate(chore.completedAt)}
+                          displayedCoinValue={getDisplayedCoinValue(chore)}
+                          coinTooltip={getCoinTooltip(chore)}
+                          onCheckedChange={(checked) => onToggleRowSelection(chore, checked)}
+                          approvalSlot={
+                            viewerRole === "admin" && canApproveChore(chore) ? (
+                              <div className="flex flex-wrap gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                <Button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  disabled={hasBusyAction}
+                                  onClick={() => void onApproveChore(chore)}>
+                                  {rowActionState?.choreId === chore.id &&
+                                  rowActionState.action === "approve"
+                                    ? "Approving..."
+                                    : "Approve"}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  disabled={hasBusyAction}
+                                  onClick={() => {
+                                    setRejectFeedback("");
+                                    setPendingRejectChore(chore);
+                                  }}>
+                                  Reject
+                                </Button>
+                              </div>
+                            ) : null
+                          }
+                          actionSlot={
+                            <ChoreActionsMenu
+                              chore={chore}
+                              canManageActions={viewerRole === "admin"}
+                              busyAction={
+                                rowActionState?.choreId === chore.id ? rowActionState.action : ""
+                              }
+                              disabled={hasBusyAction}
+                              onEdit={(selectedChore) => setEditingChore(selectedChore)}
+                              onDeleteRequested={(selectedChore) => setPendingDeleteChore(selectedChore)}
+                              onUndoCompletion={onUndoCompletion}
+                              onApprove={onApproveChore}
+                              onRejectRequested={(selectedChore) => {
+                                setRejectFeedback("");
+                                setPendingRejectChore(selectedChore);
+                              }}
                             />
-                          </th>
-                          <th>
-                            <button type="button" className="table-sort-btn" onClick={() => onSort("title")}>
-                              {sortLabel("title", "Title")}
-                            </button>
-                          </th>
-                          <th>Categories</th>
-                          <th>
-                            <button type="button" className="table-sort-btn" onClick={() => onSort("status")}>
-                              {sortLabel("status", "Status")}
-                            </button>
-                          </th>
-                          <th>
-                            <button type="button" className="table-sort-btn" onClick={() => onSort("assigneeName")}>
-                              {sortLabel("assigneeName", "Assignee")}
-                            </button>
-                          </th>
-                          <th>
-                            <button type="button" className="table-sort-btn" onClick={() => onSort("dueDate")}>
-                              {sortLabel("dueDate", "Due Date")}
-                            </button>
-                          </th>
-                          <th>
-                            <button type="button" className="table-sort-btn" onClick={() => onSort("completedAt")}>
-                              {sortLabel("completedAt", "Completed Date")}
-                            </button>
-                          </th>
-                          <th>
-                            <button type="button" className="table-sort-btn" onClick={() => onSort("coinValue")}>
-                              {sortLabel("coinValue", "Coins")}
-                            </button>
-                          </th>
-                          <th />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {chores.map((chore) => (
-                          <tr key={chore.id}>
-                            <td>
-                              <input
-                                type="checkbox"
-                                aria-label={`Select chore ${chore.title}`}
-                                checked={Boolean(selectedChoreStateById[chore.id])}
-                                disabled={!canManageBulkActionsForChore(chore) || hasBusyAction}
-                                onChange={(event) => onToggleRowSelection(chore, event.target.checked)}
-                              />
-                            </td>
-                            <td>
-                              <span className="table-chore-title-cell">
-                                <span>{chore.title}</span>                              </span>
-                            </td>
-                            <td>
-                              <ChoreCategoriesChip categories={chore.categories ?? []} />
-                            </td>
-                            <td>
-                              <EnumChip
-                                label={getStatusLabel(chore)}
-                                tone={statusTone(chore.status)}
-                              />
-                            </td>
-                            <td>
-                              <span className="table-assignee-cell">
-                                <Avatar
-                                  className="table-assignee-avatar"
-                                  size={28}
-                                  borderWidth={1}
-                                  name={chore.assigneeName || "Assignee"}
-                                  avatarId={chore.assigneeAvatarId}
-                                  photoUrl={chore.assigneeAvatarPhotoUrl}
-                                  ariaHidden
-                                  referrerPolicy="no-referrer"
-                                />
-                                <span>{chore.assigneeName || "-"}</span>
-                              </span>
-                            </td>
-                            <td>{chore.dueDate || "-"}</td>
-                            <td>{formatCompletedDate(chore.completedAt)}</td>
-                            <td>
-                              <span
-                                className="inline-flex items-center gap-1 text-sm font-semibold text-amber-600"
-                                title={getCoinTooltip(chore)}>
-                                <CoinIcon size={16} />
-                                <span>{getDisplayedCoinValue(chore)}</span>
-                              </span>
-                            </td>
-                            <td>
-                              <ChoreActionsMenu
-                                chore={chore}
-                                canManageActions={viewerRole === "admin"}
-                                busyAction={
-                                  rowActionState?.choreId === chore.id ? rowActionState.action : ""
-                                }
-                                disabled={hasBusyAction}
-                                onEdit={(selectedChore) => setEditingChore(selectedChore)}
-                                onDeleteRequested={(selectedChore) => setPendingDeleteChore(selectedChore)}
-                                onUndoCompletion={onUndoCompletion}
-                                onApprove={onApproveChore}
-                                onRejectRequested={(selectedChore) => {
-                                  setRejectFeedback("");
-                                  setPendingRejectChore(selectedChore);
-                                }}
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                          }
+                        />
+                      ))}
+                    </div>
+                  </section>
                   {canCreateChores ? (
                     <div className="chores-empty-cta chores-add-more-cta">
                       <AddEditChoresDialog

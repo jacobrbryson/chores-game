@@ -7,6 +7,7 @@ import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { MenuActionButton } from "@/components/menu-action-button";
+import { MenuActionLink } from "@/components/menu-action-link";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import {
@@ -26,7 +27,7 @@ import Link from "next/link";
 import { TodayChoreCard } from "@/components/today-chore-card";
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { Line } from "react-chartjs-2";
-import { getDashboardChorePage } from "@packages/core/src/chore-dashboard";
+import { getDashboardChorePage } from "@/lib/ui/chore-dashboard";
 import type { FamilySnapshotChore, FamilySnapshotMember } from "@/lib/family/types";
 import {
   parseCompletionWindow,
@@ -77,6 +78,7 @@ type QuickSortState = {
 };
 
 type ChoreScopeSelection = "family" | `member:${string}`;
+type ToolbarMenuView = "root" | "sort";
 
 type CompletionStatsResponse = {
   window: CompletionWindow;
@@ -171,7 +173,7 @@ const QUICK_SORT_DEFAULT_DIRECTION: Record<QuickSortKey, QuickSortDirection> = {
 };
 const QUICK_SORT_KEYS: QuickSortKey[] = ["coin_value", "frequency", "alphabetical"];
 const QUICK_SORT_DIRECTIONS: QuickSortDirection[] = ["asc", "desc"];
-const CHORE_PAGE_SIZE = 10;
+const CHORE_PAGE_SIZE = 5;
 
 
 ChartJS.register(
@@ -214,6 +216,57 @@ function readCompletionWindow(): CompletionWindow {
     // Ignore storage errors.
   }
   return "today";
+}
+
+function ToolbarOptionsIcon() {
+  return (
+    <span className="today-chores-toolbar-icon" aria-hidden="true">
+      <span className="today-chores-toolbar-icon-bar today-chores-toolbar-icon-bar-a" />
+      <span className="today-chores-toolbar-icon-bar today-chores-toolbar-icon-bar-b" />
+      <span className="today-chores-toolbar-icon-bar today-chores-toolbar-icon-bar-c" />
+    </span>
+  );
+}
+
+function SortMenuIcon() {
+  return (
+    <span className="today-chores-sort-icon" aria-hidden="true">
+      <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-a" />
+      <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-b" />
+      <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-c" />
+    </span>
+  );
+}
+
+function ViewAllChoresIcon() {
+  return (
+    <span className="today-chores-table-icon" aria-hidden="true">
+      <span className="today-chores-table-icon-column today-chores-table-icon-column-a" />
+      <span className="today-chores-table-icon-column today-chores-table-icon-column-b" />
+      <span className="today-chores-table-icon-column today-chores-table-icon-column-c" />
+      <span className="today-chores-table-icon-row today-chores-table-icon-row-a" />
+      <span className="today-chores-table-icon-row today-chores-table-icon-row-b" />
+    </span>
+  );
+}
+
+function BackMenuIcon() {
+  return (
+    <span className="today-chores-back-icon" aria-hidden="true">
+      <span className="today-chores-back-icon-shaft" />
+      <span className="today-chores-back-icon-wing today-chores-back-icon-wing-top" />
+      <span className="today-chores-back-icon-wing today-chores-back-icon-wing-bottom" />
+    </span>
+  );
+}
+
+function AddMenuIcon() {
+  return (
+    <span className="today-chores-add-icon" aria-hidden="true">
+      <span className="today-chores-add-icon-stroke today-chores-add-icon-stroke-h" />
+      <span className="today-chores-add-icon-stroke today-chores-add-icon-stroke-v" />
+    </span>
+  );
 }
 
 function writeCompletionWindow(next: CompletionWindow) {
@@ -350,11 +403,10 @@ export function TodayChoresPanel({
   const canCreateChores = viewerRole === "admin" || viewerRole === "player";
   const playerSeeAndDoMode = viewerRole === "player";
   const [choreScopeMenuOpen, setChoreScopeMenuOpen] = useState(false);
-  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
-  const [desktopQuickSortMenuOpen, setDesktopQuickSortMenuOpen] = useState(false);
-  const [mobileQuickSortMenuOpen, setMobileQuickSortMenuOpen] = useState(false);
+  const [toolbarOptionsMenuOpen, setToolbarOptionsMenuOpen] = useState(false);
+  const [toolbarMenuView, setToolbarMenuView] = useState<ToolbarMenuView>("root");
   const [quickSortState, setQuickSortState] = useState<QuickSortState | null>(readQuickSortState);
-  const [mobileAddDialogOpen, setMobileAddDialogOpen] = useState(false);
+  const [toolbarAddDialogOpen, setToolbarAddDialogOpen] = useState(false);
   const [busyActionsById, setBusyActionsById] = useState<Record<string, "delete" | "complete">>({});
   const [exitingChoreIds, setExitingChoreIds] = useState<Record<string, true>>({});
   const [optimisticallyCompletedIds, setOptimisticallyCompletedIds] = useState<Record<string, true>>({});
@@ -385,7 +437,6 @@ export function TodayChoresPanel({
   const [hoveredCompletionChartMemberId, setHoveredCompletionChartMemberId] = useState<string | null>(null);
   const [completionStatsRefreshTick, setCompletionStatsRefreshTick] = useState(0);
   const [visibleChoreCount, setVisibleChoreCount] = useState(CHORE_PAGE_SIZE);
-  const mobileActionsRef = useRef<HTMLDivElement | null>(null);
   const completionHideTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
 
@@ -520,28 +571,6 @@ export function TodayChoresPanel({
   useEffect(() => {
     setLocalOpenOrderIds(null);
   }, [chores]);
-
-  useEffect(() => {
-    if (!mobileActionsOpen) {
-      return;
-    }
-    function onPointerDown(event: MouseEvent | TouchEvent) {
-      const target = event.target as Node | null;
-      if (!target) {
-        return;
-      }
-      if (mobileActionsRef.current?.contains(target)) {
-        return;
-      }
-      setMobileActionsOpen(false);
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("touchstart", onPointerDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("touchstart", onPointerDown);
-    };
-  }, [mobileActionsOpen]);
 
   useEffect(() => {
     return () => {
@@ -710,6 +739,10 @@ export function TodayChoresPanel({
   const visibleChorePage = useMemo(
     () => getDashboardChorePage(visibleChores, visibleChoreCount),
     [visibleChoreCount, visibleChores],
+  );
+  const visibleChoreIndexById = useMemo(
+    () => new Map(visibleChores.map((chore, index) => [chore.id, index] as const)),
+    [visibleChores],
   );
   useEffect(() => {
     setVisibleChoreCount(CHORE_PAGE_SIZE);
@@ -915,23 +948,20 @@ export function TodayChoresPanel({
       writeQuickSortState(next);
       return next;
     });
-    setDesktopQuickSortMenuOpen(false);
-    setMobileQuickSortMenuOpen(false);
+    setToolbarOptionsMenuOpen(false);
+    setToolbarMenuView("root");
   }
 
-  function onDesktopQuickSortMenuOpenChange(next: boolean) {
-    setDesktopQuickSortMenuOpen(next);
-    if (next) {
-      setMobileQuickSortMenuOpen(false);
+  function onToolbarOptionsMenuOpenChange(next: boolean) {
+    setToolbarOptionsMenuOpen(next);
+    if (!next) {
+      setToolbarMenuView("root");
     }
   }
 
-  function onMobileQuickSortMenuOpenChange(next: boolean) {
-    setMobileQuickSortMenuOpen(next);
-    if (next) {
-      setDesktopQuickSortMenuOpen(false);
-      setMobileActionsOpen(false);
-    }
+  function openToolbarSortMenu() {
+    setToolbarMenuView("sort");
+    setToolbarOptionsMenuOpen(true);
   }
 
   function quickSortDirectionLabel(key: QuickSortKey, direction: QuickSortDirection) {
@@ -1215,6 +1245,47 @@ export function TodayChoresPanel({
     }
   }
 
+  async function onStepReorder(choreId: string, direction: -1 | 1) {
+    if (!canReorderChores || reorderBusy) {
+      return;
+    }
+    const currentIds = visibleChores.map((chore) => chore.id);
+    const currentIndex = currentIds.indexOf(choreId);
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= currentIds.length) {
+      return;
+    }
+    const nextIds = [...currentIds];
+    nextIds.splice(currentIndex, 1);
+    nextIds.splice(nextIndex, 0, choreId);
+    if (nextIds.join("|") === currentIds.join("|")) {
+      return;
+    }
+    setLocalOpenOrderIds(nextIds);
+    setReorderBusy(true);
+    setChoreActionError("");
+    try {
+      const response = await fetch("/api/chores", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reorder",
+          orderedChoreIds: nextIds,
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `REORDER_CHORES_HTTP_${response.status}`);
+      }
+      await onReload();
+    } catch (reorderError) {
+      setLocalOpenOrderIds(currentIds);
+      setChoreActionError(normalizeError(reorderError, "reorder_chores_failed"));
+    } finally {
+      setReorderBusy(false);
+    }
+  }
+
   const completionRowBaseParams = useMemo(() => {
     const params = new URLSearchParams();
     params.set("status", "completed");
@@ -1228,28 +1299,70 @@ export function TodayChoresPanel({
       <div className="today-chores-layout">
         <div className="family-panel today-chores-main">
           <div className="today-chores-toolbar">
-            <AppMenu
-              open={choreScopeMenuOpen}
-              onOpenChange={setChoreScopeMenuOpen}
-              wrapperClassName="today-chores-scope-wrap"
-              triggerClassName="theme-select-trigger today-chores-scope-trigger"
-              triggerTitle="Choose chore view"
-              triggerAriaLabel="Choose chore view"
-              panelClassName="app-menu-panel profile-dropdown today-chores-scope-menu"
-              trigger={
-                <>
-                  {selectedChoreMember ? (
-                    <FamilyMemberAvatar
-                      className="completion-chart-avatar today-chores-scope-avatar"
-                      name={selectedChoreMember.name}
-                      avatarId={selectedChoreMember.avatarId}
-                      avatarPhotoUrl={selectedChoreMember.avatarPhotoUrl}
-                      primaryColor={getSafeHexColor(selectedChoreMember.dashboardPrimaryColor) || undefined}
-                      size={28}
-                      borderWidth={2}
-                      ariaHidden
-                    />
-                  ) : (
+            <div className="today-chores-controls-group">
+              <AppMenu
+                open={choreScopeMenuOpen}
+                onOpenChange={setChoreScopeMenuOpen}
+                wrapperClassName="today-chores-scope-wrap"
+                triggerClassName="btn btn-secondary today-chores-scope-trigger"
+                triggerTitle="Choose chore view"
+                triggerAriaLabel="Choose chore view"
+                panelClassName="app-menu-panel profile-dropdown today-chores-scope-menu"
+                trigger={
+                  <>
+                    {selectedChoreMember ? (
+                      <FamilyMemberAvatar
+                        className="completion-chart-avatar today-chores-scope-avatar"
+                        name={selectedChoreMember.name}
+                        avatarId={selectedChoreMember.avatarId}
+                        avatarPhotoUrl={selectedChoreMember.avatarPhotoUrl}
+                        primaryColor={getSafeHexColor(selectedChoreMember.dashboardPrimaryColor) || undefined}
+                        size={28}
+                        borderWidth={2}
+                        ariaHidden
+                      />
+                    ) : (
+                      <span className="today-chores-family-avatar" aria-hidden="true">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
+                          <circle cx="7" cy="7" r="2" />
+                          <circle cx="13.25" cy="8" r="1.75" />
+                          <path d="M3.75 15a3.5 3.5 0 0 1 6.5 0" />
+                          <path d="M11 14.75a3 3 0 0 1 5-.75" />
+                        </svg>
+                      </span>
+                    )}
+                    <span className="today-chores-scope-trigger-text">
+                      {selectedChoreMember?.name || "Family"}
+                    </span>
+                    {selectedChoreMember ? (
+                      <span className="today-chores-scope-coins" aria-label={`${selectedChoreMember.stats.currentCoins} coins`}>
+                        <CoinIcon size={12} />
+                        <span>{formatCompactBalance(selectedChoreMember.stats.currentCoins)}</span>
+                      </span>
+                    ) : null}
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 20 20"
+                      className={`today-chores-scope-caret${choreScopeMenuOpen ? " is-open" : ""}`}>
+                      <path
+                        d="M5 7.5L10 12.5L15 7.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </>
+                }>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`theme-select-option today-chores-scope-option${
+                    selectedChoreScope === FAMILY_CHORE_SCOPE_SELECTION ? " theme-select-option-selected" : ""
+                  }`}
+                  onClick={() => updateChoreScopeSelection(FAMILY_CHORE_SCOPE_SELECTION)}>
+                  <span className="today-chores-scope-option-main">
                     <span className="today-chores-family-avatar" aria-hidden="true">
                       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
                         <circle cx="7" cy="7" r="2" />
@@ -1258,268 +1371,149 @@ export function TodayChoresPanel({
                         <path d="M11 14.75a3 3 0 0 1 5-.75" />
                       </svg>
                     </span>
-                  )}
-                  <span className="today-chores-scope-trigger-text">
-                    {selectedChoreMember?.name || "Family"}
-                  </span>
-                  {selectedChoreMember ? (
-                    <span className="today-chores-scope-coins" aria-label={`${selectedChoreMember.stats.currentCoins} coins`}>
-                      <CoinIcon size={12} />
-                      <span>{formatCompactBalance(selectedChoreMember.stats.currentCoins)}</span>
+                    <span className="today-chores-scope-option-copy">
+                      <span>All Family</span>
+                      <span>All open chores</span>
                     </span>
-                  ) : null}
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 20 20"
-                    className={`today-chores-scope-caret${choreScopeMenuOpen ? " is-open" : ""}`}>
-                    <path
-                      d="M5 7.5L10 12.5L15 7.5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </>
-              }>
-              <button
-                type="button"
-                role="menuitem"
-                className={`theme-select-option today-chores-scope-option${
-                  selectedChoreScope === FAMILY_CHORE_SCOPE_SELECTION ? " theme-select-option-selected" : ""
-                }`}
-                onClick={() => updateChoreScopeSelection(FAMILY_CHORE_SCOPE_SELECTION)}>
-                <span className="today-chores-scope-option-main">
-                  <span className="today-chores-family-avatar" aria-hidden="true">
-                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
-                      <circle cx="7" cy="7" r="2" />
-                      <circle cx="13.25" cy="8" r="1.75" />
-                      <path d="M3.75 15a3.5 3.5 0 0 1 6.5 0" />
-                      <path d="M11 14.75a3 3 0 0 1 5-.75" />
-                    </svg>
                   </span>
-                  <span className="today-chores-scope-option-copy">
-                    <span>All Family</span>
-                    <span>All open chores</span>
+                  <span className="today-chores-scope-option-check" aria-hidden="true">
+                    {selectedChoreScope === FAMILY_CHORE_SCOPE_SELECTION ? "\u2713" : ""}
                   </span>
-                </span>
-                <span className="today-chores-scope-option-check" aria-hidden="true">
-                  {selectedChoreScope === FAMILY_CHORE_SCOPE_SELECTION ? "\u2713" : ""}
-                </span>
-              </button>
-              {activeMembers.map((member) => {
-                const selection: ChoreScopeSelection = `member:${member.id}`;
-                const primaryColor = getSafeHexColor(member.dashboardPrimaryColor) || "#1f69b7";
-                return (
-                  <button
-                    key={member.id}
-                    type="button"
-                    role="menuitem"
-                    className={`theme-select-option today-chores-scope-option${
-                      selectedChoreScope === selection ? " theme-select-option-selected" : ""
-                    }`}
-                    onClick={() => updateChoreScopeSelection(selection)}>
-                    <span className="today-chores-scope-option-main">
-                      <FamilyMemberAvatar
-                        className="completion-chart-avatar today-chores-scope-avatar"
-                        name={member.name}
-                        avatarId={member.avatarId}
-                        avatarPhotoUrl={member.avatarPhotoUrl}
-                        primaryColor={primaryColor}
-                        size={30}
-                        borderWidth={2}
-                        ariaHidden
-                      />
-                      <span className="today-chores-scope-option-copy">
-                        <span>{member.name}</span>
-                        <span>{member.role === "admin" ? "Parent" : "Kid"}</span>
-                      </span>
-                    </span>
-                    <span className="today-chores-scope-option-trailing">
-                      <span className="today-chores-scope-coins" aria-label={`${member.stats.currentCoins} coins`}>
-                        <CoinIcon size={12} />
-                        <span>{formatCompactBalance(member.stats.currentCoins)}</span>
-                      </span>
-                      <span className="today-chores-scope-option-check" aria-hidden="true">
-                        {selectedChoreScope === selection ? "\u2713" : ""}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </AppMenu>
-            <div className="today-chores-actions-shell today-chores-actions-desktop">
-              <AppMenu
-                open={desktopQuickSortMenuOpen}
-                onOpenChange={onDesktopQuickSortMenuOpenChange}
-                wrapperClassName="today-chores-sort-menu-wrap"
-                triggerClassName={`today-chores-action-link today-chores-action-link-divider today-chores-action-sort-trigger${
-                  quickSortState ? " today-chores-action-sort-trigger-active" : ""
-                }`}
-                triggerTitle="Quick Sorting Options"
-                triggerAriaLabel="Quick sorting options"
-                panelClassName="app-menu-panel profile-dropdown today-chores-sort-menu"
-                trigger={
-                  <span className="today-chores-sort-icon" aria-hidden="true">
-                    <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-a" />
-                    <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-b" />
-                    <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-c" />
-                  </span>
-                }>
-                <MenuActionButton
-                  fullWidth
-                  onClick={() => onSelectQuickSort("coin_value")}
-                  trailing={
-                    quickSortState?.key === "coin_value"
-                      ? quickSortDirectionLabel("coin_value", quickSortState.direction)
-                      : null
-                  }
-                  trailingClassName="today-chores-sort-menu-direction">
-                  Coin Value
-                </MenuActionButton>
-                <MenuActionButton
-                  fullWidth
-                  onClick={() => onSelectQuickSort("frequency")}
-                  trailing={
-                    quickSortState?.key === "frequency"
-                      ? quickSortDirectionLabel("frequency", quickSortState.direction)
-                      : null
-                  }
-                  trailingClassName="today-chores-sort-menu-direction">
-                  Frequency
-                </MenuActionButton>
-                <MenuActionButton
-                  fullWidth
-                  onClick={() => onSelectQuickSort("alphabetical")}
-                  trailing={
-                    quickSortState?.key === "alphabetical"
-                      ? quickSortDirectionLabel("alphabetical", quickSortState.direction)
-                      : null
-                  }
-                  trailingClassName="today-chores-sort-menu-direction">
-                  Alphabetical
-                </MenuActionButton>
-              </AppMenu>
-              <Link
-                href="/chores"
-                className={`today-chores-action-link ${
-                  canCreateChores ? "today-chores-action-link-divider" : ""
-                }`}>
-                View all chores
-              </Link>
-              {canCreateChores ? (
-                <AddEditChoresDialog
-                  createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
-                  renderTrigger={(openDialog) => (
-                    <Button
+                </button>
+                {activeMembers.map((member) => {
+                  const selection: ChoreScopeSelection = `member:${member.id}`;
+                  const primaryColor = getSafeHexColor(member.dashboardPrimaryColor) || "#1f69b7";
+                  return (
+                    <button
+                      key={member.id}
                       type="button"
-                      title="Add more chores"
-                      aria-label="Add more chores"
-                      className="today-chores-action-add"
-                      onClick={openDialog}>
-                      +
-                    </Button>
-                  )}
-                  onSaved={onChoreSaved}
-                />
-              ) : null}
-            </div>
-            <div className="today-chores-actions-mobile" ref={mobileActionsRef}>
-              <AppMenu
-                open={mobileQuickSortMenuOpen}
-                onOpenChange={onMobileQuickSortMenuOpenChange}
-                wrapperClassName="today-chores-sort-menu-wrap"
-                triggerClassName={`today-chores-actions-mobile-trigger today-chores-actions-mobile-sort-trigger${
-                  quickSortState ? " today-chores-action-sort-trigger-active" : ""
-                }`}
-                triggerTitle="Quick Sorting Options"
-                triggerAriaLabel="Quick sorting options"
-                panelClassName="app-menu-panel profile-dropdown today-chores-sort-menu"
-                trigger={
-                  <span className="today-chores-sort-icon" aria-hidden="true">
-                    <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-a" />
-                    <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-b" />
-                    <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-c" />
-                  </span>
-                }>
-                <MenuActionButton
-                  fullWidth
-                  onClick={() => onSelectQuickSort("coin_value")}
-                  trailing={
-                    quickSortState?.key === "coin_value"
-                      ? quickSortDirectionLabel("coin_value", quickSortState.direction)
-                      : null
-                  }
-                  trailingClassName="today-chores-sort-menu-direction">
-                  Coin Value
-                </MenuActionButton>
-                <MenuActionButton
-                  fullWidth
-                  onClick={() => onSelectQuickSort("frequency")}
-                  trailing={
-                    quickSortState?.key === "frequency"
-                      ? quickSortDirectionLabel("frequency", quickSortState.direction)
-                      : null
-                  }
-                  trailingClassName="today-chores-sort-menu-direction">
-                  Frequency
-                </MenuActionButton>
-                <MenuActionButton
-                  fullWidth
-                  onClick={() => onSelectQuickSort("alphabetical")}
-                  trailing={
-                    quickSortState?.key === "alphabetical"
-                      ? quickSortDirectionLabel("alphabetical", quickSortState.direction)
-                      : null
-                  }
-                  trailingClassName="today-chores-sort-menu-direction">
-                  Alphabetical
-                </MenuActionButton>
+                      role="menuitem"
+                      className={`theme-select-option today-chores-scope-option${
+                        selectedChoreScope === selection ? " theme-select-option-selected" : ""
+                      }`}
+                      onClick={() => updateChoreScopeSelection(selection)}>
+                      <span className="today-chores-scope-option-main">
+                        <FamilyMemberAvatar
+                          className="completion-chart-avatar today-chores-scope-avatar"
+                          name={member.name}
+                          avatarId={member.avatarId}
+                          avatarPhotoUrl={member.avatarPhotoUrl}
+                          primaryColor={primaryColor}
+                          size={30}
+                          borderWidth={2}
+                          ariaHidden
+                        />
+                        <span className="today-chores-scope-option-copy">
+                          <span>{member.name}</span>
+                          <span>{member.role === "admin" ? "Parent" : "Kid"}</span>
+                        </span>
+                      </span>
+                      <span className="today-chores-scope-option-trailing">
+                        <span className="today-chores-scope-coins" aria-label={`${member.stats.currentCoins} coins`}>
+                          <CoinIcon size={12} />
+                          <span>{formatCompactBalance(member.stats.currentCoins)}</span>
+                        </span>
+                        <span className="today-chores-scope-option-check" aria-hidden="true">
+                          {selectedChoreScope === selection ? "\u2713" : ""}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
               </AppMenu>
-              <Button
-                type="button"
-                aria-label="Chores actions"
-                aria-expanded={mobileActionsOpen}
-                className="today-chores-actions-mobile-trigger"
-                onClick={() => setMobileActionsOpen((current) => !current)}>
-                <span className="today-chores-kebab" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </span>
-              </Button>
-              {mobileActionsOpen ? (
-                <div className="today-chores-actions-mobile-menu">
-                  {canCreateChores ? (
-                    <Button
-                      type="button"
-                      className="today-chores-mobile-menu-item"
-                      onClick={() => {
-                        setMobileActionsOpen(false);
-                        setMobileAddDialogOpen(true);
-                      }}>
-                      {playerSeeAndDoMode ? "Add See and Do Chore" : "Add Chore"}
-                    </Button>
-                  ) : null}
-                  <Link
-                    href="/chores"
-                    className="today-chores-mobile-menu-item"
-                    onClick={() => setMobileActionsOpen(false)}>
-                    View All Chores
-                  </Link>
-                </div>
-              ) : null}
-              {canCreateChores ? (
-                <AddEditChoresDialog
-                  createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
-                  hideTrigger
-                  open={mobileAddDialogOpen}
-                  onOpenChange={setMobileAddDialogOpen}
-                  onSaved={onChoreSaved}
-                />
-              ) : null}
+              <AppMenu
+                open={toolbarOptionsMenuOpen}
+                onOpenChange={onToolbarOptionsMenuOpenChange}
+                wrapperClassName="today-chores-options-wrap"
+                triggerClassName={`btn btn-secondary today-chores-options-trigger${
+                  toolbarMenuView === "sort" || quickSortState ? " today-chores-action-sort-trigger-active" : ""
+                }`}
+                triggerTitle="Chore dashboard options"
+                triggerAriaLabel="Chore dashboard options"
+                panelClassName="app-menu-panel family-action-dropdown today-chores-toolbar-menu"
+                trigger={<ToolbarOptionsIcon />}>
+                {toolbarMenuView === "root" ? (
+                  <>
+                    <MenuActionButton fullWidth onClick={openToolbarSortMenu} leading={<SortMenuIcon />}>
+                      Sort
+                    </MenuActionButton>
+                    <MenuActionLink
+                      href="/chores"
+                      fullWidth
+                      leading={<ViewAllChoresIcon />}
+                      onClick={() => setToolbarOptionsMenuOpen(false)}>
+                      View All Chores
+                    </MenuActionLink>
+                  </>
+                ) : (
+                  <>
+                    <MenuActionButton fullWidth onClick={() => setToolbarMenuView("root")} leading={<BackMenuIcon />}>
+                      Back
+                    </MenuActionButton>
+                    <MenuActionButton
+                      fullWidth
+                      onClick={() => onSelectQuickSort("coin_value")}
+                      leading={<SortMenuIcon />}
+                      trailing={
+                        quickSortState?.key === "coin_value"
+                          ? quickSortDirectionLabel("coin_value", quickSortState.direction)
+                          : null
+                      }
+                      trailingClassName="today-chores-sort-menu-direction">
+                      Coin Value
+                    </MenuActionButton>
+                    <MenuActionButton
+                      fullWidth
+                      onClick={() => onSelectQuickSort("frequency")}
+                      leading={<SortMenuIcon />}
+                      trailing={
+                        quickSortState?.key === "frequency"
+                          ? quickSortDirectionLabel("frequency", quickSortState.direction)
+                          : null
+                      }
+                      trailingClassName="today-chores-sort-menu-direction">
+                      Frequency
+                    </MenuActionButton>
+                    <MenuActionButton
+                      fullWidth
+                      onClick={() => onSelectQuickSort("alphabetical")}
+                      leading={<SortMenuIcon />}
+                      trailing={
+                        quickSortState?.key === "alphabetical"
+                          ? quickSortDirectionLabel("alphabetical", quickSortState.direction)
+                          : null
+                      }
+                      trailingClassName="today-chores-sort-menu-direction">
+                      Alphabetical
+                    </MenuActionButton>
+                  </>
+                )}
+              </AppMenu>
             </div>
+            {canCreateChores ? (
+              <div className="today-chores-actions-desktop">
+                <Button
+                  type="button"
+                  title="Add more chores"
+                  aria-label="Add more chores"
+                  className="btn today-chores-action-add"
+                  onClick={() => setToolbarAddDialogOpen(true)}>
+                  <span className="today-chores-add-btn-content">
+                    <AddMenuIcon />
+                    <span>{playerSeeAndDoMode ? "Add See and Do Chore" : "Add Chore"}</span>
+                  </span>
+                </Button>
+              </div>
+            ) : null}
+            {canCreateChores ? (
+              <AddEditChoresDialog
+                createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
+                hideTrigger
+                open={toolbarAddDialogOpen}
+                onOpenChange={setToolbarAddDialogOpen}
+                onSaved={onChoreSaved}
+              />
+            ) : null}
           </div>
           {choreActionError ? <Alert className="mb-3">Chore update failed: {choreActionError}</Alert> : null}
           {visibleChores.length === 0 ? (
@@ -1559,6 +1553,13 @@ export function TodayChoresPanel({
                         Boolean(chore.assigneeId && viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId))))
                     }
                     canReorder={canReorderChores && !reorderBusy}
+                    canMoveUp={(visibleChoreIndexById.get(chore.id) ?? -1) > 0}
+                    canMoveDown={
+                      (() => {
+                        const index = visibleChoreIndexById.get(chore.id) ?? -1;
+                        return index >= 0 && index < visibleChores.length - 1;
+                      })()
+                    }
                     isDragging={draggingChoreId === chore.id}
                     isDragOver={dragOverChoreId === chore.id}
                     dropIndicatorPosition={
@@ -1577,6 +1578,8 @@ export function TodayChoresPanel({
                     isDeletePending={Boolean(pendingDeleteChoreIds[chore.id])}
                     onDelete={onDeleteChore}
                     onComplete={onCompleteChore}
+                    onMoveUp={(choreId) => onStepReorder(choreId, -1)}
+                    onMoveDown={(choreId) => onStepReorder(choreId, 1)}
                     onDragStart={(choreId) => {
                       if (!canReorderChores || reorderBusy) {
                         return;

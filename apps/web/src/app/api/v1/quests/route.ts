@@ -6,5 +6,10 @@ export async function GET(request: NextRequest) {
   if (upstream.status >= 400) {
     return fail(String(upstream.json?.error ?? "upstream_error"), "Failed to list quests", upstream.status, upstream.json);
   }
-  return ok({ items: upstream.json.quests ?? [], pagination: { page: 1, pageSize: (upstream.json.quests ?? []).length, total: (upstream.json.quests ?? []).length, totalPages: 1 } });
+  const items = upstream.json.quests ?? [];
+  return ok({
+    items,
+    meta: upstream.json.meta ?? {},
+    pagination: { page: 1, pageSize: items.length, total: items.length, totalPages: 1 },
+  });
 }

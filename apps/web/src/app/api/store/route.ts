@@ -269,7 +269,7 @@ async function getViewerRoleForFamily(familyId: string, uid: string, idToken: st
   return readString(memberByUid.fields, "role") === "admin" ? ("admin" as const) : ("player" as const);
 }
 
-async function getStoreSummary(uid: string, idToken: string) {
+async function getStoreSummary(uid: string, memberId: string, idToken: string) {
   const userDoc = await getDocument(`users/${uid}`, idToken);
   const fallbackFamilyId = await getPrimaryFamilyIdWithFallback(uid, idToken);
   const familyId = readStringArray(userDoc.fields, "familyIds")[0] ?? fallbackFamilyId;
@@ -290,16 +290,19 @@ async function getStoreSummary(uid: string, idToken: string) {
 
   if (familyId) {
     viewerRole = await getViewerRoleForFamily(familyId, uid, idToken);
-    try {
-      const memberDoc = await getDocument(`families/${familyId}/members/${uid}`, idToken);
-      dashboardPrimaryColor = normalizeColor(readString(memberDoc.fields, "dashboardPrimaryColor"));
-      avatarId = readString(memberDoc.fields, "avatarId");
-      avatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
-      memberSelectedConfettiOptionId = readString(memberDoc.fields, "selectedConfettiOptionId").trim();
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "";
-      if (!reason.includes("FIRESTORE_HTTP_404")) {
-        throw error;
+    for (const candidateMemberId of [memberId, uid].filter(Boolean)) {
+      try {
+        const memberDoc = await getDocument(`families/${familyId}/members/${candidateMemberId}`, idToken);
+        dashboardPrimaryColor = normalizeColor(readString(memberDoc.fields, "dashboardPrimaryColor"));
+        avatarId = readString(memberDoc.fields, "avatarId");
+        avatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
+        memberSelectedConfettiOptionId = readString(memberDoc.fields, "selectedConfettiOptionId").trim();
+        break;
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "";
+        if (!reason.includes("FIRESTORE_HTTP_404")) {
+          throw error;
+        }
       }
     }
   }
@@ -442,7 +445,7 @@ export async function GET(request: NextRequest) {
     const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
-        const summary = await getStoreSummary(uid, idToken);
+        const summary = await getStoreSummary(uid, session.memberId || uid, idToken);
         if (brief) {
           return {
             balance: summary.balance,
@@ -497,6 +500,7 @@ export async function POST(request: NextRequest) {
     return jsonReauthRequired();
   }
   const uid = session.uid;
+  const currentMemberId = session.memberId || uid;
 
   let body: StoreActionBody;
   try {
@@ -603,8 +607,9 @@ export async function POST(request: NextRequest) {
             return { kind: "family_not_found" as const };
           }
           const now = new Date().toISOString();
+          const memberDocId = currentMemberId;
           await patchDocument(
-            `families/${familyId}/members/${uid}`,
+            `families/${familyId}/members/${memberDocId}`,
             {
               avatarId: stringField(avatarId),
               avatarPhotoUrl: stringField(""),
@@ -653,8 +658,9 @@ export async function POST(request: NextRequest) {
             return { kind: "family_not_found" as const };
           }
           const now = new Date().toISOString();
+          const memberDocId = currentMemberId;
           await patchDocument(
-            `families/${familyId}/members/${uid}`,
+            `families/${familyId}/members/${memberDocId}`,
             {
               avatarId: stringField(""),
               avatarPhotoUrl: stringField(normalizedUrl),

@@ -10,9 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@react-native-google-signin/google-signin": "^16.1.2",
     "@packages/api-client": "file:../../packages/api-client",
     "@packages/core": "file:../../packages/core",
+    "@react-native-async-storage/async-storage": "^3.1.0",
+    "@react-native-google-signin/google-signin": "^16.1.2",
     "expo": "^54.0.0",
     "expo-application": "~7.0.8",
     "expo-auth-session": "~7.0.11",

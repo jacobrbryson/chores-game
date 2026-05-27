@@ -26,6 +26,7 @@ import { parseCompletionWindow, type CompletionWindow } from "@/lib/preferences/
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
 import { GOOGLE_TASKS_CHORE_SOURCE, syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
+import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
 import {
   type ChoreRecurrenceType,
   type ChoreRecurrenceUnit,
@@ -82,6 +83,7 @@ type ChoreRow = {
   assigneeName: string;
   assigneeAvatarId?: string;
   assigneeAvatarPhotoUrl?: string;
+  assigneePrimaryColor?: string;
   details?: string;
   dueDate: string;
   categoryIds: string[];
@@ -900,6 +902,7 @@ export async function GET(request: NextRequest) {
           : "";
         const assigneeAvatarByAlias = new Map<string, string>();
         const assigneeAvatarPhotoByAlias = new Map<string, string>();
+        const assigneePrimaryColorByAlias = new Map<string, string>();
         const assigneeDirectoryByAlias = new Map<string, AssigneeDirectoryEntry>();
         for (const memberDoc of memberDocs) {
           if (readBoolean(memberDoc.fields, "deleted")) {
@@ -909,6 +912,9 @@ export async function GET(request: NextRequest) {
           const memberName = readString(memberDoc.fields, "name") || "Family member";
           const avatarId = readString(memberDoc.fields, "avatarId");
           const avatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
+          const primaryColor = resolveMemberPrimaryColor(
+            readString(memberDoc.fields, "dashboardPrimaryColor") || undefined,
+          );
           const directoryEntry: AssigneeDirectoryEntry = {
             id: memberId,
             name: memberName,
@@ -922,6 +928,7 @@ export async function GET(request: NextRequest) {
           if (avatarPhotoUrl) {
             assigneeAvatarPhotoByAlias.set(memberId, avatarPhotoUrl);
           }
+          assigneePrimaryColorByAlias.set(memberId, primaryColor);
           const memberUid = readString(memberDoc.fields, "uid");
           if (memberUid) {
             assigneeDirectoryByAlias.set(memberUid, directoryEntry);
@@ -931,6 +938,7 @@ export async function GET(request: NextRequest) {
             if (avatarPhotoUrl) {
               assigneeAvatarPhotoByAlias.set(memberUid, avatarPhotoUrl);
             }
+            assigneePrimaryColorByAlias.set(memberUid, primaryColor);
           }
           const normalizedEmail = normalizeEmail(readString(memberDoc.fields, "email"));
           if (normalizedEmail) {
@@ -941,6 +949,7 @@ export async function GET(request: NextRequest) {
             if (avatarPhotoUrl) {
               assigneeAvatarPhotoByAlias.set(normalizedEmail, avatarPhotoUrl);
             }
+            assigneePrimaryColorByAlias.set(normalizedEmail, primaryColor);
           }
         }
         const filteredChores = docs
@@ -1018,6 +1027,10 @@ export async function GET(request: NextRequest) {
             assigneeAvatarPhotoUrl: doc.assigneeId
               ? assigneeAvatarPhotoByAlias.get(doc.assigneeId) ??
                 assigneeAvatarPhotoByAlias.get(normalizeEmail(doc.assigneeId))
+              : undefined,
+            assigneePrimaryColor: doc.assigneeId
+              ? assigneePrimaryColorByAlias.get(doc.assigneeId) ??
+                assigneePrimaryColorByAlias.get(normalizeEmail(doc.assigneeId))
               : undefined,
             details: doc.details,
             categoryIds: doc.categoryIds,

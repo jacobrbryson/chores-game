@@ -1,9 +1,9 @@
 import { CoinIcon } from "@/components/coin-icon";
-import type { MainNavigationIcon } from "@packages/core/src/main-navigation";
+import type { MainNavigationIcon } from "@/lib/ui/main-navigation";
 
 export function MainNavIcon({ icon }: { icon: MainNavigationIcon }) {
   if (icon === "coin") {
-    return <CoinIcon size={22} className="main-nav-coin" />;
+    return <CoinIcon size={24} className="main-nav-coin" />;
   }
 
   if (icon === "trophy") {
@@ -56,20 +56,20 @@ export function MainNavIcon({ icon }: { icon: MainNavigationIcon }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path
-        d="M5 7h14M5 12h14M5 17h14"
+        d="M10.75 7h8.25M10.75 12h8.25M10.75 17h8.25"
         fill="none"
         stroke="#1d4ed8"
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth="1.9"
+        strokeWidth="1.85"
       />
       <path
-        d="m6.5 7 1 1 1.8-2M6.5 12l1 1 1.8-2M6.5 17l1 1 1.8-2"
+        d="m5.5 7 1.15 1.2 2.15-2.5M5.5 12l1.15 1.2 2.15-2.5M5.5 17l1.15 1.2 2.15-2.5"
         fill="none"
         stroke="#16a34a"
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth="1.7"
+        strokeWidth="1.75"
       />
     </svg>
   );

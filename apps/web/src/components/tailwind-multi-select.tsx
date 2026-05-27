@@ -235,7 +235,7 @@ export function TailwindMultiSelect<T extends string = string>({
           maxHeight: menuPosition.maxHeight,
         }}
         className={joinClasses(
-          "theme-select-menu z-[70] overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg",
+          "theme-select-menu z-[160] overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg",
           menuClassName,
         )}>
         {options.length === 0 ? (

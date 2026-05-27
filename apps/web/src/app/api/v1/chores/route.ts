@@ -6,7 +6,13 @@ export async function GET(request: NextRequest) {
   if (upstream.status >= 400) {
     return fail(String(upstream.json?.error ?? "upstream_error"), "Failed to list chores", upstream.status, upstream.json);
   }
-  return ok({ items: upstream.json.chores ?? [], pagination: upstream.json.pagination ?? { page: 1, pageSize: 50, total: 0, totalPages: 1 } });
+  return ok({
+    items: upstream.json.chores ?? [],
+    assigneeDirectory: upstream.json.assigneeDirectory ?? [],
+    viewerRole: upstream.json.viewerRole ?? "player",
+    viewerUid: upstream.json.viewerUid ?? "",
+    pagination: upstream.json.pagination ?? { page: 1, pageSize: 50, total: 0, totalPages: 1 },
+  });
 }
 
 export async function POST(request: NextRequest) {

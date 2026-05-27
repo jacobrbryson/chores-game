@@ -33,9 +33,13 @@ async function getMobileMeSummary(request: NextRequest, uid: string, memberId: s
     for (const candidateMemberId of [memberId, uid].filter(Boolean)) {
       try {
         const memberDoc = await getDocument(`families/${familyId}/members/${candidateMemberId}`, idToken);
-        avatarId = readString(memberDoc.fields, "avatarId");
-        avatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
-        break;
+        const candidateAvatarId = readString(memberDoc.fields, "avatarId");
+        const candidateAvatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
+        if (candidateAvatarId || candidateAvatarPhotoUrl) {
+          avatarId = candidateAvatarId;
+          avatarPhotoUrl = candidateAvatarPhotoUrl;
+          break;
+        }
       } catch (error) {
         const reason = error instanceof Error ? error.message : "";
         if (!reason.includes("FIRESTORE_HTTP_404")) {

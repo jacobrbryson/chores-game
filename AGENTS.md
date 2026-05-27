@@ -592,3 +592,23 @@ Build a family chore game where:
   - Web and mobile app surfaces now show a shared breadcrumb treatment between navigation and page content.
   - Breadcrumb root is the branded `Family Chores` item with logo, followed by the current page label.
   - Mobile dashboard removed the old `Dashboard` / `Your family chore board` heading in favor of the breadcrumb strip.
+- Chores page list layout update (2026-05-26):
+  - Web `/chores` now renders a responsive card/list layout instead of a table while preserving search, status filters, sorting, bulk selection, and admin approval/rejection actions.
+  - Mobile Chores now uses the same server-backed search, status filter, sort, and pagination query params as web.
+  - Mobile admins can approve approval-required submitted chores directly from the Chores list.
+- Mobile chores preference persistence update (2026-05-26):
+  - Mobile dashboard chores now persist selected member scope and sorting locally per signed-in viewer so returning to a switched profile restores the prior selection.
+  - Mobile `All Chores` now persists search text, filter state, sorting, and filter-card expansion locally per signed-in viewer.
+  - Mobile dashboard chore completion now refreshes from the backend after success so the list reflects the real saved status instead of relying only on optimistic removal.
+  - Mobile dashboard completion now keeps the row in place while saving and disables parallel completion taps to avoid jumpy multi-complete behavior.
+  - Mobile chore add/edit flows now use a shared richer editor with the same core fields as web: assignee scope, due date, details, categories, coin value, approval, and recurrence.
+- Mobile store parity update (2026-05-26):
+  - Mobile Store now loads the real `/api/store` summary instead of the legacy rewards-only endpoint.
+  - Mobile Store traffic now goes through `/api/v1/store`, which proxies to `/api/store`, so native clients stay on the versioned mobile API surface while reusing the shared store backend.
+  - Mobile Store now shows the same server-driven store categories as web, including Colors, Avatars, Confetti, Family Awards, and Quest items, with the web-backed category and option imagery.
+  - Mobile Store buy/apply flows now call the shared store actions (`purchase_option`, `set_theme`, `set_avatar`, `set_google_avatar`, `set_confetti`) and refresh the signed-in mobile header avatar and coin balance after success.
+  - Google-avatar apply/read paths now honor the active `memberId` doc as well as `uid` so switched or managed-child mobile profiles correctly restore Google avatars instead of showing a blank avatar.
+- Mobile achievements parity update (2026-05-26):
+  - Mobile Achievements now uses the richer web-backed achievements payload through `/api/v1/achievements`, preserving the legacy `items` field while also exposing `viewerRole` and full achievement metadata.
+  - Mobile Achievements now matches web behavior more closely with admin audience tabs, player-only restriction handling, total/completed summary chips, a persisted `Hide Complete` toggle, and richer achievement cards with imagery, progress, and completed-date states.
+  - Mobile achievement cards now request native-safe PNG renders of the web SVG catalog art through `GET /api/achievement-images/[imageName]`, so mobile uses the same achievement artwork as web without relying on native SVG image support.

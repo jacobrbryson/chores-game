@@ -149,6 +149,21 @@ export function getWebBreadcrumbTrail(pathname: string): BreadcrumbItem[] {
   return buildFallbackWebTrail(segments);
 }
 
+export function getWebBreadcrumbSubtitle(pathname: string): string | undefined {
+  const pathOnly = pathname.split("?")[0] ?? pathname;
+  const segments = pathOnly.split("/").filter(Boolean);
+
+  if (segments.length === 0) {
+    return "View, create, and manage active chores";
+  }
+
+  if (segments[0] === "chores") {
+    return "Sort, filter, and approve chores";
+  }
+
+  return undefined;
+}
+
 export function getMobileBreadcrumbTrail(pageLabel: string): BreadcrumbItem[] {
   return createBreadcrumbTrail([{ label: pageLabel }]);
 }

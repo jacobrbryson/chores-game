@@ -4,6 +4,7 @@ export * from "./AppHeader";
 export * from "./Card";
 export * from "./Button";
 export * from "./Badge";
+export * from "./ChipOverflowRow";
 export * from "./CoinPill";
 export * from "./ProgressBar";
 export * from "./EmptyState";
