@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform } from "react-native";
 import {
   GoogleSignin,
   isCancelledResponse,
@@ -7,8 +7,8 @@ import {
   isSuccessResponse,
   statusCodes,
 } from "@react-native-google-signin/google-signin";
-import { colors, typography } from "@/theme";
-import { AppScreen, Button, Card, SectionHeader } from "@/components/ui";
+import { GoogleSignInActionButton } from "@/components/GoogleSignInActionButton";
+import { MobileLoginLayout } from "@/components/MobileLoginLayout";
 import { signInWithGoogleIdToken } from "@/lib/api";
 
 type Props = {
@@ -81,40 +81,24 @@ export function LoginPlaceholderScreen({ onSignedIn }: Props) {
     }
   }
 
+  const configError = !requiredConfigReady
+    ? Platform.OS === "ios"
+      ? "Missing `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` or `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` in mobile env."
+      : "Missing `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in mobile env."
+    : "";
+
   return (
-    <AppScreen title="Login Required" subtitle="Sign in with Google to continue">
-      <Card>
-        <SectionHeader title="Google Sign-In" />
-        <View style={styles.box}>
-          <Text style={styles.text}>
-            You are currently signed out. To continue in the mobile app, sign in with the same Google account you use for Family Chores on web.
-          </Text>
-          <Text style={styles.text}>
-            Native builds now use the Google Sign-In SDK directly. This avoids the Android browser redirect exception and matches Google&apos;s recommended long-term setup better than browser-based OAuth on native.
-          </Text>
-          <Button
-            label={pending ? "Signing in..." : "Sign in with Google"}
-            onPress={() => {
-              void onPress();
-            }}
-            disabled={!requiredConfigReady || pending}
-          />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          {!requiredConfigReady ? (
-            <Text style={styles.error}>
-              {Platform.OS === "ios"
-                ? "Missing `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` or `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` in mobile env."
-                : "Missing `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in mobile env."}
-            </Text>
-          ) : null}
-        </View>
-      </Card>
-    </AppScreen>
+    <MobileLoginLayout
+      googleButton={
+        <GoogleSignInActionButton
+          disabled={!requiredConfigReady || pending}
+          onPress={() => {
+            void onPress();
+          }}
+        />
+      }
+      error={error}
+      configError={configError}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  box: { gap: 12 },
-  text: { color: colors.muted, fontSize: typography.body },
-  error: { color: "#b91c1c", fontSize: typography.small, fontWeight: "700" },
-});

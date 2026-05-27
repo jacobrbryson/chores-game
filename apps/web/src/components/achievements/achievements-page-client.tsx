@@ -119,114 +119,118 @@ export function AchievementsPageClient() {
   }, [adminFilter, items, viewerRole]);
 
   return (
-    <section className="space-y-4">
+    <section className="app-tab-panel">
       {viewerRole === "admin" ? (
-        <AppTabs
-          ariaLabel="Achievement audiences"
-          tabs={ADMIN_TABS}
-          activeTab={adminFilter}
-          onChange={setAdminFilter}
-        />
+        <div className="app-tab-panel-header px-5 pt-4">
+          <AppTabs
+            ariaLabel="Achievement audiences"
+            tabs={ADMIN_TABS}
+            activeTab={adminFilter}
+            onChange={setAdminFilter}
+          />
+        </div>
       ) : null}
-      {isLoading ? (
-        <section aria-label="Loading achievements" aria-hidden="true" className="space-y-3">
-          {viewerRole === "admin" ? (
-            <div className="achievements-toolbar flex flex-wrap gap-2">
-              <div className="family-skeleton family-skeleton-chip" />
-              <div className="family-skeleton family-skeleton-chip" />
-              <div className="family-skeleton family-skeleton-chip" />
+      <div className="app-tab-panel-body p-5">
+        {isLoading ? (
+          <section aria-label="Loading achievements" aria-hidden="true" className="space-y-3">
+            {viewerRole === "admin" ? (
+              <div className="achievements-toolbar flex flex-wrap gap-2">
+                <div className="family-skeleton family-skeleton-chip" />
+                <div className="family-skeleton family-skeleton-chip" />
+                <div className="family-skeleton family-skeleton-chip" />
+              </div>
+            ) : null}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="family-skeleton h-16 w-16 rounded-xl" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="family-skeleton family-skeleton-title" />
+                    <div className="family-skeleton family-skeleton-subtitle" />
+                    <div className="family-skeleton family-skeleton-subtitle" />
+                  </div>
+                </div>
+                <div className="family-skeleton family-skeleton-row mt-3" />
+              </article>
+              <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="family-skeleton h-16 w-16 rounded-xl" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="family-skeleton family-skeleton-title" />
+                    <div className="family-skeleton family-skeleton-subtitle" />
+                    <div className="family-skeleton family-skeleton-subtitle" />
+                  </div>
+                </div>
+                <div className="family-skeleton family-skeleton-row mt-3" />
+              </article>
+              <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="family-skeleton h-16 w-16 rounded-xl" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="family-skeleton family-skeleton-title" />
+                    <div className="family-skeleton family-skeleton-subtitle" />
+                    <div className="family-skeleton family-skeleton-subtitle" />
+                  </div>
+                </div>
+                <div className="family-skeleton family-skeleton-row mt-3" />
+              </article>
+              <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="family-skeleton h-16 w-16 rounded-xl" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="family-skeleton family-skeleton-title" />
+                    <div className="family-skeleton family-skeleton-subtitle" />
+                    <div className="family-skeleton family-skeleton-subtitle" />
+                  </div>
+                </div>
+                <div className="family-skeleton family-skeleton-row mt-3" />
+              </article>
             </div>
-          ) : null}
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className="family-skeleton h-16 w-16 rounded-xl" />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="family-skeleton family-skeleton-title" />
-                  <div className="family-skeleton family-skeleton-subtitle" />
-                  <div className="family-skeleton family-skeleton-subtitle" />
-                </div>
+          </section>
+        ) : null}
+        {!isLoading && error ? <Alert>Could not load achievements: {error}</Alert> : null}
+        {!isLoading && !error ? (
+          <section className="space-y-3" role="tabpanel">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="family-category-chip">Total: {totals.total}</span>
+                <span className="family-category-chip">Completed: {totals.completed}</span>
               </div>
-              <div className="family-skeleton family-skeleton-row mt-3" />
-            </article>
-            <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className="family-skeleton h-16 w-16 rounded-xl" />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="family-skeleton family-skeleton-title" />
-                  <div className="family-skeleton family-skeleton-subtitle" />
-                  <div className="family-skeleton family-skeleton-subtitle" />
-                </div>
-              </div>
-              <div className="family-skeleton family-skeleton-row mt-3" />
-            </article>
-            <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className="family-skeleton h-16 w-16 rounded-xl" />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="family-skeleton family-skeleton-title" />
-                  <div className="family-skeleton family-skeleton-subtitle" />
-                  <div className="family-skeleton family-skeleton-subtitle" />
-                </div>
-              </div>
-              <div className="family-skeleton family-skeleton-row mt-3" />
-            </article>
-            <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className="family-skeleton h-16 w-16 rounded-xl" />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="family-skeleton family-skeleton-title" />
-                  <div className="family-skeleton family-skeleton-subtitle" />
-                  <div className="family-skeleton family-skeleton-subtitle" />
-                </div>
-              </div>
-              <div className="family-skeleton family-skeleton-row mt-3" />
-            </article>
-          </div>
-        </section>
-      ) : null}
-      {!isLoading && error ? <Alert>Could not load achievements: {error}</Alert> : null}
-      {!isLoading && !error ? (
-        <section className="space-y-3" role="tabpanel">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="family-category-chip">Total: {totals.total}</span>
-              <span className="family-category-chip">Completed: {totals.completed}</span>
+              <label className="today-chores-toggle-row">
+                <input
+                  type="checkbox"
+                  className="peer sr-only"
+                  checked={hideComplete}
+                  onChange={(event) => setHideComplete(event.target.checked)}
+                />
+                <span
+                  aria-hidden="true"
+                  className="my-chores-toggle-track"
+                />
+                <span className="small today-chores-toggle-copy">
+                  <span>Hide Complete</span>
+                </span>
+              </label>
             </div>
-            <label className="today-chores-toggle-row">
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                checked={hideComplete}
-                onChange={(event) => setHideComplete(event.target.checked)}
-              />
-              <span
-                aria-hidden="true"
-                className="my-chores-toggle-track"
-              />
-              <span className="small today-chores-toggle-copy">
-                <span>Hide Complete</span>
-              </span>
-            </label>
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {orderedItems.map((achievement) => (
-              <AchievementCard
-                key={achievement.id}
-                achievement={achievement}
-                highlighted={highlightedId === achievement.id}
-                cardRef={(node) => {
-                  if (node) {
-                    cardRefs.current.set(achievement.id, node);
-                  } else {
-                    cardRefs.current.delete(achievement.id);
-                  }
-                }}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {orderedItems.map((achievement) => (
+                <AchievementCard
+                  key={achievement.id}
+                  achievement={achievement}
+                  highlighted={highlightedId === achievement.id}
+                  cardRef={(node) => {
+                    if (node) {
+                      cardRefs.current.set(achievement.id, node);
+                    } else {
+                      cardRefs.current.delete(achievement.id);
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
     </section>
   );
 }

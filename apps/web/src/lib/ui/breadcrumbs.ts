@@ -161,5 +161,9 @@ export function getWebBreadcrumbSubtitle(pathname: string): string | undefined {
     return "Sort, filter, and approve chores";
   }
 
+  if (segments[0] === "profile") {
+    return "Your account details and personalization settings.";
+  }
+
   return undefined;
 }

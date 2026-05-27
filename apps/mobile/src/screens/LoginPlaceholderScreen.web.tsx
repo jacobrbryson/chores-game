@@ -1,9 +1,8 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
-import { colors, typography } from "@/theme";
-import { AppScreen, Button, Card, SectionHeader } from "@/components/ui";
+import { GoogleSignInActionButton } from "@/components/GoogleSignInActionButton";
+import { MobileLoginLayout } from "@/components/MobileLoginLayout";
 import { signInWithGoogleIdToken } from "@/lib/api";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -44,36 +43,18 @@ export function LoginPlaceholderScreen({ onSignedIn }: Props) {
   }, [onSignedIn, response]);
 
   return (
-    <AppScreen title="Login Required" subtitle="Sign in with Google to continue">
-      <Card>
-        <SectionHeader title="Google Sign-In" />
-        <View style={styles.box}>
-          <Text style={styles.text}>
-            You are currently signed out. To continue in the mobile app, sign in with the same Google account you use for Family Chores on web.
-          </Text>
-          <Text style={styles.text}>
-            Browser builds use the web OAuth client. Native Android and iOS builds use the Google Sign-In SDK directly instead of a browser redirect flow.
-          </Text>
-          <Button
-            label="Sign in with Google"
-            onPress={() => {
-              if (!request || !webClientId) return;
-              promptAsync();
-            }}
-            disabled={!request || !webClientId}
-          />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          {!webClientId ? (
-            <Text style={styles.error}>Missing `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in mobile env.</Text>
-          ) : null}
-        </View>
-      </Card>
-    </AppScreen>
+    <MobileLoginLayout
+      googleButton={
+        <GoogleSignInActionButton
+          disabled={!request || !webClientId}
+          onPress={() => {
+            if (!request || !webClientId) return;
+            promptAsync();
+          }}
+        />
+      }
+      error={error}
+      configError={!webClientId ? "Missing `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in mobile env." : ""}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  box: { gap: 12 },
-  text: { color: colors.muted, fontSize: typography.body },
-  error: { color: "#b91c1c", fontSize: typography.small, fontWeight: "700" },
-});

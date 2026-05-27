@@ -481,25 +481,28 @@ export function StorePageClient() {
       {!isLoading && error ? <Alert>Could not load store: {error}</Alert> : null}
       {!isLoading && !error && summary ? (
         <>
-          <AppTabs
-            ariaLabel="Store categories"
-            tabs={storeTabs}
-            activeTab={selectedCategory?.id ?? storeTabs[0]?.id ?? ""}
-            onChange={(categoryId) => {
-              if (pendingOptionId) {
-                return;
-              }
-              clearPreview();
-              setPreviewConfettiOptionId("");
-              setModalSearchQuery("");
-              setActiveCategoryId(categoryId);
-              setActionError("");
-              setActionSuccess("");
-            }}
-          />
+          <section className="app-tab-panel">
+            <div className="app-tab-panel-header px-5 pt-4">
+              <AppTabs
+                ariaLabel="Store categories"
+                tabs={storeTabs}
+                activeTab={selectedCategory?.id ?? storeTabs[0]?.id ?? ""}
+                onChange={(categoryId) => {
+                  if (pendingOptionId) {
+                    return;
+                  }
+                  clearPreview();
+                  setPreviewConfettiOptionId("");
+                  setModalSearchQuery("");
+                  setActiveCategoryId(categoryId);
+                  setActionError("");
+                  setActionSuccess("");
+                }}
+              />
+            </div>
 
-          {selectedCategory ? (
-            <section className="store-tab-panel" role="tabpanel">
+            {selectedCategory ? (
+              <section className="app-tab-panel-body store-tab-panel p-5" role="tabpanel">
               <div className="store-tab-hero">
                 <Image
                   src={selectedCategory.imagePath}
@@ -856,8 +859,9 @@ export function StorePageClient() {
                   })}
                 </div>
               </section>
-            </section>
-          ) : null}
+              </section>
+            ) : null}
+          </section>
 
           <ModalShell
             open={Boolean(applyNowPrompt)}

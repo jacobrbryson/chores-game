@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "@/components/alert";
-import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { ProfileAdminNotificationsCard } from "@/components/profile/profile-admin-notifications-card";
@@ -778,14 +777,7 @@ export function ProfilePageClient({
   }, [pushBrowserReady, pushSummary]);
 
   return (
-    <main className="panel family-page profile-page">
-      <div className="page-header-row">
-        <div className="page-header-inline">
-          <BackLink className="page-back-link" fallbackHref="/" />
-          <h1>Profile</h1>
-        </div>
-      </div>
-      <p className="small family-page-subhead">Your account details and personalization settings.</p>
+    <main className="family-page profile-page">
 
       {isSwitched ? (
         <p className="small profile-switch-banner">
@@ -794,11 +786,11 @@ export function ProfilePageClient({
         </p>
       ) : null}
       {error ? <Alert>Could not load profile settings: {error}</Alert> : null}
-      <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-3">
+      <section className="app-tab-panel">
+        <div className="app-tab-panel-header flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
           <ProfileSectionTabs activeTab={activeTab} onChange={setActiveTab} />
         </div>
-        <div className="p-4">
+        <div className="app-tab-panel-body p-5">
       {activeTab === "general" ? (
         <ProfileDetailsSection
         displayName={displayName}

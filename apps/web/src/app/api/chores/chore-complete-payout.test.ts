@@ -222,6 +222,74 @@ describe("PATCH /api/chores/[choreId] complete payout", () => {
     );
   });
 
+  it("does not fail the chore update when follow-up Google Tasks sync fails", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockSyncGoogleTasksForUser.mockRejectedValueOnce(new Error("fetch failed"));
+    mockGetDocument.mockImplementation(async (path: string) => {
+      if (path === "users/admin-uid") {
+        return { fields: { familyIds: ["family-1"] } };
+      }
+      if (path === "families/family-1/chores/chore-1") {
+        return {
+          fields: {
+            title: "Take out trash",
+            assigneeId: "legacy-player@example.com",
+            source: "google_tasks",
+            googleTaskOwnerUid: "player-uid",
+            coinValue: 5,
+            details: "",
+            requireApproval: false,
+            recurrenceType: "none",
+            recurrenceInterval: 0,
+            recurrenceUnit: "",
+            status: "Open",
+          },
+        };
+      }
+      if (path === "families/family-1/members/admin-uid") {
+        return {
+          fields: {
+            uid: "admin-uid",
+            email: "admin@example.com",
+            role: "admin",
+            deleted: false,
+          },
+        };
+      }
+      if (
+        path === "families/family-1/members/admin@example.com" ||
+        path === "families/family-1/members/legacy-player@example.com"
+      ) {
+        throw new Error("FIRESTORE_HTTP_404");
+      }
+      if (path === "users/player-uid/achievementState/state") {
+        throw new Error("FIRESTORE_HTTP_404");
+      }
+      throw new Error(`Unexpected getDocument path: ${path}`);
+    });
+
+    const { PATCH } = await import("./[choreId]/route");
+
+    const response = await PATCH(
+      new Request("http://localhost/api/chores/chore-1", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "complete" }),
+      }) as never,
+      { params: Promise.resolve({ choreId: "chore-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true });
+    expect(mockSyncGoogleTasksForUser).toHaveBeenCalledWith(
+      expect.objectContaining({ uid: "player-uid", force: true }),
+    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "[GOOGLE_TASKS_SYNC_AFTER_CHORE_ERROR]",
+      "fetch failed",
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
   it("auto-approves and pays out when an admin completes an approval-required chore", async () => {
     mockGetDocument.mockImplementation(async (path: string) => {
       if (path === "users/admin-uid") {

@@ -1167,27 +1167,17 @@ export function TodayChoresPanel({
       const completeResponse = await fetch(`/api/chores/${choreId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "complete" }),
-      });
-      if (!completeResponse.ok) {
-        const body = (await completeResponse.json()) as { error?: string };
-        throw new Error(body.error ?? `COMPLETE_CHORE_HTTP_${completeResponse.status}`);
-      }
-
-      const approveResponse = await fetch(`/api/chores/${choreId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "approve",
+          action: "complete",
           approvalPayouts: Object.entries(approvalCoinsByAssignee).map(([assigneeId, coinValue]) => ({
             assigneeId,
             coinValue: Math.max(0, Math.trunc(Number(coinValue) || 0)),
           })),
         }),
       });
-      if (!approveResponse.ok) {
-        const body = (await approveResponse.json()) as { error?: string };
-        throw new Error(body.error ?? `APPROVE_CHORE_HTTP_${approveResponse.status}`);
+      if (!completeResponse.ok) {
+        const body = (await completeResponse.json()) as { error?: string };
+        throw new Error(body.error ?? `COMPLETE_CHORE_HTTP_${completeResponse.status}`);
       }
       setPendingApproveChore(null);
       setApprovalCoinsByAssignee({});

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { BackLink } from "@/components/back-link";
 
 export const metadata: Metadata = {
   title: "Privacy Policy | Family Chores",
@@ -8,13 +7,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPolicyPage() {
   return (
-    <main className="panel family-page legal-page">
-      <div className="page-header-row">
-        <div className="page-header-inline">
-          <BackLink className="page-back-link" ariaLabel="Go back" fallbackHref="/" />
-          <h1>Privacy Policy</h1>
-        </div>
-      </div>
+    <main className="panel family-page family-page-shell legal-page">
       <p className="small legal-updated">Last updated: March 9, 2026</p>
 
       <section className="legal-section">

@@ -637,7 +637,6 @@ body {
 
 .profile-menu-trigger:focus-visible {
   outline: none;
-  border-radius: 999px;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 42%, transparent);
 }
 
@@ -645,6 +644,20 @@ body {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
+  border-radius: 999px;
+  padding: 4px 5px 3px;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.profile-menu-trigger:hover .profile-avatar-wrap,
+.profile-menu-trigger:focus-visible .profile-avatar-wrap,
+.profile-menu-trigger[aria-expanded="true"] .profile-avatar-wrap,
+.profile-menu:focus-within .profile-avatar-wrap {
+  background: color-mix(in srgb, #ffffff 84%, var(--brand) 16%);
+  box-shadow: 0 8px 18px rgba(35, 83, 141, 0.12);
 }
 
 .profile-avatar-anchor {
@@ -2738,6 +2751,27 @@ textarea:disabled {
 
 .family-page {
   padding: 0;
+}
+
+.family-page-shell {
+  padding: clamp(14px, 2.6vw, 20px);
+}
+
+.app-tab-panel {
+  border: 1px solid #d6e4f9;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 12px 22px rgba(24, 58, 97, 0.08);
+  overflow: hidden;
+}
+
+.app-tab-panel-header {
+  border-bottom: 1px solid #dbe7f5;
+  background: linear-gradient(180deg, #f8fbff, #ffffff);
+}
+
+.app-tab-panel-body {
+  background: #ffffff;
 }
 
 .family-back-link {

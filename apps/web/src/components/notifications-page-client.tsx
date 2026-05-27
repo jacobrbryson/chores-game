@@ -3,7 +3,6 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "@/components/alert";
-import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
 
@@ -178,162 +177,158 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
   }
 
   return (
-    <main className="panel family-page">
-          <div className="notifications-header">
-            <div className="page-header-inline">
-              <BackLink className="page-back-link" fallbackHref="/" />
-              <h1>Notifications</h1>
-            </div>
-            <div className="notifications-filters">
-              <Button
-                type="button"
-                className={`notifications-filter-btn ${unseenOnly ? "is-active" : ""}`}
-                onClick={() => {
-                  setUnseenOnly(true);
-                  setPage(1);
-                  router.replace(`${pathname}?unseen=true`);
-                }}>
-                Unseen
-              </Button>
-              <Button
-                type="button"
-                className={`notifications-filter-btn ${!unseenOnly ? "is-active" : ""}`}
-                onClick={() => {
-                  setUnseenOnly(false);
-                  setPage(1);
-                  router.replace(pathname);
-                }}>
-                All
-              </Button>
-            </div>
-          </div>
-          <p className="small family-page-subhead">{subtitle}</p>
-          <div className="table-controls">
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search notifications (3+ chars)"
-              className="table-search-input"
-            />
-            {hasShortSearch ? <p className="small">Type at least 3 characters to filter.</p> : null}
-          </div>
+    <main className="panel family-page family-page-shell">
+      <div className="notifications-header">
+        <div className="notifications-filters">
+          <Button
+            type="button"
+            className={`notifications-filter-btn ${unseenOnly ? "is-active" : ""}`}
+            onClick={() => {
+              setUnseenOnly(true);
+              setPage(1);
+              router.replace(`${pathname}?unseen=true`);
+            }}>
+            Unseen
+          </Button>
+          <Button
+            type="button"
+            className={`notifications-filter-btn ${!unseenOnly ? "is-active" : ""}`}
+            onClick={() => {
+              setUnseenOnly(false);
+              setPage(1);
+              router.replace(pathname);
+            }}>
+            All
+          </Button>
+        </div>
+      </div>
+      <p className="small family-page-subhead">{subtitle}</p>
+      <div className="table-controls">
+        <input
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+          placeholder="Search notifications (3+ chars)"
+          className="table-search-input"
+        />
+        {hasShortSearch ? <p className="small">Type at least 3 characters to filter.</p> : null}
+      </div>
 
-          {isLoading ? (
-            <section aria-label="Loading notifications" aria-hidden="true" className="space-y-3">
-              <div className="family-skeleton-chip-row">
-                <div className="family-skeleton family-skeleton-chip" />
-                <div className="family-skeleton family-skeleton-chip" />
-              </div>
-              <div className="family-table-wrap">
-                <table className="family-table">
-                  <thead>
-                    <tr>
-                      <th><div className="family-skeleton family-skeleton-title" /></th>
-                      <th><div className="family-skeleton family-skeleton-title" /></th>
-                      <th><div className="family-skeleton family-skeleton-title" /></th>
-                      <th><div className="family-skeleton family-skeleton-title" /></th>
-                      <th><div className="family-skeleton family-skeleton-title" /></th>
+      {isLoading ? (
+        <section aria-label="Loading notifications" aria-hidden="true" className="space-y-3">
+          <div className="family-skeleton-chip-row">
+            <div className="family-skeleton family-skeleton-chip" />
+            <div className="family-skeleton family-skeleton-chip" />
+          </div>
+          <div className="family-table-wrap">
+            <table className="family-table">
+              <thead>
+                <tr>
+                  <th><div className="family-skeleton family-skeleton-title" /></th>
+                  <th><div className="family-skeleton family-skeleton-title" /></th>
+                  <th><div className="family-skeleton family-skeleton-title" /></th>
+                  <th><div className="family-skeleton family-skeleton-title" /></th>
+                  <th><div className="family-skeleton family-skeleton-title" /></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colSpan={5}><div className="family-skeleton family-skeleton-row" /></td>
+                </tr>
+                <tr>
+                  <td colSpan={5}><div className="family-skeleton family-skeleton-row" /></td>
+                </tr>
+                <tr>
+                  <td colSpan={5}><div className="family-skeleton family-skeleton-row" /></td>
+                </tr>
+                <tr>
+                  <td colSpan={5}><div className="family-skeleton family-skeleton-row" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+      {!isLoading && error ? (
+        <Alert>Could not load notifications: {error}</Alert>
+      ) : null}
+      {!isLoading && !error ? (
+        items.length === 0 ? (
+          <p className="small">No notifications yet.</p>
+        ) : (
+          <>
+            <div className="family-table-wrap">
+              <table className="family-table">
+                <thead>
+                  <tr>
+                    <th>
+                      <button type="button" className="table-sort-btn" onClick={() => onSort("title")}>
+                        {sortLabel("title", "Title")}
+                      </button>
+                    </th>
+                    <th>
+                      <button type="button" className="table-sort-btn" onClick={() => onSort("message")}>
+                        {sortLabel("message", "Message")}
+                      </button>
+                    </th>
+                    <th>
+                      <button type="button" className="table-sort-btn" onClick={() => onSort("kind")}>
+                        {sortLabel("kind", "Type")}
+                      </button>
+                    </th>
+                    <th>
+                      <button type="button" className="table-sort-btn" onClick={() => onSort("createdAt")}>
+                        {sortLabel("createdAt", "When")}
+                      </button>
+                    </th>
+                    <th>
+                      <button type="button" className="table-sort-btn" onClick={() => onSort("seen")}>
+                        {sortLabel("seen", "Seen")}
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item.id} className={item.seen ? "" : "notifications-row-unseen"}>
+                      <td>{item.title || "Activity"}</td>
+                      <td>{item.message || "Activity logged."}</td>
+                      <td>
+                        <EnumChip
+                          label={item.kind ? humanizeEnum(item.kind) : "-"}
+                          tone={notificationKindTone(item.kind)}
+                        />
+                      </td>
+                      <td>{formatDateTime(item.createdAt)}</td>
+                      <td>
+                        <EnumChip label={item.seen ? "Seen" : "Unseen"} tone={item.seen ? "teal" : "amber"} />
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td colSpan={5}><div className="family-skeleton family-skeleton-row" /></td>
-                    </tr>
-                    <tr>
-                      <td colSpan={5}><div className="family-skeleton family-skeleton-row" /></td>
-                    </tr>
-                    <tr>
-                      <td colSpan={5}><div className="family-skeleton family-skeleton-row" /></td>
-                    </tr>
-                    <tr>
-                      <td colSpan={5}><div className="family-skeleton family-skeleton-row" /></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ) : null}
-          {!isLoading && error ? (
-            <Alert>Could not load notifications: {error}</Alert>
-          ) : null}
-          {!isLoading && !error ? (
-            items.length === 0 ? (
-              <p className="small">No notifications yet.</p>
-            ) : (
-              <>
-                <div className="family-table-wrap">
-                  <table className="family-table">
-                    <thead>
-                      <tr>
-                        <th>
-                          <button type="button" className="table-sort-btn" onClick={() => onSort("title")}>
-                            {sortLabel("title", "Title")}
-                          </button>
-                        </th>
-                        <th>
-                          <button type="button" className="table-sort-btn" onClick={() => onSort("message")}>
-                            {sortLabel("message", "Message")}
-                          </button>
-                        </th>
-                        <th>
-                          <button type="button" className="table-sort-btn" onClick={() => onSort("kind")}>
-                            {sortLabel("kind", "Type")}
-                          </button>
-                        </th>
-                        <th>
-                          <button type="button" className="table-sort-btn" onClick={() => onSort("createdAt")}>
-                            {sortLabel("createdAt", "When")}
-                          </button>
-                        </th>
-                        <th>
-                          <button type="button" className="table-sort-btn" onClick={() => onSort("seen")}>
-                            {sortLabel("seen", "Seen")}
-                          </button>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((item) => (
-                        <tr key={item.id} className={item.seen ? "" : "notifications-row-unseen"}>
-                          <td>{item.title || "Activity"}</td>
-                          <td>{item.message || "Activity logged."}</td>
-                          <td>
-                            <EnumChip
-                              label={item.kind ? humanizeEnum(item.kind) : "-"}
-                              tone={notificationKindTone(item.kind)}
-                            />
-                          </td>
-                          <td>{formatDateTime(item.createdAt)}</td>
-                          <td>
-                            <EnumChip label={item.seen ? "Seen" : "Unseen"} tone={item.seen ? "teal" : "amber"} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="table-pager">
-                  <Button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={page <= 1}
-                    onClick={() => setPage((current) => Math.max(1, current - 1))}>
-                    Previous
-                  </Button>
-                  <span className="small">
-                    Page {page} of {totalPages} ({total})
-                  </span>
-                  <Button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
-                    Next
-                  </Button>
-                </div>
-              </>
-              )
-          ) : null}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="table-pager">
+              <Button
+                type="button"
+                className="btn btn-secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}>
+                Previous
+              </Button>
+              <span className="small">
+                Page {page} of {totalPages} ({total})
+              </span>
+              <Button
+                type="button"
+                className="btn btn-secondary"
+                disabled={page >= totalPages}
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
+                Next
+              </Button>
+            </div>
+          </>
+        )
+      ) : null}
     </main>
   );
 }

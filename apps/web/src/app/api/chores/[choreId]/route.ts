@@ -80,6 +80,50 @@ function jsonReauthRequired() {
   );
 }
 
+async function syncGoogleTasksBestEffort(input: {
+  uid: string;
+  idToken: string;
+  force?: boolean;
+  minIntervalSeconds?: number;
+}) {
+  try {
+    await syncGoogleTasksForUser(input);
+  } catch (error) {
+    const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
+    console.error("[GOOGLE_TASKS_SYNC_AFTER_CHORE_ERROR]", reason);
+  }
+}
+
+async function trackAchievementEventBestEffort(input: Parameters<typeof trackAchievementEvent>[0]) {
+  try {
+    await trackAchievementEvent(input);
+  } catch (error) {
+    const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
+    console.error("[ACHIEVEMENT_TRACK_AFTER_CHORE_ERROR]", reason);
+  }
+}
+
+async function computeCompletionDerivedMaximumsBestEffort(
+  input: Parameters<typeof computeCompletionDerivedMaximums>[0],
+) {
+  try {
+    return await computeCompletionDerivedMaximums(input);
+  } catch (error) {
+    const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
+    console.error("[ACHIEVEMENT_DERIVED_AFTER_CHORE_ERROR]", reason);
+    return undefined;
+  }
+}
+
+async function emitFamilyActivityBestEffort(input: Parameters<typeof emitFamilyActivity>[0]) {
+  try {
+    await emitFamilyActivity(input);
+  } catch (error) {
+    const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
+    console.error("[FAMILY_ACTIVITY_AFTER_CHORE_ERROR]", reason);
+  }
+}
+
 function jsonFirestoreForbidden() {
   return NextResponse.json(
     {
@@ -1053,6 +1097,21 @@ export async function PATCH(
             choreRequireApproval || choreAssigneeIds.length > 1 || choreType === "see_and_do";
           const completionNeedsApproval = requester.role !== "admin" && approvalRequiredByChore;
           const nextStatus = completionNeedsApproval ? "Submitted" : "Approved";
+          const payoutByAssignee =
+            nextStatus === "Approved"
+              ? buildPayoutByAssignee({
+                  assigneeIds: choreAssigneeIds,
+                  totalCoinValue: choreCoinValue,
+                  overrides: body.approvalPayouts,
+                })
+              : new Map<string, number>();
+          const approvedCoinValue =
+            nextStatus === "Approved"
+              ? Array.from(payoutByAssignee.values()).reduce(
+                  (total, coins) => total + Math.max(0, Math.trunc(coins || 0)),
+                  0,
+                )
+              : choreCoinValue;
           const completionDate = now.slice(0, 10);
           if (choreRecurrence.recurrenceType !== "none") {
             const nextDueDate = nextRecurringDueDate(
@@ -1107,16 +1166,30 @@ export async function PATCH(
               idToken,
             );
           }
+          const completionPatchFields: Record<string, FirestoreValue> = {
+            status: stringField(nextStatus),
+            submittedAt: timestampField(now),
+            updatedAt: timestampField(now),
+            spawnedNextChoreId: stringField(spawnedNextChoreId),
+          };
+          const completionUpdateMask = ["status", "submittedAt", "updatedAt", "spawnedNextChoreId"];
+          if (nextStatus === "Approved") {
+            completionPatchFields.approvalPayoutsJson = stringField(
+              JSON.stringify(
+                Array.from(payoutByAssignee.entries()).map(([assigneeId, coinValue]) => ({
+                  assigneeId,
+                  coinValue,
+                })),
+              ),
+            );
+            completionPatchFields.coinValue = integerField(approvedCoinValue);
+            completionUpdateMask.push("approvalPayoutsJson", "coinValue");
+          }
           await patchDocument(
             `families/${familyId}/chores/${choreId}`,
-            {
-              status: stringField(nextStatus),
-              submittedAt: timestampField(now),
-              updatedAt: timestampField(now),
-              spawnedNextChoreId: stringField(spawnedNextChoreId),
-            },
+            completionPatchFields,
             idToken,
-            ["status", "submittedAt", "updatedAt", "spawnedNextChoreId"],
+            completionUpdateMask,
           );
           await writeAuditLogBestEffort({
             familyId,
@@ -1135,42 +1208,32 @@ export async function PATCH(
             previous: { status: currentStatus },
             next: {
               status: nextStatus,
+              coinValue: approvedCoinValue,
               submittedAt: now,
               spawnedNextChoreId,
               requireApproval: completionNeedsApproval,
             },
             reason: "complete",
           });
-          const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
           let payoutApplied = false;
-          if (nextStatus === "Approved" && assigneeUid && choreCoinValue > 0) {
-            try {
-              await applyWalletDelta({
-                uid: assigneeUid,
-                idToken,
-                delta: choreCoinValue,
-                reason: "chore_complete",
-                choreId,
-                debugMeta: {
-                  familyId,
-                  actorUid: session.uid,
-                  actorRole: requester.role,
-                  choreStatus: currentStatus,
-                  assigneeAlias: choreAssigneeId,
-                  assigneeUid,
-                  direction: "credit",
-                  coins: choreCoinValue,
-                },
-              });
-              payoutApplied = true;
-            } catch (error) {
-              const reason = error instanceof Error ? error.message : "";
-              if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
-                throw error;
-              }
+          if (nextStatus === "Approved") {
+            const payoutResult = await applyPayoutByAssignee({
+              familyId,
+              idToken,
+              choreId,
+              payoutByAssignee,
+              direction: "credit",
+              actorUid: session.uid,
+              actorRole: requester.role,
+              choreStatus: currentStatus,
+            });
+            if (payoutResult.kind === "wallet_permission_denied") {
+              return { kind: "wallet_permission_denied" as const };
             }
+            payoutApplied = payoutResult.kind === "ok" && payoutResult.anyApplied;
           }
-          await emitFamilyActivity({
+          const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
+          await emitFamilyActivityBestEffort({
             familyId,
             idToken,
             kind: "chore_completed",
@@ -1180,7 +1243,7 @@ export async function PATCH(
             title: completionNeedsApproval ? "Chore submitted for approval" : "Chore completed",
             message: completionNeedsApproval
               ? `${actorName} completed "${choreTitle}" and it is waiting for parent approval.`
-              : `${actorName} marked "${choreTitle}" complete${payoutApplied ? ` and earned ${choreCoinValue} coins` : ""}.${choreRecurrence.recurrenceType !== "none" ? ` ${recurrenceLabel(choreRecurrence)}.` : ""}`,
+              : `${actorName} marked "${choreTitle}" complete${payoutApplied ? ` and earned ${approvedCoinValue} coins` : ""}.${choreRecurrence.recurrenceType !== "none" ? ` ${recurrenceLabel(choreRecurrence)}.` : ""}`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
@@ -1194,13 +1257,13 @@ export async function PATCH(
           });
           if (assigneeUid) {
             const completionHour = new Date(now).getUTCHours();
-            const derivedMaximums = await computeCompletionDerivedMaximums({
+            const derivedMaximums = await computeCompletionDerivedMaximumsBestEffort({
               familyId,
               uid: assigneeUid,
               idToken,
               completedAtIso: now,
             });
-            await trackAchievementEvent({
+            await trackAchievementEventBestEffort({
               uid: assigneeUid,
               familyId,
               idToken,
@@ -1208,7 +1271,7 @@ export async function PATCH(
               eventId: `chore_complete_${choreId}_${nextStatus}`,
               metricDeltas: {
                 chores_completed: 1,
-                coins_earned: payoutApplied ? choreCoinValue : 0,
+                coins_earned: payoutApplied ? (payoutByAssignee.get(choreAssigneeId) ?? approvedCoinValue) : 0,
                 morning_chores_completed: completionHour < 12 ? 1 : 0,
                 evening_chores_completed: completionHour >= 18 ? 1 : 0,
                 google_task_chores_completed: choreSource === GOOGLE_TASKS_CHORE_SOURCE ? 1 : 0,
@@ -1324,7 +1387,7 @@ export async function PATCH(
               return { kind: "wallet_permission_denied" as const };
             }
           }
-          await emitFamilyActivity({
+          await emitFamilyActivityBestEffort({
             familyId,
             idToken,
             kind: "chore_undo_completed",
@@ -1426,7 +1489,7 @@ export async function PATCH(
             return { kind: "wallet_permission_denied" as const };
           }
           const payoutApplied = payoutResult.kind === "ok" && payoutResult.anyApplied;
-          await emitFamilyActivity({
+          await emitFamilyActivityBestEffort({
             familyId,
             idToken,
             kind: "chore_approved",
@@ -1445,7 +1508,7 @@ export async function PATCH(
             choreId,
             occurredAt: now,
           });
-          await trackAchievementEvent({
+          await trackAchievementEventBestEffort({
             uid: session.uid,
             familyId,
             idToken,
@@ -1455,27 +1518,32 @@ export async function PATCH(
               admin_chores_approved: 1,
             },
           });
-          for (const assigneeAlias of choreAssigneeIds) {
-            const assigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
-            if (!assigneeUid) {
-              continue;
+          try {
+            for (const assigneeAlias of choreAssigneeIds) {
+              const assigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
+              if (!assigneeUid) {
+                continue;
+              }
+              const canTrack = await userHasFamilyMembership(assigneeUid, familyId, idToken);
+              if (!canTrack) {
+                continue;
+              }
+              await trackAchievementEventBestEffort({
+                uid: assigneeUid,
+                familyId,
+                idToken,
+                viewerRole: "player",
+                eventId: `chore_approved_${choreId}_${assigneeUid}`,
+                metricDeltas: {
+                  chores_approved: 1,
+                  coins_earned: payoutByAssignee.get(assigneeAlias) ?? 0,
+                },
+                approvalStreakDelta: "increment",
+              });
             }
-            const canTrack = await userHasFamilyMembership(assigneeUid, familyId, idToken);
-            if (!canTrack) {
-              continue;
-            }
-            await trackAchievementEvent({
-              uid: assigneeUid,
-              familyId,
-              idToken,
-              viewerRole: "player",
-              eventId: `chore_approved_${choreId}_${assigneeUid}`,
-              metricDeltas: {
-                chores_approved: 1,
-                coins_earned: payoutByAssignee.get(assigneeAlias) ?? 0,
-              },
-              approvalStreakDelta: "increment",
-            });
+          } catch (error) {
+            const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
+            console.error("[ACHIEVEMENT_TRACK_AFTER_CHORE_ERROR]", reason);
           }
         } else if (action === "reject") {
           const requester = await getRequesterContext(
@@ -1523,7 +1591,7 @@ export async function PATCH(
             next: { status: "Rejected", rejectionFeedback: feedback },
             reason: "reject",
           });
-          await emitFamilyActivity({
+          await emitFamilyActivityBestEffort({
             familyId,
             idToken,
             kind: "chore_rejected",
@@ -1544,17 +1612,22 @@ export async function PATCH(
             choreId,
             occurredAt: now,
           });
-          const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
-          if (assigneeUid) {
-            await trackAchievementEvent({
-              uid: assigneeUid,
-              familyId,
-              idToken,
-              viewerRole: "player",
-              eventId: `chore_reject_${choreId}`,
-              rejectionFlagSet: true,
-              approvalStreakDelta: "reset",
-            });
+          try {
+            const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
+            if (assigneeUid) {
+              await trackAchievementEventBestEffort({
+                uid: assigneeUid,
+                familyId,
+                idToken,
+                viewerRole: "player",
+                eventId: `chore_reject_${choreId}`,
+                rejectionFlagSet: true,
+                approvalStreakDelta: "reset",
+              });
+            }
+          } catch (error) {
+            const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
+            console.error("[ACHIEVEMENT_TRACK_AFTER_CHORE_ERROR]", reason);
           }
         } else if (action === "set_categories") {
           const requester = await getRequesterContext(
@@ -1583,7 +1656,7 @@ export async function PATCH(
             idToken,
             ["categoryIds", "updatedAt"],
           );
-          await emitFamilyActivity({
+          await emitFamilyActivityBestEffort({
             familyId,
             idToken,
             kind: "chore_edited",
@@ -1699,7 +1772,7 @@ export async function PATCH(
               "updatedAt",
             ],
           );
-          await emitFamilyActivity({
+          await emitFamilyActivityBestEffort({
             familyId,
             idToken,
             kind: "chore_edited",
@@ -1721,7 +1794,7 @@ export async function PATCH(
         }
 
         if (syncOwnerUid) {
-          await syncGoogleTasksForUser({
+          await syncGoogleTasksBestEffort({
             uid: syncOwnerUid,
             idToken,
             force: true,
@@ -1887,7 +1960,7 @@ export async function DELETE(
             return { kind: "wallet_permission_denied" as const };
           }
         }
-        await emitFamilyActivity({
+        await emitFamilyActivityBestEffort({
           familyId,
           idToken,
           kind: "chore_deleted",
@@ -1907,14 +1980,14 @@ export async function DELETE(
           occurredAt: now,
         });
         if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
-          await syncGoogleTasksForUser({
+          await syncGoogleTasksBestEffort({
             uid: choreGoogleTaskOwnerUid,
             idToken,
             force: true,
             minIntervalSeconds: 0,
           });
         } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.memberId, session.email)) {
-          await syncGoogleTasksForUser({
+          await syncGoogleTasksBestEffort({
             uid: session.uid,
             idToken,
             force: true,

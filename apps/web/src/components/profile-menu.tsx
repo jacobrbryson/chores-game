@@ -521,9 +521,7 @@ export function ProfileMenu({
         open={open}
         onOpenChange={setOpen}
         wrapperClassName="profile-menu"
-        triggerClassName={`profile-menu-trigger${
-          triggerVariant === "main-nav" ? " main-nav-button main-nav-more-button" : ""
-        }`}
+        triggerClassName={triggerVariant === "main-nav" ? "main-nav-button main-nav-more-button" : ""}
         triggerTitle="Open profile menu"
         triggerAriaLabel="Open profile menu"
         panelClassName="app-menu-panel profile-dropdown"

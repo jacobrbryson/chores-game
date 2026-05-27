@@ -6,7 +6,6 @@ import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useMemo,
 import { Alert } from "@/components/alert";
 import { AppMenu } from "@/components/app-menu";
 import { Avatar } from "@/components/avatar";
-import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
@@ -765,19 +764,12 @@ export default function FamilyPage() {
   return (
     <>
       <main className="family-page">
-          <div className="page-header-row">
-            <div className="page-header-inline">
-              <BackLink className="page-back-link" fallbackHref="/" />
-              <h1>Family</h1>
-            </div>
-          </div>
-
           {!isLoading && error ? <Alert>Could not load members: {error}</Alert> : null}
-          <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-3">
+          <section className="app-tab-panel">
+            <div className="app-tab-panel-header flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
               <FamilySectionTabs activeTab={activeFamilyTab} onChange={setActiveFamilyTab} />
             </div>
-            <div className="p-4">
+            <div className="app-tab-panel-body p-5">
           {isLoading && !error ? (
             <div className="family-page-grid" aria-hidden="true">
               {activeFamilyTab === "members" ? <MembersSkeleton /> : null}
