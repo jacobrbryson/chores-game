@@ -1,5 +1,6 @@
 "use client";
 
+import { AppBrand } from "@/components/app-brand";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { MainNavigation } from "@/components/main-navigation";
 
@@ -40,14 +41,19 @@ export function AppHeaderShell({
             showSupportLink={showSupportLink}
           />
         ) : (
-          <div className="nav-links nav-links-guest">
-            {googleClientId && gsiLoginUri ? (
-              <GoogleSignInButton mode="gsi" clientId={googleClientId} loginUri={gsiLoginUri} />
-            ) : (
-              <p className="small nav-config-note">
-                Google sign-in is not configured. Set `NEXT_PUBLIC_APP_URL` and Google client IDs.
-              </p>
-            )}
+          <div className="top-nav-guest-layout">
+            <div className="top-nav-brand-row">
+              <AppBrand />
+            </div>
+            <div className="nav-links nav-links-guest">
+              {googleClientId && gsiLoginUri ? (
+                <GoogleSignInButton mode="gsi" clientId={googleClientId} loginUri={gsiLoginUri} />
+              ) : (
+                <p className="small nav-config-note">
+                  Google sign-in is not configured. Set `NEXT_PUBLIC_APP_URL` and Google client IDs.
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>

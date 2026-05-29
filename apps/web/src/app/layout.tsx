@@ -58,7 +58,7 @@ export default async function RootLayout({
           <div className="container app-layout">
             <div className="app-main">
               <AppHeader />
-              <AppBreadcrumbs />
+              <AppBreadcrumbs hideGuestHomepage={!sessionUser} />
               {children}
             </div>
             <AppFooter />

@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
 	title: "Family Chores | Organized chores, rewards, and live family visibility",
 	description:
-		"Family Chores Game helps parents assign and approve chores, motivate kids with rewards, connect Google Tasks, and keep household activity visible in realtime.",
+		"Family Chores Game helps parents manage chores, rewards, managed child profiles, family awards, quests, Google Tasks sync, and live household activity.",
 };
 
 function getSignInErrorMessage(errorCode?: string) {

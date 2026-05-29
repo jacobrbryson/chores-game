@@ -5,8 +5,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getWebBreadcrumbSubtitle, getWebBreadcrumbTrail } from "@/lib/ui/breadcrumbs";
 
-export function AppBreadcrumbs() {
+type AppBreadcrumbsProps = {
+  hideGuestHomepage?: boolean;
+};
+
+export function AppBreadcrumbs({ hideGuestHomepage = false }: AppBreadcrumbsProps) {
   const pathname = usePathname();
+
+  if (hideGuestHomepage && pathname === "/") {
+    return null;
+  }
+
   const items = getWebBreadcrumbTrail(pathname);
   const subtitle = getWebBreadcrumbSubtitle(pathname);
   const disableRootLink = pathname === "/";

@@ -89,6 +89,13 @@ body {
   padding: 10px;
 }
 
+.top-nav-guest-layout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .top-nav-auth {
   min-height: 70px;
 }
@@ -268,9 +275,10 @@ body {
 }
 
 .top-nav-guest .nav-links {
-  width: 100%;
-  justify-content: center;
-  justify-self: center;
+  width: auto;
+  justify-content: flex-end;
+  justify-self: end;
+  flex: 0 0 auto;
 }
 
 .main-nav {
@@ -1207,16 +1215,16 @@ body {
 
 .marketing-home {
   display: grid;
-  gap: clamp(22px, 3vw, 34px);
+  gap: clamp(18px, 2.4vw, 28px);
 }
 
 .marketing-signin-alert {
-  margin-bottom: calc(clamp(22px, 3vw, 34px) * -0.35);
+  margin-bottom: calc(clamp(18px, 2.4vw, 28px) * -0.32);
 }
 
 .marketing-section {
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 
 .marketing-hero {
@@ -1400,7 +1408,7 @@ body {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 18px;
+  margin-top: 14px;
 }
 
 .marketing-proof-item {
@@ -1628,7 +1636,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin-top: 22px;
+  margin-top: 18px;
 }
 
 .marketing-google-cta {
@@ -5793,6 +5801,11 @@ a.family-award-claim-card:focus-visible {
     transform-origin: top center;
   }
 
+  .top-nav-guest-layout {
+    flex-direction: column;
+    justify-content: center;
+  }
+
   .brand {
     width: auto;
     gap: 10px;
@@ -6380,6 +6393,10 @@ a.family-award-claim-card:focus-visible {
     padding: 0;
   }
 
+  .top-nav-guest {
+    padding: 14px 0 18px;
+  }
+
   .top-nav-controls {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
@@ -6387,6 +6404,10 @@ a.family-award-claim-card:focus-visible {
 
   .top-nav-guest .top-nav-controls {
     grid-template-columns: 1fr;
+  }
+
+  .top-nav-guest-layout {
+    gap: 12px;
   }
 
   .nav-links-guest {
