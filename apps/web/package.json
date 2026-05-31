@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@packages/core": "file:../../packages/core",
+    "@packages/core": "file:./packages/core",
     "@packages/locales": "file:./packages/locales",
     "@types/web-push": "^3.6.4",
     "chart.js": "^4.5.1",

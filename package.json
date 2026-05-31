@@ -14,6 +14,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "deploy:web": "node scripts/deploy-web.mjs",
     "wallet:rebuild": "node scripts/rebuild-wallet-balances.mjs",
     "admin:grant-confetti": "node scripts/admin/grant-all-confetti-options.mjs",
     "android": "npm run android -w @apps/mobile",
