@@ -1,8 +1,10 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { apiClient, apiFetch } from "@/lib/api";
+import { LOCALE_LABELS, SUPPORTED_LOCALES, type AppLocale } from "@packages/locales";
+import { apiClient, apiFetch, patchMobileProfile } from "@/lib/api";
+import { useMobileLocale } from "@/lib/locale";
 import { colors, spacing, typography } from "@/theme";
-import { AppScreen, AvatarBadge, Card, CoinPill, EmptyState, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
+import { AppScreen, AvatarBadge, Button, Card, CoinPill, EmptyState, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
 
 type ProfileData = {
   name: string;
@@ -11,6 +13,7 @@ type ProfileData = {
   balance: number;
   avatarUrl: string;
   achievementCount: number;
+  locale: AppLocale;
 };
 
 type MeResponse = {
@@ -19,6 +22,8 @@ type MeResponse = {
   name: string;
   email: string;
   role: string;
+  locale?: AppLocale;
+  resolvedLocale?: AppLocale;
   picture?: string;
   avatarUrl?: string;
   balance?: number;
@@ -30,7 +35,10 @@ type Props = {
 };
 
 export function ProfileScreen({ right, onGoDashboard }: Props) {
+  const { t, setLocale } = useMobileLocale();
   const [state, setState] = useState<{ loading: boolean; error?: string; data: ProfileData | null }>({ loading: true, data: null });
+  const [localePending, setLocalePending] = useState(false);
+  const [localeError, setLocaleError] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -47,24 +55,50 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
         setState({
           loading: false,
           data: {
-            name: me.name || "Family Member",
+            name: me.name || t("profile.signedIn"),
             email: me.email || "",
             role: me.role || "player",
             balance: typeof me.balance === "number" ? me.balance : 0,
             avatarUrl: me.avatarUrl || me.picture || "",
             achievementCount: count,
+            locale: me.resolvedLocale || me.locale || "en-US",
           },
         });
       })
       .catch((err: unknown) => {
         setState({ loading: false, error: err instanceof Error ? err.message : "profile_unavailable", data: null });
       });
-  }, []);
+  }, [t]);
+
+  async function onChangeLocale(nextLocale: AppLocale) {
+    if (!state.data || localePending || state.data.locale === nextLocale) {
+      return;
+    }
+    setLocalePending(true);
+    setLocaleError("");
+    try {
+      await patchMobileProfile({ locale: nextLocale });
+      setState((current) =>
+        current.data
+          ? { ...current, data: { ...current.data, locale: nextLocale } }
+          : current,
+      );
+      setLocale(nextLocale);
+    } catch {
+      setLocaleError(t("profile.languageSaveError"));
+    } finally {
+      setLocalePending(false);
+    }
+  }
 
   return (
-    <AppScreen title="Profile" subtitle="Your account" right={right} onPressBreadcrumbRoot={onGoDashboard}>
-      {state.loading ? <LoadingState label="Loading profile..." /> : null}
-      {state.error ? <ErrorState message={`Could not load profile: ${state.error}`} /> : null}
+    <AppScreen
+      title={t("nav.profile")}
+      subtitle={t("profile.accountSubtitle")}
+      right={right}
+      onPressBreadcrumbRoot={onGoDashboard}>
+      {state.loading ? <LoadingState label={t("profile.loadingProfile")} /> : null}
+      {state.error ? <ErrorState message={t("profile.loadError", { error: state.error })} /> : null}
       {!state.loading && !state.error && state.data ? (
         <>
           <Card>
@@ -72,21 +106,34 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
               <AvatarBadge name={state.data.name} imageUrl={state.data.avatarUrl} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{state.data.name}</Text>
-                <Text style={styles.email}>{state.data.email || "No email"}</Text>
+                <Text style={styles.email}>{state.data.email || t("common.labels.none")}</Text>
               </View>
               <CoinPill value={state.data.balance} />
             </View>
           </Card>
 
           <Card>
-            <SectionHeader title="Details" />
-            <Text style={styles.detail}>Role: {state.data.role}</Text>
-            <Text style={styles.detail}>Achievements unlocked: {state.data.achievementCount}</Text>
+            <SectionHeader title={t("profile.detailsTitle")} />
+            <Text style={styles.detail}>{t("profile.role")}: {state.data.role}</Text>
+            <Text style={styles.detail}>{t("profile.achievementsUnlocked", { count: state.data.achievementCount })}</Text>
+            <Text style={styles.detail}>{t("common.labels.language")}:</Text>
+            <View style={styles.languageWrap}>
+              {SUPPORTED_LOCALES.map((option) => (
+                <Button
+                  key={option}
+                  label={LOCALE_LABELS[option]}
+                  variant={state.data?.locale === option ? "primary" : "secondary"}
+                  disabled={localePending}
+                  onPress={() => void onChangeLocale(option)}
+                />
+              ))}
+            </View>
+            {localeError ? <Text style={styles.error}>{localeError}</Text> : null}
           </Card>
 
           <Card>
-            <SectionHeader title="Family & Inventory" />
-            <EmptyState message="Family member profile details and quest item inventory will appear here as mobile APIs are expanded." />
+            <SectionHeader title={t("profile.familyInventoryTitle")} />
+            <EmptyState message={t("profile.familyInventoryPlaceholder")} />
           </Card>
         </>
       ) : null}
@@ -99,4 +146,6 @@ const styles = StyleSheet.create({
   name: { fontSize: typography.h3, fontWeight: "800", color: colors.text },
   email: { fontSize: typography.small, color: colors.muted },
   detail: { fontSize: typography.body, color: colors.text },
+  languageWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
+  error: { fontSize: typography.small, color: "#b91c1c" },
 });

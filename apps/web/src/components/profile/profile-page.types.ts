@@ -1,3 +1,4 @@
+import type { AppLocale } from "@packages/locales";
 import type { StoreCategory } from "@/lib/store/catalog";
 import type { OwnedItemSummary } from "@/lib/items/owned-items";
 
@@ -5,6 +6,7 @@ export type ProfilePageClientProps = {
   name: string;
   email: string;
   role: "admin" | "player";
+  locale: AppLocale;
   picture?: string;
   isSwitched?: boolean;
   authenticatedName?: string;

@@ -1,5 +1,7 @@
 "use client";
 
+import { useLocale } from "@/components/locale-provider";
+
 type AchievementProgressBarProps = {
   percent: number;
   completed: boolean;
@@ -13,6 +15,7 @@ export function AchievementProgressBar({
   locked,
   className = "",
 }: AchievementProgressBarProps) {
+  const { t } = useLocale();
   const safePercent = Math.max(0, Math.min(100, Math.floor(percent)));
   return (
     <div className={`w-full ${className}`}>
@@ -22,7 +25,9 @@ export function AchievementProgressBar({
           style={{ width: `${safePercent}%` }}
         />
       </div>
-      <div className="mt-1 text-center text-xs text-slate-600">{safePercent}% complete</div>
+      <div className="mt-1 text-center text-xs text-slate-600">
+        {t("achievements.progressComplete", { percent: safePercent })}
+      </div>
     </div>
   );
 }

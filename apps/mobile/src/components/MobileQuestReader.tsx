@@ -7,6 +7,7 @@ import {
   type MobileQuestNode,
   type MobileQuestProgress,
 } from "@/lib/api";
+import { useMobileLocale } from "@/lib/locale";
 import { colors, radius, spacing, typography } from "@/theme";
 import { Badge, Button, Card, ErrorState, LoadingState } from "@/components/ui";
 
@@ -36,6 +37,7 @@ type Props = {
 };
 
 export function MobileQuestReader({ state, isStarting, pendingChoiceId, isReplaying, onBack, onStart, onChoose, onReplay }: Props) {
+  const { t } = useMobileLocale();
   const endingsDiscovered = state.progress?.endingsReached.length ?? 0;
   const replayHint = useMemo(() => {
     if (state.lastEnding?.replayHint?.trim()) {
@@ -44,30 +46,30 @@ export function MobileQuestReader({ state, isStarting, pendingChoiceId, isReplay
     if (state.currentNode?.type === "ending" && state.currentNode.ending.replayHint?.trim()) {
       return state.currentNode.ending.replayHint.trim();
     }
-    return "There are other paths to explore.";
-  }, [state.currentNode, state.lastEnding]);
+    return t("quests.endingReplayHintDefault");
+  }, [state.currentNode, state.lastEnding, t]);
 
   if (state.loading) {
-    return <LoadingState label="Loading quest..." />;
+    return <LoadingState label={t("quests.loadingQuest")} />;
   }
 
   return (
     <View style={styles.stack}>
-      <Button label="<- Back to Quests" variant="secondary" onPress={onBack} />
+      <Button label={`<- ${t("quests.backToQuests")}`} variant="secondary" onPress={onBack} />
       {state.error ? <ErrorState message={state.error} /> : null}
       <Card style={styles.darkCard}>
         <View style={styles.readerHeader}>
           <View style={styles.readerTitleWrap}>
-            <Text style={styles.readerKicker}>Quest</Text>
-            <Text style={styles.readerTitle}>{state.questTitle || "Quest"}</Text>
+            <Text style={styles.readerKicker}>{t("quests.questLabel")}</Text>
+            <Text style={styles.readerTitle}>{state.questTitle || t("quests.questLabel")}</Text>
           </View>
-          <Badge label={`${endingsDiscovered}/${state.totalEndings} endings`} />
+          <Badge label={t("quests.endingsDiscovered", { found: endingsDiscovered, total: state.totalEndings })} />
         </View>
-        <Text style={styles.walletText}>{state.walletBalance} coins available</Text>
+        <Text style={styles.walletText}>{t("quests.walletBalance", { coins: state.walletBalance })}</Text>
         {state.progress?.status === "not_started" ? (
           <View style={styles.startWrap}>
-            <Text style={styles.bodyLight}>Start this quest to begin the interactive story.</Text>
-            <Button label={isStarting ? "Starting..." : "Start Quest"} disabled={isStarting} onPress={() => void onStart()} />
+            <Text style={styles.bodyLight}>{t("quests.startPrompt")}</Text>
+            <Button label={isStarting ? t("quests.startingQuest") : t("quests.startQuest")} disabled={isStarting} onPress={() => void onStart()} />
           </View>
         ) : null}
         {state.currentNode ? (
@@ -82,6 +84,7 @@ export function MobileQuestReader({ state, isStarting, pendingChoiceId, isReplay
             isReplaying={isReplaying}
             onChoose={onChoose}
             onReplay={onReplay}
+            t={t}
           />
         ) : null}
       </Card>
@@ -100,6 +103,7 @@ function QuestNodeCard({
   isReplaying,
   onChoose,
   onReplay,
+  t,
 }: {
   node: MobileQuestNode;
   pendingChoiceId: string;
@@ -111,6 +115,7 @@ function QuestNodeCard({
   isReplaying: boolean;
   onChoose: (choiceId: string) => Promise<void>;
   onReplay: () => Promise<void>;
+  t: ReturnType<typeof useMobileLocale>["t"];
 }) {
   const displayTitle = node.type === "ending" ? node.title.replace(/^Ending:\s*/i, "").trim() : node.title;
 
@@ -119,7 +124,7 @@ function QuestNodeCard({
       <Image source={{ uri: toAppAssetUrl(node.image || QUEST_PLACEHOLDER) }} style={styles.nodeImage} />
       <Text style={styles.nodeTitle}>{displayTitle}</Text>
       <Text style={styles.bodyLight}>{node.text}</Text>
-      {node.audio ? <Text style={styles.mutedLight}>Narration is available in the web player.</Text> : <Text style={styles.mutedLight}>Narration coming soon.</Text>}
+      {node.audio ? <Text style={styles.mutedLight}>{t("quests.narrationWebOnly")}</Text> : <Text style={styles.mutedLight}>{t("quests.narrationComingSoon")}</Text>}
       {node.type === "story" ? (
         <View style={styles.choiceList}>
           {node.choices.map((choice) => (
@@ -134,12 +139,12 @@ function QuestNodeCard({
         </View>
       ) : (
         <View style={styles.endingWrap}>
-          <Text style={styles.bodyLight}>{lastEnding?.isNewEnding ? "New ending discovered!" : "Previously discovered ending."}</Text>
-          <Text style={styles.bodyLight}>You've discovered {endingsDiscovered} of {totalEndings} endings.</Text>
+          <Text style={styles.bodyLight}>{lastEnding?.isNewEnding ? t("quests.endingNew") : t("quests.endingSeen")}</Text>
+          <Text style={styles.bodyLight}>{t("quests.endingProgress", { found: endingsDiscovered, total: totalEndings })}</Text>
           <Text style={styles.bodyLight}>{node.ending.rewardSummary}</Text>
           {lastTransaction ? <Text style={styles.bodyLight}>{formatTransaction(lastTransaction)}</Text> : null}
           <Text style={styles.mutedLight}>{replayHint}</Text>
-          <Button label={isReplaying ? "Restarting..." : "Try a Different Path"} disabled={isReplaying} onPress={() => void onReplay()} />
+          <Button label={isReplaying ? t("common.actions.loading") : t("quests.endingTryDifferentPath")} disabled={isReplaying} onPress={() => void onReplay()} />
         </View>
       )}
     </View>

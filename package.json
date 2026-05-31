@@ -16,17 +16,11 @@
     "test": "npm run test --workspaces --if-present",
     "wallet:rebuild": "node scripts/rebuild-wallet-balances.mjs",
     "admin:grant-confetti": "node scripts/admin/grant-all-confetti-options.mjs",
-    "android": "expo run:android",
-    "ios": "expo run:ios"
+    "android": "npm run android -w @apps/mobile",
+    "ios": "npm run ios -w @apps/mobile"
   },
   "overrides": {
     "minimatch": "^10.2.1"
-  },
-  "dependencies": {
-    "firebase": "^12.9.0",
-    "expo": "~54.0.34",
-    "react": "19.1.0",
-    "react-native": "0.81.5"
   },
   "version": "1.0.0"
 }

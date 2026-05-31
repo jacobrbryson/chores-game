@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { validateQuestAgainstRules } from "@/lib/quests/quest-validation";
+import { resolveQuestLocale } from "@/lib/quests/localization";
 import {
   getFamilyQuestDefinition,
   listPublishedFamilyQuestDefinitions,
@@ -63,15 +64,17 @@ export async function listQuestDefinitions(options?: { forceReload?: boolean }) 
   return quests;
 }
 
-export async function getQuestDefinitionById(questId: string) {
+export async function getQuestDefinitionById(questId: string, locale?: string | null) {
   const quests = await listQuestDefinitions();
-  return quests.find((quest) => quest.id === questId) ?? null;
+  const quest = quests.find((entry) => entry.id === questId) ?? null;
+  return quest ? resolveQuestLocale(quest, locale) : null;
 }
 
 export async function listQuestDefinitionsForViewer(input: {
   uid: string;
   email: string;
   idToken: string;
+  locale?: string | null;
 }) {
   const baseQuests = await listQuestDefinitions();
   const familyId = await getPrimaryFamilyIdWithFallback(input.uid, input.email, input.idToken);
@@ -80,7 +83,9 @@ export async function listQuestDefinitionsForViewer(input: {
   }
   const familyQuests = await listPublishedFamilyQuestDefinitions(familyId, input.idToken);
   const seen = new Set(baseQuests.map((quest) => quest.id));
-  return [...baseQuests, ...familyQuests.filter((quest) => !seen.has(quest.id))];
+  return [...baseQuests, ...familyQuests.filter((quest) => !seen.has(quest.id))].map((quest) =>
+    resolveQuestLocale(quest, input.locale),
+  );
 }
 
 export async function getQuestDefinitionForViewer(input: {
@@ -88,8 +93,9 @@ export async function getQuestDefinitionForViewer(input: {
   uid: string;
   email: string;
   idToken: string;
+  locale?: string | null;
 }) {
-  const builtInQuest = await getQuestDefinitionById(input.questId);
+  const builtInQuest = await getQuestDefinitionById(input.questId, input.locale);
   if (builtInQuest) {
     return builtInQuest;
   }
@@ -98,7 +104,8 @@ export async function getQuestDefinitionForViewer(input: {
   if (!familyId) {
     return null;
   }
-  return getFamilyQuestDefinition(familyId, input.questId, input.idToken, "published");
+  const familyQuest = await getFamilyQuestDefinition(familyId, input.questId, input.idToken, "published");
+  return familyQuest ? resolveQuestLocale(familyQuest, input.locale) : null;
 }
 
 export function getQuestNodeById(quest: QuestDefinition, nodeId: string) {

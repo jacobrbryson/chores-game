@@ -7,6 +7,40 @@ export type QuestChoicePurchaseBehavior = {
   purchaseAndUseImmediately: boolean;
 };
 
+export type QuestLocalizedTextMap = Record<string, string>;
+
+export type QuestLocalizedChoiceContent = {
+  label?: string;
+  description?: string;
+  requiredItemName?: string;
+  unavailableText?: string;
+};
+
+export type QuestLocalizedEndingContent = {
+  replayHint?: string;
+  rewardSummary?: string;
+};
+
+export type QuestLocalizedNodeContent = {
+  title?: string;
+  text?: string;
+  imageAlt?: string;
+  imageCaption?: string;
+  audioTitle?: string;
+  choices?: Record<string, QuestLocalizedChoiceContent>;
+  ending?: QuestLocalizedEndingContent;
+};
+
+export type QuestLocalizedContent = {
+  title?: string;
+  subtitle?: string;
+  summary?: string;
+  author?: string;
+  ageRange?: string;
+  coverImageAlt?: string;
+  nodes?: Record<string, QuestLocalizedNodeContent>;
+};
+
 export type QuestChoice = {
   id: string;
   label: string;
@@ -31,7 +65,10 @@ export type QuestStoryNode = {
   type: "story";
   title: string;
   image?: string;
+  imageAlt?: string;
+  imageCaption?: string;
   audio?: string;
+  audioTitle?: string;
   text: string;
   choices: QuestChoice[];
 };
@@ -41,7 +78,10 @@ export type QuestEndingNode = {
   type: "ending";
   title: string;
   image?: string;
+  imageAlt?: string;
+  imageCaption?: string;
   audio?: string;
+  audioTitle?: string;
   text: string;
   ending: {
     endingId: string;
@@ -64,6 +104,8 @@ export type QuestMeta = {
 export type QuestDefinition = {
   id: string;
   slug: string;
+  defaultLocale: string;
+  availableLocales?: string[];
   title: string;
   subtitle: string;
   author: string;
@@ -74,6 +116,7 @@ export type QuestDefinition = {
   version: string;
   difficulty: QuestDifficulty;
   coverImage?: string;
+  coverImageAlt?: string;
   summary: string;
   ageRange: string;
   readingLevel?: string;
@@ -93,6 +136,7 @@ export type QuestDefinition = {
     firstCompletion?: QuestRewardSet;
     allEndingsDiscovered?: QuestRewardSet;
   };
+  locales?: Record<string, QuestLocalizedContent>;
   nodes: QuestNode[];
 };
 

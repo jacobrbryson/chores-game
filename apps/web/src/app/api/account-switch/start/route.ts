@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
             email: memberIdentity.email,
             name: memberIdentity.name,
             picture: memberIdentity.picture,
+            locale: memberIdentity.locale,
           },
         };
       },

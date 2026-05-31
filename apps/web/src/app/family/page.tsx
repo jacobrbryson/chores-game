@@ -1,5 +1,6 @@
 "use client";
 
+import { LOCALE_LABELS, SUPPORTED_LOCALES, type AppLocale } from "@packages/locales";
 import Image from "next/image";
 import Link from "next/link";
 import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useMemo, useState } from "react";
@@ -11,7 +12,9 @@ import { CoinIcon } from "@/components/coin-icon";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
 import { FamilySectionTabs, type FamilySectionTabId } from "@/components/family/family-section-tabs";
 import { FamilyQuestsSection } from "@/components/family-quests-section";
+import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
+import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import type { FamilySummaryResponse } from "@/lib/family/types";
 import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
 import {
@@ -319,6 +322,11 @@ function normalizeCategoryColor(value: string) {
 }
 
 export default function FamilyPage() {
+  const { t } = useLocale();
+  const localeOptions: TailwindSelectOption<AppLocale>[] = SUPPORTED_LOCALES.map((option) => ({
+    value: option,
+    label: LOCALE_LABELS[option],
+  }));
   const [summary, setSummary] = useState<FamilySummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -359,6 +367,8 @@ export default function FamilyPage() {
     useState<PendingDisableReward | null>(null);
   const [pendingRemoveReward, setPendingRemoveReward] =
     useState<PendingRemoveReward | null>(null);
+  const [memberLocalePendingId, setMemberLocalePendingId] = useState("");
+  const [memberLocaleError, setMemberLocaleError] = useState("");
 
   async function loadSummary() {
     setIsLoading(true);
@@ -400,6 +410,45 @@ export default function FamilyPage() {
   useEffect(() => {
     void loadSummary();
   }, []);
+
+  async function onChangeMemberLocale(memberId: string, nextLocale: AppLocale) {
+    if (memberLocalePendingId) {
+      return;
+    }
+    setMemberLocalePendingId(memberId);
+    setMemberLocaleError("");
+    try {
+      const response = await fetch(`/api/family/members/${encodeURIComponent(memberId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale: nextLocale }),
+      });
+      const payload = (await response.json()) as { error?: string; locale?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? `FAMILY_MEMBER_LOCALE_HTTP_${response.status}`);
+      }
+      setSummary((current) =>
+        current
+          ? {
+              ...current,
+              members: current.members.map((member) =>
+                member.id === memberId
+                  ? { ...member, locale: nextLocale, resolvedLocale: nextLocale }
+                  : member,
+              ),
+            }
+          : current,
+      );
+    } catch (errorValue) {
+      setMemberLocaleError(
+        t("family.languageUpdateError", {
+          error: errorValue instanceof Error ? errorValue.message : "unknown",
+        }),
+      );
+    } finally {
+      setMemberLocalePendingId("");
+    }
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -764,7 +813,7 @@ export default function FamilyPage() {
   return (
     <>
       <main className="family-page">
-          {!isLoading && error ? <Alert>Could not load members: {error}</Alert> : null}
+          {!isLoading && error ? <Alert>{t("family.membersLoadError", { error })}</Alert> : null}
           <section className="app-tab-panel">
             <div className="app-tab-panel-header flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
               <FamilySectionTabs activeTab={activeFamilyTab} onChange={setActiveFamilyTab} />
@@ -794,20 +843,22 @@ export default function FamilyPage() {
                   ) : null}
                   <div className="family-page-grid">
                     {activeFamilyTab === "members" ? (
-                    <section aria-label="Family members">
+                    <section aria-label={t("family.membersTitle")}>
+                      {memberLocaleError ? <Alert>{memberLocaleError}</Alert> : null}
                       <div className="family-table-wrap family-table-desktop">
                         <table className="family-table">
                           <thead>
                             <tr>
-                              <th>Member</th>
-                              <th>Status / Last Sign In</th>
-                              <th>Stats</th>
+                              <th>{t("family.memberColumn")}</th>
+                              <th>{t("family.statusColumn")}</th>
+                              <th>{t("common.labels.language")}</th>
+                              <th>{t("family.statsColumn")}</th>
                             </tr>
                           </thead>
                           <tbody>
                             {members.length === 0 ? (
                               <tr>
-                                <td colSpan={3}>No family members found.</td>
+                                <td colSpan={4}>{t("family.memberEmpty")}</td>
                               </tr>
                             ) : (
                               members.map((member) => {
@@ -866,6 +917,26 @@ export default function FamilyPage() {
                                       {memberLastSignInLabel(member)}
                                     </span>
                                   </td>
+                                  <td>
+                                    <div className="flex flex-col items-start gap-1.5 pb-1">
+                                      <div onClick={(event) => event.stopPropagation()}>
+                                        <TailwindSelect
+                                          ariaLabel={t("common.labels.language")}
+                                          className="min-w-[180px]"
+                                          buttonClassName="h-10 min-w-[180px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+                                          value={member.resolvedLocale || "en-US"}
+                                          disabled={!canManageMembers || memberLocalePendingId === member.id}
+                                          onChange={(value) => {
+                                            void onChangeMemberLocale(member.id, value);
+                                          }}
+                                          options={localeOptions}
+                                        />
+                                      </div>
+                                      {memberLocalePendingId === member.id ? (
+                                        <span className="small">{t("family.memberLanguageSaving")}</span>
+                                      ) : null}
+                                    </div>
+                                  </td>
                                   <td className="family-member-stats-cell">
                                     <FamilyMemberStats member={member} compact />
                                   </td>
@@ -878,7 +949,7 @@ export default function FamilyPage() {
                       </div>
                       <div className="family-member-cards">
                         {members.length === 0 ? (
-                          <div className="family-member-empty">No family members found.</div>
+                          <div className="family-member-empty">{t("family.memberEmpty")}</div>
                         ) : (
                           members.map((member) => (
                             <article key={member.id} className="family-member-card">
@@ -926,6 +997,10 @@ export default function FamilyPage() {
                                   <span>Last Sign In</span>
                                     <strong>{memberLastSignInLabel(member)}</strong>
                                 </div>
+                                <div className="family-member-meta-item">
+                                  <span>{t("common.labels.language")}</span>
+                                  <strong>{LOCALE_LABELS[member.resolvedLocale || "en-US"]}</strong>
+                                </div>
                               </div>
                               <FamilyMemberStats member={member} />
                             </article>
@@ -938,7 +1013,7 @@ export default function FamilyPage() {
                             type="button"
                             className="btn btn-primary"
                             onClick={() => setShowAddMemberForm(true)}>
-                            Add Family Member
+                            {t("family.addFamilyMember")}
                           </Button>
                         </div>
                       ) : null}

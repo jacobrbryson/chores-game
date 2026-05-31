@@ -115,6 +115,7 @@ export async function POST(
           uid: session.uid,
           email: session.email ?? "",
           idToken,
+          locale: session.locale,
         });
         if (!quest) {
           return { kind: "quest_not_found" as const };

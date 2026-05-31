@@ -1,15 +1,9 @@
 "use client";
 
 import { AppTabs, type AppTabItem } from "@/components/app-tabs";
+import { useLocale } from "@/components/locale-provider";
 
 export type FamilySectionTabId = "members" | "awards" | "categories" | "quests";
-
-const FAMILY_TABS: AppTabItem<FamilySectionTabId>[] = [
-  { id: "members", label: "Members" },
-  { id: "awards", label: "Awards" },
-  { id: "categories", label: "Categories" },
-  { id: "quests", label: "Quests" },
-];
 
 type FamilySectionTabsProps = {
   activeTab: FamilySectionTabId;
@@ -17,5 +11,13 @@ type FamilySectionTabsProps = {
 };
 
 export function FamilySectionTabs({ activeTab, onChange }: FamilySectionTabsProps) {
-  return <AppTabs ariaLabel="Family sections" tabs={FAMILY_TABS} activeTab={activeTab} onChange={onChange} />;
+  const { t } = useLocale();
+  const tabs: AppTabItem<FamilySectionTabId>[] = [
+    { id: "members", label: t("family.tabs.members") },
+    { id: "awards", label: t("family.tabs.awards") },
+    { id: "categories", label: t("family.tabs.categories") },
+    { id: "quests", label: t("family.tabs.quests") },
+  ];
+
+  return <AppTabs ariaLabel={t("nav.manageFamily")} tabs={tabs} activeTab={activeTab} onChange={onChange} />;
 }

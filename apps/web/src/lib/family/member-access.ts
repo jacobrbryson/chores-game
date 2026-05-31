@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE, normalizeLocale, resolveLocalePreference, type AppLocale } from "@packages/locales";
 import {
   documentIdFromName,
   findFirstFamilyIdByMemberEmail,
@@ -19,6 +20,8 @@ export type FamilyResolvedMember = {
   email: string;
   role: "admin" | "player";
   status: "active" | "invited";
+  locale?: AppLocale;
+  resolvedLocale: AppLocale;
   lastSignInAt?: string;
   dashboardPrimaryColor?: string;
   avatarId?: string;
@@ -31,6 +34,7 @@ export type FamilyResolvedMember = {
 export type ViewerFamilyContext = {
   familyId: string;
   familyName: string;
+  familyLocale: AppLocale;
   members: FamilyResolvedMember[];
   viewerMember: FamilyResolvedMember | null;
   viewerRole: ViewerRole;
@@ -97,6 +101,8 @@ export async function listFamilyMembers(
       email: readString(doc.fields, "email"),
       role: toMemberRole(readString(doc.fields, "role")),
       status: toMemberStatus(readString(doc.fields, "status")),
+      locale: normalizeLocale(readString(doc.fields, "locale").trim()) || undefined,
+      resolvedLocale: DEFAULT_LOCALE,
       lastSignInAt: readTimestamp(doc.fields, "lastSignInAt") || undefined,
       dashboardPrimaryColor: readString(doc.fields, "dashboardPrimaryColor") || undefined,
       avatarId: readString(doc.fields, "avatarId") || undefined,
@@ -142,6 +148,7 @@ export async function getViewerFamilyContext(
     return {
       familyId: "",
       familyName: "",
+      familyLocale: DEFAULT_LOCALE,
       members: [],
       viewerMember: null,
       viewerRole: "player",
@@ -149,9 +156,13 @@ export async function getViewerFamilyContext(
   }
 
   let familyName = "My Family";
+  let familyLocale: AppLocale = DEFAULT_LOCALE;
   try {
     const familyDoc = await getDocument(`families/${familyId}`, idToken);
     familyName = readString(familyDoc.fields, "name") || familyName;
+    familyLocale = resolveLocalePreference({
+      familyLocale: readString(familyDoc.fields, "defaultLocale"),
+    });
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";
     if (!reason.includes("FIRESTORE_HTTP_404")) {
@@ -159,7 +170,13 @@ export async function getViewerFamilyContext(
     }
   }
 
-  const members = await listFamilyMembers(familyId, idToken);
+  const members = (await listFamilyMembers(familyId, idToken)).map((member) => ({
+    ...member,
+    resolvedLocale: resolveLocalePreference({
+      requestedLocale: member.locale,
+      familyLocale,
+    }),
+  }));
   const normalizedEmail = normalizeEmail(email);
   const viewerMember =
     members.find((member) => member.uid === uid || member.id === uid) ??
@@ -169,6 +186,7 @@ export async function getViewerFamilyContext(
   return {
     familyId,
     familyName,
+    familyLocale,
     members,
     viewerMember,
     viewerRole: viewerMember?.role ?? "player",

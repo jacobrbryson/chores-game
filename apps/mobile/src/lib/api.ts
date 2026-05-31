@@ -1,4 +1,6 @@
+import { DEFAULT_LOCALE, normalizeLocale } from "@packages/locales";
 import { createApiClient } from "@packages/api-client";
+import type { AppLocale } from "@packages/locales";
 import { Platform } from "react-native";
 
 const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api/v1";
@@ -89,6 +91,8 @@ export type MobileFamilyMember = {
   email?: string;
   role: "admin" | "player";
   status: "active" | "invited";
+  locale?: AppLocale;
+  resolvedLocale?: AppLocale;
   dashboardPrimaryColor?: string;
   avatarId?: string;
   avatarPhotoUrl?: string;
@@ -138,10 +142,11 @@ export type MobileFamilySummary = {
   viewerUid: string;
   viewerAssigneeAliases?: string[];
   noFamily: boolean;
-  family: null | { id: string; name: string };
+  family: null | { id: string; name: string; defaultLocale?: AppLocale };
   members: MobileFamilyMember[];
   categories?: MobileFamilyCategory[];
   choresToday: MobileFamilyChore[];
+  resolvedLocale?: AppLocale;
 };
 
 export type MobileQuestChoice = {
@@ -348,7 +353,22 @@ export async function fetchMobileFamilySummary(): Promise<MobileFamilySummary> {
     members: Array.isArray(summary.members) ? summary.members : [],
     categories: Array.isArray(summary.categories) ? summary.categories : [],
     choresToday: Array.isArray(summary.choresToday) ? summary.choresToday : [],
+    resolvedLocale: normalizeLocale(summary.resolvedLocale) || DEFAULT_LOCALE,
   };
+}
+
+export async function patchMobileProfile(body: Record<string, unknown>) {
+  const response = await fetch(`${appBaseUrl}/api/profile`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(String(json?.error ?? `PROFILE_PATCH_FAILED_${response.status}`));
+  }
+  return json;
 }
 
 export async function patchMobileChore(choreId: string, body: Record<string, unknown>) {

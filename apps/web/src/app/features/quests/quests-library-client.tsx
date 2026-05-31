@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Alert } from "@/components/alert";
+import { useLocale } from "@/components/locale-provider";
 
 type QuestLibraryEntry = {
   questId: string;
@@ -28,6 +29,7 @@ type QuestLibraryEntry = {
 };
 
 export function QuestsLibraryClient() {
+  const { t } = useLocale();
   const [quests, setQuests] = useState<QuestLibraryEntry[]>([]);
   const [hasUnlockedQuestPack, setHasUnlockedQuestPack] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,7 +73,7 @@ export function QuestsLibraryClient() {
 
   if (isLoading) {
     return (
-      <section className="quests-netflix quests-netflix-skeleton" aria-label="Loading quests" aria-busy="true">
+      <section className="quests-netflix quests-netflix-skeleton" aria-label={t("quests.loadingQuest")} aria-busy="true">
         <article className="quests-netflix-hero quests-library-card-skeleton">
           <div className="quests-skeleton-block quests-netflix-hero-skeleton-media" />
           <div className="quests-netflix-hero-overlay">
@@ -101,7 +103,7 @@ export function QuestsLibraryClient() {
   }
 
   if (error) {
-    return <Alert>Could not load quests: {error}</Alert>;
+    return <Alert>{t("quests.loadQuestError", { error })}</Alert>;
   }
 
   const featuredQuest = quests[0] ?? null;
@@ -121,7 +123,7 @@ export function QuestsLibraryClient() {
             }}
           />
           <div className="quests-netflix-hero-overlay">
-            <p className="small">Featured Quest</p>
+            <p className="small">{t("quests.featuredQuest")}</p>
             <h2>{featuredQuest.title}</h2>
             <p>{featuredQuest.summary}</p>
             <p className="small">
@@ -131,7 +133,7 @@ export function QuestsLibraryClient() {
               {featuredQuest.actionLabel} <span aria-hidden="true">&rarr;</span>
             </Link>
             {!hasUnlockedQuestPack ? (
-              <p className="small quests-netflix-unlock-note">Start this quest to unlock 5 more quests.</p>
+              <p className="small quests-netflix-unlock-note">{t("quests.unlockPackNote")}</p>
             ) : null}
           </div>
         </article>
@@ -139,7 +141,7 @@ export function QuestsLibraryClient() {
 
       {continuingQuests.length > 0 ? (
         <div className="quests-netflix-row">
-          <h3>Continue Watching</h3>
+          <h3>{t("quests.continueWatching")}</h3>
           <QuestRail>
             {continuingQuests.map((quest) => (
               <QuestTile key={`continue-${quest.questId}`} quest={quest} />
@@ -149,7 +151,7 @@ export function QuestsLibraryClient() {
       ) : null}
 
       <div className="quests-netflix-row">
-        <h3>{hasUnlockedQuestPack ? "Quest Library" : "Available Now"}</h3>
+        <h3>{hasUnlockedQuestPack ? t("quests.questLibrary") : t("quests.availableNow")}</h3>
         <QuestRail>
           {quests.map((quest) => (
             <QuestTile key={quest.questId} quest={quest} />
@@ -159,7 +161,7 @@ export function QuestsLibraryClient() {
 
       {completedQuests.length > 0 ? (
         <div className="quests-netflix-row">
-          <h3>Completed</h3>
+          <h3>{t("quests.completed")}</h3>
           <QuestRail>
             {completedQuests.map((quest) => (
               <QuestTile key={`completed-${quest.questId}`} quest={quest} />
@@ -170,14 +172,14 @@ export function QuestsLibraryClient() {
 
       {!hasUnlockedQuestPack ? (
         <div className="quests-netflix-row">
-          <h3>Locked Quests</h3>
+          <h3>{t("quests.lockedQuests")}</h3>
           <QuestRail>
             {Array.from({ length: 5 }).map((_, index) => (
               <article key={`locked-${index}`} className="quests-netflix-tile quests-netflix-tile-locked">
                 <div className="quests-netflix-tile-image quests-netflix-tile-image-locked" />
                 <span className="quests-netflix-tile-meta">
-                  <strong>Quest {index + 2}</strong>
-                  <span className="small">Unlock by progressing quest 1</span>
+                  <strong>{t("quests.questLabel")} {index + 2}</strong>
+                  <span className="small">{t("quests.unlockByProgressingQuestOne")}</span>
                 </span>
               </article>
             ))}

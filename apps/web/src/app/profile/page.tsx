@@ -22,6 +22,7 @@ export default async function ProfilePage() {
       name={sessionUser.name || ""}
       email={sessionUser.email || ""}
       role={sessionUser.role}
+      locale={sessionUser.locale || "en-US"}
       picture={sessionUser.picture || ""}
       isSwitched={isSessionSwitched(sessionUser)}
       authenticatedName={authenticatedIdentity.name || authenticatedIdentity.email || ""}

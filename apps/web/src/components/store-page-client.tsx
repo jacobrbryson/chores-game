@@ -16,6 +16,7 @@ import { AppTabs, type AppTabItem } from "@/components/app-tabs";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
+import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
 import {
   dispatchConfettiSelectionChanged,
@@ -38,13 +39,6 @@ import { findFamilyRewardImageOption } from "@/lib/family/rewards";
 
 const STORE_ACTION_TIMEOUT_MS = 12000;
 const STORE_TAB_ORDER = ["family_awards", "customize_colors", "customize_avatar", "victory_confetti", "quest_items"];
-const STORE_TAB_LABELS: Record<string, string> = {
-  family_awards: "Family",
-  customize_colors: "Colors",
-  customize_avatar: "Avatar",
-  victory_confetti: "Confetti",
-  quest_items: "Quest",
-};
 
 type StoreSummaryResponse = {
   balance: number;
@@ -81,6 +75,7 @@ function getOptionPrice(category: StoreCategory, option: StoreOption) {
 }
 
 export function StorePageClient() {
+  const { t } = useLocale();
   const [summary, setSummary] = useState<StoreSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -169,9 +164,16 @@ export function StorePageClient() {
     () =>
       orderedCategories.map((category) => ({
         id: category.id,
-        label: STORE_TAB_LABELS[category.id] ?? category.name,
+        label:
+          {
+            family_awards: t("store.tabs.family"),
+            customize_colors: t("store.tabs.colors"),
+            customize_avatar: t("store.tabs.avatar"),
+            victory_confetti: t("store.tabs.confetti"),
+            quest_items: t("store.tabs.quest"),
+          }[category.id] ?? category.name,
       })),
-    [orderedCategories],
+    [orderedCategories, t],
   );
   const normalizedModalSearchQuery = modalSearchQuery.trim().toLowerCase();
   const filteredOptions = useMemo(() => {
@@ -382,7 +384,7 @@ export function StorePageClient() {
       }
       await loadSummary({ showLoading: false, clearError: false });
       if (category.kind === "quest_item") {
-        setActionSuccess(`${option.label} added to inventory`);
+        setActionSuccess(t("store.itemAddedToInventory", { item: option.label }));
       }
       window.dispatchEvent(new Event("wallet:refresh"));
       window.dispatchEvent(new Event("profile-avatar:refresh"));
@@ -390,22 +392,22 @@ export function StorePageClient() {
         setApplyNowPrompt({
           categoryId: category.id,
           optionId: option.id,
-          title: "Set theme now?",
-          message: `Purchase complete. Apply "${option.label}" now?`,
+          title: t("store.applyThemeNowTitle"),
+          message: t("store.purchaseCompleteApplyNow", { item: option.label }),
         });
       } else if (category.kind === "avatar") {
         setApplyNowPrompt({
           categoryId: category.id,
           optionId: option.id,
-          title: "Set avatar now?",
-          message: `Purchase complete. Apply "${option.label}" now?`,
+          title: t("store.applyAvatarNowTitle"),
+          message: t("store.purchaseCompleteApplyNow", { item: option.label }),
         });
       } else if (category.kind === "confetti") {
         setApplyNowPrompt({
           categoryId: category.id,
           optionId: option.id,
-          title: "Set confetti now?",
-          message: `Purchase complete. Apply "${option.label}" now?`,
+          title: t("store.applyConfettiNowTitle"),
+          message: t("store.purchaseCompleteApplyNow", { item: option.label }),
         });
       }
     } catch (purchaseError) {
@@ -449,7 +451,7 @@ export function StorePageClient() {
   return (
     <main className="family-page store-page">
       {isLoading ? (
-        <section aria-label="Loading store" aria-hidden="true" className="space-y-3">
+        <section aria-label={t("store.loading")} aria-hidden="true" className="space-y-3">
           <div className="store-grid">
             <article className="store-card">
               <div className="family-skeleton family-skeleton-reward" />
@@ -478,13 +480,13 @@ export function StorePageClient() {
           </div>
         </section>
       ) : null}
-      {!isLoading && error ? <Alert>Could not load store: {error}</Alert> : null}
+      {!isLoading && error ? <Alert>{t("store.loadError", { error })}</Alert> : null}
       {!isLoading && !error && summary ? (
         <>
           <section className="app-tab-panel">
             <div className="app-tab-panel-header px-5 pt-4">
               <AppTabs
-                ariaLabel="Store categories"
+                ariaLabel={t("nav.store")}
                 tabs={storeTabs}
                 activeTab={selectedCategory?.id ?? storeTabs[0]?.id ?? ""}
                 onChange={(categoryId) => {
@@ -516,7 +518,7 @@ export function StorePageClient() {
                 <div className="store-tab-hero-copy">
                   <h3>{selectedCategory.name}</h3>
                   <p>{selectedCategory.description}</p>
-                  <p className="small">Balance: {summary.balance} coins</p>
+                  <p className="small">{t("store.balance", { coins: summary.balance })}</p>
                 </div>
               </div>
               <section className="store-options-panel">
@@ -527,11 +529,11 @@ export function StorePageClient() {
                       className="table-search-input w-full"
                       value={modalSearchQuery}
                       onChange={(event) => setModalSearchQuery(event.target.value)}
-                      placeholder={`Search ${selectedCategory.name.toLowerCase()}...`}
-                      aria-label={`Search ${selectedCategory.name}`}
+                      placeholder={t("store.searchPlaceholder", { category: selectedCategory.name.toLowerCase() })}
+                      aria-label={t("store.searchLabel", { category: selectedCategory.name })}
                     />
                   </div>
-                  {actionError ? <Alert className="mt-2">Store update failed: {actionError}</Alert> : null}
+                  {actionError ? <Alert className="mt-2">{t("store.updateError", { error: actionError })}</Alert> : null}
                   {actionSuccess ? (
                     <Alert tone="success" role="status" className="mt-2">
                       {actionSuccess}
@@ -555,20 +557,20 @@ export function StorePageClient() {
                           referrerPolicy="no-referrer"
                         />
                       </div>
-                      <h4>Google Avatar</h4>
-                      <p className="small">Always available</p>
+                      <h4>{t("store.googleAvatar")}</h4>
+                      <p className="small">{t("store.alwaysAvailable")}</p>
                       <Button
                         type="button"
                         className="btn btn-primary"
                         disabled={pendingOptionId.length > 0}
                         onClick={() => void onApplyGoogleAvatar()}>
                         {pendingOptionId === "google-avatar"
-                          ? "Saving..."
+                          ? t("family.memberLanguageSaving")
                           : summary.avatarId
-                            ? "Use Google avatar"
+                            ? t("store.useGoogleAvatar")
                             : summary.avatarPhotoUrl
-                              ? "Applied"
-                              : "Use Google avatar"}
+                              ? t("store.applied")
+                              : t("store.useGoogleAvatar")}
                       </Button>
                     </article>
                   ) : null}
@@ -576,24 +578,23 @@ export function StorePageClient() {
                     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-left">
                       {summary.viewerRole === "admin" ? (
                         <div className="small space-y-2">
-                          <p>No family awards are available right now.</p>
+                          <p>{t("store.noFamilyAwards")}</p>
                           <p>
                             <Link href="/family" className="font-semibold text-sky-700 underline">
-                              Manage rewards
+                              {t("store.manageRewards")}
                             </Link>
                           </p>
                         </div>
                       ) : (
                         <p className="small">
-                          No family awards are available right now. Ask a parent or guardian to add
-                          more rewards or raise the current limits.
+                          {t("store.noFamilyAwardsPlayer")}
                         </p>
                       )}
                     </div>
                   ) : null}
                   {selectedCategory.options.length > 0 && filteredOptions.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-left small">
-                      No items match "{modalSearchQuery.trim()}".
+                      {t("store.noItemsMatch", { query: modalSearchQuery.trim() })}
                     </div>
                   ) : null}
                   {filteredOptions.map((option) => {
@@ -698,9 +699,7 @@ export function StorePageClient() {
                                 } as CSSProperties
                               }>
                               {isDefaultConfettiOption ? (
-                                <span className="store-option-confetti-disabled-label">
-                                  Disabled
-                                </span>
+                                <span className="store-option-confetti-disabled-label">{t("store.disabled")}</span>
                               ) : (
                                 Array.from({ length: 10 }, (_unused, chipIndex) => {
                                   const chipShape = confettiShapes[chipIndex % confettiShapes.length] ?? "rect";
@@ -760,7 +759,7 @@ export function StorePageClient() {
                               className="btn btn-secondary store-preview-btn store-preview-btn-floating"
                               disabled={pendingOptionId.length > 0}
                               onClick={() => previewThemeOption(option)}>
-                              {previewing ? "Previewing" : "Preview"}
+                              {previewing ? t("store.previewing") : t("store.preview")}
                             </Button>
                           ) : null}
                           {canConfettiPreview ? (
@@ -768,13 +767,13 @@ export function StorePageClient() {
                               type="button"
                               className="btn btn-secondary store-preview-btn store-preview-btn-floating"
                               onClick={(event) => previewConfettiOption(option, event)}>
-                              {previewingConfetti ? "Previewing" : "Preview"}
+                              {previewingConfetti ? t("store.previewing") : t("store.preview")}
                             </Button>
                           ) : null}
                         </div>
                         <h4>{option.label}</h4>
                         {selectedCategory.kind === "quest_item" ? (
-                          <p className="small">{option.itemDescription || "Usable in quests."}</p>
+                          <p className="small">{option.itemDescription || t("store.usableInQuests")}</p>
                         ) : null}
                         <p className="small">
                           {isRewardOption ? (
@@ -784,12 +783,12 @@ export function StorePageClient() {
                           ) : selectedCategory.kind === "quest_item" ? (
                             <>
                               <CoinIcon size={14} /> {optionPrice} coins
-                              {questItemQuantity > 0 ? ` - Owned: ${questItemQuantity}` : ""}
+                              {questItemQuantity > 0 ? ` - ${t("store.ownedQuantity", { count: questItemQuantity })}` : ""}
                             </>
                           ) : isQuestUnlockOption && !owned ? (
-                            option.unlockLabel || "Quest Award"
+                            option.unlockLabel || t("store.questAward")
                           ) : owned || isDefaultConfettiOption ? (
-                            "Owned"
+                            t("store.owned")
                           ) : (
                             <>
                               <CoinIcon size={14} /> {optionPrice} coins
@@ -822,37 +821,37 @@ export function StorePageClient() {
                           }}>
                           {isRewardOption
                             ? isPending
-                              ? "Redeeming..."
+                              ? t("store.redeeming")
                               : canAfford
-                                ? "Redeem"
-                                : "Not enough coins"
+                                ? t("store.redeem")
+                                : t("store.notEnoughCoins")
                             : selectedCategory.kind === "quest_item"
                               ? isPending
-                                ? "Buying..."
+                                ? t("store.buying")
                                 : questItemCanBuy
                                   ? canAfford
-                                    ? "Buy"
-                                    : "Not enough coins"
-                                  : "Owned"
+                                    ? t("store.buy")
+                                    : t("store.notEnoughCoins")
+                                  : t("store.owned")
                             : isQuestUnlockOption && !owned
-                              ? option.unlockLabel || "Quest Award"
+                              ? option.unlockLabel || t("store.questAward")
                             : isPending
-                              ? "Saving..."
+                              ? t("family.memberLanguageSaving")
                               : owned
                                 ? applied
                                   ? selectedCategory.kind === "color"
-                                    ? "Theme active"
+                                    ? t("store.themeActive")
                                     : selectedCategory.kind === "confetti" && isDefaultConfettiOption
-                                      ? "Confetti off"
-                                    : "Applied"
+                                      ? t("store.confettiOff")
+                                    : t("store.applied")
                                   : selectedCategory.kind === "color"
-                                    ? "Set theme"
+                                    ? t("store.setTheme")
                                     : selectedCategory.kind === "confetti" && isDefaultConfettiOption
-                                      ? "Disable confetti"
-                                    : "Apply"
+                                      ? t("store.disableConfetti")
+                                    : t("store.apply")
                                 : canAfford
-                                  ? "Buy"
-                                  : "Not enough coins"}
+                                  ? t("store.buy")
+                                  : t("store.notEnoughCoins")}
                         </Button>
                       </article>
                     );
@@ -883,8 +882,8 @@ export function StorePageClient() {
                           setApplyNowPrompt(null);
                         }
                       }}
-                      aria-label="Close dialog"
-                      title="Close dialog">
+                      aria-label={t("common.actions.close")}
+                      title={t("common.actions.close")}>
                       X
                     </Button>
                   </div>
@@ -896,7 +895,7 @@ export function StorePageClient() {
                     className="btn btn-secondary"
                     disabled={pendingOptionId.length > 0}
                     onClick={() => setApplyNowPrompt(null)}>
-                    Not now
+                    {t("store.notNow")}
                   </Button>
                   <Button
                     type="button"
@@ -916,7 +915,7 @@ export function StorePageClient() {
                       await applyOption(category, option, true);
                       setApplyNowPrompt(null);
                     }}>
-                    {pendingOptionId.length > 0 ? "Applying..." : "Apply now"}
+                    {pendingOptionId.length > 0 ? t("store.applying") : t("store.applyNow")}
                   </Button>
                 </div>
               </section>

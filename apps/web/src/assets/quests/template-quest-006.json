@@ -1,365 +1,610 @@
 {
-	"id": "template-quest-006",
-	"slug": "the-kitchen-timer-trial",
-	"title": "The Kitchen Timer Trial",
-	"subtitle": "Quest pack story 6",
-	"author": "Family Chores Game",
-	"illustrator": "Family Chores Game",
-	"narrator": "Family Chores Game",
-	"publisher": "Family Chores Game",
-	"copyright": "(c) 2026 Family Chores Game",
-	"version": "1.1.0",
-	"difficulty": "easy",
-	"coverImage": "/quests/template-quest-006/coverImage.png",
-	"summary": "Race the kitchen timer through puzzle chores where safe choices and teamwork earn the best ending.",
-	"ageRange": "6-12",
-	"readingLevel": "Early reader with parent help",
-	"estimatedMinutes": 10,
-	"themes": [
-		"Responsibility",
-		"Problem solving",
-		"Household teamwork",
-		"Honesty",
-		"Kindness"
-	],
-	"contentWarnings": [],
-	"tags": ["onboarding", "laundry", "choices"],
-	"meta": {
-		"totalNodes": 17,
-		"totalEndings": 6,
-		"replayEnabled": true
-	},
-	"startNodeId": "page_01_glow",
-	"globalRewards": {
-		"firstCompletion": {
-			"coins": 0,
-			"items": ["character_default_avatar_01"],
-			"achievements": []
-		},
-		"allEndingsDiscovered": {
-			"coins": 0,
-			"items": [],
-			"achievements": []
-		}
-	},
-	"nodes": [
-		{
-			"id": "page_01_glow",
-			"type": "story",
-			"title": "The Basket Begins to Glow",
-			"image": "/quests/template-quest-001/page_01_glow.png",
-			"text": "You are sorting clean laundry when one striped sock starts to glow like a tiny lantern. The basket hums and rattles, and a swirl of blue sparkles curls into the air. A gentle voice whispers that the Sock Kingdom needs help before bedtime. You take a deep breath and remember that brave helpers also make safe choices.",
-			"choices": [
-				{
-					"id": "choice_helpful_start",
-					"label": "Ask how to help",
-					"description": "You listen first and offer kind help.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "page_02_prep_kind"
-				},
-				{
-					"id": "choice_selfish_start",
-					"label": "Grab the glowing sock and demand treasure",
-					"description": "You focus on rewards before helping.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "ending_selfish_rush"
-				},
-				{
-					"id": "choice_unsafe_start",
-					"label": "Jump into the portal without checking",
-					"description": "You rush in without a plan.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "ending_unsafe_jump"
-				}
-			]
-		},
-		{
-			"id": "page_02_prep_kind",
-			"type": "story",
-			"title": "A Calm Plan",
-			"image": "/quests/template-quest-001/page_02_prep_kind.png",
-			"text": "The sock introduces itself as a royal messenger and thanks you for being polite. It explains that sock pairs are lost in a windy hallway behind the Dryer Gate. You promise to help and check that the laundry room floor is clear before stepping closer. The portal brightens as if it likes thoughtful teamwork.",
-			"choices": [
-				{
-					"id": "continue_02",
-					"label": "Step toward the portal",
-					"description": "You move forward carefully.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "page_03_portal_hall"
-				}
-			]
-		},
-		{
-			"id": "page_03_portal_hall",
-			"type": "story",
-			"title": "Hall of Fluttering Socks",
-			"image": "/quests/template-quest-001/page_03_portal_hall.png",
-			"text": "You arrive in a bright hallway where socks flutter like friendly flags. Tiny lint sprites sweep glitter into neat piles and wave as you pass. A sign says, Be honest, be kind, and ask for help when needed. You nod because those rules feel fair and brave.",
-			"choices": [
-				{
-					"id": "continue_03",
-					"label": "Follow the hallway sign",
-					"description": "You keep going with the messenger.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "page_04_sorting_room"
-				}
-			]
-		},
-		{
-			"id": "page_04_sorting_room",
-			"type": "story",
-			"title": "The Sorting Room",
-			"image": "/quests/template-quest-001/page_04_sorting_room.png",
-			"text": "In the next room, two giant baskets are tipped over and socks are mixed in a giant swirl. The messenger says the gate opens only when helpers choose the right spirit, not the fastest trick. You spot labels for colors, sizes, and patterns on the wall. A soft chime rings, inviting your next big choice.",
-			"choices": [
-				{
-					"id": "continue_04",
-					"label": "Walk to the choice platform",
-					"description": "You get ready for the next decision.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "page_05_big_choice"
-				}
-			]
-		},
-		{
-			"id": "page_05_big_choice",
-			"type": "story",
-			"title": "How Will You Lead?",
-			"image": "/quests/template-quest-001/page_05_big_choice.png",
-			"text": "Three glowing paths appear on the floor and each path asks a different kind of courage. One path asks for patience and teamwork. One path offers a shortcut if you pretend work is done. Another path lets you blame a lint sprite for the mess. The messenger waits quietly while you choose.",
-			"choices": [
-				{
-					"id": "choice_teamwork",
-					"label": "Choose teamwork and careful sorting",
-					"description": "You pick the honest and helpful route.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "page_06_teamwork_start"
-				},
-				{
-					"id": "choice_lying_shortcut",
-					"label": "Claim the job is done to unlock the gate",
-					"description": "You try to skip the work by lying.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "ending_dishonest"
-				},
-				{
-					"id": "choice_blame_sprite",
-					"label": "Blame a lint sprite for everything",
-					"description": "You avoid responsibility.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "ending_harmful"
-				}
-			]
-		},
-		{
-			"id": "page_06_teamwork_start",
-			"type": "story",
-			"title": "Sorting Side by Side",
-			"image": "/quests/template-quest-001/page_06_teamwork_start.png",
-			"text": "You invite the lint sprites to sort with you instead of ordering them around. Everyone builds little matching piles and celebrates each successful pair. The room gets calmer with every kind word and careful step. The Dryer Gate begins to glow gold.",
-			"choices": [
-				{
-					"id": "continue_06",
-					"label": "Keep sorting together",
-					"description": "You continue the team effort.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "page_07_teamwork_bridge"
-				}
-			]
-		},
-		{
-			"id": "page_07_teamwork_bridge",
-			"type": "story",
-			"title": "Bridge of Choices",
-			"image": "/quests/template-quest-001/page_07_teamwork_bridge.png",
-			"text": "A fabric bridge stretches to the gate, and the wind tugs at loose socks along the rail. The messenger reminds everyone to move slowly and look out for one another. You hold the basket steady while smaller sprites cross first. The bridge stops wobbling when the group works in rhythm.",
-			"choices": [
-				{
-					"id": "continue_07",
-					"label": "Guide everyone across",
-					"description": "You choose patience and safety.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "page_08_gate_choice"
-				}
-			]
-		},
-		{
-			"id": "page_08_gate_choice",
-			"type": "story",
-			"title": "Final Gate Decision",
-			"image": "/quests/template-quest-001/page_08_gate_choice.png",
-			"text": "At the gate, two handles appear beside a little safety bell. One handle opens slowly and lets everyone exit in order. The other handle spins fast and could fling socks all over the room. The messenger says your final choice will teach the kingdom what kind of leader you are.",
-			"choices": [
-				{
-					"id": "choice_safe_finish",
-					"label": "Ring the bell and open the gate slowly",
-					"description": "You choose a safe, kind finish.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "ending_true_friend"
-				},
-				{
-					"id": "choice_silly_finish",
-					"label": "Pull the fast handle for a speedy launch",
-					"description": "You pick a silly but not harmful shortcut.",
-					"requiredItemId": "",
-					"consumeItem": false,
-					"purchaseBehavior": {
-						"allowPurchaseIfMissing": false,
-						"purchaseAndUseImmediately": false
-					},
-					"nextNodeId": "ending_silly_stampede"
-				}
-			]
-		},
-		{
-			"id": "ending_selfish_rush",
-			"type": "ending",
-			"title": "The Portal Pauses",
-			"image": "/quests/template-quest-001/ending_selfish_rush.png",
-			"text": "When you demand treasure first, the portal dims and closes for now. The messenger says helpers can return whenever they are ready to share and listen. Nobody yells, and nobody is shamed, but the adventure has to wait. Back in your room, you decide to try again with a kinder plan.",
-			"ending": {
-				"endingId": "moral_failure_selfish",
-				"rank": "silly",
-				"stars": 1,
-				"replayHint": "Try asking how to help before asking for rewards.",
-				"rewardSummary": "No reward this time. A kinder path is waiting.",
-				"rewards": { "coins": 0, "items": [], "achievements": [] }
-			}
-		},
-		{
-			"id": "ending_unsafe_jump",
-			"type": "ending",
-			"title": "Safety First Reset",
-			"image": "/quests/template-quest-001/ending_unsafe_jump.png",
-			"text": "You leap too quickly and land in a tumble of towels. A lint sprite helps you up and reminds you to pause before risky moves. The portal returns you home safely so you can try again with a better plan. Being brave and being safe can happen together.",
-			"ending": {
-				"endingId": "unsafe_choice_jump",
-				"rank": "silly",
-				"stars": 1,
-				"replayHint": "Take a calm first step and listen to the messenger.",
-				"rewardSummary": "No reward this time. Safe choices unlock better endings.",
-				"rewards": { "coins": 0, "items": [], "achievements": [] }
-			}
-		},
-		{
-			"id": "ending_dishonest",
-			"type": "ending",
-			"title": "The Truth Light",
-			"image": "/quests/template-quest-001/ending_dishonest.png",
-			"text": "The gate listens to your words, then shines a truth light across the room. It gently shows that the sorting is not done yet and asks for honest effort. The messenger thanks you for trying and invites you to restart with honesty. You realize trust grows when words and actions match.",
-			"ending": {
-				"endingId": "moral_failure_dishonest",
-				"rank": "good",
-				"stars": 1,
-				"replayHint": "Choose teamwork and finish the job together.",
-				"rewardSummary": "No reward this time. Honesty leads to the unlock path.",
-				"rewards": { "coins": 0, "items": [], "achievements": [] }
-			}
-		},
-		{
-			"id": "ending_harmful",
-			"type": "ending",
-			"title": "Teamwork Timeout",
-			"image": "/quests/template-quest-001/ending_harmful.png",
-			"text": "Blaming a helper makes the room go quiet and the gate powers down. The lint sprites step back because being kind is a rule of this place. The messenger calmly explains that leaders own their choices and protect their team. You are sent home with a chance to begin again the right way.",
-			"ending": {
-				"endingId": "moral_failure_harmful",
-				"rank": "good",
-				"stars": 1,
-				"replayHint": "Try the path where you help and encourage everyone.",
-				"rewardSummary": "No reward this time. Kindness opens the gate.",
-				"rewards": { "coins": 0, "items": [], "achievements": [] }
-			}
-		},
-		{
-			"id": "ending_silly_stampede",
-			"type": "ending",
-			"title": "The Sock Parade",
-			"image": "/quests/template-quest-001/ending_silly_stampede.png",
-			"text": "You pull the fast handle and socks burst into the sky like confetti. Everyone laughs, but the room is messy again and needs another sorting round. The messenger calls it a funny ending with extra cleanup homework. You can replay to find the smooth team finish.",
-			"ending": {
-				"endingId": "silly_failure_parade",
-				"rank": "good",
-				"stars": 2,
-				"replayHint": "Try the safety bell for a calmer final rescue.",
-				"rewardSummary": "Fun ending found. The main unlock comes from the safe success path.",
-				"rewards": { "coins": 0, "items": [], "achievements": [] }
-			}
-		},
-		{
-			"id": "ending_true_friend",
-			"type": "ending",
-			"title": "Meet Pip the Portal Pal",
-			"image": "/quests/template-quest-001/ending_true_friend.png",
-			"text": "You ring the bell, and the gate opens in a warm golden arc while every sock returns home in order. A cheerful character steps forward from the glow and bows with a grin. The messenger introduces them as Pip the Portal Pal, your new quest companion for future adventures. Pip promises to join your avatar collection as a thank-you for leading with honesty, safety, and teamwork.",
-			"ending": {
-				"endingId": "true_ending_friend_unlocked",
-				"rank": "best",
-				"stars": 3,
-				"replayHint": "Replay to discover every ending and see all lessons.",
-				"rewardSummary": "Quest Award unlocked: Pip the Portal Pal.",
-				"rewards": { "coins": 0, "items": [], "achievements": [] }
-			}
-		}
-	]
+  "id": "template-quest-006",
+  "slug": "the-kitchen-timer-trial",
+  "title": "The Kitchen Timer Trial",
+  "subtitle": "Quest pack story 6",
+  "author": "Family Chores Game",
+  "illustrator": "Family Chores Game",
+  "narrator": "Family Chores Game",
+  "publisher": "Family Chores Game",
+  "copyright": "(c) 2026 Family Chores Game",
+  "version": "1.1.0",
+  "difficulty": "easy",
+  "coverImage": "/quests/template-quest-006/coverImage.png",
+  "summary": "Race the kitchen timer through puzzle chores where safe choices and teamwork earn the best ending.",
+  "ageRange": "6-12",
+  "readingLevel": "Early reader with parent help",
+  "estimatedMinutes": 10,
+  "themes": [
+    "Responsibility",
+    "Problem solving",
+    "Household teamwork",
+    "Honesty",
+    "Kindness"
+  ],
+  "contentWarnings": [],
+  "tags": [
+    "onboarding",
+    "laundry",
+    "choices"
+  ],
+  "meta": {
+    "totalNodes": 17,
+    "totalEndings": 6,
+    "replayEnabled": true
+  },
+  "startNodeId": "page_01_glow",
+  "globalRewards": {
+    "firstCompletion": {
+      "coins": 0,
+      "items": [
+        "character_default_avatar_01"
+      ],
+      "achievements": []
+    },
+    "allEndingsDiscovered": {
+      "coins": 0,
+      "items": [],
+      "achievements": []
+    }
+  },
+  "nodes": [
+    {
+      "id": "page_01_glow",
+      "type": "story",
+      "title": "The Basket Begins to Glow",
+      "image": "/quests/template-quest-001/page_01_glow.png",
+      "text": "You are sorting clean laundry when one striped sock starts to glow like a tiny lantern. The basket hums and rattles, and a swirl of blue sparkles curls into the air. A gentle voice whispers that the Sock Kingdom needs help before bedtime. You take a deep breath and remember that brave helpers also make safe choices.",
+      "choices": [
+        {
+          "id": "choice_helpful_start",
+          "label": "Ask how to help",
+          "description": "You listen first and offer kind help.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "page_02_prep_kind"
+        },
+        {
+          "id": "choice_selfish_start",
+          "label": "Grab the glowing sock and demand treasure",
+          "description": "You focus on rewards before helping.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "ending_selfish_rush"
+        },
+        {
+          "id": "choice_unsafe_start",
+          "label": "Jump into the portal without checking",
+          "description": "You rush in without a plan.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "ending_unsafe_jump"
+        }
+      ]
+    },
+    {
+      "id": "page_02_prep_kind",
+      "type": "story",
+      "title": "A Calm Plan",
+      "image": "/quests/template-quest-001/page_02_prep_kind.png",
+      "text": "The sock introduces itself as a royal messenger and thanks you for being polite. It explains that sock pairs are lost in a windy hallway behind the Dryer Gate. You promise to help and check that the laundry room floor is clear before stepping closer. The portal brightens as if it likes thoughtful teamwork.",
+      "choices": [
+        {
+          "id": "continue_02",
+          "label": "Step toward the portal",
+          "description": "You move forward carefully.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "page_03_portal_hall"
+        }
+      ]
+    },
+    {
+      "id": "page_03_portal_hall",
+      "type": "story",
+      "title": "Hall of Fluttering Socks",
+      "image": "/quests/template-quest-001/page_03_portal_hall.png",
+      "text": "You arrive in a bright hallway where socks flutter like friendly flags. Tiny lint sprites sweep glitter into neat piles and wave as you pass. A sign says, Be honest, be kind, and ask for help when needed. You nod because those rules feel fair and brave.",
+      "choices": [
+        {
+          "id": "continue_03",
+          "label": "Follow the hallway sign",
+          "description": "You keep going with the messenger.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "page_04_sorting_room"
+        }
+      ]
+    },
+    {
+      "id": "page_04_sorting_room",
+      "type": "story",
+      "title": "The Sorting Room",
+      "image": "/quests/template-quest-001/page_04_sorting_room.png",
+      "text": "In the next room, two giant baskets are tipped over and socks are mixed in a giant swirl. The messenger says the gate opens only when helpers choose the right spirit, not the fastest trick. You spot labels for colors, sizes, and patterns on the wall. A soft chime rings, inviting your next big choice.",
+      "choices": [
+        {
+          "id": "continue_04",
+          "label": "Walk to the choice platform",
+          "description": "You get ready for the next decision.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "page_05_big_choice"
+        }
+      ]
+    },
+    {
+      "id": "page_05_big_choice",
+      "type": "story",
+      "title": "How Will You Lead?",
+      "image": "/quests/template-quest-001/page_05_big_choice.png",
+      "text": "Three glowing paths appear on the floor and each path asks a different kind of courage. One path asks for patience and teamwork. One path offers a shortcut if you pretend work is done. Another path lets you blame a lint sprite for the mess. The messenger waits quietly while you choose.",
+      "choices": [
+        {
+          "id": "choice_teamwork",
+          "label": "Choose teamwork and careful sorting",
+          "description": "You pick the honest and helpful route.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "page_06_teamwork_start"
+        },
+        {
+          "id": "choice_lying_shortcut",
+          "label": "Claim the job is done to unlock the gate",
+          "description": "You try to skip the work by lying.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "ending_dishonest"
+        },
+        {
+          "id": "choice_blame_sprite",
+          "label": "Blame a lint sprite for everything",
+          "description": "You avoid responsibility.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "ending_harmful"
+        }
+      ]
+    },
+    {
+      "id": "page_06_teamwork_start",
+      "type": "story",
+      "title": "Sorting Side by Side",
+      "image": "/quests/template-quest-001/page_06_teamwork_start.png",
+      "text": "You invite the lint sprites to sort with you instead of ordering them around. Everyone builds little matching piles and celebrates each successful pair. The room gets calmer with every kind word and careful step. The Dryer Gate begins to glow gold.",
+      "choices": [
+        {
+          "id": "continue_06",
+          "label": "Keep sorting together",
+          "description": "You continue the team effort.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "page_07_teamwork_bridge"
+        }
+      ]
+    },
+    {
+      "id": "page_07_teamwork_bridge",
+      "type": "story",
+      "title": "Bridge of Choices",
+      "image": "/quests/template-quest-001/page_07_teamwork_bridge.png",
+      "text": "A fabric bridge stretches to the gate, and the wind tugs at loose socks along the rail. The messenger reminds everyone to move slowly and look out for one another. You hold the basket steady while smaller sprites cross first. The bridge stops wobbling when the group works in rhythm.",
+      "choices": [
+        {
+          "id": "continue_07",
+          "label": "Guide everyone across",
+          "description": "You choose patience and safety.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "page_08_gate_choice"
+        }
+      ]
+    },
+    {
+      "id": "page_08_gate_choice",
+      "type": "story",
+      "title": "Final Gate Decision",
+      "image": "/quests/template-quest-001/page_08_gate_choice.png",
+      "text": "At the gate, two handles appear beside a little safety bell. One handle opens slowly and lets everyone exit in order. The other handle spins fast and could fling socks all over the room. The messenger says your final choice will teach the kingdom what kind of leader you are.",
+      "choices": [
+        {
+          "id": "choice_safe_finish",
+          "label": "Ring the bell and open the gate slowly",
+          "description": "You choose a safe, kind finish.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "ending_true_friend"
+        },
+        {
+          "id": "choice_silly_finish",
+          "label": "Pull the fast handle for a speedy launch",
+          "description": "You pick a silly but not harmful shortcut.",
+          "requiredItemId": "",
+          "consumeItem": false,
+          "purchaseBehavior": {
+            "allowPurchaseIfMissing": false,
+            "purchaseAndUseImmediately": false
+          },
+          "nextNodeId": "ending_silly_stampede"
+        }
+      ]
+    },
+    {
+      "id": "ending_selfish_rush",
+      "type": "ending",
+      "title": "The Portal Pauses",
+      "image": "/quests/template-quest-001/ending_selfish_rush.png",
+      "text": "When you demand treasure first, the portal dims and closes for now. The messenger says helpers can return whenever they are ready to share and listen. Nobody yells, and nobody is shamed, but the adventure has to wait. Back in your room, you decide to try again with a kinder plan.",
+      "ending": {
+        "endingId": "moral_failure_selfish",
+        "rank": "silly",
+        "stars": 1,
+        "replayHint": "Try asking how to help before asking for rewards.",
+        "rewardSummary": "No reward this time. A kinder path is waiting.",
+        "rewards": {
+          "coins": 0,
+          "items": [],
+          "achievements": []
+        }
+      }
+    },
+    {
+      "id": "ending_unsafe_jump",
+      "type": "ending",
+      "title": "Safety First Reset",
+      "image": "/quests/template-quest-001/ending_unsafe_jump.png",
+      "text": "You leap too quickly and land in a tumble of towels. A lint sprite helps you up and reminds you to pause before risky moves. The portal returns you home safely so you can try again with a better plan. Being brave and being safe can happen together.",
+      "ending": {
+        "endingId": "unsafe_choice_jump",
+        "rank": "silly",
+        "stars": 1,
+        "replayHint": "Take a calm first step and listen to the messenger.",
+        "rewardSummary": "No reward this time. Safe choices unlock better endings.",
+        "rewards": {
+          "coins": 0,
+          "items": [],
+          "achievements": []
+        }
+      }
+    },
+    {
+      "id": "ending_dishonest",
+      "type": "ending",
+      "title": "The Truth Light",
+      "image": "/quests/template-quest-001/ending_dishonest.png",
+      "text": "The gate listens to your words, then shines a truth light across the room. It gently shows that the sorting is not done yet and asks for honest effort. The messenger thanks you for trying and invites you to restart with honesty. You realize trust grows when words and actions match.",
+      "ending": {
+        "endingId": "moral_failure_dishonest",
+        "rank": "good",
+        "stars": 1,
+        "replayHint": "Choose teamwork and finish the job together.",
+        "rewardSummary": "No reward this time. Honesty leads to the unlock path.",
+        "rewards": {
+          "coins": 0,
+          "items": [],
+          "achievements": []
+        }
+      }
+    },
+    {
+      "id": "ending_harmful",
+      "type": "ending",
+      "title": "Teamwork Timeout",
+      "image": "/quests/template-quest-001/ending_harmful.png",
+      "text": "Blaming a helper makes the room go quiet and the gate powers down. The lint sprites step back because being kind is a rule of this place. The messenger calmly explains that leaders own their choices and protect their team. You are sent home with a chance to begin again the right way.",
+      "ending": {
+        "endingId": "moral_failure_harmful",
+        "rank": "good",
+        "stars": 1,
+        "replayHint": "Try the path where you help and encourage everyone.",
+        "rewardSummary": "No reward this time. Kindness opens the gate.",
+        "rewards": {
+          "coins": 0,
+          "items": [],
+          "achievements": []
+        }
+      }
+    },
+    {
+      "id": "ending_silly_stampede",
+      "type": "ending",
+      "title": "The Sock Parade",
+      "image": "/quests/template-quest-001/ending_silly_stampede.png",
+      "text": "You pull the fast handle and socks burst into the sky like confetti. Everyone laughs, but the room is messy again and needs another sorting round. The messenger calls it a funny ending with extra cleanup homework. You can replay to find the smooth team finish.",
+      "ending": {
+        "endingId": "silly_failure_parade",
+        "rank": "good",
+        "stars": 2,
+        "replayHint": "Try the safety bell for a calmer final rescue.",
+        "rewardSummary": "Fun ending found. The main unlock comes from the safe success path.",
+        "rewards": {
+          "coins": 0,
+          "items": [],
+          "achievements": []
+        }
+      }
+    },
+    {
+      "id": "ending_true_friend",
+      "type": "ending",
+      "title": "Meet Pip the Portal Pal",
+      "image": "/quests/template-quest-001/ending_true_friend.png",
+      "text": "You ring the bell, and the gate opens in a warm golden arc while every sock returns home in order. A cheerful character steps forward from the glow and bows with a grin. The messenger introduces them as Pip the Portal Pal, your new quest companion for future adventures. Pip promises to join your avatar collection as a thank-you for leading with honesty, safety, and teamwork.",
+      "ending": {
+        "endingId": "true_ending_friend_unlocked",
+        "rank": "best",
+        "stars": 3,
+        "replayHint": "Replay to discover every ending and see all lessons.",
+        "rewardSummary": "Quest Award unlocked: Pip the Portal Pal.",
+        "rewards": {
+          "coins": 0,
+          "items": [],
+          "achievements": []
+        }
+      }
+    }
+  ],
+  "defaultLocale": "en-US",
+  "locales": {
+    "en-US": {
+      "title": "The Kitchen Timer Trial",
+      "subtitle": "Quest pack story 6",
+      "summary": "Race the kitchen timer through puzzle chores where safe choices and teamwork earn the best ending.",
+      "author": "Family Chores Game",
+      "ageRange": "6-12",
+      "coverImageAlt": "The Kitchen Timer Trial",
+      "nodes": {
+        "page_01_glow": {
+          "title": "The Basket Begins to Glow",
+          "text": "You are sorting clean laundry when one striped sock starts to glow like a tiny lantern. The basket hums and rattles, and a swirl of blue sparkles curls into the air. A gentle voice whispers that the Sock Kingdom needs help before bedtime. You take a deep breath and remember that brave helpers also make safe choices.",
+          "imageAlt": "The Basket Begins to Glow",
+          "audioTitle": "The Basket Begins to Glow",
+          "choices": {
+            "choice_helpful_start": {
+              "label": "Ask how to help",
+              "description": "You listen first and offer kind help.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            },
+            "choice_selfish_start": {
+              "label": "Grab the glowing sock and demand treasure",
+              "description": "You focus on rewards before helping.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            },
+            "choice_unsafe_start": {
+              "label": "Jump into the portal without checking",
+              "description": "You rush in without a plan.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            }
+          }
+        },
+        "page_02_prep_kind": {
+          "title": "A Calm Plan",
+          "text": "The sock introduces itself as a royal messenger and thanks you for being polite. It explains that sock pairs are lost in a windy hallway behind the Dryer Gate. You promise to help and check that the laundry room floor is clear before stepping closer. The portal brightens as if it likes thoughtful teamwork.",
+          "imageAlt": "A Calm Plan",
+          "audioTitle": "A Calm Plan",
+          "choices": {
+            "continue_02": {
+              "label": "Step toward the portal",
+              "description": "You move forward carefully.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            }
+          }
+        },
+        "page_03_portal_hall": {
+          "title": "Hall of Fluttering Socks",
+          "text": "You arrive in a bright hallway where socks flutter like friendly flags. Tiny lint sprites sweep glitter into neat piles and wave as you pass. A sign says, Be honest, be kind, and ask for help when needed. You nod because those rules feel fair and brave.",
+          "imageAlt": "Hall of Fluttering Socks",
+          "audioTitle": "Hall of Fluttering Socks",
+          "choices": {
+            "continue_03": {
+              "label": "Follow the hallway sign",
+              "description": "You keep going with the messenger.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            }
+          }
+        },
+        "page_04_sorting_room": {
+          "title": "The Sorting Room",
+          "text": "In the next room, two giant baskets are tipped over and socks are mixed in a giant swirl. The messenger says the gate opens only when helpers choose the right spirit, not the fastest trick. You spot labels for colors, sizes, and patterns on the wall. A soft chime rings, inviting your next big choice.",
+          "imageAlt": "The Sorting Room",
+          "audioTitle": "The Sorting Room",
+          "choices": {
+            "continue_04": {
+              "label": "Walk to the choice platform",
+              "description": "You get ready for the next decision.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            }
+          }
+        },
+        "page_05_big_choice": {
+          "title": "How Will You Lead?",
+          "text": "Three glowing paths appear on the floor and each path asks a different kind of courage. One path asks for patience and teamwork. One path offers a shortcut if you pretend work is done. Another path lets you blame a lint sprite for the mess. The messenger waits quietly while you choose.",
+          "imageAlt": "How Will You Lead?",
+          "audioTitle": "How Will You Lead?",
+          "choices": {
+            "choice_teamwork": {
+              "label": "Choose teamwork and careful sorting",
+              "description": "You pick the honest and helpful route.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            },
+            "choice_lying_shortcut": {
+              "label": "Claim the job is done to unlock the gate",
+              "description": "You try to skip the work by lying.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            },
+            "choice_blame_sprite": {
+              "label": "Blame a lint sprite for everything",
+              "description": "You avoid responsibility.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            }
+          }
+        },
+        "page_06_teamwork_start": {
+          "title": "Sorting Side by Side",
+          "text": "You invite the lint sprites to sort with you instead of ordering them around. Everyone builds little matching piles and celebrates each successful pair. The room gets calmer with every kind word and careful step. The Dryer Gate begins to glow gold.",
+          "imageAlt": "Sorting Side by Side",
+          "audioTitle": "Sorting Side by Side",
+          "choices": {
+            "continue_06": {
+              "label": "Keep sorting together",
+              "description": "You continue the team effort.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            }
+          }
+        },
+        "page_07_teamwork_bridge": {
+          "title": "Bridge of Choices",
+          "text": "A fabric bridge stretches to the gate, and the wind tugs at loose socks along the rail. The messenger reminds everyone to move slowly and look out for one another. You hold the basket steady while smaller sprites cross first. The bridge stops wobbling when the group works in rhythm.",
+          "imageAlt": "Bridge of Choices",
+          "audioTitle": "Bridge of Choices",
+          "choices": {
+            "continue_07": {
+              "label": "Guide everyone across",
+              "description": "You choose patience and safety.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            }
+          }
+        },
+        "page_08_gate_choice": {
+          "title": "Final Gate Decision",
+          "text": "At the gate, two handles appear beside a little safety bell. One handle opens slowly and lets everyone exit in order. The other handle spins fast and could fling socks all over the room. The messenger says your final choice will teach the kingdom what kind of leader you are.",
+          "imageAlt": "Final Gate Decision",
+          "audioTitle": "Final Gate Decision",
+          "choices": {
+            "choice_safe_finish": {
+              "label": "Ring the bell and open the gate slowly",
+              "description": "You choose a safe, kind finish.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            },
+            "choice_silly_finish": {
+              "label": "Pull the fast handle for a speedy launch",
+              "description": "You pick a silly but not harmful shortcut.",
+              "requiredItemName": "",
+              "unavailableText": ""
+            }
+          }
+        },
+        "ending_selfish_rush": {
+          "title": "The Portal Pauses",
+          "text": "When you demand treasure first, the portal dims and closes for now. The messenger says helpers can return whenever they are ready to share and listen. Nobody yells, and nobody is shamed, but the adventure has to wait. Back in your room, you decide to try again with a kinder plan.",
+          "imageAlt": "The Portal Pauses",
+          "audioTitle": "The Portal Pauses",
+          "ending": {
+            "replayHint": "Try asking how to help before asking for rewards.",
+            "rewardSummary": "No reward this time. A kinder path is waiting."
+          }
+        },
+        "ending_unsafe_jump": {
+          "title": "Safety First Reset",
+          "text": "You leap too quickly and land in a tumble of towels. A lint sprite helps you up and reminds you to pause before risky moves. The portal returns you home safely so you can try again with a better plan. Being brave and being safe can happen together.",
+          "imageAlt": "Safety First Reset",
+          "audioTitle": "Safety First Reset",
+          "ending": {
+            "replayHint": "Take a calm first step and listen to the messenger.",
+            "rewardSummary": "No reward this time. Safe choices unlock better endings."
+          }
+        },
+        "ending_dishonest": {
+          "title": "The Truth Light",
+          "text": "The gate listens to your words, then shines a truth light across the room. It gently shows that the sorting is not done yet and asks for honest effort. The messenger thanks you for trying and invites you to restart with honesty. You realize trust grows when words and actions match.",
+          "imageAlt": "The Truth Light",
+          "audioTitle": "The Truth Light",
+          "ending": {
+            "replayHint": "Choose teamwork and finish the job together.",
+            "rewardSummary": "No reward this time. Honesty leads to the unlock path."
+          }
+        },
+        "ending_harmful": {
+          "title": "Teamwork Timeout",
+          "text": "Blaming a helper makes the room go quiet and the gate powers down. The lint sprites step back because being kind is a rule of this place. The messenger calmly explains that leaders own their choices and protect their team. You are sent home with a chance to begin again the right way.",
+          "imageAlt": "Teamwork Timeout",
+          "audioTitle": "Teamwork Timeout",
+          "ending": {
+            "replayHint": "Try the path where you help and encourage everyone.",
+            "rewardSummary": "No reward this time. Kindness opens the gate."
+          }
+        },
+        "ending_silly_stampede": {
+          "title": "The Sock Parade",
+          "text": "You pull the fast handle and socks burst into the sky like confetti. Everyone laughs, but the room is messy again and needs another sorting round. The messenger calls it a funny ending with extra cleanup homework. You can replay to find the smooth team finish.",
+          "imageAlt": "The Sock Parade",
+          "audioTitle": "The Sock Parade",
+          "ending": {
+            "replayHint": "Try the safety bell for a calmer final rescue.",
+            "rewardSummary": "Fun ending found. The main unlock comes from the safe success path."
+          }
+        },
+        "ending_true_friend": {
+          "title": "Meet Pip the Portal Pal",
+          "text": "You ring the bell, and the gate opens in a warm golden arc while every sock returns home in order. A cheerful character steps forward from the glow and bows with a grin. The messenger introduces them as Pip the Portal Pal, your new quest companion for future adventures. Pip promises to join your avatar collection as a thank-you for leading with honesty, safety, and teamwork.",
+          "imageAlt": "Meet Pip the Portal Pal",
+          "audioTitle": "Meet Pip the Portal Pal",
+          "ending": {
+            "replayHint": "Replay to discover every ending and see all lessons.",
+            "rewardSummary": "Quest Award unlocked: Pip the Portal Pal."
+          }
+        }
+      }
+    }
+  }
 }

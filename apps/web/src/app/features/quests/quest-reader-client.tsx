@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
+import { useLocale } from "@/components/locale-provider";
 
 type QuestChoiceRuntime = {
   id: string;
@@ -106,6 +107,7 @@ type QuestReaderClientProps = {
 const QUEST_AUDIO_PAUSED_STORAGE_KEY = "quests_audio_paused";
 
 export function QuestReaderClient({ questId }: QuestReaderClientProps) {
+  const { t } = useLocale();
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [pendingChoiceId, setPendingChoiceId] = useState("");
@@ -168,8 +170,8 @@ export function QuestReaderClient({ questId }: QuestReaderClientProps) {
     if (isEnding && currentNode.type === "ending" && currentNode.ending.replayHint?.trim()) {
       return currentNode.ending.replayHint.trim();
     }
-    return "There are other paths to explore.";
-  }, [currentNode, isEnding, lastEndingState?.replayHint]);
+    return t("quests.endingReplayHintDefault");
+  }, [currentNode, isEnding, lastEndingState?.replayHint, t]);
 
   useEffect(() => {
     if (!currentNode?.audio || audioPausedByUser) {
@@ -299,11 +301,11 @@ export function QuestReaderClient({ questId }: QuestReaderClientProps) {
   }
 
   if (isLoading) {
-    return <p className="small">Loading quest...</p>;
+    return <p className="small">{t("quests.loadingQuest")}</p>;
   }
 
   if (error && !currentNode) {
-    return <Alert>Could not load quest: {error}</Alert>;
+    return <Alert>{t("quests.loadQuestError", { error })}</Alert>;
   }
 
   return (
@@ -315,15 +317,15 @@ export function QuestReaderClient({ questId }: QuestReaderClientProps) {
           <span aria-hidden="true" className="quest-reader-endings-icon">
             *
           </span>
-          Endings discovered: {endingsDiscovered}/{totalEndings}
+          {t("quests.endingsDiscovered", { found: endingsDiscovered, total: totalEndings })}
         </p>
       </div>
 
       {progress?.status === "not_started" ? (
         <div className="quest-start-wrap">
-          <p className="small">Start this quest to begin the interactive story.</p>
+          <p className="small">{t("quests.startPrompt")}</p>
           <Button type="button" className="btn btn-primary" disabled={isStarting} onClick={() => void onStartQuest()}>
-            {isStarting ? "Starting..." : "Start Quest"}
+            {isStarting ? t("quests.startingQuest") : t("quests.startQuest")}
           </Button>
         </div>
       ) : null}
@@ -354,10 +356,10 @@ export function QuestReaderClient({ questId }: QuestReaderClientProps) {
               onPlay={handleAudioPlay}
               onPause={handleAudioPause}>
               <source src={currentNode.audio} />
-              Narration coming soon.
+              {t("quests.narrationComingSoon")}
             </audio>
           ) : (
-            <p className="small">Narration coming soon.</p>
+            <p className="small">{t("quests.narrationComingSoon")}</p>
           )}
 
           {currentNode.type === "story" ? (
@@ -379,15 +381,21 @@ export function QuestReaderClient({ questId }: QuestReaderClientProps) {
                       <span className="small">{choice.description}</span>
                       {choice.requiredItemId ? (
                         <span className="small">
-                          {`Item: ${choice.requiredItemName} | ${
-                            choice.owned ? `Owned (${choice.ownedQuantity})` : "Missing"
-                          }${!choice.owned && choice.purchasable ? ` | ${choice.price} coins` : ""}`}
+                          {t("quests.choiceItem", {
+                            name: choice.requiredItemName,
+                            status: choice.owned
+                              ? t("quests.choiceOwned", { count: choice.ownedQuantity })
+                              : t("quests.choiceMissing"),
+                          })}
+                          {!choice.owned && choice.purchasable
+                            ? ` | ${t("quests.choicePrice", { price: choice.price })}`
+                            : ""}
                         </span>
                       ) : null}
                     </span>
                   </span>
                   <span className="quest-choice-cta">
-                    {pendingChoiceId === choice.id ? "Working..." : "Continue"}
+                    {pendingChoiceId === choice.id ? t("quests.choiceWorking") : t("common.actions.continue")}
                     {pendingChoiceId === choice.id ? null : <span className="quest-choice-cta-arrow">&rarr;</span>}
                   </span>
                   {choice.disabled ? <span className="small">{choice.unavailableText}</span> : null}
@@ -397,13 +405,13 @@ export function QuestReaderClient({ questId }: QuestReaderClientProps) {
           ) : (
             <div className="quest-ending-wrap">
               <p className="small">
-                {lastEndingState?.isNewEnding ? "New ending discovered!" : "Previously discovered ending."}
+                {lastEndingState?.isNewEnding ? t("quests.endingNew") : t("quests.endingSeen")}
               </p>
-              <p className="small">You&apos;ve discovered {endingsDiscovered} of {totalEndings} endings.</p>
+              <p className="small">{t("quests.endingProgress", { found: endingsDiscovered, total: totalEndings })}</p>
               <p className="small">{currentNode.ending.rewardSummary}</p>
               {lastTransaction ? (
                 <p className="small">
-                  Earned now: +{lastTransaction.rewardCoins} coins
+                  {t("quests.endingEarnedNow", { coins: lastTransaction.rewardCoins })}
                   {lastTransaction.rewardItemIds.length > 0
                     ? ` • Items: ${lastTransaction.rewardItemIds.join(", ")}`
                     : ""}
@@ -415,11 +423,11 @@ export function QuestReaderClient({ questId }: QuestReaderClientProps) {
               <p className="small">{replayHint}</p>
               <div className="quest-ending-actions">
                 <Button type="button" className="btn btn-primary" onClick={() => void onReplay()}>
-                  Try a Different Path
+                  {t("quests.endingTryDifferentPath")}
                 </Button>
                 <Link href="/quests">
                   <Button type="button" className="btn btn-secondary">
-                    Back to Quests
+                    {t("quests.backToQuests")}
                   </Button>
                 </Link>
               </div>

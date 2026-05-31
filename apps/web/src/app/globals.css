@@ -209,6 +209,18 @@ body {
   font-weight: 600;
 }
 
+.app-breadcrumb-subtitle-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.app-breadcrumb-subtitle-email {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .brand {
   margin: 0;
   display: inline-flex;
@@ -2924,6 +2936,89 @@ textarea:disabled {
   margin: 0;
   color: #17416f;
   font-size: 1.05rem;
+}
+
+.change-log-list {
+  display: grid;
+  gap: 14px;
+}
+
+.change-log-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.change-log-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  border: 1px solid #d6e4f9;
+  border-radius: 18px;
+  background:
+    radial-gradient(140% 140% at 20% 20%, #ffffff, #e8f3ff 62%, #d7e9ff 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.change-log-art-image {
+  width: 40px;
+  height: 40px;
+}
+
+.change-log-copy {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.change-log-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.change-log-date {
+  color: #5f7695;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.change-log-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.change-log-badge-feature {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.change-log-badge-bug-fix {
+  border: 1px solid #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.change-log-description {
+  margin: 0;
+  color: #35506f;
+  line-height: 1.6;
+}
+
+.change-log-empty-card {
+  text-align: center;
 }
 
 .family-categories-card {
@@ -6045,6 +6140,15 @@ a.family-award-claim-card:focus-visible {
   .family-page-card {
     border-radius: 12px;
     padding: 12px;
+  }
+
+  .change-log-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .change-log-art {
+    width: 64px;
+    height: 64px;
   }
 
   .family-categories-card-header .btn {

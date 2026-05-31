@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/locale-provider";
 import { connectFamilySocket } from "@/lib/ws";
 import type { AchievementUnlockedEvent } from "@/lib/ws/achievement-unlocked-event";
 
@@ -15,6 +16,7 @@ const TOAST_DURATION_MS = 5000;
 
 export function AchievementUnlockListener() {
   const router = useRouter();
+  const { t } = useLocale();
   const [socketState, setSocketState] = useState<{
     wsAuthToken: string;
     viewerUid: string;
@@ -154,7 +156,7 @@ export function AchievementUnlockListener() {
               <div className="flex flex-col items-end gap-1">
                 <button
                   type="button"
-                  aria-label="Dismiss achievement notification"
+                  aria-label={t("achievements.dismissNotification")}
                   className="pointer-events-auto rounded p-1 text-slate-500 hover:bg-slate-100"
                   onClick={(event) => {
                     event.stopPropagation();

@@ -1,16 +1,18 @@
 "use client";
 
+import { LOCALE_LABELS, SUPPORTED_LOCALES, type AppLocale } from "@packages/locales";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AccountSwitchModal } from "@/components/account-switch-modal";
 import { Alert } from "@/components/alert";
 import { Avatar } from "@/components/avatar";
-import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
 import { ModalShell } from "@/components/modal-shell";
+import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import { formatDateTime } from "@/components/profile/profile-page.utils";
+import { dispatchAppLocaleChanged, useLocale } from "@/components/locale-provider";
 import { findFamilyRewardImageOption } from "@/lib/family/rewards";
 
 type FamilyMemberProfileClientProps = {
@@ -52,6 +54,8 @@ type FamilyMemberProfileResponse = {
     email: string;
     role: "admin" | "player";
     status: "active" | "invited";
+    locale?: AppLocale;
+    resolvedLocale?: AppLocale;
     lastSignInAt?: string;
     avatarId?: string;
     avatarPhotoUrl?: string;
@@ -109,6 +113,11 @@ function categoryCardStyle(category: string) {
 }
 
 export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClientProps) {
+  const { t } = useLocale();
+  const localeOptions: TailwindSelectOption<AppLocale>[] = SUPPORTED_LOCALES.map((option) => ({
+    value: option,
+    label: LOCALE_LABELS[option],
+  }));
   const [profile, setProfile] = useState<FamilyMemberProfileResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -123,6 +132,8 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
   const [switchPending, setSwitchPending] = useState(false);
   const [switchError, setSwitchError] = useState("");
   const [switchRequiresPinSetup, setSwitchRequiresPinSetup] = useState(false);
+  const [localePending, setLocalePending] = useState(false);
+  const [localeError, setLocaleError] = useState("");
 
   const loadProfile = useCallback(async () => {
     setIsLoading(true);
@@ -292,25 +303,59 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
     }
   }
 
-  return (
-    <main className="panel family-page profile-page">
-      <div className="page-header-row">
-        <div className="page-header-inline">
-          <BackLink className="page-back-link" fallbackHref="/family" />
-          <h1>{profile?.member.name || "Family Profile"}</h1>
-        </div>
-      </div>
-      <p className="small family-page-subhead">Family profile details and pending family awards.</p>
+  async function onChangeMemberLocale(nextLocale: AppLocale) {
+    if (!profile || localePending || profile.member.resolvedLocale === nextLocale) {
+      return;
+    }
+    setLocalePending(true);
+    setLocaleError("");
+    try {
+      const response = await fetch(`/api/family/members/${encodeURIComponent(profile.member.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale: nextLocale }),
+      });
+      const payload = (await response.json()) as { error?: string; locale?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? `FAMILY_MEMBER_LOCALE_HTTP_${response.status}`);
+      }
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              member: {
+                ...current.member,
+                locale: nextLocale,
+                resolvedLocale: nextLocale,
+              },
+            }
+          : current,
+      );
+      if (profile.viewerUid === profile.member.uid || profile.viewerUid === profile.member.id) {
+        dispatchAppLocaleChanged(nextLocale);
+      }
+    } catch (errorValue) {
+      setLocaleError(
+        t("family.languageUpdateError", {
+          error: errorValue instanceof Error ? errorValue.message : "unknown",
+        }),
+      );
+    } finally {
+      setLocalePending(false);
+    }
+  }
 
-      {isLoading ? <p className="small">Loading family profile...</p> : null}
-      {!isLoading && error ? <Alert>Could not load family profile: {error}</Alert> : null}
+  return (
+    <main className="family-page profile-page">
+      {isLoading ? <p className="small">{t("family.memberProfileLoading")}</p> : null}
+      {!isLoading && error ? <Alert>{t("family.memberProfileError", { error })}</Alert> : null}
 
       {!isLoading && !error && profile ? (
         <>
           <section className="profile-page-grid family-member-profile-grid">
             <article className="profile-page-avatar-card family-member-profile-card">
               <div className="family-member-profile-card-header">
-                <h2>Details</h2>
+                <h2>{t("family.details")}</h2>
                 {canManageThisMember ? (
                   <div className="family-member-profile-actions">
                     {canSwitchToMember ? (
@@ -323,7 +368,7 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
                           setSwitchError("");
                           setMemberActionError("");
                         }}>
-                        Switch To
+                        {t("family.switchTo")}
                       </Button>
                     ) : null}
                     <Button
@@ -334,12 +379,12 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
                         setPendingRemove(true);
                         setMemberActionError("");
                       }}>
-                      Remove
+                      {t("family.remove")}
                     </Button>
                   </div>
                 ) : null}
               </div>
-              {memberActionError ? <Alert>Member update failed: {memberActionError}</Alert> : null}
+              {memberActionError ? <Alert>{t("family.memberUpdateError", { error: memberActionError })}</Alert> : null}
               <div className="profile-page-account-row">
                 <div className="profile-page-account-avatar">
                   <Avatar
@@ -357,24 +402,39 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
                   />
                 </div>
                 <dl className="profile-page-fields profile-page-basic-fields">
-                  <div><dt>Name</dt><dd>{profile.member.name}</dd></div>
-                  <div><dt>Email</dt><dd>{profile.member.email || "-"}</dd></div>
+                  <div><dt>{t("profile.name")}</dt><dd>{profile.member.name}</dd></div>
                   <div>
-                    <dt>Role</dt>
-                    <dd><EnumChip label={humanizeEnum(profile.member.role)} tone={profile.member.role === "admin" ? "indigo" : "teal"} /></dd>
+                    <dt>{t("family.memberLanguageLabel")}</dt>
+                    <dd>
+                      <div className="flex flex-col items-start gap-1.5 pb-1">
+                        <TailwindSelect
+                          ariaLabel={t("family.memberLanguageLabel")}
+                          className="min-w-[220px]"
+                          buttonClassName="h-10 min-w-[220px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+                          value={profile.member.resolvedLocale || "en-US"}
+                          disabled={localePending || (!canManageThisMember && profile.member.uid !== profile.viewerUid && profile.member.id !== profile.viewerUid)}
+                          onChange={(value) => {
+                            void onChangeMemberLocale(value);
+                          }}
+                          options={localeOptions}
+                        />
+                        {localePending ? <span className="small">{t("family.memberLanguageSaving")}</span> : null}
+                      </div>
+                      {localeError ? <span className="profile-name-error">{localeError}</span> : null}
+                    </dd>
                   </div>
                   <div>
-                    <dt>Status</dt>
+                    <dt>{t("family.statusColumn")}</dt>
                     <dd><EnumChip label={humanizeEnum(profile.member.status)} tone={profile.member.status === "active" ? "green" : "amber"} /></dd>
                   </div>
-                  <div><dt>Last Sign In</dt><dd>{formatDateTime(profile.member.lastSignInAt)}</dd></div>
+                  <div><dt>{t("family.lastSignIn")}</dt><dd>{formatDateTime(profile.member.lastSignInAt)}</dd></div>
                 </dl>
               </div>
               <dl className="profile-page-fields profile-page-style-fields">
                 <div>
-                  <dt>Theme</dt>
+                  <dt>{t("profile.theme")}</dt>
                   <dd className="profile-page-theme-line">
-                    <span className="profile-page-theme-name">{profile.theme.name}{profile.theme.isDefault ? " (default)" : ""}</span>
+                    <span className="profile-page-theme-name">{profile.theme.name}{profile.theme.isDefault ? ` (${t("common.labels.default")})` : ""}</span>
                     <span className="profile-page-theme-swatches" aria-hidden="true">
                       <span className="profile-theme-swatch" style={{ backgroundColor: profile.theme.palette.primary }} />
                       <span className="profile-theme-swatch" style={{ backgroundColor: profile.theme.palette.secondary }} />
@@ -383,9 +443,9 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
                   </dd>
                 </div>
                 <div>
-                  <dt>Victory Confetti</dt>
+                  <dt>{t("profile.victoryConfetti")}</dt>
                   <dd className="profile-page-theme-line">
-                    <span className="profile-page-theme-name">{profile.confetti.name}{profile.confetti.isDefault ? " (default)" : ""}</span>
+                    <span className="profile-page-theme-name">{profile.confetti.name}{profile.confetti.isDefault ? ` (${t("common.labels.default")})` : ""}</span>
                     {!profile.confetti.isDefault && profile.confetti.colors.length > 0 ? (
                       <span className="profile-page-theme-swatches" aria-hidden="true">
                         {profile.confetti.colors.map((color, index) => (
@@ -402,21 +462,23 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
           <section className="family-page-card family-member-awards-card" aria-label="Unclaimed family awards">
             <div className="family-page-card-header family-member-awards-header">
               <div>
-                <h2>Unclaimed Family Awards</h2>
+                <h2>{t("family.unclaimedAwards")}</h2>
                 <p className="small family-page-subhead">
-                  {profile.unclaimedAwards.length} pending reward
-                  {profile.unclaimedAwards.length === 1 ? "" : "s"}
+                  {t("family.pendingRewards", {
+                    count: profile.unclaimedAwards.length,
+                    suffix: profile.unclaimedAwards.length === 1 ? "" : "s",
+                  })}
                 </p>
               </div>
               <Link href={`/family/${encodeURIComponent(memberId)}/awards`} className="family-member-history-link">
-                View claimed awards ({profile.claimedAwards.length})
+                {t("family.viewClaimedAwards", { count: profile.claimedAwards.length })}
               </Link>
             </div>
 
-            {claimError ? <Alert>Could not claim award: {claimError}</Alert> : null}
+            {claimError ? <Alert>{t("family.claimAwardError", { error: claimError })}</Alert> : null}
 
             {profile.unclaimedAwards.length === 0 ? (
-              <p className="small">No unclaimed family awards right now.</p>
+              <p className="small">{t("family.noUnclaimedAwards")}</p>
             ) : (
               <div className="family-award-claim-list">
                 {profile.unclaimedAwards.map((award) => {
@@ -435,12 +497,12 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
                       <div className="family-award-claim-copy">
                         <h3>{award.rewardDescription}</h3>
                         <p className="small">{award.coinCost} coins</p>
-                        <p className="small">Purchased: {formatDateTime(award.purchasedAt)}</p>
+                        <p className="small">{t("family.purchasedAt", { value: formatDateTime(award.purchasedAt) })}</p>
                       </div>
                       {profile.canManageAwards ? (
                         <div className="family-award-claim-actions">
                           <Button type="button" className="btn btn-primary" disabled={claimingAwardId.length > 0} onClick={() => void onClaimAward(award.id)}>
-                            {claimingAwardId === award.id ? "Claiming..." : "Claim"}
+                            {claimingAwardId === award.id ? t("family.claiming") : t("family.claim")}
                           </Button>
                         </div>
                       ) : null}
@@ -454,15 +516,15 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
           <section className="family-page-card profile-owned-items-card" aria-label="Owned items summary">
             <div className="family-page-card-header family-member-awards-header">
               <div>
-                <h2>Owned Items</h2>
-                <p className="small family-page-subhead">High-level inventory by category.</p>
+                <h2>{t("family.ownedItems")}</h2>
+                <p className="small family-page-subhead">{t("family.ownedItemsSubtitle")}</p>
               </div>
               <Link href={`/family/${encodeURIComponent(memberId)}/items`} className="family-member-history-link">
-                View all items ({profile.ownedItems.length})
+                {t("family.viewAllItems", { count: profile.ownedItems.length })}
               </Link>
             </div>
             {categoryCounts.length === 0 ? (
-              <p className="small">No owned items yet.</p>
+              <p className="small">{t("family.noOwnedItems")}</p>
             ) : (
               <div className="family-award-claim-list">
                 {categoryCounts.map(({ category, count }) => (
@@ -476,7 +538,7 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
                     </div>
                     <div className="family-award-claim-copy">
                       <h3>{humanizeEnum(category)}</h3>
-                      <p className="small">{count} item{count === 1 ? "" : "s"}</p>
+                      <p className="small">{t("family.itemCount", { count, suffix: count === 1 ? "" : "s" })}</p>
                     </div>
                   </Link>
                 ))}
@@ -503,18 +565,18 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
           {profile ? (
             <>
               <div className="modal-dialog-title-row family-modal-title-row">
-                <h3 className="family-modal-title">Remove Family Member</h3>
+                <h3 className="family-modal-title">{t("family.removeMemberTitle")}</h3>
                 <Button
                   type="button"
                   className="modal-close-button"
                   onClick={() => setPendingRemove(false)}
-                  aria-label="Close dialog"
-                  title="Close dialog">
+                  aria-label={t("common.actions.close")}
+                  title={t("common.actions.close")}>
                   X
                 </Button>
               </div>
               <p className="mb-4 text-sm text-slate-600">
-                Remove <strong>{profile.member.name}</strong> from your family?
+                {t("family.removeMemberPrompt", { name: profile.member.name })}
               </p>
               <div className="family-modal-actions">
                 <Button
@@ -522,14 +584,14 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
                   className="btn btn-secondary"
                   disabled={removePending}
                   onClick={() => setPendingRemove(false)}>
-                  Cancel
+                  {t("common.actions.cancel")}
                 </Button>
                 <Button
                   type="button"
                   className="btn member-action-remove"
                   disabled={removePending}
                   onClick={onRemoveMember}>
-                  {removePending ? "Removing..." : "Remove"}
+                  {removePending ? t("family.removing") : t("family.remove")}
                 </Button>
               </div>
             </>

@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { DEFAULT_LOCALE, type AppLocale } from "@packages/locales";
 
 export type SessionRole = "admin" | "player";
 
@@ -9,6 +10,7 @@ export type SessionIdentity = {
   email: string;
   name: string;
   picture: string;
+  locale: AppLocale;
 };
 
 export type SessionUser = {
@@ -18,6 +20,7 @@ export type SessionUser = {
   email: string;
   name: string;
   picture: string;
+  locale: AppLocale;
   firebaseIdToken?: string;
   firebaseRefreshToken?: string;
   authUid?: string;
@@ -26,6 +29,7 @@ export type SessionUser = {
   authEmail?: string;
   authName?: string;
   authPicture?: string;
+  authLocale?: AppLocale;
 };
 
 type SessionPayload = SessionUser & {
@@ -54,6 +58,7 @@ export function getSessionIdentity(session: SessionUser): SessionIdentity {
     email: session.email,
     name: session.name,
     picture: session.picture,
+    locale: session.locale,
   };
 }
 
@@ -65,6 +70,7 @@ export function getAuthenticatedSessionIdentity(session: SessionUser): SessionId
     email: session.authEmail || session.email,
     name: session.authName || session.name,
     picture: session.authPicture || session.picture,
+    locale: session.authLocale || session.locale,
   };
 }
 
@@ -101,6 +107,7 @@ export function switchSessionIdentity(
     authEmail: authenticated.email,
     authName: authenticated.name,
     authPicture: authenticated.picture,
+    authLocale: authenticated.locale,
   };
 }
 
@@ -113,6 +120,7 @@ export function restoreAuthenticatedSession(session: SessionUser): SessionUser {
     email: authenticated.email,
     name: authenticated.name,
     picture: authenticated.picture,
+    locale: authenticated.locale,
     firebaseIdToken: session.firebaseIdToken,
     firebaseRefreshToken: session.firebaseRefreshToken,
   };
@@ -169,6 +177,7 @@ export function parseSessionToken(token: string | undefined): SessionUser | null
       email: parsed.email,
       name: parsed.name,
       picture: parsed.picture,
+      locale: parsed.locale || DEFAULT_LOCALE,
       firebaseIdToken: parsed.firebaseIdToken,
       firebaseRefreshToken: parsed.firebaseRefreshToken,
       authUid: parsed.authUid,
@@ -177,6 +186,7 @@ export function parseSessionToken(token: string | undefined): SessionUser | null
       authEmail: parsed.authEmail,
       authName: parsed.authName,
       authPicture: parsed.authPicture,
+      authLocale: parsed.authLocale,
     };
   } catch {
     return null;

@@ -1,3 +1,4 @@
+import type { AppLocale } from "@packages/locales";
 import type {
   ChoreRecurrenceType,
   ChoreRecurrenceUnit,
@@ -17,6 +18,8 @@ export type FamilySnapshotMember = {
   email: string;
   role: "admin" | "player";
   status: "active" | "invited";
+  locale?: AppLocale;
+  resolvedLocale: AppLocale;
   lastSignInAt?: string;
   dashboardPrimaryColor?: string;
   avatarId?: string;
@@ -75,7 +78,9 @@ export type FamilySummaryResponse = {
   family: null | {
     id: string;
     name: string;
+    defaultLocale: AppLocale;
   };
+  resolvedLocale?: AppLocale;
   members: FamilySnapshotMember[];
   categories: FamilyCategory[];
   choresToday: FamilySnapshotChore[];

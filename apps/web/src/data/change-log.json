@@ -1,0 +1,26 @@
+[
+  {
+    "id": "notification-badge-clears-for-players",
+    "date": "2026-05-31",
+    "type": "Bug Fix",
+    "subject": "Notification badge clearing",
+    "description": "Fixed an issue where the unseen notification count could stay visible after a player viewed unseen notifications.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "language-support",
+    "date": "2026-05-30",
+    "type": "Feature",
+    "subject": "Language support",
+    "description": "Users can now choose their preferred language, parents can update language settings for family members, and quests can support localized content.",
+    "image": "/globe.svg"
+  },
+  {
+    "id": "newly-added-chores-on-dashboard",
+    "date": "2026-05-30",
+    "type": "Bug Fix",
+    "subject": "Newly added chores on dashboard",
+    "description": "Fixed an issue where some newly added chores did not appear on the dashboard or all chores table right away.",
+    "image": "/file.svg"
+  }
+]

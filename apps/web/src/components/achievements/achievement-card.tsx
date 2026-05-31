@@ -1,6 +1,7 @@
 "use client";
 
 import { AchievementProgressBar } from "@/components/achievements/achievement-progress-bar";
+import { useLocale } from "@/components/locale-provider";
 import type { AchievementResponseItem } from "@/lib/achievements/service";
 
 type AchievementCardProps = {
@@ -10,8 +11,9 @@ type AchievementCardProps = {
 };
 
 export function AchievementCard({ achievement, highlighted, cardRef }: AchievementCardProps) {
+  const { locale, t } = useLocale();
   const completedDateLabel = achievement.completedAt
-    ? new Intl.DateTimeFormat(undefined, {
+    ? new Intl.DateTimeFormat(locale, {
         month: "short",
         day: "numeric",
         year: "numeric",
@@ -63,7 +65,9 @@ export function AchievementCard({ achievement, highlighted, cardRef }: Achieveme
         {achievement.completed ? (
           <div className="flex min-h-8 items-center justify-center">
             <p className="text-center text-[11px] text-slate-500">
-            {completedDateLabel ? `Completed ${completedDateLabel}` : "Completed"}
+              {completedDateLabel
+                ? t("achievements.completedOn", { date: completedDateLabel })
+                : t("achievements.completed")}
             </p>
           </div>
         ) : (

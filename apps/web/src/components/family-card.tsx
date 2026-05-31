@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
+import { useLocale } from "@/components/locale-provider";
 import { TodayChoresPanel } from "@/components/today-chores-panel";
 import type { FamilySnapshotChore, FamilySummaryResponse } from "@/lib/family/types";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
 
 export function FamilyCard() {
+  const { t } = useLocale();
   const [summary, setSummary] = useState<FamilySummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -294,7 +296,7 @@ export function FamilyCard() {
   return (
     <>
       {isLoading ? (
-        <article className="family-panel" aria-label="Loading chores dashboard" aria-hidden="true">
+        <article className="family-panel" aria-label={t("dashboard.loading")} aria-hidden="true">
           <div className="family-skeleton family-skeleton-title" />
           <div className="family-skeleton family-skeleton-subtitle" />
           <div className="family-skeleton-chip-row mt-3">
@@ -311,23 +313,17 @@ export function FamilyCard() {
       ) : null}
       {!isLoading && error ? (
         <div className="family-error-wrap">
-          <Alert>Could not load family snapshot: {error}</Alert>
+          <Alert>{t("dashboard.familyLoadError", { error })}</Alert>
           {firestoreNotConfigured ? (
-            <Alert>
-              Firestore default database is missing. Open Firebase console and create
-              Firestore for this project, then refresh.
-            </Alert>
+            <Alert>{t("dashboard.firestoreMissing")}</Alert>
           ) : null}
           {firestoreForbidden ? (
-            <Alert>
-              Firestore rules are denying this user. Update your Firestore security
-              rules to allow reads and writes for authenticated users in this app.
-            </Alert>
+            <Alert>{t("dashboard.firestoreForbidden")}</Alert>
           ) : null}
           {needsReauth ? (
             <form action="/api/auth/logout" method="post">
               <Button type="submit" className="btn btn-secondary">
-                Sign out and sign in again
+                {t("dashboard.reauth")}
               </Button>
             </form>
           ) : null}
@@ -337,41 +333,38 @@ export function FamilyCard() {
         <>
           {summary.noFamily ? (
             <article className="family-panel">
-              <h3>Get Started</h3>
-              <p className="small">
-                Your account is signed in, but no family is linked yet. Finish setup to create
-                your family and invite the first member.
-              </p>
+              <h3>{t("dashboard.getStartedTitle")}</h3>
+              <p className="small">{t("dashboard.getStartedBody")}</p>
               <div className="mt-3">
                 <Link href="/family" className="btn btn-primary">
-                  Finish Family Setup
+                  {t("dashboard.finishFamilySetup")}
                 </Link>
               </div>
             </article>
           ) : summary.pendingInvite ? (
             <article className="family-panel">
-              <h3>Invitation Pending</h3>
-              <p className="small">
-                You&apos;ve been invited to join <strong>{summary.pendingInvite.familyName}</strong>.
-              </p>
+              <h3>{t("dashboard.invitePendingTitle")}</h3>
+              <p className="small">{t("dashboard.invitedToFamily", { familyName: summary.pendingInvite.familyName })}</p>
               {summary.pendingInvite.inviter ? (
                 <p className="small">
-                  Invited by {summary.pendingInvite.inviter.name}
-                  {summary.pendingInvite.inviter.email
-                    ? ` (${summary.pendingInvite.inviter.email})`
-                    : ""}.
+                  {t("dashboard.invitedBy", {
+                    name: summary.pendingInvite.inviter.name,
+                    emailSuffix: summary.pendingInvite.inviter.email
+                      ? ` (${summary.pendingInvite.inviter.email})`
+                      : "",
+                  })}
                 </p>
               ) : (
-                <p className="small">Inviter details are unavailable.</p>
+                <p className="small">{t("dashboard.inviterUnavailable")}</p>
               )}
-              {acceptInviteError ? <Alert>Could not accept invite: {acceptInviteError}</Alert> : null}
+              {acceptInviteError ? <Alert>{t("dashboard.acceptInviteError", { error: acceptInviteError })}</Alert> : null}
               <div className="mt-3">
                 <Button
                   type="button"
                   className="btn btn-primary"
                   onClick={onAcceptInvite}
                   disabled={acceptingInvite}>
-                  {acceptingInvite ? "Accepting..." : "Accept invitation"}
+                  {acceptingInvite ? t("dashboard.acceptingInvite") : t("dashboard.acceptInvite")}
                 </Button>
               </div>
             </article>

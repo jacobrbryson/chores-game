@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { mainNavigationItems } from "@/lib/ui/main-navigation";
+import { useLocale } from "@/components/locale-provider";
 import { MainNavIcon } from "@/components/main-nav-icons";
 import { ProfileMenu } from "@/components/profile-menu";
 
@@ -36,6 +37,7 @@ export function MainNavigation({
   showSupportLink,
 }: MainNavigationProps) {
   const pathname = usePathname();
+  const { t } = useLocale();
 
   return (
     <nav className="main-nav" aria-label="Primary navigation">
@@ -52,7 +54,7 @@ export function MainNavigation({
               authenticatedName={authenticatedName}
               showSupportLink={showSupportLink}
               triggerVariant="main-nav"
-              triggerLabel={item.label}
+              triggerLabel={t(`nav.${item.id}` as const)}
             />
           );
         }
@@ -67,7 +69,7 @@ export function MainNavigation({
             <span className="main-nav-icon">
               <MainNavIcon icon={item.icon} />
             </span>
-            <span className="main-nav-label">{item.label}</span>
+            <span className="main-nav-label">{t(`nav.${item.id}` as const)}</span>
           </Link>
         );
       })}

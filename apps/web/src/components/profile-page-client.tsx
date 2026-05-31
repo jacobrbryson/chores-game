@@ -1,5 +1,6 @@
 "use client";
 
+import { DEFAULT_LOCALE, normalizeLocale, type AppLocale } from "@packages/locales";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
@@ -38,6 +39,7 @@ import type {
 import { dispatchConfettiSelectionChanged } from "@/lib/confetti/party";
 import { readStoredConfettiOptionId } from "@/lib/confetti/party";
 import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
+import { dispatchAppLocaleChanged, useLocale } from "@/components/locale-provider";
 import {
   browserSupportsPushNotifications,
   ensureBrowserPushSubscription,
@@ -84,10 +86,12 @@ export function ProfilePageClient({
   name,
   email,
   role,
+  locale,
   picture,
   isSwitched = false,
   authenticatedName = "",
 }: ProfilePageClientProps) {
+  const { t } = useLocale();
   const [storeSummary, setStoreSummary] = useState<StoreProfileSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -127,6 +131,9 @@ export function ProfilePageClient({
   const [isEditingName, setIsEditingName] = useState(false);
   const [namePending, setNamePending] = useState(false);
   const [nameError, setNameError] = useState("");
+  const [selectedLocale, setSelectedLocale] = useState<AppLocale>(locale);
+  const [localePending, setLocalePending] = useState(false);
+  const [localeError, setLocaleError] = useState("");
   const [activeTab, setActiveTab] = usePersistedTab<ProfileSectionTabId>({
     storageKey: "profile-page-active-tab",
     defaultTab: "general",
@@ -169,7 +176,7 @@ export function ProfilePageClient({
     } finally {
       setGoogleTasksLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const loadPushNotificationSummary = useCallback(async () => {
     if (role !== "admin" || isSwitched) {
@@ -250,7 +257,7 @@ export function ProfilePageClient({
     }
     const googleAccountStatus = searchParams.get("googleAccount")?.trim() ?? "";
     if (googleAccountStatus === "linked") {
-      setGoogleAccountLinkedMessage("Google account linked.");
+      setGoogleAccountLinkedMessage(t("profile.googleAccountLinked"));
     }
     const linkedFlag = searchParams.get("googleTasks");
     if (linkedFlag === "linked") {
@@ -547,12 +554,17 @@ export function ProfilePageClient({
   const displayEmail = email || "-";
 
   useEffect(() => {
-    const nextName = name || "Signed In User";
+    const nextName = name || t("profile.signedIn");
     setDisplayName(nextName);
     setEditedName(name || "");
+  }, [name, t]);
+
+  useEffect(() => {
+    setSelectedLocale(locale);
     setIsEditingName(false);
     setNameError("");
-  }, [name]);
+    setLocaleError("");
+  }, [locale]);
 
   async function onSaveNameEdit() {
     const trimmedName = editedName.trim();
@@ -589,6 +601,24 @@ export function ProfilePageClient({
       );
     } finally {
       setNamePending(false);
+    }
+  }
+
+  async function onChangeLocale(nextLocale: AppLocale) {
+    if (localePending || nextLocale === selectedLocale) {
+      return;
+    }
+    setLocalePending(true);
+    setLocaleError("");
+    try {
+      const payload = await patchProfileAction({ locale: nextLocale });
+      const savedLocale = normalizeLocale(payload.locale) || nextLocale || DEFAULT_LOCALE;
+      setSelectedLocale(savedLocale);
+      dispatchAppLocaleChanged(savedLocale);
+    } catch (errorValue) {
+      setLocaleError(t("profile.languageSaveError"));
+    } finally {
+      setLocalePending(false);
     }
   }
 
@@ -796,6 +826,9 @@ export function ProfilePageClient({
         displayName={displayName}
         displayEmail={displayEmail}
         role={role}
+        locale={selectedLocale}
+        localePending={localePending}
+        localeError={localeError}
         isLoading={isLoading}
         canEditName={role === "admin" && !isSwitched}
         isEditingName={isEditingName}
@@ -828,6 +861,9 @@ export function ProfilePageClient({
         onSaveNameEdit={() => {
           void onSaveNameEdit();
         }}
+        onLocaleChange={(value) => {
+          void onChangeLocale(value);
+        }}
         onOpenAvatarDialog={() => {
           setAvatarActionError("");
           setAvatarDialogOpen(true);
@@ -847,15 +883,15 @@ export function ProfilePageClient({
         <section className="profile-owned-items-card" aria-label="Owned items">
         <div className="family-page-card-header">
           <div>
-            <h2>Owned Items</h2>
+            <h2>{t("profile.inventoryTitle")}</h2>
             <p className="small family-page-subhead">
-              Items, collectibles, and unlocks in this account inventory.
+              {t("profile.inventorySubtitle")}
             </p>
           </div>
         </div>
-        {isLoading ? <p className="small">Loading inventory...</p> : null}
+        {isLoading ? <p className="small">{t("profile.inventoryLoading")}</p> : null}
         {!isLoading && ownedItems.length === 0 ? (
-          <p className="small">No owned items yet. Complete chores, quests, and store purchases to build inventory.</p>
+          <p className="small">{t("profile.inventoryEmpty")}</p>
         ) : null}
         {!isLoading && ownedItems.length > 0 ? (
           <div className="profile-owned-items-grid">
@@ -887,24 +923,21 @@ export function ProfilePageClient({
         <div className="flex flex-col gap-3">
       {googleTasksLoading && !googleTasksSummary ? (
           <article className="profile-page-google-card">
-            <h2>Google Account</h2>
-            <p className="small">Loading Google account status...</p>
+            <h2>{t("profile.googleAccountTitle")}</h2>
+            <p className="small">{t("profile.googleAccountLoading")}</p>
           </article>
       ) : !googleAccountLinked ? (
           <article className="profile-page-google-card">
-            <h2>Google Account</h2>
+            <h2>{t("profile.googleAccountTitle")}</h2>
             {googleAccountRedirectError ? (
-              <Alert>Could not link Google account: {googleAccountRedirectError}</Alert>
+              <Alert>{t("profile.googleAccountLinkError", { error: googleAccountRedirectError })}</Alert>
             ) : null}
             {googleAccountLinkedMessage ? <p className="small">{googleAccountLinkedMessage}</p> : null}
-            <p className="small">
-              This profile is not linked to Google yet. Link it later when you want this child to sign in with Google
-              and unlock Google Tasks sync.
-            </p>
+            <p className="small">{t("profile.googleAccountNotLinked")}</p>
             {googleClientId ? (
               <GoogleSignInButton mode="gsi" clientId={googleClientId} loginUri={googleAccountLinkUri} width={260} />
             ) : (
-              <Alert>Google sign-in is not configured for linking.</Alert>
+              <Alert>{t("profile.googleLinkUnavailable")}</Alert>
             )}
           </article>
       ) : (
@@ -981,9 +1014,9 @@ export function ProfilePageClient({
           <section aria-label="Notifications">
             <div className="family-page-card-header">
               <div>
-                <h2>Notifications</h2>
+                <h2>{t("profile.notificationsTitle")}</h2>
                 <p className="small family-page-subhead">
-                  Browser push notification settings are only available for active admin profiles.
+                  {t("profile.notificationsAdminOnly")}
                 </p>
               </div>
             </div>

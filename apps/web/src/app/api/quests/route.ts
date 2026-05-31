@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
             uid: session.uid,
             email: session.email ?? "",
             idToken,
+            locale: session.locale,
           }),
           listQuestProgress(session.uid, idToken),
         ]);

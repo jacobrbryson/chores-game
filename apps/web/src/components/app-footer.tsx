@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { createTranslator, type AppLocale } from "@packages/locales";
 import { AppBrand } from "@/components/app-brand";
 
-type FooterIconName = "copyright" | "privacy" | "terms" | "orcwood";
+type FooterIconName = "copyright" | "privacy" | "terms" | "changeLog" | "orcwood";
 
 function FooterItemIcon({ name }: { name: FooterIconName }) {
   if (name === "copyright") {
@@ -74,6 +75,37 @@ function FooterItemIcon({ name }: { name: FooterIconName }) {
     );
   }
 
+  if (name === "changeLog") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="app-footer-icon">
+        <path
+          d="M7 4.5h6.8l3.7 3.7v10.3H7z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M13.8 4.7v3.7h3.7"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M9.7 11.2h5.6M9.7 14.2h3.9"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="app-footer-icon">
       <path
@@ -95,11 +127,12 @@ function FooterItemIcon({ name }: { name: FooterIconName }) {
   );
 }
 
-export function AppFooter() {
+export function AppFooter({ locale }: { locale: AppLocale }) {
+  const t = createTranslator({ locale });
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="app-footer panel" aria-label="Site footer">
+    <footer className="app-footer panel" aria-label={t("footer.ariaLabel")}>
       <div className="app-footer-brand">
         <AppBrand />
       </div>
@@ -110,11 +143,15 @@ export function AppFooter() {
         </p>
         <Link href="/privacy-policy" className="app-footer-link app-footer-item">
           <FooterItemIcon name="privacy" />
-          <span>Privacy Policy</span>
+          <span>{t("footer.privacyPolicy")}</span>
         </Link>
         <Link href="/terms-of-service" className="app-footer-link app-footer-item">
           <FooterItemIcon name="terms" />
-          <span>Terms of Service</span>
+          <span>{t("footer.termsOfService")}</span>
+        </Link>
+        <Link href="/change-log" className="app-footer-link app-footer-item">
+          <FooterItemIcon name="changeLog" />
+          <span>{t("footer.changeLog")}</span>
         </Link>
         <a
           href="https://orcwood.com"
@@ -122,7 +159,7 @@ export function AppFooter() {
           rel="noreferrer"
           className="app-footer-link app-footer-item">
           <FooterItemIcon name="orcwood" />
-          <span>Brought to you by Orcwood Games</span>
+          <span>{t("footer.broughtBy")}</span>
         </a>
       </div>
     </footer>

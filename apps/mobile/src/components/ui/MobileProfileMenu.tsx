@@ -1,6 +1,7 @@
 import React from "react";
 import { Image, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { appBaseUrl, signOut } from "@/lib/api";
+import { useMobileLocale } from "@/lib/locale";
 import { AvatarBadge } from "@/components/ui/AvatarBadge";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 
@@ -35,6 +36,7 @@ export function MobileProfileMenu({
   triggerVariant = "avatar",
   triggerLabel = "More",
 }: Props) {
+  const { t } = useMobileLocale();
   const [open, setOpen] = React.useState(false);
   const [pendingLogout, setPendingLogout] = React.useState(false);
   const initial = (name.trim()[0] || email.trim()[0] || "U").toUpperCase();
@@ -50,17 +52,17 @@ export function MobileProfileMenu({
   }
 
   const actions: MenuAction[] = [
-    { label: "Notifications", onPress: () => openWebPath("/notifications") },
+    { label: t("nav.notifications"), onPress: () => openWebPath("/notifications") },
     {
-      label: "Profile",
+      label: t("nav.profile"),
       onPress: () => {
         setOpen(false);
         onOpenProfile?.();
       },
     },
-    { label: "Manage Family", onPress: () => openWebPath("/family") },
+    { label: t("nav.manageFamily"), onPress: () => openWebPath("/family") },
     {
-      label: pendingLogout ? "Logging out..." : "Logout",
+      label: pendingLogout ? t("common.actions.loading") : t("nav.logout"),
       tone: "danger",
       onPress: async () => {
         if (pendingLogout) {
@@ -110,8 +112,8 @@ export function MobileProfileMenu({
             <View style={styles.header}>
               <AvatarBadge name={name || email || initial} imageUrl={avatarUrl} color={colors.brand} size={40} />
               <View style={styles.identity}>
-                <Text style={styles.name}>{name || "Signed In"}</Text>
-                <Text style={styles.email}>{email || "Family Chores account"}</Text>
+                <Text style={styles.name}>{name || t("profile.signedIn")}</Text>
+                <Text style={styles.email}>{email || t("profile.accountFallback")}</Text>
               </View>
             </View>
             <View style={styles.menu}>

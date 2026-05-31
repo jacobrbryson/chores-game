@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EntityId, RoleSchema } from "./common";
+import { EntityId, LocaleSchema, RoleSchema } from "./common";
 
 export const FamilyMemberSchema = z.object({
   id: EntityId,
@@ -11,6 +11,8 @@ export const FamilyMemberSchema = z.object({
   dashboardPrimaryColor: z.string().optional(),
   avatarId: z.string().optional(),
   avatarPhotoUrl: z.string().optional(),
+  locale: LocaleSchema.optional(),
+  resolvedLocale: LocaleSchema.default("en-US"),
   stats: z.object({
     currentCoins: z.number().int().nonnegative().default(0),
   }).optional(),
@@ -42,8 +44,13 @@ export const FamilyDashboardChoreSchema = z.object({
 export const FamilyCurrentSchema = z.object({
   viewerUid: z.string().default(""),
   viewerAssigneeAliases: z.array(z.string()).default([]),
-  family: z.object({ id: EntityId, name: z.string() }).nullable(),
+  family: z.object({
+    id: EntityId,
+    name: z.string(),
+    defaultLocale: LocaleSchema.default("en-US"),
+  }).nullable(),
   members: z.array(FamilyMemberSchema),
   choresToday: z.array(FamilyDashboardChoreSchema).default([]),
   noFamily: z.boolean().default(false),
+  resolvedLocale: LocaleSchema.default("en-US"),
 });

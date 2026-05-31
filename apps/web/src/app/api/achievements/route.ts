@@ -4,6 +4,7 @@ import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { getViewerFamilyContext } from "@/lib/family/member-access";
 import { getAchievementViewForUser } from "@/lib/achievements/service";
+import { resolveAppLocale } from "@/lib/locale";
 import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
 
 function jsonUnauthorized() {
@@ -87,6 +88,11 @@ export async function GET(request: NextRequest) {
           uid: session.uid,
           idToken,
           viewerRole,
+          locale: resolveAppLocale({
+            sessionLocale: session.locale,
+            memberLocale: context.viewerMember?.locale,
+            familyLocale: context.familyLocale,
+          }),
         });
         return {
           ...base,

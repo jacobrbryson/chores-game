@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
+import { useLocale } from "@/components/locale-provider";
 
 type NotificationItem = {
   id: string;
@@ -32,12 +33,12 @@ type NotificationsPageClientProps = {
 };
 type NotificationSortBy = "createdAt" | "title" | "message" | "seen" | "kind";
 
-function formatDateTime(value: string) {
+function formatDateTime(value: string, locale: string) {
   const parsed = Date.parse(value);
   if (Number.isNaN(parsed)) {
     return "-";
   }
-  return new Date(parsed).toLocaleString();
+  return new Date(parsed).toLocaleString(locale);
 }
 
 function notificationKindTone(kind: string) {
@@ -63,6 +64,7 @@ function notificationKindTone(kind: string) {
 }
 
 export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPageClientProps) {
+  const { locale, t } = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const [unseenOnly, setUnseenOnly] = useState(initialUnseenOnly);
@@ -121,13 +123,20 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
       setTotalPages(payload.pagination?.totalPages ?? 1);
       if (unseenOnly && notifications.length > 0) {
         const unseenIds = notifications.map((entry) => entry.id);
-        await fetch("/api/notifications", {
+        const markSeenResponse = await fetch("/api/notifications", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ids: unseenIds }),
         });
+        if (!markSeenResponse.ok) {
+          const body = (await markSeenResponse.json()) as { error?: string };
+          throw new Error(body.error ?? `NOTIFICATIONS_PATCH_HTTP_${markSeenResponse.status}`);
+        }
         setItems((current) => current.map((entry) => ({ ...entry, seen: true })));
         setUnseenCount(0);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("notifications:refresh"));
+        }
       }
     } catch (loadError) {
       if (controller.signal.aborted) {
@@ -155,12 +164,15 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
 
   const subtitle = useMemo(() => {
     if (unseenOnly) {
-      return "Showing unseen activity.";
+      return t("notificationsPage.subtitle.unseen");
     }
     return unseenCount > 0
-      ? `${unseenCount} unseen activit${unseenCount === 1 ? "y" : "ies"}`
-      : "All activity";
-  }, [unseenCount, unseenOnly]);
+      ? t("notificationsPage.subtitle.unseenCount", {
+          count: unseenCount,
+          suffix: unseenCount === 1 ? "y" : "ies",
+        })
+      : t("notificationsPage.subtitle.all");
+  }, [t, unseenCount, unseenOnly]);
 
   const sortLabel = useMemo(
     () => (column: NotificationSortBy, label: string) =>
@@ -188,7 +200,7 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
               setPage(1);
               router.replace(`${pathname}?unseen=true`);
             }}>
-            Unseen
+            {t("notificationsPage.filters.unseen")}
           </Button>
           <Button
             type="button"
@@ -198,7 +210,7 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
               setPage(1);
               router.replace(pathname);
             }}>
-            All
+            {t("notificationsPage.filters.all")}
           </Button>
         </div>
       </div>
@@ -207,14 +219,15 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
         <input
           value={searchInput}
           onChange={(event) => setSearchInput(event.target.value)}
-          placeholder="Search notifications (3+ chars)"
+          placeholder={t("notificationsPage.search.placeholder")}
           className="table-search-input"
+          aria-label={t("notificationsPage.search.ariaLabel")}
         />
-        {hasShortSearch ? <p className="small">Type at least 3 characters to filter.</p> : null}
+        {hasShortSearch ? <p className="small">{t("notificationsPage.search.minimum")}</p> : null}
       </div>
 
       {isLoading ? (
-        <section aria-label="Loading notifications" aria-hidden="true" className="space-y-3">
+        <section aria-label={t("notificationsPage.loading")} aria-hidden="true" className="space-y-3">
           <div className="family-skeleton-chip-row">
             <div className="family-skeleton family-skeleton-chip" />
             <div className="family-skeleton family-skeleton-chip" />
@@ -249,11 +262,11 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
         </section>
       ) : null}
       {!isLoading && error ? (
-        <Alert>Could not load notifications: {error}</Alert>
+        <Alert>{t("notificationsPage.loadError", { error })}</Alert>
       ) : null}
       {!isLoading && !error ? (
         items.length === 0 ? (
-          <p className="small">No notifications yet.</p>
+          <p className="small">{t("notificationsPage.empty")}</p>
         ) : (
           <>
             <div className="family-table-wrap">
@@ -262,27 +275,27 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
                   <tr>
                     <th>
                       <button type="button" className="table-sort-btn" onClick={() => onSort("title")}>
-                        {sortLabel("title", "Title")}
+                        {sortLabel("title", t("notificationsPage.columns.title"))}
                       </button>
                     </th>
                     <th>
                       <button type="button" className="table-sort-btn" onClick={() => onSort("message")}>
-                        {sortLabel("message", "Message")}
+                        {sortLabel("message", t("notificationsPage.columns.message"))}
                       </button>
                     </th>
                     <th>
                       <button type="button" className="table-sort-btn" onClick={() => onSort("kind")}>
-                        {sortLabel("kind", "Type")}
+                        {sortLabel("kind", t("notificationsPage.columns.type"))}
                       </button>
                     </th>
                     <th>
                       <button type="button" className="table-sort-btn" onClick={() => onSort("createdAt")}>
-                        {sortLabel("createdAt", "When")}
+                        {sortLabel("createdAt", t("notificationsPage.columns.when"))}
                       </button>
                     </th>
                     <th>
                       <button type="button" className="table-sort-btn" onClick={() => onSort("seen")}>
-                        {sortLabel("seen", "Seen")}
+                        {sortLabel("seen", t("notificationsPage.columns.seen"))}
                       </button>
                     </th>
                   </tr>
@@ -290,17 +303,20 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
                 <tbody>
                   {items.map((item) => (
                     <tr key={item.id} className={item.seen ? "" : "notifications-row-unseen"}>
-                      <td>{item.title || "Activity"}</td>
-                      <td>{item.message || "Activity logged."}</td>
+                      <td>{item.title || t("notificationsPage.fallback.title")}</td>
+                      <td>{item.message || t("notificationsPage.fallback.message")}</td>
                       <td>
                         <EnumChip
                           label={item.kind ? humanizeEnum(item.kind) : "-"}
                           tone={notificationKindTone(item.kind)}
                         />
                       </td>
-                      <td>{formatDateTime(item.createdAt)}</td>
+                      <td>{formatDateTime(item.createdAt, locale)}</td>
                       <td>
-                        <EnumChip label={item.seen ? "Seen" : "Unseen"} tone={item.seen ? "teal" : "amber"} />
+                        <EnumChip
+                          label={item.seen ? t("notificationsPage.status.seen") : t("notificationsPage.status.unseen")}
+                          tone={item.seen ? "teal" : "amber"}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -313,17 +329,17 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
                 className="btn btn-secondary"
                 disabled={page <= 1}
                 onClick={() => setPage((current) => Math.max(1, current - 1))}>
-                Previous
+                {t("notificationsPage.pager.previous")}
               </Button>
               <span className="small">
-                Page {page} of {totalPages} ({total})
+                {t("notificationsPage.pager.pageOf", { page, totalPages, total })}
               </span>
               <Button
                 type="button"
                 className="btn btn-secondary"
                 disabled={page >= totalPages}
                 onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
-                Next
+                {t("notificationsPage.pager.next")}
               </Button>
             </div>
           </>

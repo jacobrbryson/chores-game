@@ -28,7 +28,7 @@ export async function patchProfileAction(body: Record<string, unknown>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const payload = (await response.json()) as { error?: string; name?: string };
+  const payload = (await response.json()) as { error?: string; name?: string; locale?: string };
   if (!response.ok) {
     throw new Error(payload.error ?? `PROFILE_ACTION_HTTP_${response.status}`);
   }

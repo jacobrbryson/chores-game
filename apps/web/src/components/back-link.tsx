@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/locale-provider";
 import {
   buildNavigationHref,
   isNavigableAppRoute,
@@ -48,17 +49,19 @@ function resolveSafeBackTarget(fallbackHref: string) {
 
 export function BackLink({
   className = "family-back-link",
-  ariaLabel = "Go back",
+  ariaLabel,
   fallbackHref = "/",
 }: BackLinkProps) {
   const router = useRouter();
+  const { t } = useLocale();
+  const resolvedAriaLabel = ariaLabel || t("common.actions.back");
 
   return (
     <Link
       href={fallbackHref}
       className={className}
-      aria-label={ariaLabel}
-      title="Back"
+      aria-label={resolvedAriaLabel}
+      title={t("common.actions.back")}
       onClick={(event) => {
         event.preventDefault();
         const { nextStack, target } = resolveSafeBackTarget(fallbackHref);

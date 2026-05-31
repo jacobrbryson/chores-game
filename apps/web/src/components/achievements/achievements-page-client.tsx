@@ -5,19 +5,16 @@ import { useSearchParams } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { AchievementCard } from "@/components/achievements/achievement-card";
 import { AppTabs, type AppTabItem } from "@/components/app-tabs";
+import { useLocale } from "@/components/locale-provider";
 import { fetchAchievements, readAchievementHighlightId } from "@/lib/achievements/api";
 import type { AchievementResponseItem } from "@/lib/achievements/service";
 
 type AudienceFilter = "all" | "player" | "admin";
 const HIDE_COMPLETE_STORAGE_KEY = "achievementsHideComplete";
-const ADMIN_TABS: AppTabItem<AudienceFilter>[] = [
-  { id: "all", label: "All" },
-  { id: "player", label: "Player" },
-  { id: "admin", label: "Parent (Admin)" },
-];
 
 export function AchievementsPageClient() {
   const searchParams = useSearchParams();
+  const { t } = useLocale();
   const [items, setItems] = useState<AchievementResponseItem[]>([]);
   const [viewerRole, setViewerRole] = useState<"admin" | "player">("player");
   const [isLoading, setIsLoading] = useState(true);
@@ -104,6 +101,12 @@ export function AchievementsPageClient() {
     });
   }, [adminFilter, hideComplete, items, viewerRole]);
 
+  const adminTabs = useMemo<AppTabItem<AudienceFilter>[]>(() => [
+    { id: "all", label: t("achievements.tabs.all") },
+    { id: "player", label: t("achievements.tabs.player") },
+    { id: "admin", label: t("achievements.tabs.admin") },
+  ], [t]);
+
   const totals = useMemo(() => {
     let visibleItems = [...items];
     if (viewerRole === "player") {
@@ -123,8 +126,8 @@ export function AchievementsPageClient() {
       {viewerRole === "admin" ? (
         <div className="app-tab-panel-header px-5 pt-4">
           <AppTabs
-            ariaLabel="Achievement audiences"
-            tabs={ADMIN_TABS}
+            ariaLabel={t("achievements.audiences")}
+            tabs={adminTabs}
             activeTab={adminFilter}
             onChange={setAdminFilter}
           />
@@ -132,7 +135,7 @@ export function AchievementsPageClient() {
       ) : null}
       <div className="app-tab-panel-body p-5">
         {isLoading ? (
-          <section aria-label="Loading achievements" aria-hidden="true" className="space-y-3">
+          <section aria-label={t("achievements.loading")} aria-hidden="true" className="space-y-3">
             {viewerRole === "admin" ? (
               <div className="achievements-toolbar flex flex-wrap gap-2">
                 <div className="family-skeleton family-skeleton-chip" />
@@ -188,13 +191,13 @@ export function AchievementsPageClient() {
             </div>
           </section>
         ) : null}
-        {!isLoading && error ? <Alert>Could not load achievements: {error}</Alert> : null}
+        {!isLoading && error ? <Alert>{t("achievements.loadError", { error })}</Alert> : null}
         {!isLoading && !error ? (
           <section className="space-y-3" role="tabpanel">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="family-category-chip">Total: {totals.total}</span>
-                <span className="family-category-chip">Completed: {totals.completed}</span>
+                <span className="family-category-chip">{t("achievements.total", { count: totals.total })}</span>
+                <span className="family-category-chip">{t("achievements.completedCount", { count: totals.completed })}</span>
               </div>
               <label className="today-chores-toggle-row">
                 <input
@@ -208,7 +211,7 @@ export function AchievementsPageClient() {
                   className="my-chores-toggle-track"
                 />
                 <span className="small today-chores-toggle-copy">
-                  <span>Hide Complete</span>
+                  <span>{t("achievements.hideComplete")}</span>
                 </span>
               </label>
             </div>

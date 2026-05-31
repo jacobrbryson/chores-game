@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
+import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
@@ -91,19 +92,6 @@ type AddEditChoresDialogProps = {
 const LAST_ASSIGNEE_STORAGE_KEY = "chores_last_assignee_id";
 const FAMILY_ASSIGNEE_OPTION_ID = "__family__";
 const ADDITIONAL_OPTIONS_STORAGE_KEY = "chores_additional_options_open_v2";
-const RECURRENCE_OPTIONS: TailwindSelectOption<ChoreRecurrenceType>[] = [
-  { value: "none", label: "Does not repeat" },
-  { value: "instant", label: "Instant" },
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "custom", label: "Custom" },
-];
-const CUSTOM_RECURRENCE_UNIT_OPTIONS: TailwindSelectOption<ChoreRecurrenceUnit>[] = [
-  { value: "day", label: "Days" },
-  { value: "week", label: "Weeks" },
-  { value: "month", label: "Months" },
-];
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
@@ -163,6 +151,7 @@ export function AddEditChoresDialog({
   optimisticCreate = false,
   createMode = "default",
 }: AddEditChoresDialogProps) {
+  const { t } = useLocale();
   const SUGGESTION_GAP_PX = 6;
   const SUGGESTION_VIEWPORT_MARGIN_PX = 8;
   const SUGGESTION_MIN_HEIGHT_PX = 120;
@@ -203,6 +192,25 @@ export function AddEditChoresDialog({
   const [categories, setCategories] = useState<FamilyCategory[]>([]);
   const [assigneeHydrated, setAssigneeHydrated] = useState(false);
   const effectiveDueDate = showAdditionalOptions ? dueDate : todayIsoDate();
+  const recurrenceOptions: TailwindSelectOption<ChoreRecurrenceType>[] = useMemo(
+    () => [
+      { value: "none", label: t("choreDialog.recurrence.none") },
+      { value: "instant", label: t("choreDialog.recurrence.instant") },
+      { value: "daily", label: t("choreDialog.recurrence.daily") },
+      { value: "weekly", label: t("choreDialog.recurrence.weekly") },
+      { value: "monthly", label: t("choreDialog.recurrence.monthly") },
+      { value: "custom", label: t("choreDialog.recurrence.custom") },
+    ],
+    [t],
+  );
+  const customRecurrenceUnitOptions: TailwindSelectOption<ChoreRecurrenceUnit>[] = useMemo(
+    () => [
+      { value: "day", label: t("choreDialog.recurrence.days") },
+      { value: "week", label: t("choreDialog.recurrence.weeks") },
+      { value: "month", label: t("choreDialog.recurrence.months") },
+    ],
+    [t],
+  );
 
   function setDialogOpen(next: boolean) {
     if (controlledOpen === undefined) {
@@ -842,10 +850,10 @@ export function AddEditChoresDialog({
             <div className="modal-dialog-title-row mb-3">
               <h3 className="text-lg font-bold text-slate-800">
                 {isEditMode ? (
-                  "Edit Chore"
+                  t("choreDialog.editTitle")
                 ) : (
                   <>
-                    Add Chores
+                    {t("choreDialog.addTitle")}
                     {titleTypeSuffix ? <span className="font-medium text-slate-500">{titleTypeSuffix}</span> : null}
                   </>
                 )}
@@ -854,14 +862,14 @@ export function AddEditChoresDialog({
                 type="button"
                 className="modal-close-button"
                 onClick={() => setDialogOpen(false)}
-                aria-label="Close dialog"
-                title="Close dialog">
+                aria-label={t("common.actions.close")}
+                title={t("common.actions.close")}>
                 X
               </Button>
             </div>
             <form className="flex w-full flex-col gap-3" onSubmit={onSubmit}>
               <label className="flex w-full flex-col gap-1.5">
-                <span className="text-sm font-medium text-slate-700">Description</span>
+                <span className="text-sm font-medium text-slate-700">{t("choreDialog.descriptionLabel")}</span>
                 <div ref={descriptionFieldRef} className="relative">
                   <input
                     required
@@ -873,22 +881,22 @@ export function AddEditChoresDialog({
                     onFocus={() => setShowSuggestionMenu(true)}
                     onBlur={() => setTimeout(() => setShowSuggestionMenu(false), 100)}
                     onKeyDown={onDescriptionKeyDown}
-                    placeholder="Take out trash"
+                    placeholder={t("choreDialog.descriptionPlaceholder")}
                     className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
                   />
                 </div>
               </label>
               {isSeeAndDoMode ? (
                 <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                  All See and Do chores require parent approval. A parent can assign the coin value.
+                  {t("choreDialog.seeAndDoNotice")}
                 </p>
               ) : null}
 
               {!isSeeAndDoMode ? (
               <label className="flex w-full flex-col gap-1.5">
-                <span className="text-sm font-medium text-slate-700">Assignee</span>
+                <span className="text-sm font-medium text-slate-700">{t("choreDialog.assigneeLabel")}</span>
                 <TailwindMultiSelect
-                  ariaLabel="Assignees"
+                  ariaLabel={t("choreDialog.assigneeLabel")}
                   values={assigneeIds}
                   onChange={(nextValues) => {
                     const hadFamilySelected = assigneeIds.includes(FAMILY_ASSIGNEE_OPTION_ID);
@@ -906,14 +914,14 @@ export function AddEditChoresDialog({
                     setAssigneeIds(nextValues);
                   }}
                   options={assigneeSelectOptions}
-                  placeholder="Select assignees"
+                  placeholder={t("choreDialog.assigneePlaceholder")}
                   className="w-full"
                   buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                   menuClassName="border-slate-300"
                 />
                 {hasGoogleTaskAssigneeChangeWarning ? (
                   <Alert tone="warning">
-                    This task will be removed from {previousGoogleTasksOwnerName}&apos;s Google Tasks.
+                    {t("choreDialog.googleTasksWarning", { name: previousGoogleTasksOwnerName })}
                   </Alert>
                 ) : null}
               </label>
@@ -928,7 +936,7 @@ export function AddEditChoresDialog({
                   {showAdditionalOptions ? "-" : "+"}
                 </span>
                 <span className="group-hover:underline group-focus-visible:underline">
-                  Additional Options
+                  {t("choreDialog.additionalOptions")}
                 </span>
               </Button>
               ) : null}
@@ -939,7 +947,7 @@ export function AddEditChoresDialog({
                 aria-hidden={!showAdditionalOptions}>
                 <div className="add-chores-advanced-inner">
                   <label className="flex w-full flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">Due Date</span>
+                    <span className="text-sm font-medium text-slate-700">{t("choreDialog.dueDateLabel")}</span>
                     <input
                       type="date"
                       value={dueDate}
@@ -950,7 +958,7 @@ export function AddEditChoresDialog({
                   </label>
 
                   <label className="flex w-full flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">Coin Value</span>
+                    <span className="text-sm font-medium text-slate-700">{t("choreDialog.coinValueLabel")}</span>
                     <input
                       type="number"
                       min={0}
@@ -965,12 +973,12 @@ export function AddEditChoresDialog({
 
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
                     <label className="flex w-full flex-col gap-1.5">
-                      <span className="text-sm font-medium text-slate-700">Recurrence</span>
+                      <span className="text-sm font-medium text-slate-700">{t("choreDialog.recurrenceLabel")}</span>
                       <TailwindSelect
-                        ariaLabel="Recurrence"
+                        ariaLabel={t("choreDialog.recurrenceLabel")}
                         value={recurrenceType}
                         onChange={(value) => setRecurrenceType(value as ChoreRecurrenceType)}
-                        options={RECURRENCE_OPTIONS}
+                        options={recurrenceOptions}
                         className="w-full"
                         buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                         menuClassName="border-slate-300"
@@ -980,7 +988,7 @@ export function AddEditChoresDialog({
                     {recurrenceType === "custom" ? (
                       <div className="grid gap-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)]">
                         <label className="flex w-full flex-col gap-1.5">
-                          <span className="text-sm font-medium text-slate-700">Every</span>
+                          <span className="text-sm font-medium text-slate-700">{t("choreDialog.everyLabel")}</span>
                           <input
                             type="number"
                             min={1}
@@ -993,12 +1001,12 @@ export function AddEditChoresDialog({
                           />
                         </label>
                         <label className="flex w-full flex-col gap-1.5">
-                          <span className="text-sm font-medium text-slate-700">Unit</span>
+                          <span className="text-sm font-medium text-slate-700">{t("choreDialog.unitLabel")}</span>
                           <TailwindSelect
-                            ariaLabel="Custom recurrence unit"
+                            ariaLabel={t("choreDialog.unitLabel")}
                             value={recurrenceUnit}
                             onChange={(value) => setRecurrenceUnit(value as ChoreRecurrenceUnit)}
-                            options={CUSTOM_RECURRENCE_UNIT_OPTIONS}
+                            options={customRecurrenceUnitOptions}
                             className="w-full"
                             buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                             menuClassName="border-slate-300"
@@ -1018,37 +1026,37 @@ export function AddEditChoresDialog({
                       className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#1f69b7]"
                     />
                     <span className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-slate-700">Require Parent Approval</span>
+                      <span className="text-sm font-medium text-slate-700">{t("choreDialog.requireApprovalLabel")}</span>
                       <span className="text-xs text-slate-500">
                         {hasMultipleAssignees
-                          ? "Chores with multiple assignees always require approval. Coin totals can be changed at time of approval."
-                          : "Completed chores leave the open list, notify parents, and wait for approval before coins are paid out."}
+                          ? t("choreDialog.requireApprovalMultiHint")
+                          : t("choreDialog.requireApprovalHint")}
                       </span>
                     </span>
                   </label>
 
                   <label className="flex w-full flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">Categories</span>
+                    <span className="text-sm font-medium text-slate-700">{t("choreDialog.categoriesLabel")}</span>
                     <TailwindMultiSelect
-                      ariaLabel="Categories"
+                      ariaLabel={t("choreDialog.categoriesLabel")}
                       values={categoryIds}
                       onChange={setCategoryIds}
                       options={categorySelectOptions}
                       disabled={!showAdditionalOptions}
                       placeholder={
-                        categorySelectOptions.length > 0 ? "Select categories" : "No categories yet"
+                        categorySelectOptions.length > 0 ? t("choreDialog.categoriesPlaceholder") : t("choreDialog.noCategories")
                       }
                       className="w-full"
                       buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                       menuClassName="border-slate-300"
                       emptyState={
                         <span className="inline-flex items-center gap-2">
-                          <span>No categories yet.</span>
+                          <span>{t("choreDialog.noCategories")}</span>
                           <Link
                             href="/family"
                             className="font-semibold text-[#1f69b7] underline"
                             onClick={() => setDialogOpen(false)}>
-                            Manage Categories
+                            {t("choreDialog.manageCategories")}
                           </Link>
                         </span>
                       }
@@ -1056,13 +1064,13 @@ export function AddEditChoresDialog({
                   </label>
 
                   <label className="flex w-full flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">Additional Details</span>
+                    <span className="text-sm font-medium text-slate-700">{t("choreDialog.detailsLabel")}</span>
                     <textarea
                       rows={4}
                       value={details}
                       disabled={!showAdditionalOptions}
                       onChange={(event) => setDetails(event.target.value)}
-                      placeholder="Any notes for this chore..."
+                      placeholder={t("choreDialog.detailsPlaceholder")}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
                     />
                   </label>
@@ -1084,17 +1092,17 @@ export function AddEditChoresDialog({
                   className="btn btn-secondary"
                   disabled={saving}
                   onClick={() => setDialogOpen(false)}>
-                  Cancel
+                  {t("common.actions.cancel")}
                 </Button>
                 <Button
                   type="submit"
                   className="btn btn-primary"
                   disabled={saving}>
                   {saving
-                    ? "Saving..."
+                    ? t("family.memberLanguageSaving")
                     : isEditMode
-                      ? "Save Changes"
-                      : "Add Chore"}
+                      ? t("choreDialog.saveChanges")
+                      : t("dashboard.addChore")}
                 </Button>
               </div>
             </form>
@@ -1104,7 +1112,3 @@ export function AddEditChoresDialog({
     </>
   );
 }
-
-
-
-

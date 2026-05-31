@@ -602,11 +602,22 @@ function dueDateToIso(value: string) {
   return `${value}T00:00:00.000Z`;
 }
 
-function isFutureDueDate(value: string, todayIsoDate: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+function offsetIsoDateAt(value: number, timezoneOffsetMinutes: number) {
+  return new Date(toShiftedUtcMillis(value, timezoneOffsetMinutes))
+    .toISOString()
+    .slice(0, 10);
+}
+
+function isMoreThan24HoursAhead(
+  dueDate: string,
+  timezoneOffsetMinutes: number,
+  nowMillis = Date.now(),
+) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
     return false;
   }
-  return value > todayIsoDate;
+  const cutoffIsoDate = offsetIsoDateAt(nowMillis + 24 * 60 * 60 * 1000, timezoneOffsetMinutes);
+  return dueDate > cutoffIsoDate;
 }
 
 function isCompletedStatus(status: string) {
@@ -840,8 +851,6 @@ export async function GET(request: NextRequest) {
   const completionWindowRange = completionWindow
     ? getCompletionWindowRange(completionWindow, timezoneOffsetMinutes)
     : null;
-  const todayIsoDate = new Date().toISOString().slice(0, 10);
-
   try {
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
@@ -965,7 +974,7 @@ export async function GET(request: NextRequest) {
             if (isCompletedStatus(doc.status)) {
               return true;
             }
-            return !isFutureDueDate(doc.dueDate, todayIsoDate);
+            return !isMoreThan24HoursAhead(doc.dueDate, timezoneOffsetMinutes);
           })
           .filter((doc) => {
             if (statusFilter === "") {

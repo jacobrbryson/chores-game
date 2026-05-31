@@ -23,6 +23,7 @@ import {
   DEFAULT_CONFETTI_OPTION_ID,
   findColorThemeOptionById,
 } from "@/lib/store/catalog";
+import { DEFAULT_LOCALE } from "@/lib/locale";
 import { trackAchievementEvent } from "@/lib/achievements/service";
 
 type AddMemberBody = {
@@ -174,6 +175,7 @@ export async function POST(request: NextRequest) {
             email: stringField(email),
             uid: stringField(isManagedLocalPlayer ? memberId : ""),
             role: stringField(role),
+            locale: stringField(DEFAULT_LOCALE),
             status: stringField(isManagedLocalPlayer ? "active" : "invited"),
             deleted: boolField(false),
             dashboardPrimaryColor: stringField(defaultTheme.primary),
@@ -192,6 +194,7 @@ export async function POST(request: NextRequest) {
               provider: stringField("local"),
               email: stringField(""),
               displayName: stringField(name),
+              locale: stringField(DEFAULT_LOCALE),
               familyIds: stringArrayField([familyId]),
               walletBalance: integerField(0),
               ownedStoreOptionIds: stringArrayField([

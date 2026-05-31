@@ -6,10 +6,12 @@ import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { AppFooter } from "@/components/app-footer";
 import { AppHeader } from "@/components/app-header";
 import { AchievementUnlockListener } from "@/components/achievements/achievement-unlock-listener";
+import { LocaleProvider } from "@/components/locale-provider";
 import { NavigationHistoryTracker } from "@/components/navigation-history-tracker";
 import { PartyConfettiOverlay } from "@/components/party-confetti-overlay";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
 import { parseSessionToken } from "@/lib/auth/session";
+import { DEFAULT_LOCALE } from "@/lib/locale";
 
 export const metadata: Metadata = {
   title: "Family Chores",
@@ -36,9 +38,10 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   const sessionUser = parseSessionToken(cookieStore.get("session_user")?.value);
+  const locale = sessionUser?.locale || DEFAULT_LOCALE;
 
   return (
-    <html lang="en">
+    <html lang={locale}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
@@ -48,22 +51,24 @@ export default async function RootLayout({
         />
       </head>
       <body className="antialiased">
-        <Suspense fallback={null}>
-          <NavigationHistoryTracker />
-        </Suspense>
-        <ThemePreferenceSync />
-        <PartyConfettiOverlay />
-        <AchievementUnlockListener />
-        <div className="shell">
-          <div className="container app-layout">
-            <div className="app-main">
-              <AppHeader />
-              <AppBreadcrumbs hideGuestHomepage={!sessionUser} />
-              {children}
+        <LocaleProvider initialLocale={locale}>
+          <Suspense fallback={null}>
+            <NavigationHistoryTracker />
+          </Suspense>
+          <ThemePreferenceSync />
+          <PartyConfettiOverlay />
+          <AchievementUnlockListener />
+          <div className="shell">
+            <div className="container app-layout">
+              <div className="app-main">
+                <AppHeader />
+                <AppBreadcrumbs hideGuestHomepage={!sessionUser} />
+                {children}
+              </div>
+              <AppFooter locale={locale} />
             </div>
-            <AppFooter />
           </div>
-        </div>
+        </LocaleProvider>
       </body>
     </html>
   );

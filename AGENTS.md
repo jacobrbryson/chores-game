@@ -54,6 +54,18 @@ Build a family chore game where:
 - Keep business logic in shared/domain modules, not only UI handlers.
 - Validate all incoming API payloads.
 - Prefer explicit enums/constants for statuses and roles.
+- Every change that adds or modifies user-facing text must update the shared locale files in the same change set.
+- Do not hardcode user-facing strings in web or mobile UI when a shared locale key should be used instead.
+- Add or update stable translation keys whenever UI copy changes, and keep supported locale files synchronized.
+- Initial supported locale files are `fr-FR`, `en-US`, and `es-US`, in that order.
+- Any new feature, notable user-facing change, or bug fix should add or update an entry in the web changelog JSON.
+- Changelog entries must include `image`, `date`, `type`, `subject`, and `description`.
+- User-facing changelog page labels must be localized in all supported locale files.
+- Keep changelog entries concise and user-friendly; do not include internal implementation details.
+- Use `Language` in product UI labels and forms; reserve `locale` for code, config, payloads, and storage fields.
+- Use shared select/dropdown form components for language selection; do not introduce one-off select styling for locale pickers.
+- Quest content must localize player-visible title, description/summary, page text, choice labels, reward text, locked/error copy, and relevant image/audio metadata when present.
+- Quest packages must include localized content for supported languages or valid fallback content that resolves through the quest locale chain.
 - Use the shared Tailwind `Alert` component for all in-app alert/error/warning/info UI; do not introduce one-off alert markup or alert-specific CSS for new surfaces.
 - Never use browser-native dialogs (`window.alert`, `window.confirm`, `window.prompt`) for product UI flows; always use shared modal/dialog components (for example `ModalShell` + shared `Button` patterns).
 - Action-menu behavior must match shared app menu UX: selecting a menu action should close the menu immediately and then open the destination modal/dialog/surface if needed.
@@ -67,6 +79,13 @@ Build a family chore game where:
 - Avoid breaking changes to API contracts without updating this file.
 
 ## Recent Decisions (2026-02-15)
+- Localization baseline update (2026-05-30):
+  - Shared locale infrastructure now lives in `packages/locales` and is consumed by both web and mobile.
+  - Supported locales start with `fr-FR`, `en-US`, and `es-US`.
+  - Locale resolution order is: user locale -> family default locale -> `en-US`.
+  - User records and family member records persist `locale`; family records persist `defaultLocale`.
+  - Missing translation keys should log in development and fall back safely in production.
+  - Packaged quests now carry locale metadata with `defaultLocale` plus localized content blocks used by the quest loader fallback chain.
 - Homepage is the primary auth entry point; the standalone `/login` page was removed.
 - Google sign-in uses Google Identity Services button on homepage and posts to `/api/auth/google/gsi`.
 - Auth callback now redirects with `303` to avoid stale POST behavior after sign-in/logout.

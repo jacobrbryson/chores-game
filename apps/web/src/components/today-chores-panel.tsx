@@ -6,6 +6,7 @@ import { AppMenu } from "@/components/app-menu";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
+import { useLocale } from "@/components/locale-provider";
 import { MenuActionButton } from "@/components/menu-action-button";
 import { MenuActionLink } from "@/components/menu-action-link";
 import { ModalShell } from "@/components/modal-shell";
@@ -159,12 +160,6 @@ const COMPLETION_LINE_COLORS = [
   "#117733",
   "#999933",
 ];
-const COMPLETION_WINDOW_OPTIONS: TailwindSelectOption<CompletionWindow>[] = [
-  { value: "today", label: "Today" },
-  { value: "week", label: "This Week" },
-  { value: "month", label: "This Month" },
-  { value: "year", label: "This Year" },
-];
 const CHORE_EXIT_ANIMATION_MS = 160;
 const QUICK_SORT_DEFAULT_DIRECTION: Record<QuickSortKey, QuickSortDirection> = {
   coin_value: "desc",
@@ -173,7 +168,7 @@ const QUICK_SORT_DEFAULT_DIRECTION: Record<QuickSortKey, QuickSortDirection> = {
 };
 const QUICK_SORT_KEYS: QuickSortKey[] = ["coin_value", "frequency", "alphabetical"];
 const QUICK_SORT_DIRECTIONS: QuickSortDirection[] = ["asc", "desc"];
-const CHORE_PAGE_SIZE = 5;
+const CHORE_PAGE_SIZE = 100;
 
 
 ChartJS.register(
@@ -400,8 +395,18 @@ export function TodayChoresPanel({
   onReload,
   completionStatsReloadKey = 0,
 }: TodayChoresPanelProps) {
+  const { t } = useLocale();
   const canCreateChores = viewerRole === "admin" || viewerRole === "player";
   const playerSeeAndDoMode = viewerRole === "player";
+  const completionWindowOptions: TailwindSelectOption<CompletionWindow>[] = useMemo(
+    () => [
+      { value: "today", label: t("dashboard.rangeToday") },
+      { value: "week", label: t("dashboard.rangeWeek") },
+      { value: "month", label: t("dashboard.rangeMonth") },
+      { value: "year", label: t("dashboard.rangeYear") },
+    ],
+    [t],
+  );
   const [choreScopeMenuOpen, setChoreScopeMenuOpen] = useState(false);
   const [toolbarOptionsMenuOpen, setToolbarOptionsMenuOpen] = useState(false);
   const [toolbarMenuView, setToolbarMenuView] = useState<ToolbarMenuView>("root");
@@ -1395,7 +1400,7 @@ export function TodayChoresPanel({
                         />
                         <span className="today-chores-scope-option-copy">
                           <span>{member.name}</span>
-                          <span>{member.role === "admin" ? "Parent" : "Kid"}</span>
+                          <span>{member.role === "admin" ? t("dashboard.scopeParent") : t("dashboard.scopeKid")}</span>
                         </span>
                       </span>
                       <span className="today-chores-scope-option-trailing">
@@ -1418,27 +1423,27 @@ export function TodayChoresPanel({
                 triggerClassName={`btn btn-secondary today-chores-options-trigger${
                   toolbarMenuView === "sort" || quickSortState ? " today-chores-action-sort-trigger-active" : ""
                 }`}
-                triggerTitle="Chore dashboard options"
-                triggerAriaLabel="Chore dashboard options"
+                triggerTitle={t("dashboard.toolbarOptions")}
+                triggerAriaLabel={t("dashboard.toolbarOptions")}
                 panelClassName="app-menu-panel family-action-dropdown today-chores-toolbar-menu"
                 trigger={<ToolbarOptionsIcon />}>
                 {toolbarMenuView === "root" ? (
                   <>
                     <MenuActionButton fullWidth onClick={openToolbarSortMenu} leading={<SortMenuIcon />}>
-                      Sort
+                      {t("dashboard.sort")}
                     </MenuActionButton>
                     <MenuActionLink
                       href="/chores"
                       fullWidth
                       leading={<ViewAllChoresIcon />}
                       onClick={() => setToolbarOptionsMenuOpen(false)}>
-                      View All Chores
+                      {t("dashboard.viewAllChores")}
                     </MenuActionLink>
                   </>
                 ) : (
                   <>
                     <MenuActionButton fullWidth onClick={() => setToolbarMenuView("root")} leading={<BackMenuIcon />}>
-                      Back
+                      {t("common.actions.back")}
                     </MenuActionButton>
                     <MenuActionButton
                       fullWidth
@@ -1450,7 +1455,7 @@ export function TodayChoresPanel({
                           : null
                       }
                       trailingClassName="today-chores-sort-menu-direction">
-                      Coin Value
+                      {t("dashboard.sortCoinValue")}
                     </MenuActionButton>
                     <MenuActionButton
                       fullWidth
@@ -1462,7 +1467,7 @@ export function TodayChoresPanel({
                           : null
                       }
                       trailingClassName="today-chores-sort-menu-direction">
-                      Frequency
+                      {t("dashboard.sortFrequency")}
                     </MenuActionButton>
                     <MenuActionButton
                       fullWidth
@@ -1474,7 +1479,7 @@ export function TodayChoresPanel({
                           : null
                       }
                       trailingClassName="today-chores-sort-menu-direction">
-                      Alphabetical
+                      {t("dashboard.sortAlphabetical")}
                     </MenuActionButton>
                   </>
                 )}
@@ -1484,13 +1489,13 @@ export function TodayChoresPanel({
               <div className="today-chores-actions-desktop">
                 <Button
                   type="button"
-                  title="Add more chores"
-                  aria-label="Add more chores"
+                  title={t("dashboard.addMoreChores")}
+                  aria-label={t("dashboard.addMoreChores")}
                   className="btn today-chores-action-add"
                   onClick={() => setToolbarAddDialogOpen(true)}>
                   <span className="today-chores-add-btn-content">
                     <AddMenuIcon />
-                    <span>{playerSeeAndDoMode ? "Add See and Do Chore" : "Add Chore"}</span>
+                    <span>{playerSeeAndDoMode ? t("dashboard.addSeeAndDoChore") : t("dashboard.addChore")}</span>
                   </span>
                 </Button>
               </div>
@@ -1505,19 +1510,19 @@ export function TodayChoresPanel({
               />
             ) : null}
           </div>
-          {choreActionError ? <Alert className="mb-3">Chore update failed: {choreActionError}</Alert> : null}
+          {choreActionError ? <Alert className="mb-3">{t("dashboard.choreUpdateError", { error: choreActionError })}</Alert> : null}
           {visibleChores.length === 0 ? (
             <div className="flex flex-col gap-3 pt-1">
               <p className="small">
                 {selectedChoreMember
-                  ? `No chores assigned to ${selectedChoreMember.name} right now.`
-                  : "No open chores right now."}
+                  ? t("dashboard.noChoresAssigned", { name: selectedChoreMember.name })
+                  : t("dashboard.noOpenChores")}
               </p>
               {canCreateChores ? (
                 <div className="chores-empty-cta">
                   <AddEditChoresDialog
                     createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
-                    triggerLabel={playerSeeAndDoMode ? "Add See and Do Chore" : "Let's add some!"}
+                    triggerLabel={playerSeeAndDoMode ? t("dashboard.addSeeAndDoChore") : t("common.actions.add")}
                     onSaved={onChoreSaved}
                   />
                 </div>
@@ -1609,7 +1614,7 @@ export function TodayChoresPanel({
                   type="button"
                   className="btn btn-secondary today-chores-load-more"
                   onClick={() => setVisibleChoreCount((current) => current + CHORE_PAGE_SIZE)}>
-                  Load More
+                  {t("dashboard.loadMore")}
                 </Button>
               ) : null}
             </div>
@@ -1618,18 +1623,18 @@ export function TodayChoresPanel({
         <aside className="completion-chart">
           <div className="completion-chart-header">
             <h3 className="m-0 inline-flex h-10 items-center text-[0.88rem] leading-none font-semibold text-[var(--muted)]">
-              Completed Chores
+              {t("dashboard.completedChores")}
             </h3>
             <TailwindSelect
-              ariaLabel="Completion range"
+              ariaLabel={t("dashboard.completionRange")}
               value={completionWindow}
               onChange={updateCompletionWindow}
-              options={COMPLETION_WINDOW_OPTIONS}
+              options={completionWindowOptions}
               className="completion-chart-window-select"
             />
           </div>
-          {completionLoading ? <p className="small">Loading chart...</p> : null}
-          {!completionLoading && completionError ? <Alert>Could not load chart: {completionError}</Alert> : null}
+          {completionLoading ? <p className="small">{t("dashboard.loadingChart")}</p> : null}
+          {!completionLoading && completionError ? <Alert>{t("dashboard.chartLoadError", { error: completionError })}</Alert> : null}
           {!completionLoading && !completionError ? (
             <>
               <ul className="completion-chart-list">
@@ -1669,7 +1674,7 @@ export function TodayChoresPanel({
                             current === null ? current : null,
                           );
                         }}
-                        aria-label={`View ${entry.name}'s completed chores in this range`}>
+                          aria-label={`${t("dashboard.completedChores")}: ${entry.name}`}>
                         <FamilyMemberAvatar
                           className="completion-chart-avatar"
                           size={32}
@@ -1704,14 +1709,14 @@ export function TodayChoresPanel({
                           data={completionTrendLineData}
                           options={completionTrendLineOptions}
                           plugins={[completionLineGlowPlugin]}
-                          aria-label="Completed chores trend by member for selected range"
+                          aria-label={t("dashboard.completedTrendAria")}
                           role="img"
                         />
                       </div>
                     </div>
                   </>
                 ) : (
-                  <p className="small">No completed chores yet in this range.</p>
+                  <p className="small">{t("dashboard.noCompletedChores")}</p>
                 )}
               </section>
             </>
@@ -1725,18 +1730,18 @@ export function TodayChoresPanel({
           {pendingApproveChore ? (
             <>
               <div className="modal-dialog-title-row mb-2">
-                <h3 className="text-lg font-bold text-slate-800">Complete and Approve Chore</h3>
+                <h3 className="text-lg font-bold text-slate-800">{t("dashboard.completeApproveTitle")}</h3>
                 <Button
                   type="button"
                   className="modal-close-button"
                   onClick={() => setPendingApproveChore(null)}
-                  aria-label="Close dialog"
-                  title="Close dialog">
+                  aria-label={t("common.actions.close")}
+                  title={t("common.actions.close")}>
                   X
                 </Button>
               </div>
               <p className="mb-3 text-sm text-slate-600">
-                <strong>{pendingApproveChore.title}</strong> total coins:{" "}
+                <strong>{pendingApproveChore.title}</strong> {t("dashboard.totalCoins")}{" "}
                 <strong>{pendingApproveChore.coinValue}</strong>
               </p>
               <div className="mb-4 flex flex-col gap-2">
@@ -1756,7 +1761,7 @@ export function TodayChoresPanel({
                         <FamilyMemberAvatar
                           size={28}
                           borderWidth={1}
-                          name={member?.name || "Family member"}
+                          name={member?.name || t("dashboard.familyMemberFallback")}
                           avatarId={member?.avatarId || undefined}
                           avatarPhotoUrl={member?.avatarPhotoUrl || undefined}
                         />
@@ -1790,7 +1795,7 @@ export function TodayChoresPanel({
                   className="btn btn-secondary"
                   disabled={Boolean(busyActionsById[pendingApproveChore.id])}
                   onClick={() => setPendingApproveChore(null)}>
-                  Cancel
+                  {t("common.actions.cancel")}
                 </Button>
                 <Button
                   type="button"
@@ -1798,8 +1803,8 @@ export function TodayChoresPanel({
                   disabled={Boolean(busyActionsById[pendingApproveChore.id])}
                   onClick={() => void onCompleteAndApproveFromDashboard()}>
                   {busyActionsById[pendingApproveChore.id] === "complete"
-                    ? "Saving..."
-                    : "Complete and Approve"}
+                    ? t("family.memberLanguageSaving")
+                    : t("dashboard.completeAndApprove")}
                 </Button>
               </div>
             </>

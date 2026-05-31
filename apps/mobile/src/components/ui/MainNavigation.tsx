@@ -5,6 +5,7 @@ import {
   type MainNavigationIcon,
   type MainNavigationItemId,
 } from "@packages/core/src/main-navigation";
+import { useMobileLocale } from "@/lib/locale";
 import { MobileProfileMenu } from "@/components/ui/MobileProfileMenu";
 import { colors, spacing, typography } from "@/theme";
 
@@ -83,6 +84,7 @@ export function MainNavigation({
   onOpenProfile,
   onLoggedOut,
 }: Props) {
+  const { t } = useMobileLocale();
   return (
     <View style={styles.wrap}>
       {mainNavigationItems.map((item) => {
@@ -95,7 +97,7 @@ export function MainNavigation({
                 avatarUrl={avatarUrl}
                 coinBalance={coinBalance}
                 triggerVariant="main-nav"
-                triggerLabel={item.label}
+                triggerLabel={t(`nav.${item.id}` as const)}
                 onOpenProfile={onOpenProfile}
                 onLoggedOut={onLoggedOut}
               />
@@ -116,7 +118,7 @@ export function MainNavigation({
             ]}>
             <IconView icon={item.icon} />
             <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
-              {item.label}
+              {t(`nav.${item.id}` as const)}
             </Text>
           </Pressable>
         );

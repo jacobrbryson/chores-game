@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EntityId, RoleSchema } from "./common";
+import { EntityId, LocaleSchema, RoleSchema } from "./common";
 
 export const MeSchema = z.object({
   uid: EntityId,
@@ -10,6 +10,8 @@ export const MeSchema = z.object({
   picture: z.string().default(""),
   avatarUrl: z.string().default(""),
   balance: z.number().int().nonnegative().default(0),
+  locale: LocaleSchema.default("en-US"),
+  resolvedLocale: LocaleSchema.default("en-US"),
 });
 
 export const MeResponseSchema = MeSchema;

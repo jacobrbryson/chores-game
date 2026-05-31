@@ -6,6 +6,9 @@ export const EntityId = z.string().min(1).brand("EntityId");
 export const RoleSchema = z.enum(["admin", "player"]);
 export type Role = z.infer<typeof RoleSchema>;
 
+export const LocaleSchema = z.enum(["fr-FR", "en-US", "es-US"]);
+export type Locale = z.infer<typeof LocaleSchema>;
+
 export const ChoreStatusSchema = z.enum(["Open", "Submitted", "Approved", "Rejected", "Deleted"]);
 export type ChoreStatus = z.infer<typeof ChoreStatusSchema>;
 

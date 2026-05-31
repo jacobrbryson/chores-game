@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { AppLocale } from "@packages/locales";
 import { fail, ok } from "@/app/api/v1/_lib/response";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
@@ -9,12 +10,14 @@ import {
   readString,
   readStringArray,
 } from "@/lib/firestore/rest";
+import { DEFAULT_LOCALE, resolveAppLocale } from "@/lib/locale";
 import { getPublicApiMe } from "@/lib/public-api/data";
 import { withPublicApi } from "@/lib/public-api/middleware";
 
 type MobileMeSummary = {
   balance: number;
   avatarUrl: string;
+  locale: AppLocale;
 };
 
 function absoluteLocalAvatarUrl(request: NextRequest, avatarId: string) {
@@ -25,19 +28,37 @@ async function getMobileMeSummary(request: NextRequest, uid: string, memberId: s
   const userDoc = await getDocument(`users/${uid}`, idToken);
   const balance = Math.max(0, readInteger(userDoc.fields, "walletBalance"));
   const googlePhotoUrl = readString(userDoc.fields, "photoUrl");
+  const userLocale = readString(userDoc.fields, "locale");
   const familyId = readStringArray(userDoc.fields, "familyIds")[0] ?? "";
   let avatarId = "";
   let avatarPhotoUrl = "";
+  let familyLocale = "";
+  let memberLocale = "";
 
   if (familyId) {
+    try {
+      const familyDoc = await getDocument(`families/${familyId}`, idToken);
+      familyLocale = readString(familyDoc.fields, "defaultLocale");
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      if (!reason.includes("FIRESTORE_HTTP_404")) {
+        throw error;
+      }
+    }
     for (const candidateMemberId of [memberId, uid].filter(Boolean)) {
       try {
         const memberDoc = await getDocument(`families/${familyId}/members/${candidateMemberId}`, idToken);
         const candidateAvatarId = readString(memberDoc.fields, "avatarId");
         const candidateAvatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
+        const candidateLocale = readString(memberDoc.fields, "locale");
         if (candidateAvatarId || candidateAvatarPhotoUrl) {
           avatarId = candidateAvatarId;
           avatarPhotoUrl = candidateAvatarPhotoUrl;
+        }
+        if (candidateLocale && !memberLocale) {
+          memberLocale = candidateLocale;
+        }
+        if (candidateAvatarId || candidateAvatarPhotoUrl) {
           break;
         }
       } catch (error) {
@@ -51,6 +72,11 @@ async function getMobileMeSummary(request: NextRequest, uid: string, memberId: s
 
   return {
     balance,
+    locale: resolveAppLocale({
+      userLocale,
+      memberLocale,
+      familyLocale,
+    }),
     avatarUrl: avatarId
       ? absoluteLocalAvatarUrl(request, avatarId)
       : avatarPhotoUrl || googlePhotoUrl || fallbackPicture,
@@ -67,6 +93,7 @@ export async function GET(request: NextRequest) {
     const fallbackSummary = {
       balance: 0,
       avatarUrl: session.picture || "",
+      locale: session.locale || DEFAULT_LOCALE,
     };
     let summary = fallbackSummary;
     let refreshedSession = session;
@@ -100,9 +127,11 @@ export async function GET(request: NextRequest) {
       picture: session.picture || "",
       avatarUrl: summary.avatarUrl,
       balance: summary.balance,
+      locale: session.locale || summary.locale,
+      resolvedLocale: summary.locale,
     });
-    if (shouldSetSessionCookie) {
-      setSessionUserCookie(response, refreshedSession);
+    if (shouldSetSessionCookie || refreshedSession.locale !== summary.locale) {
+      setSessionUserCookie(response, { ...refreshedSession, locale: summary.locale });
     }
     return response;
   }

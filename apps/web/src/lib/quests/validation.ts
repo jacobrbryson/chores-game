@@ -49,7 +49,10 @@ function toQuestNode(node: unknown): QuestNode {
     type,
     title: asString(source.title),
     image: asString(source.image),
+    imageAlt: asString(source.imageAlt),
+    imageCaption: asString(source.imageCaption),
     audio: asString(source.audio),
+    audioTitle: asString(source.audioTitle),
     text: asString(source.text),
   };
 
@@ -120,6 +123,8 @@ export function validateQuestDefinition(rawQuest: unknown): QuestDefinition {
   const quest: QuestDefinition = {
     id: asString(source.id),
     slug: asString(source.slug),
+    defaultLocale: asString(source.defaultLocale, "en-US"),
+    availableLocales: [],
     title: asString(source.title),
     subtitle: asString(source.subtitle),
     author: asString(source.author),
@@ -130,6 +135,7 @@ export function validateQuestDefinition(rawQuest: unknown): QuestDefinition {
     version: asString(source.version),
     difficulty: asString(source.difficulty, "easy") as QuestDefinition["difficulty"],
     coverImage: asString(source.coverImage),
+    coverImageAlt: asString(source.coverImageAlt),
     summary: asString(source.summary),
     ageRange: asString(source.ageRange),
     readingLevel: asString(source.readingLevel),
@@ -183,12 +189,76 @@ export function validateQuestDefinition(rawQuest: unknown): QuestDefinition {
             : undefined,
         }
       : undefined,
+    locales: isRecord(source.locales)
+      ? Object.fromEntries(
+          Object.entries(source.locales)
+            .filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
+            .map(([locale, entryValue]) => [
+              locale,
+              {
+                title: asString(entryValue.title),
+                subtitle: asString(entryValue.subtitle),
+                summary: asString(entryValue.summary),
+                author: asString(entryValue.author),
+                ageRange: asString(entryValue.ageRange),
+                coverImageAlt: asString(entryValue.coverImageAlt),
+                nodes: isRecord(entryValue.nodes)
+                  ? Object.fromEntries(
+                      Object.entries(entryValue.nodes)
+                        .filter((nodeEntry): nodeEntry is [string, Record<string, unknown>] => isRecord(nodeEntry[1]))
+                        .map(([nodeId, nodeValue]) => [
+                          nodeId,
+                          {
+                            title: asString(nodeValue.title),
+                            text: asString(nodeValue.text),
+                            imageAlt: asString(nodeValue.imageAlt),
+                            imageCaption: asString(nodeValue.imageCaption),
+                            audioTitle: asString(nodeValue.audioTitle),
+                            choices: isRecord(nodeValue.choices)
+                              ? Object.fromEntries(
+                                  Object.entries(nodeValue.choices)
+                                    .filter((choiceEntry): choiceEntry is [string, Record<string, unknown>] => isRecord(choiceEntry[1]))
+                                    .map(([choiceId, choiceValue]) => [
+                                      choiceId,
+                                      {
+                                        label: asString(choiceValue.label),
+                                        description: asString(choiceValue.description),
+                                        requiredItemName: asString(choiceValue.requiredItemName),
+                                        unavailableText: asString(choiceValue.unavailableText),
+                                      },
+                                    ]),
+                                )
+                              : undefined,
+                            ending: isRecord(nodeValue.ending)
+                              ? {
+                                  replayHint: asString(nodeValue.ending.replayHint),
+                                  rewardSummary: asString(nodeValue.ending.rewardSummary),
+                                }
+                              : undefined,
+                          },
+                        ]),
+                    )
+                  : undefined,
+              },
+            ]),
+        )
+      : undefined,
     nodes,
   };
+  quest.availableLocales = Array.from(
+    new Set([
+      quest.defaultLocale,
+      "en-US",
+      ...Object.keys(quest.locales ?? {}),
+    ].filter(Boolean)),
+  );
 
   assert(Boolean(quest.id), "QUEST_ID_REQUIRED");
   assert(Boolean(quest.startNodeId), `QUEST_${quest.id}_START_NODE_REQUIRED`);
   assert(quest.meta.totalEndings > 0, `QUEST_${quest.id}_TOTAL_ENDINGS_REQUIRED`);
+  assert(Boolean(quest.defaultLocale), `QUEST_${quest.id}_DEFAULT_LOCALE_REQUIRED`);
+  assert(Boolean(quest.locales?.[quest.defaultLocale]?.title || quest.title), `QUEST_${quest.id}_DEFAULT_LOCALE_TITLE_REQUIRED`);
+  assert(Boolean(quest.locales?.["en-US"]?.title || quest.title), `QUEST_${quest.id}_EN_US_TITLE_REQUIRED`);
 
   const nodeIds = new Set<string>();
   for (const node of quest.nodes) {

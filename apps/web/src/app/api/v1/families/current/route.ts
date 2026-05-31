@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { DEFAULT_LOCALE, normalizeLocale } from "@packages/locales";
 import { fail, ok, proxyJson } from "@/app/api/v1/_lib/response";
 
 export async function GET(request: NextRequest) {
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
     choresToday: upstream.json.choresToday ?? [],
     pendingInvite: upstream.json.pendingInvite ?? null,
     noFamily: Boolean(upstream.json.noFamily),
+    resolvedLocale: normalizeLocale(upstream.json.resolvedLocale) || DEFAULT_LOCALE,
   };
   return ok(payload);
 }

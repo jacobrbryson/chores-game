@@ -25,6 +25,7 @@ import {
   DEFAULT_CONFETTI_OPTION_ID,
   findColorThemeOptionById,
 } from "@/lib/store/catalog";
+import { DEFAULT_LOCALE, resolveAppLocale } from "@/lib/locale";
 
 function getPinSecret() {
   const secret = process.env.SESSION_SECRET;
@@ -112,10 +113,13 @@ export async function resolveFamilyMemberSessionIdentity(
   const email = readString(memberDoc.fields, "email").trim().toLowerCase();
   const name = readString(memberDoc.fields, "name") || "Family member";
   const picture = readString(memberDoc.fields, "avatarPhotoUrl").trim();
+  const memberLocale = readString(memberDoc.fields, "locale").trim();
   let linkedAccount = false;
+  let userLocale = "";
   try {
     const userDoc = await getDocument(`users/${linkedUid}`, idToken);
     linkedAccount = readString(userDoc.fields, "provider") === "google";
+    userLocale = readString(userDoc.fields, "locale").trim();
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";
     if (!reason.includes("FIRESTORE_HTTP_404")) {
@@ -129,6 +133,11 @@ export async function resolveFamilyMemberSessionIdentity(
     email,
     name,
     picture,
+    locale: resolveAppLocale({
+      userLocale,
+      memberLocale,
+      familyLocale: DEFAULT_LOCALE,
+    }),
     linkedAccount,
     lastSignInAt: readTimestamp(memberDoc.fields, "lastSignInAt") || undefined,
   };
@@ -178,6 +187,7 @@ export async function ensureManagedChildProfile(
         preferencesThemeSecondaryColor: stringField(defaultTheme.secondary),
         preferencesThemeTertiaryColor: stringField(defaultTheme.tertiary),
         selectedConfettiOptionId: stringField(DEFAULT_CONFETTI_OPTION_ID),
+        locale: stringField(memberIdentity.locale || DEFAULT_LOCALE),
         createdAt: timestampField(now),
         lastFamilyUpdateAt: timestampField(now),
         storeUpdatedAt: timestampField(now),

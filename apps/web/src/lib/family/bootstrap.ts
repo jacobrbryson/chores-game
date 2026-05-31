@@ -7,6 +7,7 @@ import {
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
+import { DEFAULT_LOCALE } from "@/lib/locale";
 
 type CreateFamilyForUserInput = {
   uid: string;
@@ -28,6 +29,7 @@ export async function createFamilyForUser({
     `families/${familyId}`,
     {
       name: stringField(`${userName || "My"} Family`),
+      defaultLocale: stringField(DEFAULT_LOCALE),
       createdBy: stringField(uid),
       createdAt: timestampField(now),
     },
@@ -40,6 +42,7 @@ export async function createFamilyForUser({
       name: stringField(userName || "Parent"),
       email: stringField(userEmail),
       role: stringField("admin"),
+      locale: stringField(DEFAULT_LOCALE),
       status: stringField("active"),
       deleted: boolField(false),
       uid: stringField(uid),
@@ -53,11 +56,12 @@ export async function createFamilyForUser({
     `users/${uid}`,
     {
       uid: stringField(uid),
+      locale: stringField(DEFAULT_LOCALE),
       familyIds: stringArrayField([familyId]),
       lastFamilyUpdateAt: timestampField(now),
     },
     idToken,
-    ["familyIds", "lastFamilyUpdateAt", "uid"],
+    ["familyIds", "lastFamilyUpdateAt", "locale", "uid"],
   );
 
   return familyId;

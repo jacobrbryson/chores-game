@@ -1,6 +1,7 @@
 import React from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { toAppAssetUrl, type MobileQuestLibraryEntry } from "@/lib/api";
+import { useMobileLocale } from "@/lib/locale";
 import { colors, radius, spacing, typography } from "@/theme";
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
 
@@ -20,33 +21,34 @@ type Props = {
 };
 
 export function MobileQuestLibrary({ state, onRefresh, onOpenQuest }: Props) {
+  const { t } = useMobileLocale();
   const featuredQuest = state.items[0] ?? null;
   const continuingQuests = state.items.filter((quest) => quest.completionStatus === "in_progress");
   const completedQuests = state.items.filter((quest) => quest.completionStatus === "completed");
 
   if (state.loading) {
-    return <LoadingState label="Loading quests..." />;
+    return <LoadingState label={t("quests.loadingQuest")} />;
   }
 
   if (state.error) {
     return (
       <View style={styles.stack}>
-        <ErrorState message={`Could not load quests: ${state.error}`} />
-        <Button label="Try Again" variant="secondary" onPress={() => void onRefresh()} />
+        <ErrorState message={t("quests.loadQuestError", { error: state.error })} />
+        <Button label={t("common.actions.retry")} variant="secondary" onPress={() => void onRefresh()} />
       </View>
     );
   }
 
   if (state.items.length === 0) {
-    return <EmptyState message="No quests available yet." />;
+    return <EmptyState message={t("quests.noQuests")} />;
   }
 
   return (
     <View style={styles.stack}>
       {featuredQuest ? <FeaturedQuest quest={featuredQuest} hasUnlockedQuestPack={state.hasUnlockedQuestPack} onOpenQuest={onOpenQuest} /> : null}
-      {continuingQuests.length > 0 ? <QuestRail title="Continue Watching" quests={continuingQuests} onOpenQuest={onOpenQuest} /> : null}
-      <QuestRail title={state.hasUnlockedQuestPack ? "Quest Library" : "Available Now"} quests={state.items} onOpenQuest={onOpenQuest} />
-      {completedQuests.length > 0 ? <QuestRail title="Completed" quests={completedQuests} onOpenQuest={onOpenQuest} /> : null}
+      {continuingQuests.length > 0 ? <QuestRail title={t("quests.continueWatching")} quests={continuingQuests} onOpenQuest={onOpenQuest} /> : null}
+      <QuestRail title={state.hasUnlockedQuestPack ? t("quests.questLibrary") : t("quests.availableNow")} quests={state.items} onOpenQuest={onOpenQuest} />
+      {completedQuests.length > 0 ? <QuestRail title={t("quests.completed")} quests={completedQuests} onOpenQuest={onOpenQuest} /> : null}
       {!state.hasUnlockedQuestPack ? <LockedQuestRail /> : null}
     </View>
   );

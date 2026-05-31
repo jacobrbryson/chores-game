@@ -11,12 +11,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@packages/locales": "file:./packages/locales",
     "@types/web-push": "^3.6.4",
     "chart.js": "^4.5.1",
     "next": "^15.2.0",
-    "react": "19.2.3",
+    "react": "19.1.0",
     "react-chartjs-2": "^5.3.1",
-    "react-dom": "19.2.3",
+    "react-dom": "19.1.0",
     "socket.io-client": "^4.8.3",
     "web-push": "^3.6.7"
   },

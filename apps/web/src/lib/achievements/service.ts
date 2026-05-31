@@ -16,7 +16,9 @@ import {
   ACHIEVEMENT_CATALOG,
   type AchievementAudience,
 } from "@/lib/achievements/catalog";
+import { getAchievementCatalogCopy } from "@/lib/achievements/catalog-locales";
 import { publishAchievementUnlocked } from "@/lib/ws/publish-achievement-unlocked";
+import { resolveLocalePreference, type AppLocale } from "@packages/locales";
 
 type ViewerRole = "admin" | "player";
 
@@ -129,6 +131,7 @@ export async function getAchievementViewForUser(params: {
   uid: string;
   idToken: string;
   viewerRole: ViewerRole;
+  locale: AppLocale;
 }) {
   const docsById = await listAchievementDocs(params.uid, params.idToken);
   return ACHIEVEMENT_CATALOG.map((entry) => {
@@ -137,12 +140,17 @@ export async function getAchievementViewForUser(params: {
     const progress = restricted ? 0 : Math.min(entry.target, progressDoc.progress);
     const percentComplete = restricted ? 0 : Math.min(100, normalizeInt((progress / entry.target) * 100));
     const completed = restricted ? false : progressDoc.completed && progress >= entry.target;
-    return {
-      id: entry.id,
-      audience: entry.audience,
+    const copy = getAchievementCatalogCopy(entry.id, params.locale, {
       title: entry.title,
       wittyTitle: entry.wittyTitle,
       description: entry.description,
+    });
+    return {
+      id: entry.id,
+      audience: entry.audience,
+      title: copy.title,
+      wittyTitle: copy.wittyTitle,
+      description: copy.description,
       imageUrl: entry.imageUrl,
       metricType: entry.metricType,
       target: entry.target,
@@ -228,6 +236,40 @@ function weekKeyFromIso(iso: string) {
   const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
   const weekNum = Math.ceil((((utcDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
   return `${utcDate.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+}
+
+async function resolveAchievementLocale(input: {
+  uid: string;
+  familyId: string;
+  idToken: string;
+}): Promise<AppLocale> {
+  let requestedLocale = "";
+  let familyLocale = "";
+
+  try {
+    const userDoc = await getDocument(`users/${input.uid}`, input.idToken);
+    requestedLocale = readString(userDoc.fields, "locale");
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
+
+  try {
+    const familyDoc = await getDocument(`families/${input.familyId}`, input.idToken);
+    familyLocale = readString(familyDoc.fields, "defaultLocale");
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
+
+  return resolveLocalePreference({
+    requestedLocale,
+    familyLocale,
+  });
 }
 
 export async function computeCompletionDerivedMaximums(params: {
@@ -373,6 +415,11 @@ export async function trackAchievementEvent(input: TrackAchievementInput) {
   }
 
   const docsById = await listAchievementDocs(input.uid, input.idToken);
+  const achievementLocale = await resolveAchievementLocale({
+    uid: input.uid,
+    familyId: input.familyId,
+    idToken: input.idToken,
+  });
   const allowedAudiences = getAllowedAudiences(input.viewerRole);
   const unlocked: Array<{
     achievementId: string;
@@ -427,11 +474,16 @@ export async function trackAchievementEvent(input: TrackAchievementInput) {
       input.idToken,
     );
     if (justCompleted) {
-      unlocked.push({
-        achievementId: catalogEntry.id,
+      const copy = getAchievementCatalogCopy(catalogEntry.id, achievementLocale, {
         title: catalogEntry.title,
         wittyTitle: catalogEntry.wittyTitle,
         description: catalogEntry.description,
+      });
+      unlocked.push({
+        achievementId: catalogEntry.id,
+        title: copy.title,
+        wittyTitle: copy.wittyTitle,
+        description: copy.description,
         imageUrl: catalogEntry.imageUrl,
         completedAt: now,
         userId: input.uid,

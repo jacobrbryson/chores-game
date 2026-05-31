@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeLocale } from "@packages/locales";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
@@ -11,6 +12,7 @@ import {
 
 type UpdateProfileBody = {
   name?: unknown;
+  locale?: unknown;
 };
 
 function jsonUnauthorized() {
@@ -56,9 +58,6 @@ export async function PATCH(request: NextRequest) {
   if (!session.firebaseIdToken && !session.firebaseRefreshToken) {
     return jsonReauthRequired();
   }
-  if (session.role !== "admin") {
-    return NextResponse.json({ error: "not_allowed" }, { status: 403 });
-  }
 
   let body: UpdateProfileBody;
   try {
@@ -68,11 +67,26 @@ export async function PATCH(request: NextRequest) {
   }
 
   const nextName = typeof body.name === "string" ? body.name.trim() : "";
-  if (nextName.length < 2 || nextName.length > 80) {
-    return NextResponse.json({ error: "name_must_be_between_2_and_80_chars" }, { status: 400 });
+  const nextLocale = normalizeLocale(typeof body.locale === "string" ? body.locale : "");
+  const wantsNameUpdate = nextName.length > 0;
+  const wantsLocaleUpdate = Boolean(nextLocale);
+
+  if (!wantsNameUpdate && !wantsLocaleUpdate) {
+    return NextResponse.json({ error: "profile_update_required" }, { status: 400 });
   }
-  if (nextName === session.name.trim()) {
-    return NextResponse.json({ success: true, name: nextName });
+  if (wantsNameUpdate) {
+    if (session.role !== "admin") {
+      return NextResponse.json({ error: "not_allowed" }, { status: 403 });
+    }
+    if (nextName.length < 2 || nextName.length > 80) {
+      return NextResponse.json({ error: "name_must_be_between_2_and_80_chars" }, { status: 400 });
+    }
+  }
+  if (wantsLocaleUpdate && nextLocale === session.locale && (!wantsNameUpdate || nextName === session.name.trim())) {
+    return NextResponse.json({ success: true, name: session.name, locale: session.locale });
+  }
+  if (wantsNameUpdate && !wantsLocaleUpdate && nextName === session.name.trim()) {
+    return NextResponse.json({ success: true, name: nextName, locale: session.locale });
   }
 
   try {
@@ -81,22 +95,39 @@ export async function PATCH(request: NextRequest) {
       async (idToken) => {
         const now = new Date().toISOString();
         const familyId = await getPrimaryFamilyIdWithFallback(session.uid, session.email, idToken);
-        const fields = {
-          name: stringField(nextName),
-          displayName: stringField(nextName),
+        const fields: Record<string, ReturnType<typeof stringField> | ReturnType<typeof timestampField>> = {
           updatedAt: timestampField(now),
         };
+        const updateMask = ["updatedAt"];
+        if (wantsNameUpdate) {
+          fields.name = stringField(nextName);
+          fields.displayName = stringField(nextName);
+          updateMask.push("name", "displayName");
+        }
+        if (wantsLocaleUpdate && nextLocale) {
+          fields.locale = stringField(nextLocale);
+          updateMask.push("locale");
+        }
 
-        await patchDocument(`users/${session.uid}`, fields, idToken, ["name", "displayName", "updatedAt"]);
+        await patchDocument(`users/${session.uid}`, fields, idToken, updateMask);
         if (familyId) {
+          const memberFields: Record<string, ReturnType<typeof stringField> | ReturnType<typeof timestampField>> = {
+            updatedAt: timestampField(now),
+          };
+          const memberUpdateMask = ["updatedAt"];
+          if (wantsNameUpdate) {
+            memberFields.name = stringField(nextName);
+            memberUpdateMask.push("name");
+          }
+          if (wantsLocaleUpdate && nextLocale) {
+            memberFields.locale = stringField(nextLocale);
+            memberUpdateMask.push("locale");
+          }
           await patchDocument(
             `families/${familyId}/members/${session.uid}`,
-            {
-              name: stringField(nextName),
-              updatedAt: timestampField(now),
-            },
+            memberFields,
             idToken,
-            ["name", "updatedAt"],
+            memberUpdateMask,
           );
         }
 
@@ -106,10 +137,20 @@ export async function PATCH(request: NextRequest) {
 
     const updatedSession = {
       ...refreshedSession,
-      name: nextName,
-      authName: refreshedSession.authUid === session.uid ? nextName : refreshedSession.authName,
+      name: wantsNameUpdate ? nextName : refreshedSession.name,
+      locale: wantsLocaleUpdate && nextLocale ? nextLocale : refreshedSession.locale,
+      authName:
+        wantsNameUpdate && refreshedSession.authUid === session.uid ? nextName : refreshedSession.authName,
+      authLocale:
+        wantsLocaleUpdate && refreshedSession.authUid === session.uid && nextLocale
+          ? nextLocale
+          : refreshedSession.authLocale,
     };
-    const response = NextResponse.json({ success: true, name: nextName });
+    const response = NextResponse.json({
+      success: true,
+      name: updatedSession.name,
+      locale: updatedSession.locale,
+    });
     setSessionUserCookie(response, updatedSession);
     return response;
   } catch (error) {

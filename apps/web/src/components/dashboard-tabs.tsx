@@ -1,9 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { type ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 import { AppTabs, type AppTabItem } from "@/components/app-tabs";
 import { CoinIcon } from "@/components/coin-icon";
+import { useLocale } from "@/components/locale-provider";
 
 type DashboardTabsProps = {
   visible: boolean;
@@ -12,12 +13,15 @@ type DashboardTabsProps = {
 type DashboardTabId = "chores" | "store" | "achievements" | "quests";
 type DashboardTab = AppTabItem<DashboardTabId> & { icon: ReactNode };
 
-const DASHBOARD_TABS: DashboardTab[] = [
-  {
-    id: "chores",
-    label: "Chores",
-    href: "/",
-    icon: (
+function useDashboardTabs() {
+  const { t } = useLocale();
+
+  return useMemo<DashboardTab[]>(() => [
+    {
+      id: "chores",
+      label: t("dashboard.tabs.chores"),
+      href: "/",
+      icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path
           d="M4.75 5.5h14.5M4.75 12h14.5M4.75 18.5h14.5"
@@ -36,19 +40,19 @@ const DASHBOARD_TABS: DashboardTab[] = [
           strokeWidth="1.8"
         />
       </svg>
-    ),
-  },
-  {
-    id: "store",
-    label: "Store",
-    href: "/store",
-    icon: <CoinIcon size={20} className="dashboard-store-coin" />,
-  },
-  {
-    id: "achievements",
-    label: "Achievements",
-    href: "/achievements",
-    icon: (
+      ),
+    },
+    {
+      id: "store",
+      label: t("dashboard.tabs.store"),
+      href: "/store",
+      icon: <CoinIcon size={20} className="dashboard-store-coin" />,
+    },
+    {
+      id: "achievements",
+      label: t("dashboard.tabs.achievements"),
+      href: "/achievements",
+      icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path
           d="M8 5.25h8v3a4 4 0 1 1-8 0v-3Z"
@@ -69,13 +73,13 @@ const DASHBOARD_TABS: DashboardTab[] = [
         <path d="M12 12.5v3.25M9.5 18.5h5" fill="none" stroke="#92400e" strokeLinecap="round" strokeWidth="1.8" />
         <circle cx="12" cy="15.75" r="1.15" fill="#f59e0b" />
       </svg>
-    ),
-  },
-  {
-    id: "quests",
-    label: "Quests",
-    href: "/quests",
-    icon: (
+      ),
+    },
+    {
+      id: "quests",
+      label: t("dashboard.tabs.quests"),
+      href: "/quests",
+      icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path
           d="M12 3.75 5.25 6.8v5.1c0 3.95 2.7 7.35 6.75 8.35 4.05-1 6.75-4.4 6.75-8.35V6.8L12 3.75Z"
@@ -95,9 +99,10 @@ const DASHBOARD_TABS: DashboardTab[] = [
         />
         <circle cx="12" cy="11.15" r="1.05" fill="#f59e0b" />
       </svg>
-    ),
-  },
-];
+      ),
+    },
+  ], [t]);
+}
 
 function isActiveRoute(pathname: string, href: string) {
   if (href === "/") {
@@ -108,27 +113,28 @@ function isActiveRoute(pathname: string, href: string) {
 
 export function DashboardTabs({ visible }: DashboardTabsProps) {
   const pathname = usePathname();
+  const tabs = useDashboardTabs();
 
   if (!visible) {
     return null;
   }
 
-  const activeTab = DASHBOARD_TABS.find((tab) => isActiveRoute(pathname, tab.href || "/"))?.id ?? "chores";
+  const activeTab = tabs.find((tab) => isActiveRoute(pathname, tab.href || "/"))?.id ?? "chores";
 
   return (
     <div className="dashboard-nav">
       <div className="dashboard-nav-desktop">
         <AppTabs
-          ariaLabel="Dashboard sections"
-          tabs={DASHBOARD_TABS}
+          ariaLabel={tabs.map((tab) => tab.label).join(", ")}
+          tabs={tabs}
           activeTab={activeTab}
           variant="pills"
         />
       </div>
       <div className="dashboard-nav-mobile">
         <AppTabs
-          ariaLabel="Dashboard sections"
-          tabs={DASHBOARD_TABS}
+          ariaLabel={tabs.map((tab) => tab.label).join(", ")}
+          tabs={tabs}
           activeTab={activeTab}
           variant="pills"
           hideLabelsOnMobile

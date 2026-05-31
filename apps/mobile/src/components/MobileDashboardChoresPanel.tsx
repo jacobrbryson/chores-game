@@ -25,7 +25,7 @@ import { loadDashboardChorePreferences, saveDashboardChorePreferences } from "@/
 import { colors, radius, spacing, typography } from "@/theme";
 import { Badge, Button, Card, CoinPill, EmptyState, ErrorState, LoadingState } from "@/components/ui";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 100;
 
 type MobileDashboardChoresPanelProps = {
   onOpenAllChores?: () => void;

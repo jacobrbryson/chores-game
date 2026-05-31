@@ -63,6 +63,12 @@ describe("achievement service", () => {
         }
         return { fields: achievementStateDoc };
       }
+      if (path === "users/player-1") {
+        return { fields: { locale: "es-US" } };
+      }
+      if (path === "families/fam-1") {
+        return { fields: { defaultLocale: "en-US" } };
+      }
       throw new Error(`UNEXPECTED_GET_${path}`);
     });
 
@@ -193,6 +199,7 @@ describe("achievement service", () => {
       uid: "player-1",
       idToken: "token",
       viewerRole: "player",
+      locale: "en-US",
     });
     const adminEntry = response.find((entry) => entry.id === "admin_first_chore_created");
     expect(adminEntry?.restricted).toBe(true);
@@ -200,5 +207,39 @@ describe("achievement service", () => {
     expect(adminEntry?.progress).toBe(0);
     expect(adminEntry?.percentComplete).toBe(0);
     expect(adminEntry?.completed).toBe(false);
+  });
+
+  it("returns localized achievement copy for the requested locale", async () => {
+    const { getAchievementViewForUser } = await import("./service");
+    const response = await getAchievementViewForUser({
+      uid: "player-1",
+      idToken: "token",
+      viewerRole: "player",
+      locale: "es-US",
+    });
+    const firstEntry = response.find((entry) => entry.id === "player_first_chore");
+    expect(firstEntry?.title).toBe("Primera tarea completada");
+    expect(firstEntry?.wittyTitle).toBe("Tarea pequena, leyenda enorme");
+    expect(firstEntry?.description).toBe("Completa tu primera tarea.");
+  });
+
+  it("publishes unlock notifications using the resolved locale", async () => {
+    const { trackAchievementEvent } = await import("./service");
+    await trackAchievementEvent({
+      uid: "player-1",
+      familyId: "fam-1",
+      idToken: "token",
+      viewerRole: "player",
+      eventId: "evt-localized",
+      metricDeltas: { chores_completed: 1 },
+    });
+    expect(mockPublishAchievementUnlocked).toHaveBeenCalledWith(
+      expect.objectContaining({
+        achievementId: "player_first_chore",
+        title: "Primera tarea completada",
+        wittyTitle: "Tarea pequena, leyenda enorme",
+        description: "Completa tu primera tarea.",
+      }),
+    );
   });
 });

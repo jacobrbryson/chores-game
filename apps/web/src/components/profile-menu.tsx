@@ -8,6 +8,7 @@ import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { GoogleTaskSyncIndicator } from "@/components/google-task-sync-indicator";
+import { useLocale } from "@/components/locale-provider";
 import { MenuActionButton } from "@/components/menu-action-button";
 import { MenuActionLink } from "@/components/menu-action-link";
 import { ModalShell } from "@/components/modal-shell";
@@ -138,6 +139,15 @@ const supportIcon = (
   </ProfileMenuItemIcon>
 );
 
+const changeLogIcon = (
+  <ProfileMenuItemIcon>
+    <path d="M6.25 4.5h7.5l3 3v8.75A1.25 1.25 0 0 1 15.5 17.5h-9A1.25 1.25 0 0 1 5.25 16.25v-10.5A1.25 1.25 0 0 1 6.5 4.5Z" />
+    <path d="M13.75 4.75v3h3" />
+    <path d="M8.25 10h5.5" />
+    <path d="M8.25 13h3.75" />
+  </ProfileMenuItemIcon>
+);
+
 const switchIcon = (
   <ProfileMenuItemIcon>
     <path d="M7 6.25h8.25" />
@@ -186,6 +196,7 @@ export function ProfileMenu({
   triggerVariant = "avatar",
   triggerLabel = "More",
 }: ProfileMenuProps) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState(name);
   const [unseenCount, setUnseenCount] = useState(0);
@@ -211,6 +222,8 @@ export function ProfileMenu({
   const [switchRequiresPinSetup, setSwitchRequiresPinSetup] = useState(false);
   const storageEmailRef = useRef(email);
   const notificationsHref = unseenCount > 0 ? "/notifications?unseen=true" : "/notifications";
+  const signedInLabel = displayName || t("profile.signedIn");
+  const parentAccountLabel = authenticatedName || t("profile.accountFallback");
 
   async function loadUnseenCount() {
     try {
@@ -522,15 +535,15 @@ export function ProfileMenu({
         onOpenChange={setOpen}
         wrapperClassName="profile-menu"
         triggerClassName={triggerVariant === "main-nav" ? "main-nav-button main-nav-more-button" : ""}
-        triggerTitle="Open profile menu"
-        triggerAriaLabel="Open profile menu"
+        triggerTitle={t("profileMenu.openMenu")}
+        triggerAriaLabel={t("profileMenu.openMenu")}
         panelClassName="app-menu-panel profile-dropdown"
         trigger={
           <span className={`profile-avatar-wrap${triggerVariant === "main-nav" ? " profile-avatar-wrap-main-nav" : ""}`}>
             <span className="profile-avatar-anchor">
-              <Avatar
-                className="profile-avatar"
-                name={displayName || "User profile"}
+                <Avatar
+                  className="profile-avatar"
+                  name={displayName || t("profileMenu.userProfile")}
                 initial={initial}
                 avatarId={selectedAvatarId}
                 photoUrl={selectedAvatarPhotoUrl || picture || ""}
@@ -552,15 +565,15 @@ export function ProfileMenu({
           </span>
         }>
         <div className="profile-name-row">
-          <p className="profile-name">{displayName || "Signed In"}</p>
+          <p className="profile-name">{signedInLabel}</p>
           {googleTasksLinked ? (
-            <GoogleTaskSyncIndicator className="profile-menu-sync-indicator" label="Synced" />
+            <GoogleTaskSyncIndicator className="profile-menu-sync-indicator" label={t("profileMenu.synced")} />
           ) : null}
         </div>
         <p className="profile-email">{email || "-"}</p>
         {isSwitched ? (
           <p className="small profile-menu-switch-note">
-            Acting as this child profile. Logging out returns to {authenticatedName || "the parent account"}.
+            {t("profileMenu.actingAsChild", { account: parentAccountLabel })}
           </p>
         ) : null}
         <MenuActionLink
@@ -569,17 +582,20 @@ export function ProfileMenu({
           onClick={() => setOpen(false)}
           leading={notificationsIcon}
           badgeCount={unseenCount}>
-          Notifications
+          {t("nav.notifications")}
         </MenuActionLink>
         <MenuActionLink href="/profile" fullWidth onClick={() => setOpen(false)} leading={profileIcon}>
-          Profile
+          {t("nav.profile")}
         </MenuActionLink>
         <MenuActionLink href="/family" fullWidth onClick={() => setOpen(false)} leading={familyIcon}>
-          Manage Family
+          {t("nav.manageFamily")}
+        </MenuActionLink>
+        <MenuActionLink href="/change-log" fullWidth onClick={() => setOpen(false)} leading={changeLogIcon}>
+          {t("nav.changeLog")}
         </MenuActionLink>
         {showSupportLink ? (
           <MenuActionLink href="/support" fullWidth onClick={() => setOpen(false)} leading={supportIcon}>
-            Support
+            {t("nav.support")}
           </MenuActionLink>
         ) : null}
         {!isSwitched ? (
@@ -590,7 +606,7 @@ export function ProfileMenu({
               setOpen(false);
               openSwitchPicker();
             }}>
-            Switch To...
+            {t("nav.switchTo")}
           </MenuActionButton>
         ) : null}
         {isSwitched ? (
@@ -603,36 +619,37 @@ export function ProfileMenu({
               setRestoreError("");
               setRestoreModalOpen(true);
             }}>
-            Return to Parent
+            {t("nav.returnToParent")}
           </MenuActionButton>
         ) : null}
         <div className="profile-divider" />
         <form action="/api/auth/logout" method="post">
           <MenuActionButton fullWidth type="submit" leading={logoutIcon}>
-            Logout
+            {t("nav.logout")}
           </MenuActionButton>
         </form>
       </AppMenu>
       <ModalShell open={switchPickerOpen} onRequestClose={closeSwitchPicker}>
         <div className="family-modal-card">
           <div className="modal-dialog-title-row family-modal-title-row">
-            <h3 className="family-modal-title">Switch to Child</h3>
+            <h3 className="family-modal-title">{t("profileMenu.switchChildTitle")}</h3>
             <Button
               type="button"
               className="modal-close-button"
               onClick={closeSwitchPicker}
-              aria-label="Close dialog"
-              title="Close dialog">
+              aria-label={t("common.actions.close")}
+              title={t("common.actions.close")}>
               X
             </Button>
           </div>
           <div className="flex w-full flex-col gap-3">
             <p className="small">
-              Choose a child profile to act as. You stay authenticated as the parent account, and logging out always
-              resets the session back to the parent.
+              {t("profileMenu.switchChildBody")}
             </p>
-            {switchMembersError ? <Alert>Could not load switchable profiles: {switchMembersError}</Alert> : null}
-            {switchMembersLoading ? <p className="small">Loading child profiles...</p> : null}
+            {switchMembersError ? (
+              <Alert>{t("profileMenu.switchLoadError", { error: switchMembersError })}</Alert>
+            ) : null}
+            {switchMembersLoading ? <p className="small">{t("profileMenu.loadingChildProfiles")}</p> : null}
             {!switchMembersLoading && !switchMembersError ? (
               switchableMembers.length > 0 ? (
                 <div className="switch-member-list">
@@ -658,23 +675,25 @@ export function ProfileMenu({
                           fallbackColor={member.dashboardPrimaryColor ? "#ffffff" : undefined}
                           referrerPolicy="no-referrer"
                         />
-                        <span className="switch-member-option-copy">
-                          <span className="switch-member-option-name">{member.name}</span>
-                          <span className="switch-member-option-meta">
-                            {member.status === "active" ? "Ready to switch" : "Invite pending"}
+                          <span className="switch-member-option-copy">
+                            <span className="switch-member-option-name">{member.name}</span>
+                            <span className="switch-member-option-meta">
+                              {member.status === "active"
+                                ? t("profileMenu.readyToSwitch")
+                                : t("profileMenu.invitePending")}
+                            </span>
                           </span>
-                        </span>
                       </span>
                     </Button>
                   ))}
                 </div>
               ) : (
-                <p className="small">No child profiles are available to switch into.</p>
+                <p className="small">{t("profileMenu.noChildProfiles")}</p>
               )
             ) : null}
             <div className="family-modal-actions">
               <Button type="button" className="btn btn-secondary" onClick={closeSwitchPicker}>
-                Close
+                {t("common.actions.close")}
               </Button>
             </div>
           </div>
@@ -703,23 +722,23 @@ export function ProfileMenu({
             }
           }}>
           <div className="modal-dialog-title-row family-modal-title-row">
-            <h3 className="family-modal-title">Return to Parent</h3>
+            <h3 className="family-modal-title">{t("nav.returnToParent")}</h3>
             <Button
               type="button"
               className="modal-close-button"
               onClick={() => setRestoreModalOpen(false)}
-              aria-label="Close dialog"
-              title="Close dialog">
+              aria-label={t("common.actions.close")}
+              title={t("common.actions.close")}>
               X
             </Button>
           </div>
           <div className="flex w-full flex-col gap-3">
             <p className="small">
-              Enter the 4-digit parent PIN to return to {authenticatedName || "the parent account"}.
+              {t("profileMenu.returnToParentBody", { account: parentAccountLabel })}
             </p>
-            {restoreError ? <Alert>Could not switch back: {restoreError}</Alert> : null}
+            {restoreError ? <Alert>{t("profileMenu.returnError", { error: restoreError })}</Alert> : null}
             <label className="flex w-full flex-col gap-1.5">
-              <span className="text-sm font-medium text-slate-700">PIN</span>
+              <span className="text-sm font-medium text-slate-700">{t("profileMenu.pinLabel")}</span>
               <input
                 type="password"
                 name="guardian-return-code"
@@ -739,10 +758,10 @@ export function ProfileMenu({
             </label>
             <div className="family-modal-actions">
               <Button type="button" className="btn btn-secondary" onClick={() => setRestoreModalOpen(false)}>
-                Cancel
+                {t("common.actions.cancel")}
               </Button>
               <Button type="submit" className="btn btn-primary" disabled={restorePending}>
-                {restorePending ? "Checking..." : "Return to Parent"}
+                {restorePending ? t("profileMenu.checking") : t("nav.returnToParent")}
               </Button>
             </div>
           </div>

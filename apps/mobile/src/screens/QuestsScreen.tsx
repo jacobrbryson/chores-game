@@ -10,6 +10,7 @@ import {
 import { AppScreen } from "@/components/ui";
 import { MobileQuestLibrary, type MobileQuestLibraryState } from "@/components/MobileQuestLibrary";
 import { MobileQuestReader, type MobileQuestReaderState } from "@/components/MobileQuestReader";
+import { useMobileLocale } from "@/lib/locale";
 
 type Props = {
   right?: React.ReactNode;
@@ -17,6 +18,7 @@ type Props = {
 };
 
 export function QuestsScreen({ right, onGoDashboard }: Props) {
+  const { t } = useMobileLocale();
   const [library, setLibrary] = useState<MobileQuestLibraryState>({ loading: true, items: [], hasUnlockedQuestPack: false });
   const [selectedQuestId, setSelectedQuestId] = useState("");
   const [reader, setReader] = useState<MobileQuestReaderState>(() => emptyReaderState());
@@ -122,7 +124,11 @@ export function QuestsScreen({ right, onGoDashboard }: Props) {
   }
 
   return (
-    <AppScreen title="Quests" subtitle={selectedQuestId ? "Interactive story" : "Story adventures"} right={right} onPressBreadcrumbRoot={onGoDashboard}>
+    <AppScreen
+      title={t("nav.quests")}
+      subtitle={selectedQuestId ? t("quests.startPrompt") : t("quests.questLibrary")}
+      right={right}
+      onPressBreadcrumbRoot={onGoDashboard}>
       {selectedQuestId ? (
         <MobileQuestReader
           state={reader}

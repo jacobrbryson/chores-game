@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { DEFAULT_LOCALE, type AppLocale } from "@packages/locales";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import type { MainNavigationItemId } from "@packages/core/src/main-navigation";
 import { apiClient } from "@/lib/api";
+import { MobileLocaleProvider, useMobileLocale } from "@/lib/locale";
 import { colors, spacing, typography } from "@/theme";
 import { AchievementsScreen } from "@/screens/AchievementsScreen";
 import { ChoresScreen } from "@/screens/ChoresScreen";
@@ -21,12 +23,29 @@ type SessionMe = {
   name: string;
   email: string;
   role: string;
+  locale?: AppLocale;
+  resolvedLocale?: AppLocale;
   picture?: string;
   avatarUrl?: string;
   balance?: number;
 };
 
 export default function App() {
+  const [locale, setLocale] = useState<AppLocale>(DEFAULT_LOCALE);
+
+  return (
+    <MobileLocaleProvider initialLocale={locale}>
+      <AppContent onLocaleChange={setLocale} />
+    </MobileLocaleProvider>
+  );
+}
+
+function AppContent({
+  onLocaleChange,
+}: {
+  onLocaleChange: (locale: AppLocale) => void;
+}) {
+  const { t } = useMobileLocale();
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [authState, setAuthState] = useState<"checking" | "authenticated" | "unauthenticated">("checking");
   const [sessionMe, setSessionMe] = useState<SessionMe | null>(null);
@@ -41,6 +60,7 @@ export default function App() {
         if (cancelled) return;
         const nextSession = me as SessionMe;
         setSessionMe(nextSession);
+        onLocaleChange(nextSession.resolvedLocale || nextSession.locale || DEFAULT_LOCALE);
         setAvatarUrl(nextSession.avatarUrl || nextSession.picture || "");
         setCoinBalance(typeof nextSession.balance === "number" ? nextSession.balance : 0);
         setAuthState("authenticated");
@@ -48,6 +68,7 @@ export default function App() {
       .catch(() => {
         if (cancelled) return;
         setSessionMe(null);
+        onLocaleChange(DEFAULT_LOCALE);
         setAvatarUrl("");
         setCoinBalance(0);
         setAuthState("unauthenticated");
@@ -99,8 +120,8 @@ export default function App() {
       <SafeAreaProvider>
         <SafeAreaView style={styles.safe}>
           <View style={styles.checkingWrap}>
-            <Text style={styles.checkingTitle}>Checking session...</Text>
-            <Text style={styles.checkingBody}>Please wait while we verify your Family Chores login.</Text>
+            <Text style={styles.checkingTitle}>{t("mobile.checkingSessionTitle")}</Text>
+            <Text style={styles.checkingBody}>{t("mobile.checkingSessionBody")}</Text>
           </View>
         </SafeAreaView>
       </SafeAreaProvider>
@@ -121,6 +142,7 @@ export default function App() {
             onOpenProfile={() => setTab("profile")}
             onLoggedOut={() => {
               setSessionMe(null);
+              onLocaleChange(DEFAULT_LOCALE);
               setAvatarUrl("");
               setCoinBalance(0);
               setTab("dashboard");

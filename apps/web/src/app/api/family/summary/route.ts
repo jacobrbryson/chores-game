@@ -34,11 +34,12 @@ import {
   normalizeRecurrenceConfig,
 } from "@/lib/chores/recurrence";
 import { normalizeChoreType } from "@/lib/chores/types";
+import { DEFAULT_LOCALE, resolveAppLocale } from "@/lib/locale";
 
 export const dynamic = "force-dynamic";
 const MAX_FAMILY_MEMBERS = 100;
-const MINUTE_MILLIS = 60 * 1000;
 const MAX_SUMMARY_CHORES = 1000;
+const MINUTE_MILLIS = 60 * 1000;
 
 function toUnixMillis(value: string | undefined) {
   if (!value) {
@@ -61,17 +62,22 @@ function toShiftedUtcMillis(value: number, timezoneOffsetMinutes: number) {
   return value - timezoneOffsetMinutes * MINUTE_MILLIS;
 }
 
-function localTodayIsoDate(timezoneOffsetMinutes: number) {
-  return new Date(toShiftedUtcMillis(Date.now(), timezoneOffsetMinutes))
+function offsetIsoDateAt(value: number, timezoneOffsetMinutes: number) {
+  return new Date(toShiftedUtcMillis(value, timezoneOffsetMinutes))
     .toISOString()
     .slice(0, 10);
 }
 
-function isFutureDueDate(value: string, todayIsoDate: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+function isMoreThan24HoursAhead(
+  dueDate: string,
+  timezoneOffsetMinutes: number,
+  nowMillis = Date.now(),
+) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
     return false;
   }
-  return value > todayIsoDate;
+  const cutoffIsoDate = offsetIsoDateAt(nowMillis + 24 * 60 * 60 * 1000, timezoneOffsetMinutes);
+  return dueDate > cutoffIsoDate;
 }
 
 function readOptionalSortOrder(
@@ -196,10 +202,15 @@ function buildViewerAssigneeAliases(
   return Array.from(aliases);
 }
 
-function emptySummary(viewerUid: string, viewerGoogleTasksLinked = false): FamilySummaryResponse {
+function emptySummary(
+  viewerUid: string,
+  viewerGoogleTasksLinked = false,
+  resolvedLocale = DEFAULT_LOCALE,
+): FamilySummaryResponse {
   return {
     viewerUid,
     viewerGoogleTasksLinked,
+    resolvedLocale,
     wsAuthToken: "",
     noFamily: true,
     family: null,
@@ -271,8 +282,6 @@ export async function GET(request: NextRequest) {
   const timezoneOffsetMinutes = parseTimezoneOffsetMinutes(
     request.nextUrl.searchParams.get("tzOffsetMinutes"),
   );
-  const todayIsoDate = localTodayIsoDate(timezoneOffsetMinutes);
-
   try {
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
@@ -322,7 +331,11 @@ export async function GET(request: NextRequest) {
           const recoveredFamilyId =
             uidRecoveredFamilyId || inviteLookupFamilyId || emailRecoveredFamilyId;
           if (!recoveredFamilyId) {
-            return emptySummary(session.uid, viewerGoogleTasksLinked);
+            return emptySummary(
+              session.uid,
+              viewerGoogleTasksLinked,
+              resolveAppLocale({ sessionLocale: session.locale }),
+            );
           }
           familyId = recoveredFamilyId;
           await relinkUserPrimaryFamily(session.uid, familyId, idToken);
@@ -347,8 +360,10 @@ export async function GET(request: NextRequest) {
         );
         const categoryMap = buildCategoryMap(categories);
 
-        const rawMemberCount = memberDocs.length;
         const familyName = readString(familyDoc.fields, "name") || "My Family";
+        const familyLocale = resolveAppLocale({
+          familyLocale: readString(familyDoc.fields, "defaultLocale"),
+        });
 
         const rawMembers = memberDocs
           .map((doc) => ({
@@ -356,6 +371,7 @@ export async function GET(request: NextRequest) {
             uid: readString(doc.fields, "uid") || undefined,
             name: readString(doc.fields, "name") || "Unnamed member",
             email: readString(doc.fields, "email"),
+            locale: readString(doc.fields, "locale") || undefined,
             dashboardPrimaryColor: readString(doc.fields, "dashboardPrimaryColor") || undefined,
             avatarId: readString(doc.fields, "avatarId") || undefined,
             avatarPhotoUrl: readString(doc.fields, "avatarPhotoUrl") || undefined,
@@ -543,6 +559,11 @@ export async function GET(request: NextRequest) {
           const pendingSummary: FamilySummaryResponse = {
             viewerUid: session.uid,
             viewerGoogleTasksLinked,
+            resolvedLocale: resolveAppLocale({
+              sessionLocale: session.locale,
+              memberLocale: viewerMember?.locale,
+              familyLocale,
+            }),
             wsAuthToken: createFamilySocketAuthToken({
               uid: session.uid,
               familyIds: [familyId],
@@ -551,6 +572,7 @@ export async function GET(request: NextRequest) {
             family: {
               id: familyId,
               name: familyName,
+              defaultLocale: familyLocale,
             },
             members: inviter
               ? [
@@ -559,6 +581,16 @@ export async function GET(request: NextRequest) {
                     uid: inviter.uid,
                     name: inviter.name,
                     email: inviter.email,
+                    locale:
+                      inviter.locale === "es-US"
+                        ? "es-US"
+                        : inviter.locale === "en-US"
+                          ? "en-US"
+                          : undefined,
+                    resolvedLocale: resolveAppLocale({
+                      memberLocale: inviter.locale,
+                      familyLocale,
+                    }),
                     role: inviter.role,
                     status: inviter.status,
                     lastSignInAt: inviter.lastSignInAt,
@@ -590,7 +622,7 @@ export async function GET(request: NextRequest) {
           return pendingSummary;
         }
 
-        const mappedMembers = rawMembers
+        const mappedMembers: FamilySummaryResponse["members"] = rawMembers
           .filter((member, _index, members) => {
             if (member.uid) {
               return true;
@@ -616,27 +648,45 @@ export async function GET(request: NextRequest) {
             }
             return toUnixMillis(b.lastSignInAt) - toUnixMillis(a.lastSignInAt);
           })
-          .map((member) => ({
-            id: member.id,
-            uid: member.uid,
-            name: member.name,
-            email: member.email,
-            role: member.role,
-            status: member.status,
-            lastSignInAt: member.lastSignInAt,
-            dashboardPrimaryColor: resolveMemberPrimaryColor(member.dashboardPrimaryColor),
-            avatarId: member.avatarId,
-            avatarPhotoUrl: member.avatarPhotoUrl,
-            stats:
-              memberStatsByKey.get(resolveMemberStatsKey(member)) ??
-              createEmptyMemberStats(),
-          }))
+          .map((member) => {
+            const memberLocale: FamilySummaryResponse["members"][number]["locale"] =
+              member.locale === "es-US"
+                ? "es-US"
+                : member.locale === "en-US"
+                  ? "en-US"
+                  : undefined;
+            return {
+              id: member.id,
+              uid: member.uid,
+              name: member.name,
+              email: member.email,
+              locale: memberLocale,
+              resolvedLocale: resolveAppLocale({
+                memberLocale,
+                familyLocale,
+              }),
+              role: member.role,
+              status: member.status,
+              lastSignInAt: member.lastSignInAt,
+              dashboardPrimaryColor: resolveMemberPrimaryColor(member.dashboardPrimaryColor),
+              avatarId: member.avatarId,
+              avatarPhotoUrl: member.avatarPhotoUrl,
+              stats:
+                memberStatsByKey.get(resolveMemberStatsKey(member)) ??
+                createEmptyMemberStats(),
+            };
+          })
           .slice(0, MAX_FAMILY_MEMBERS);
 
         return {
           viewerUid: session.uid,
           viewerAssigneeAliases,
           viewerGoogleTasksLinked,
+          resolvedLocale: resolveAppLocale({
+            sessionLocale: session.locale,
+            memberLocale: viewerMember?.locale,
+            familyLocale,
+          }),
           wsAuthToken: createFamilySocketAuthToken({
             uid: session.uid,
             familyIds: [familyId],
@@ -645,6 +695,7 @@ export async function GET(request: NextRequest) {
           family: {
             id: familyId,
             name: familyName,
+            defaultLocale: familyLocale,
           },
           members: mappedMembers,
           categories,
@@ -704,7 +755,7 @@ export async function GET(request: NextRequest) {
               (chore) =>
                 !chore.deleted &&
                 chore.status === "Open" &&
-                !isFutureDueDate(chore.dueDate, todayIsoDate),
+                !isMoreThan24HoursAhead(chore.dueDate, timezoneOffsetMinutes),
             )
             .sort(compareBySortOrderOrOldest)
             .map((chore) => ({
@@ -753,11 +804,17 @@ export async function GET(request: NextRequest) {
       ) ?? null;
     const resolvedViewerRole = resolvedViewerMember?.role ?? "player";
     const resolvedViewerMemberId = resolvedViewerMember?.id ?? refreshedSession.memberId ?? refreshedSession.uid;
-    if (resolvedViewerRole !== refreshedSession.role || resolvedViewerMemberId !== refreshedSession.memberId) {
+    const resolvedViewerLocale = data.resolvedLocale || DEFAULT_LOCALE;
+    if (
+      resolvedViewerRole !== refreshedSession.role ||
+      resolvedViewerMemberId !== refreshedSession.memberId ||
+      resolvedViewerLocale !== refreshedSession.locale
+    ) {
       nextSession = {
         ...refreshedSession,
         role: resolvedViewerRole,
         memberId: resolvedViewerMemberId,
+        locale: resolvedViewerLocale,
       };
       shouldSetSessionCookie = true;
     }

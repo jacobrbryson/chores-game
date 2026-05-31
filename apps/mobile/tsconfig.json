@@ -10,6 +10,12 @@
       "@packages/core/*": [
         "../../packages/core/*"
       ],
+      "@packages/locales": [
+        "../../packages/locales/src/index.ts"
+      ],
+      "@packages/locales/*": [
+        "../../packages/locales/src/*"
+      ],
       "@/*": [
         "src/*"
       ]

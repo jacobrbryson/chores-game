@@ -9,6 +9,7 @@ import { Button } from "@/components/button";
 import { ChipOverflowRow } from "@/components/chip-overflow-row";
 import { ChoreListCard } from "@/components/chore-list-card";
 import { CoinIcon } from "@/components/coin-icon";
+import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
 import type { TailwindSelectOption } from "@/components/tailwind-select";
@@ -147,12 +148,21 @@ function sortChoreRows(rows: ChoreRow[], sortBy: ChoreSortBy, sortDir: "asc" | "
   });
 }
 
-function getStatusLabel(chore: Pick<ChoreRow, "status" | "requireApproval">) {
+function getStatusLabel(
+  chore: Pick<ChoreRow, "status" | "requireApproval">,
+  t: (key: string, params?: Record<string, string | number>) => string,
+) {
   if (chore.status === "Submitted" && chore.requireApproval) {
-    return "Awaiting Approval";
+    return t("choresPage.status.awaitingApproval");
   }
   if (chore.status === "Submitted" || chore.status === "Approved") {
-    return "Completed";
+    return t("choresPage.status.completed");
+  }
+  if (chore.status === "Open") {
+    return t("choresPage.status.open");
+  }
+  if (chore.status === "Rejected") {
+    return t("choresPage.status.rejected");
   }
   return chore.status;
 }
@@ -170,7 +180,7 @@ function statusTone(status: string): "blue" | "green" | "rose" | "slate" {
   return "slate";
 }
 
-function formatCompletedDate(value?: string) {
+function formatCompletedDate(value: string | undefined, locale: string) {
   if (!value) {
     return "-";
   }
@@ -178,7 +188,7 @@ function formatCompletedDate(value?: string) {
   if (Number.isNaN(parsed)) {
     return "-";
   }
-  return new Date(parsed).toLocaleDateString();
+  return new Date(parsed).toLocaleDateString(locale);
 }
 
 function parseTimezoneOffsetMinutes(value: string | null) {
@@ -256,9 +266,12 @@ function getDisplayedCoinValue(chore: Pick<ChoreRow, "choreType" | "status" | "c
   return String(chore.coinValue ?? 0);
 }
 
-function getCoinTooltip(chore: Pick<ChoreRow, "choreType">) {
+function getCoinTooltip(
+  chore: Pick<ChoreRow, "choreType">,
+  t: (key: string, params?: Record<string, string | number>) => string,
+) {
   if (chore.choreType === "see_and_do") {
-    return "See and Do chore types will have coins assigned during parent approval";
+    return t("choresPage.coinTooltip.seeAndDo");
   }
   return undefined;
 }
@@ -286,6 +299,7 @@ function ChoreActionsMenu({
   onApprove,
   onRejectRequested,
 }: ChoreActionsMenuProps) {
+  const { t } = useLocale();
   if (!canManageActions) {
     return null;
   }
@@ -355,7 +369,7 @@ function ChoreActionsMenu({
     <div className="relative" ref={triggerRef}>
       <Button
         type="button"
-        aria-label="Chore options"
+        aria-label={t("choresPage.menu.choreOptions")}
         aria-expanded={menuOpen}
         className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         disabled={disabled}
@@ -375,7 +389,7 @@ function ChoreActionsMenu({
                   setMenuOpen(false);
                   onEdit(chore);
                 }}>
-                Edit
+                {t("common.actions.edit")}
               </Button>
               <Button
                 type="button"
@@ -386,10 +400,10 @@ function ChoreActionsMenu({
                   void onApprove(chore);
                 }}>
                 {busyAction === "approve"
-                  ? "Approving..."
+                  ? t("choresPage.actions.approving")
                   : isMultiAssigneeChore(chore) || chore.choreType === "see_and_do"
-                    ? "Approve..."
-                    : "Approve"}
+                    ? t("choresPage.actions.approveWithEllipsis")
+                    : t("choresPage.actions.approve")}
               </Button>
               <Button
                 type="button"
@@ -399,7 +413,7 @@ function ChoreActionsMenu({
                   setMenuOpen(false);
                   onRejectRequested(chore);
                 }}>
-                {busyAction === "reject" ? "Rejecting..." : "Reject"}
+                {busyAction === "reject" ? t("choresPage.actions.rejecting") : t("choresPage.actions.reject")}
               </Button>
               <Button
                 type="button"
@@ -409,7 +423,7 @@ function ChoreActionsMenu({
                   setMenuOpen(false);
                   void onUndoCompletion(chore.id);
                 }}>
-                {busyAction === "undo_complete" ? "Undoing..." : "Undo completion"}
+                {busyAction === "undo_complete" ? t("choresPage.actions.undoing") : t("choresPage.actions.undoCompletion")}
               </Button>
               <Button
                 type="button"
@@ -419,7 +433,7 @@ function ChoreActionsMenu({
                   setMenuOpen(false);
                   onDeleteRequested(chore);
                 }}>
-                {busyAction === "delete" ? "Deleting..." : "Delete"}
+                {busyAction === "delete" ? t("choresPage.actions.deleting") : t("common.actions.delete")}
               </Button>
             </div>,
             document.body,
@@ -453,6 +467,7 @@ function BulkActionsMenu({
   canSetCategories,
   onSetCategoriesRequested,
 }: BulkActionsMenuProps) {
+  const { t } = useLocale();
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -515,12 +530,12 @@ function BulkActionsMenu({
     <div className="relative" ref={triggerRef}>
       <Button
         type="button"
-        aria-label="Bulk actions"
+        aria-label={t("choresPage.menu.bulkActions")}
         aria-expanded={menuOpen}
         className="btn btn-secondary h-9 px-3 py-2 text-sm"
         disabled={disabled}
         onClick={() => setMenuOpen((current) => !current)}>
-        Bulk Actions
+        {t("choresPage.bulkActions.label")}
       </Button>
       {menuOpen && menuPosition && typeof document !== "undefined"
         ? createPortal(
@@ -536,7 +551,7 @@ function BulkActionsMenu({
                   setMenuOpen(false);
                   onDeleteRequested();
                 }}>
-                {busyAction === "delete" ? "Deleting..." : "Delete"}
+                {busyAction === "delete" ? t("choresPage.actions.deleting") : t("common.actions.delete")}
               </Button>
               <Button
                 type="button"
@@ -546,7 +561,7 @@ function BulkActionsMenu({
                   setMenuOpen(false);
                   onApprove();
                 }}>
-                {busyAction === "approve" ? "Approving..." : "Approve"}
+                {busyAction === "approve" ? t("choresPage.actions.approving") : t("choresPage.actions.approve")}
               </Button>
               <Button
                 type="button"
@@ -556,7 +571,7 @@ function BulkActionsMenu({
                   setMenuOpen(false);
                   onUndoCompletion();
                 }}>
-                {busyAction === "undo_complete" ? "Undoing..." : "Undo completion"}
+                {busyAction === "undo_complete" ? t("choresPage.actions.undoing") : t("choresPage.actions.undoCompletion")}
               </Button>
               <Button
                 type="button"
@@ -566,7 +581,7 @@ function BulkActionsMenu({
                   setMenuOpen(false);
                   onSetCategoriesRequested();
                 }}>
-                {busyAction === "set_categories" ? "Applying..." : "Set categories"}
+                {busyAction === "set_categories" ? t("choresPage.actions.applying") : t("choresPage.bulkActions.setCategories")}
               </Button>
             </div>,
             document.body,
@@ -576,6 +591,7 @@ function BulkActionsMenu({
   );
 }
 export default function ChoresPage() {
+  const { locale, t } = useLocale();
   const [chores, setChores] = useState<ChoreRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -976,7 +992,7 @@ export default function ChoresPage() {
     const items = [
       {
         id: "all",
-        label: "All",
+        label: t("choresPage.filters.all"),
         active: statusFilter === "",
         onSelect: () => updateStatusRouteFilter(""),
       },
@@ -985,7 +1001,7 @@ export default function ChoresPage() {
     if (viewerRole === "admin") {
       items.push({
         id: "needs_approval",
-        label: "Needs Approval",
+        label: t("choresPage.filters.needsApproval"),
         active: statusFilter === "needs_approval",
         onSelect: () => updateStatusRouteFilter("needs_approval"),
       });
@@ -993,30 +1009,30 @@ export default function ChoresPage() {
 
     items.push({
       id: "completed",
-      label: "Completed",
+      label: t("choresPage.filters.completed"),
       active: statusFilter === "completed",
       onSelect: () => updateStatusRouteFilter("completed"),
     });
 
     return items;
-  }, [statusFilter, updateStatusRouteFilter, viewerRole]);
+  }, [statusFilter, t, updateStatusRouteFilter, viewerRole]);
 
   const sortChipItems = useMemo(
     () =>
       [
         ["title", "Title"],
-        ["status", "Status"],
-        ["assigneeName", "Assignee"],
-        ["dueDate", "Due"],
-        ["completedAt", "Completed"],
-        ["coinValue", "Coins"],
+        ["status", t("choresPage.sort.status")],
+        ["assigneeName", t("choresPage.sort.assignee")],
+        ["dueDate", t("choresPage.sort.due")],
+        ["completedAt", t("choresPage.sort.completed")],
+        ["coinValue", t("choresPage.sort.coins")],
       ].map(([column, label]) => ({
         id: column,
-        label: sortLabel(column as ChoreSortBy, label),
+        label: sortLabel(column as ChoreSortBy, String(column === "title" ? t("choresPage.sort.title") : label)),
         active: sortBy === column,
         onSelect: () => onSort(column as ChoreSortBy),
       })),
-    [onSort, sortBy, sortLabel],
+    [onSort, sortBy, sortLabel, t],
   );
 
   async function onRemoveChore(choreId: string) {
@@ -1459,19 +1475,19 @@ export default function ChoresPage() {
             }}
             hideTrigger
           />
-          <section className="family-page-card chores-controls-card" aria-label="Chore controls">
+          <section className="family-page-card chores-controls-card" aria-label={t("choresPage.controls.ariaLabel")}>
             <div className="chores-controls-search-row">
               <input
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Search chores (3+ chars)"
+                placeholder={t("choresPage.controls.searchPlaceholder")}
                 className="table-search-input chores-controls-search-input"
-                aria-label="Search chores"
+                aria-label={t("choresPage.controls.search")}
               />
               <Button
                 type="button"
                 className="btn btn-secondary chores-controls-toggle"
-                aria-label={filtersExpanded ? "Collapse chore controls" : "Expand chore controls"}
+                aria-label={filtersExpanded ? t("choresPage.controls.collapse") : t("choresPage.controls.expand")}
                 aria-expanded={filtersExpanded}
                 onClick={() => setFiltersExpanded((current) => !current)}>
                 {filtersExpanded ? "v" : ">"}
@@ -1480,18 +1496,18 @@ export default function ChoresPage() {
             {filtersExpanded ? (
               <>
                 <div className="chores-controls-option-row">
-                  <p className="chores-controls-label">Filters</p>
+                  <p className="chores-controls-label">{t("choresPage.controls.filters")}</p>
                   <ChipOverflowRow items={filterChipItems} />
                 </div>
                 <div className="chores-controls-option-row">
-                  <p className="chores-controls-label">Sorting</p>
+                  <p className="chores-controls-label">{t("choresPage.controls.sorting")}</p>
                   <ChipOverflowRow items={sortChipItems} />
                 </div>
               </>
             ) : null}
           </section>
           {isLoading ? (
-            <section aria-label="Loading chores" aria-hidden="true" className="space-y-3">
+            <section aria-label={t("choresPage.loading")} aria-hidden="true" className="space-y-3">
               <div className="family-skeleton-chip-row">
                 <div className="family-skeleton family-skeleton-chip" />
                 <div className="family-skeleton family-skeleton-chip" />
@@ -1505,18 +1521,18 @@ export default function ChoresPage() {
               </div>
             </section>
           ) : null}
-          {!isLoading && loadError ? <Alert>Could not load chores: {loadError}</Alert> : null}
+          {!isLoading && loadError ? <Alert>{t("choresPage.loadError", { error: loadError })}</Alert> : null}
           {!isLoading && !loadError ? (
             <>
-              {actionError ? <Alert className="mb-3">Chore update failed: {actionError}</Alert> : null}
+              {actionError ? <Alert className="mb-3">{t("choresPage.updateError", { error: actionError })}</Alert> : null}
               {chores.length === 0 ? (
                 <div className="flex flex-col gap-3">
-                  <p className="small">No chores found.</p>
+                  <p className="small">{t("choresPage.empty")}</p>
                   {canCreateChores ? (
                     <div className="chores-empty-cta">
                       <AddEditChoresDialog
                         createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
-                        triggerLabel={playerSeeAndDoMode ? "Add See and Do Chore" : "Let's add some!"}
+                        triggerLabel={playerSeeAndDoMode ? t("choresPage.actions.addSeeAndDo") : t("choresPage.actions.letsAddSome")}
                         onSaved={() => loadChores({ silent: true })}
                       />
                     </div>
@@ -1524,15 +1540,15 @@ export default function ChoresPage() {
                 </div>
               ) : (
                 <>
-                  <section className="family-page-card" aria-label="Chore list">
+                  <section className="family-page-card" aria-label={t("choresPage.listAriaLabel")}>
                     <div className="family-page-card-header chores-table-subhead">
                       <p className="small chores-table-total">
-                        {total} chore{total === 1 ? "" : "s"}
+                        {t("choresPage.total", { count: total, suffix: total === 1 ? "" : "s" })}
                       </p>
                       {selectedCount > 0 ? (
                         <div className="chores-table-bulk-actions">
                           <span className="small chores-table-selected-count">
-                            {selectedCount} selected
+                            {t("choresPage.selected", { count: selectedCount })}
                             {bulkActionState ? ` (${bulkActionState.completed}/${bulkActionState.total})` : ""}
                           </span>
                           <BulkActionsMenu
@@ -1571,17 +1587,17 @@ export default function ChoresPage() {
                         <input
                           ref={selectAllRef}
                           type="checkbox"
-                          aria-label="Select all chores on this page"
+                          aria-label={t("choresPage.selectAllAriaLabel")}
                           checked={allSelectableOnPageSelected}
                           disabled={selectableChoreIdsOnPage.length === 0 || hasBusyAction}
                           onChange={(event) => onToggleSelectAllCurrentPage(event.target.checked)}
                           className="h-5 w-5 rounded border-slate-300 text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
                         />
-                        Select all on this page
+                        {t("choresPage.selectAll")}
                       </label>
                       {statusFilter === "needs_approval" ? (
                         <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-amber-800">
-                          Approval queue
+                          {t("choresPage.approvalQueue")}
                         </span>
                       ) : null}
                     </div>
@@ -1593,11 +1609,11 @@ export default function ChoresPage() {
                           checked={Boolean(selectedChoreStateById[chore.id])}
                           selectable={canManageBulkActionsForChore(chore)}
                           disabled={hasBusyAction}
-                          statusLabel={getStatusLabel(chore)}
+                          statusLabel={getStatusLabel(chore, t)}
                           statusTone={statusTone(chore.status)}
-                          completedDate={formatCompletedDate(chore.completedAt)}
+                          completedDate={formatCompletedDate(chore.completedAt, locale)}
                           displayedCoinValue={getDisplayedCoinValue(chore)}
-                          coinTooltip={getCoinTooltip(chore)}
+                          coinTooltip={getCoinTooltip(chore, t)}
                           onCheckedChange={(checked) => onToggleRowSelection(chore, checked)}
                           approvalSlot={
                             viewerRole === "admin" && canApproveChore(chore) ? (
@@ -1610,7 +1626,7 @@ export default function ChoresPage() {
                                   {rowActionState?.choreId === chore.id &&
                                   rowActionState.action === "approve"
                                     ? "Approving..."
-                                    : "Approve"}
+                                    : t("choresPage.actions.approve")}
                                 </Button>
                                 <Button
                                   type="button"
@@ -1620,7 +1636,7 @@ export default function ChoresPage() {
                                     setRejectFeedback("");
                                     setPendingRejectChore(chore);
                                   }}>
-                                  Reject
+                                  {t("choresPage.actions.reject")}
                                 </Button>
                               </div>
                             ) : null
@@ -1651,7 +1667,7 @@ export default function ChoresPage() {
                     <div className="chores-empty-cta chores-add-more-cta">
                       <AddEditChoresDialog
                         createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
-                        triggerLabel={playerSeeAndDoMode ? "Add See and Do Chore" : "Add more chores"}
+                        triggerLabel={playerSeeAndDoMode ? t("choresPage.actions.addSeeAndDo") : t("choresPage.actions.addMoreChores")}
                         onSaved={() => loadChores({ silent: true })}
                       />
                     </div>
@@ -1662,17 +1678,17 @@ export default function ChoresPage() {
                       className="btn btn-secondary"
                       disabled={page <= 1}
                       onClick={() => setPage((current) => Math.max(1, current - 1))}>
-                      Previous
+                      {t("choresPage.pager.previous")}
                     </Button>
                     <span className="small">
-                      Page {page} of {totalPages}
+                      {t("choresPage.pager.pageOf", { page, totalPages })}
                     </span>
                     <Button
                       type="button"
                       className="btn btn-secondary"
                       disabled={page >= totalPages}
                       onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
-                      Next
+                      {t("choresPage.pager.next")}
                     </Button>
                   </div>
                 </>
@@ -1687,18 +1703,21 @@ export default function ChoresPage() {
           {pendingApproveChore ? (
             <>
               <div className="modal-dialog-title-row mb-2">
-                <h3 className="text-lg font-bold text-slate-800">Approve Chore</h3>
+                <h3 className="text-lg font-bold text-slate-800">{t("choresPage.modals.approveTitle")}</h3>
                 <Button
                   type="button"
                   className="modal-close-button"
                   onClick={() => setPendingApproveChore(null)}
-                  aria-label="Close dialog"
-                  title="Close dialog">
+                  aria-label={t("choresPage.modals.close")}
+                  title={t("choresPage.modals.close")}>
                   X
                 </Button>
               </div>
               <p className="mb-3 text-sm text-slate-600">
-                <strong>{pendingApproveChore.title}</strong> total coins: <strong>{pendingApproveChore.coinValue}</strong>
+                {t("choresPage.modals.approveSummary", {
+                  title: pendingApproveChore.title,
+                  coins: pendingApproveChore.coinValue,
+                })}
               </p>
               <div className="mb-4 flex flex-col gap-2">
                 {(
@@ -1713,7 +1732,7 @@ export default function ChoresPage() {
                       <Avatar
                         size={28}
                         borderWidth={1}
-                        name={assigneeDirectoryByAlias[assigneeId]?.name || "Family member"}
+                        name={assigneeDirectoryByAlias[assigneeId]?.name || t("choresPage.familyMemberFallback")}
                         avatarId={assigneeDirectoryByAlias[assigneeId]?.avatarId}
                         photoUrl={assigneeDirectoryByAlias[assigneeId]?.avatarPhotoUrl}
                         ariaHidden
@@ -1748,7 +1767,7 @@ export default function ChoresPage() {
                   className="btn btn-secondary"
                   disabled={hasBusyAction}
                   onClick={() => setPendingApproveChore(null)}>
-                  Cancel
+                  {t("common.actions.cancel")}
                 </Button>
                 <Button
                   type="button"
@@ -1756,8 +1775,8 @@ export default function ChoresPage() {
                   disabled={hasBusyAction}
                   onClick={() => void onApproveWithOverrides()}>
                   {rowActionState?.choreId === pendingApproveChore.id && rowActionState.action === "approve"
-                    ? "Approving..."
-                    : "Approve"}
+                    ? t("choresPage.actions.approving")
+                    : t("choresPage.actions.approve")}
                 </Button>
               </div>
             </>
@@ -1771,26 +1790,26 @@ export default function ChoresPage() {
           {pendingRejectChore ? (
             <>
               <div className="modal-dialog-title-row mb-2">
-                <h3 className="text-lg font-bold text-slate-800">Reject Chore</h3>
+                <h3 className="text-lg font-bold text-slate-800">{t("choresPage.modals.rejectTitle")}</h3>
                 <Button
                   type="button"
                   className="modal-close-button"
                   onClick={() => setPendingRejectChore(null)}
-                  aria-label="Close dialog"
-                  title="Close dialog">
+                  aria-label={t("choresPage.modals.close")}
+                  title={t("choresPage.modals.close")}>
                   X
                 </Button>
               </div>
               <p className="mb-3 text-sm text-slate-600">
-                Reject <strong>{pendingRejectChore.title}</strong>? Feedback is optional.
+                {t("choresPage.modals.rejectPrompt", { title: pendingRejectChore.title })}
               </p>
               <label className="mb-4 flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-slate-700">Feedback</span>
+                <span className="text-sm font-medium text-slate-700">{t("choresPage.modals.feedback")}</span>
                 <textarea
                   rows={4}
                   value={rejectFeedback}
                   onChange={(event) => setRejectFeedback(event.target.value)}
-                  placeholder="Tell them what needs to be fixed..."
+                  placeholder={t("choresPage.modals.feedbackPlaceholder")}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
                 />
               </label>
@@ -1800,7 +1819,7 @@ export default function ChoresPage() {
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
                   disabled={hasBusyAction}
                   onClick={() => setPendingRejectChore(null)}>
-                  Cancel
+                  {t("common.actions.cancel")}
                 </Button>
                 <Button
                   type="button"
@@ -1815,8 +1834,8 @@ export default function ChoresPage() {
                   }}>
                   {rowActionState?.choreId === pendingRejectChore.id &&
                   rowActionState.action === "reject"
-                    ? "Rejecting..."
-                    : "Reject"}
+                    ? t("choresPage.actions.rejecting")
+                    : t("choresPage.actions.reject")}
                 </Button>
               </div>
             </>
@@ -1830,18 +1849,18 @@ export default function ChoresPage() {
           {pendingDeleteChore ? (
             <>
               <div className="modal-dialog-title-row mb-2">
-                <h3 className="text-lg font-bold text-slate-800">Delete Chore</h3>
+                <h3 className="text-lg font-bold text-slate-800">{t("choresPage.modals.deleteTitle")}</h3>
                 <Button
                   type="button"
                   className="modal-close-button"
                   onClick={() => setPendingDeleteChore(null)}
-                  aria-label="Close dialog"
-                  title="Close dialog">
+                  aria-label={t("choresPage.modals.close")}
+                  title={t("choresPage.modals.close")}>
                   X
                 </Button>
               </div>
               <p className="mb-4 text-sm text-slate-600">
-                Delete <strong>{pendingDeleteChore.title}</strong>?
+                {t("choresPage.modals.deletePrompt", { title: pendingDeleteChore.title })}
               </p>
               <div className="flex justify-end gap-2">
                 <Button
@@ -1849,7 +1868,7 @@ export default function ChoresPage() {
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
                   disabled={hasBusyAction}
                   onClick={() => setPendingDeleteChore(null)}>
-                  Cancel
+                  {t("common.actions.cancel")}
                 </Button>
                 <Button
                   type="button"
@@ -1863,8 +1882,8 @@ export default function ChoresPage() {
                   }}>
                   {rowActionState?.choreId === pendingDeleteChore.id &&
                   rowActionState.action === "delete"
-                    ? "Deleting..."
-                    : "Delete"}
+                    ? t("choresPage.actions.deleting")
+                    : t("common.actions.delete")}
                 </Button>
               </div>
             </>
@@ -1876,32 +1895,34 @@ export default function ChoresPage() {
         onRequestClose={() => setPendingBulkSetCategoriesOpen(false)}>
         <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
           <div className="modal-dialog-title-row mb-2">
-            <h3 className="text-lg font-bold text-slate-800">Set Categories</h3>
+            <h3 className="text-lg font-bold text-slate-800">{t("choresPage.modals.setCategoriesTitle")}</h3>
             <Button
               type="button"
               className="modal-close-button"
               onClick={() => setPendingBulkSetCategoriesOpen(false)}
-              aria-label="Close dialog"
-              title="Close dialog">
+              aria-label={t("choresPage.modals.close")}
+              title={t("choresPage.modals.close")}>
               X
             </Button>
           </div>
           <p className="mb-4 text-sm text-slate-600">
-            Apply categories to <strong>{selectedCount}</strong> selected chore{selectedCount === 1 ? "" : "s"}.
-            Leave empty to clear categories.
+            {t("choresPage.modals.setCategoriesPrompt", {
+              count: selectedCount,
+              suffix: selectedCount === 1 ? "" : "s",
+            })}
           </p>
           <TailwindMultiSelect
-            ariaLabel="Bulk categories"
+            ariaLabel={t("choresPage.modals.bulkCategories")}
             values={bulkCategoryIds}
             onChange={setBulkCategoryIds}
             options={categorySelectOptions}
-            placeholder={categorySelectOptions.length > 0 ? "Select categories" : "No categories yet"}
+            placeholder={categorySelectOptions.length > 0 ? t("choresPage.modals.selectCategories") : t("choresPage.modals.noCategoriesYet")}
             buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
             menuClassName="border-slate-300"
           />
           {categorySelectOptions.length === 0 ? (
             <p className="mt-3 text-sm text-slate-600">
-              No categories exist yet. Apply now to clear selected chores categories.
+              {t("choresPage.modals.noCategoriesBody")}
             </p>
           ) : null}
           <div className="mt-4 flex justify-end gap-2">
@@ -1910,7 +1931,7 @@ export default function ChoresPage() {
               className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
               disabled={hasBusyAction}
               onClick={() => setPendingBulkSetCategoriesOpen(false)}>
-              Cancel
+              {t("common.actions.cancel")}
             </Button>
             <Button
               type="button"
@@ -1920,7 +1941,7 @@ export default function ChoresPage() {
                 await onBulkSetCategories(Object.keys(selectedChoreStateById), bulkCategoryIds);
                 setPendingBulkSetCategoriesOpen(false);
               }}>
-              {bulkActionState?.action === "set_categories" ? "Applying..." : "Apply"}
+              {bulkActionState?.action === "set_categories" ? t("choresPage.actions.applying") : t("choresPage.actions.apply")}
             </Button>
           </div>
         </div>
@@ -1930,18 +1951,21 @@ export default function ChoresPage() {
         onRequestClose={() => setPendingBulkDeleteOpen(false)}>
         <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
           <div className="modal-dialog-title-row mb-2">
-            <h3 className="text-lg font-bold text-slate-800">Delete Selected Chores</h3>
+            <h3 className="text-lg font-bold text-slate-800">{t("choresPage.modals.deleteSelectedTitle")}</h3>
             <Button
               type="button"
               className="modal-close-button"
               onClick={() => setPendingBulkDeleteOpen(false)}
-              aria-label="Close dialog"
-              title="Close dialog">
+              aria-label={t("choresPage.modals.close")}
+              title={t("choresPage.modals.close")}>
               X
             </Button>
           </div>
           <p className="mb-4 text-sm text-slate-600">
-            Delete <strong>{selectedCount}</strong> selected chore{selectedCount === 1 ? "" : "s"}?
+            {t("choresPage.modals.deleteSelectedPrompt", {
+              count: selectedCount,
+              suffix: selectedCount === 1 ? "" : "s",
+            })}
           </p>
           <div className="flex justify-end gap-2">
             <Button
@@ -1949,7 +1973,7 @@ export default function ChoresPage() {
               className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
               disabled={hasBusyAction}
               onClick={() => setPendingBulkDeleteOpen(false)}>
-              Cancel
+              {t("common.actions.cancel")}
             </Button>
             <Button
               type="button"
@@ -1959,7 +1983,7 @@ export default function ChoresPage() {
                 await onBulkAction("delete", Object.keys(selectedChoreStateById));
                 setPendingBulkDeleteOpen(false);
               }}>
-              {bulkActionState?.action === "delete" ? "Deleting..." : "Delete"}
+              {bulkActionState?.action === "delete" ? t("choresPage.actions.deleting") : t("common.actions.delete")}
             </Button>
           </div>
         </div>

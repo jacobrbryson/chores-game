@@ -5,6 +5,8 @@ export type BreadcrumbItem = {
   href?: string;
 };
 
+type Translate = (key: string) => string;
+
 export function createBreadcrumbTrail(items: BreadcrumbItem[]): BreadcrumbItem[] {
   return [{ label: familyChoresBrand.title, href: "/" }, ...items];
 }
@@ -30,9 +32,9 @@ function humanizeSegment(segment: string) {
   return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function buildFallbackWebTrail(segments: string[]) {
+function buildFallbackWebTrail(segments: string[], t: Translate) {
   if (segments.length === 0) {
-    return createBreadcrumbTrail([{ label: "Dashboard" }]);
+    return createBreadcrumbTrail([{ label: t("breadcrumbs.dashboard") }]);
   }
 
   const startIndex = Math.max(0, segments.length - 2);
@@ -41,7 +43,7 @@ function buildFallbackWebTrail(segments: string[]) {
     const isCurrent = index === source.length - 1;
 
     return {
-      label: humanizeSegment(segment) || "Page",
+      label: humanizeSegment(segment) || t("breadcrumbs.page"),
       href: isCurrent ? undefined : `/${segments.slice(0, absoluteIndex + 1).join("/")}`,
     };
   });
@@ -49,120 +51,128 @@ function buildFallbackWebTrail(segments: string[]) {
   return createBreadcrumbTrail(items);
 }
 
-export function getWebBreadcrumbTrail(pathname: string): BreadcrumbItem[] {
+export function getWebBreadcrumbTrail(pathname: string, t: Translate): BreadcrumbItem[] {
   const pathOnly = pathname.split("?")[0] ?? pathname;
   const segments = pathOnly.split("/").filter(Boolean);
 
   if (segments.length === 0) {
-    return createBreadcrumbTrail([{ label: "Dashboard" }]);
+    return createBreadcrumbTrail([{ label: t("breadcrumbs.dashboard") }]);
   }
 
   if (segments[0] === "chores") {
-    return createBreadcrumbTrail([{ label: "Chores" }]);
+    return createBreadcrumbTrail([{ label: t("breadcrumbs.chores") }]);
   }
 
   if (segments[0] === "notifications") {
-    return createBreadcrumbTrail([{ label: "Notifications" }]);
+    return createBreadcrumbTrail([{ label: t("breadcrumbs.notifications") }]);
   }
 
   if (segments[0] === "profile") {
-    return createBreadcrumbTrail([{ label: "Profile" }]);
+    return createBreadcrumbTrail([{ label: t("breadcrumbs.profile") }]);
+  }
+
+  if (segments[0] === "change-log") {
+    return createBreadcrumbTrail([{ label: t("breadcrumbs.changeLog") }]);
   }
 
   if (segments[0] === "store") {
-    return createBreadcrumbTrail([{ label: "Store" }]);
+    return createBreadcrumbTrail([{ label: t("breadcrumbs.store") }]);
   }
 
   if (segments[0] === "achievements") {
-    return createBreadcrumbTrail([{ label: "Achievements" }]);
+    return createBreadcrumbTrail([{ label: t("breadcrumbs.achievements") }]);
   }
 
   if (segments[0] === "quests") {
     if (segments.length === 1) {
-      return createBreadcrumbTrail([{ label: "Quests" }]);
+      return createBreadcrumbTrail([{ label: t("breadcrumbs.quests") }]);
     }
 
     return createBreadcrumbTrail([
-      { label: "Quests", href: "/quests" },
-      { label: "Quest" },
+      { label: t("breadcrumbs.quests"), href: "/quests" },
+      { label: t("breadcrumbs.quest") },
     ]);
   }
 
   if (segments[0] === "family") {
     if (segments.length === 1) {
-      return createBreadcrumbTrail([{ label: "Family" }]);
+      return createBreadcrumbTrail([{ label: t("breadcrumbs.family") }]);
     }
 
     if (segments[1] === "quests") {
       if (segments[2] === "new") {
         return createBreadcrumbTrail([
-          { label: "Family", href: "/family" },
-          { label: "New Quest" },
+          { label: t("breadcrumbs.family"), href: "/family" },
+          { label: t("breadcrumbs.newQuest") },
         ]);
       }
 
       return createBreadcrumbTrail([
-        { label: "Family", href: "/family" },
-        { label: "Quest" },
+        { label: t("breadcrumbs.family"), href: "/family" },
+        { label: t("breadcrumbs.quest") },
       ]);
     }
 
     if (segments[2] === "items") {
       return createBreadcrumbTrail([
-        { label: "Family", href: "/family" },
-        { label: "Items" },
+        { label: t("breadcrumbs.family"), href: "/family" },
+        { label: t("breadcrumbs.items") },
       ]);
     }
 
     if (segments[2] === "awards") {
       return createBreadcrumbTrail([
-        { label: "Family", href: "/family" },
-        { label: "Awards" },
+        { label: t("breadcrumbs.family"), href: "/family" },
+        { label: t("breadcrumbs.awards") },
       ]);
     }
 
     return createBreadcrumbTrail([
-      { label: "Family", href: "/family" },
-      { label: "Member" },
+      { label: t("breadcrumbs.family"), href: "/family" },
+      { label: t("breadcrumbs.member") },
     ]);
   }
 
   if (segments[0] === "docs" && segments[1] === "api") {
     return createBreadcrumbTrail([
-      { label: "Docs", href: "/docs/api" },
-      { label: "API" },
+      { label: t("breadcrumbs.docs"), href: "/docs/api" },
+      { label: t("breadcrumbs.api") },
     ]);
   }
 
   if (segments[0] === "support") {
-    return createBreadcrumbTrail([{ label: "Support" }]);
+    return createBreadcrumbTrail([{ label: t("breadcrumbs.support") }]);
   }
 
   if (segments[0] === "privacy-policy") {
-    return createBreadcrumbTrail([{ label: "Privacy Policy" }]);
+    return createBreadcrumbTrail([{ label: t("breadcrumbs.privacyPolicy") }]);
   }
 
   if (segments[0] === "terms-of-service") {
-    return createBreadcrumbTrail([{ label: "Terms of Service" }]);
+    return createBreadcrumbTrail([{ label: t("breadcrumbs.termsOfService") }]);
   }
 
-  return buildFallbackWebTrail(segments);
+  return buildFallbackWebTrail(segments, t);
 }
 
-export function getWebBreadcrumbSubtitle(pathname: string): string | undefined {
+export function getWebBreadcrumbSubtitle(pathname: string, t: Translate): string | undefined {
   const pathOnly = pathname.split("?")[0] ?? pathname;
   const segments = pathOnly.split("/").filter(Boolean);
 
   if (segments.length === 0) {
-    return "View, create, and manage active chores";
+    return t("breadcrumbs.dashboardSubtitle");
   }
 
   if (segments[0] === "chores") {
-    return "Sort, filter, and approve chores";
+    return t("breadcrumbs.choresSubtitle");
   }
 
   if (segments[0] === "profile") {
-    return "Your account details and personalization settings.";
+    return t("breadcrumbs.profileSubtitle");
+  }
+
+  if (segments[0] === "change-log") {
+    return t("breadcrumbs.changeLogSubtitle");
   }
 
   return undefined;

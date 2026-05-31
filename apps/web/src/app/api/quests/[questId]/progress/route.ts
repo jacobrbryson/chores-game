@@ -65,6 +65,7 @@ export async function GET(
           uid: session.uid,
           email: session.email ?? "",
           idToken,
+          locale: session.locale,
         });
         if (!quest) {
           return { kind: "not_found" as const };

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DEFAULT_LOCALE, resolveLocalePreference } from "@packages/locales";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import type { SessionUser } from "@/lib/auth/session";
 import { createFamilyForUser } from "@/lib/family/bootstrap";
@@ -122,6 +123,7 @@ async function upsertFirebaseUser(session: FirebaseSession, tokenInfo: GoogleTok
   const normalizedEmail = (tokenInfo.email ?? session.email ?? "").trim().toLowerCase();
   let existingFamilyIds: string[] = [];
   let existingUserRole: SessionUser["role"] = "player";
+  let existingUserLocale = "";
   let hasExistingUserDoc = false;
 
   try {
@@ -129,6 +131,7 @@ async function upsertFirebaseUser(session: FirebaseSession, tokenInfo: GoogleTok
     hasExistingUserDoc = true;
     existingFamilyIds = readStringArray(existingUserDoc.fields, "familyIds");
     existingUserRole = readString(existingUserDoc.fields, "role") === "admin" ? "admin" : "player";
+    existingUserLocale = readString(existingUserDoc.fields, "locale").trim();
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";
     if (!reason.includes("FIRESTORE_HTTP_404")) throw error;
@@ -148,16 +151,33 @@ async function upsertFirebaseUser(session: FirebaseSession, tokenInfo: GoogleTok
     });
   }
 
+  let familyLocale = "";
+  if (linkedFamilyId) {
+    try {
+      const familyDoc = await getDocument(`families/${linkedFamilyId}`, session.idToken);
+      familyLocale = readString(familyDoc.fields, "defaultLocale").trim();
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      if (!reason.includes("FIRESTORE_HTTP_404")) throw error;
+    }
+  }
+
   const linkedFamilyMembership = linkedFamilyId
     ? await resolveActiveFamilyMembership(linkedFamilyId, session.localId, session.idToken)
     : null;
   const effectiveRole: SessionUser["role"] = shouldBootstrapFamily
     ? "admin"
     : linkedFamilyMembership?.role ?? (existingUserRole === "admin" ? "admin" : "player");
+  const effectiveLocale = resolveLocalePreference({
+    requestedLocale: existingUserLocale,
+    familyLocale,
+    fallbackLocale: DEFAULT_LOCALE,
+  });
 
   const authFields = {
     uid: stringField(session.localId),
     role: stringField(effectiveRole),
+    locale: stringField(effectiveLocale),
     email: stringField(normalizedEmail),
     displayName: stringField(tokenInfo.name ?? session.displayName ?? ""),
     photoUrl: stringField(tokenInfo.picture ?? session.photoUrl ?? ""),
@@ -170,6 +190,7 @@ async function upsertFirebaseUser(session: FirebaseSession, tokenInfo: GoogleTok
   return {
     role: effectiveRole,
     memberId: linkedFamilyMembership?.memberId ?? session.localId,
+    locale: effectiveLocale,
   };
 }
 
@@ -190,6 +211,7 @@ export async function POST(request: NextRequest) {
       data: {
         uid: firebaseSession.localId,
         role: result.role,
+        locale: result.locale,
         email: normalizedEmail,
         name: tokenInfo.name ?? firebaseSession.displayName ?? "",
         picture: tokenInfo.picture ?? firebaseSession.photoUrl ?? "",
@@ -199,6 +221,7 @@ export async function POST(request: NextRequest) {
       uid: firebaseSession.localId,
       memberId: result.memberId,
       role: result.role,
+      locale: result.locale,
       email: normalizedEmail,
       name: tokenInfo.name ?? firebaseSession.displayName ?? "",
       picture: tokenInfo.picture ?? firebaseSession.photoUrl ?? "",
