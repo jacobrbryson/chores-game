@@ -3021,6 +3021,7 @@ textarea:disabled {
 .change-log-day-section {
   display: grid;
   gap: 8px;
+  justify-items: start;
 }
 
 .change-log-day-section > h2 {
@@ -3036,6 +3037,8 @@ textarea:disabled {
 }
 
 .change-log-day-subject-list li {
+  display: flex;
+  align-items: center;
   color: var(--foreground);
   font-weight: 700;
 }
@@ -3079,9 +3082,31 @@ textarea:disabled {
 }
 
 .change-log-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: #5f7695;
   font-size: 0.92rem;
   font-weight: 600;
+}
+
+.change-log-date-icon {
+  flex-shrink: 0;
+}
+
+.change-log-subject-icon {
+  flex-shrink: 0;
+  margin-right: 6px;
+}
+
+.change-log-subject-icon-new {
+  color: #2563eb;
+}
+
+.change-log-subject-icon-bug {
+  color: #dc2626;
+  position: relative;
+  top: 1px;
 }
 
 .change-log-badge {

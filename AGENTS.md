@@ -59,6 +59,7 @@ Build a family chore game where:
 - Add or update stable translation keys whenever UI copy changes, and keep supported locale files synchronized.
 - Initial supported locale files are `fr-FR`, `en-US`, and `es-US`, in that order.
 - Any new feature, notable user-facing change, or bug fix should add or update an entry in the web changelog JSON.
+- When a new changelog date is added to `apps/web/src/data/change-log.json`, add a matching `<url>` entry for that date in `apps/web/public/sitemap.xml`.
 - Changelog entries must include `image`, `date`, `type`, `subject`, and `description`.
 - User-facing changelog page labels must be localized in all supported locale files.
 - Keep changelog entries concise and user-friendly; do not include internal implementation details.

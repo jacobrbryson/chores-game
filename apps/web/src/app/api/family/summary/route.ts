@@ -68,7 +68,7 @@ function offsetIsoDateAt(value: number, timezoneOffsetMinutes: number) {
     .slice(0, 10);
 }
 
-function isMoreThan24HoursAhead(
+function isAfterLocalToday(
   dueDate: string,
   timezoneOffsetMinutes: number,
   nowMillis = Date.now(),
@@ -76,8 +76,8 @@ function isMoreThan24HoursAhead(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
     return false;
   }
-  const cutoffIsoDate = offsetIsoDateAt(nowMillis + 24 * 60 * 60 * 1000, timezoneOffsetMinutes);
-  return dueDate > cutoffIsoDate;
+  const todayIsoDate = offsetIsoDateAt(nowMillis, timezoneOffsetMinutes);
+  return dueDate > todayIsoDate;
 }
 
 function readOptionalSortOrder(
@@ -755,7 +755,7 @@ export async function GET(request: NextRequest) {
               (chore) =>
                 !chore.deleted &&
                 chore.status === "Open" &&
-                !isMoreThan24HoursAhead(chore.dueDate, timezoneOffsetMinutes),
+                !isAfterLocalToday(chore.dueDate, timezoneOffsetMinutes),
             )
             .sort(compareBySortOrderOrOldest)
             .map((chore) => ({
