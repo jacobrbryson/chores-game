@@ -81,6 +81,7 @@ type AddEditChoresDialogProps = {
   triggerLabel?: string;
   triggerClassName?: string;
   chore?: EditableChore;
+  defaultAssigneeIds?: string[];
   renderTrigger?: (openDialog: () => void) => ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -144,6 +145,7 @@ export function AddEditChoresDialog({
   triggerLabel = "Let's add some!",
   triggerClassName = "btn btn-primary",
   chore,
+  defaultAssigneeIds,
   renderTrigger,
   open: controlledOpen,
   onOpenChange,
@@ -321,13 +323,22 @@ export function AddEditChoresDialog({
       setAssigneeHydrated(true);
       return;
     }
+    const preferredAssigneeIds = defaultAssigneeIds?.filter((value) => allMembers.some((member) => member.id === value)) ?? [];
     const stickyAssigneeId = readLastAssigneeId();
     const stickyMember = allMembers.find((member) => member.id === stickyAssigneeId);
     const viewer = allMembers.find(
       (member) => member.id === payload.viewerUid || member.uid === payload.viewerUid,
     );
     setAssigneeIds((current) =>
-      current.length > 0 ? current : stickyMember?.id ? [stickyMember.id] : viewer?.id ? [viewer.id] : [],
+      current.length > 0
+        ? current
+        : preferredAssigneeIds.length > 0
+          ? preferredAssigneeIds
+          : stickyMember?.id
+            ? [stickyMember.id]
+            : viewer?.id
+              ? [viewer.id]
+              : [],
     );
     setAssigneeHydrated(true);
   }
@@ -526,11 +537,7 @@ export function AddEditChoresDialog({
     }
     const resolvedCoinValue = isSeeAndDoMode
       ? 0
-      : showAdditionalOptions
-      ? Math.trunc(parsedCoinValue)
-      : isEditMode
-        ? chore?.coinValue ?? DEFAULT_CHORE_COIN_VALUE
-        : DEFAULT_CHORE_COIN_VALUE;
+      : Math.trunc(parsedCoinValue);
     const parsedRecurrenceInterval = Number(recurrenceInterval);
     if (
       showAdditionalOptions &&
@@ -928,6 +935,21 @@ export function AddEditChoresDialog({
               ) : null}
 
               {!isSeeAndDoMode ? (
+              <label className="flex w-full flex-col gap-1.5">
+                <span className="text-sm font-medium text-slate-700">{t("choreDialog.coinValueLabel")}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={MAX_CHORE_COIN_VALUE}
+                  step={1}
+                  value={coinValue}
+                  onChange={(event) => setCoinValue(event.target.value)}
+                  className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800"
+                />
+              </label>
+              ) : null}
+
+              {!isSeeAndDoMode ? (
               <Button
                 type="button"
                 className="group inline-flex cursor-pointer items-center gap-2 self-start text-sm font-semibold text-[#1f69b7]"
@@ -953,20 +975,6 @@ export function AddEditChoresDialog({
                       value={dueDate}
                       disabled={!showAdditionalOptions}
                       onChange={(event) => setDueDate(event.target.value)}
-                      className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800"
-                    />
-                  </label>
-
-                  <label className="flex w-full flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">{t("choreDialog.coinValueLabel")}</span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={MAX_CHORE_COIN_VALUE}
-                      step={1}
-                      value={coinValue}
-                      disabled={!showAdditionalOptions}
-                      onChange={(event) => setCoinValue(event.target.value)}
                       className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800"
                     />
                   </label>

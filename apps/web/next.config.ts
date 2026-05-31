@@ -6,6 +6,7 @@ const gcsAssetBaseUrl = process.env.NEXT_PUBLIC_GCS_ASSET_BASE_URL?.replace(/\/+
 const appRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["@packages/core"],
   outputFileTracingRoot: appRoot,
   images: {
     // Prevent Next image optimizer cache from serving stale local assets

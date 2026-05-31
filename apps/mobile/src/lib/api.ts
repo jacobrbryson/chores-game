@@ -385,9 +385,10 @@ export async function editMobileChore(choreId: string, body: Record<string, unkn
   });
 }
 
-export async function completeMobileChore(choreId: string) {
+export async function completeMobileChore(choreId: string, body?: Record<string, unknown>) {
   return apiFetch(`/chores/${encodeURIComponent(choreId)}/complete`, {
     method: "POST",
+    body: JSON.stringify(body ?? {}),
   });
 }
 

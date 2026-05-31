@@ -12,6 +12,13 @@ export type ChangeLogEntry = {
   image: string;
 };
 
+export type ChangeLogEntryGroup = {
+  date: string;
+  entries: ChangeLogEntry[];
+  features: ChangeLogEntry[];
+  bugFixes: ChangeLogEntry[];
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -67,4 +74,34 @@ function validateChangeLogEntries(source: unknown): ChangeLogEntry[] {
 
 export function getChangeLogEntries(): ChangeLogEntry[] {
   return validateChangeLogEntries(rawChangeLogEntries);
+}
+
+export function getChangeLogEntryGroup(date: string): ChangeLogEntryGroup | null {
+  const entries = getChangeLogEntries().filter((entry) => entry.date === date);
+  if (entries.length === 0) {
+    return null;
+  }
+  return {
+    date,
+    entries,
+    features: entries.filter((entry) => entry.type === "Feature"),
+    bugFixes: entries.filter((entry) => entry.type === "Bug Fix"),
+  };
+}
+
+export function getChangeLogEntryGroups(): ChangeLogEntryGroup[] {
+  const groups = new Map<string, ChangeLogEntry[]>();
+  for (const entry of getChangeLogEntries()) {
+    const current = groups.get(entry.date) ?? [];
+    current.push(entry);
+    groups.set(entry.date, current);
+  }
+  return [...groups.entries()]
+    .sort(([leftDate], [rightDate]) => rightDate.localeCompare(leftDate))
+    .map(([date, entries]) => ({
+      date,
+      entries,
+      features: entries.filter((entry) => entry.type === "Feature"),
+      bugFixes: entries.filter((entry) => entry.type === "Bug Fix"),
+    }));
 }

@@ -1000,15 +1000,51 @@ service cloud.firestore {
       match /notificationSeen/{seenId} {
         allow read: if isFamilyMember(familyId);
         allow create: if isFamilyMember(familyId)
-          && request.resource.data.uid == request.auth.uid
+          && (
+            request.resource.data.uid == request.auth.uid
+            || (
+              request.resource.data.viewerAuthUid == request.auth.uid
+              && request.resource.data.viewerAuthUid is string
+              && isFamilyAdmin(familyId)
+              && userBelongsToFamily(request.resource.data.uid, familyId)
+            )
+          )
+          && request.resource.data.viewerAuthUid is string
           && request.resource.data.notificationId is string
           && request.resource.data.seenAt is timestamp;
         allow update: if isFamilyMember(familyId)
-          && resource.data.uid == request.auth.uid
-          && request.resource.data.uid == request.auth.uid
+          && (
+            resource.data.uid == request.auth.uid
+            || (
+              resource.data.viewerAuthUid == request.auth.uid
+              && resource.data.viewerAuthUid is string
+              && isFamilyAdmin(familyId)
+              && userBelongsToFamily(resource.data.uid, familyId)
+            )
+          )
+          && (
+            request.resource.data.uid == request.auth.uid
+            || (
+              request.resource.data.viewerAuthUid == request.auth.uid
+              && request.resource.data.viewerAuthUid is string
+              && isFamilyAdmin(familyId)
+              && userBelongsToFamily(request.resource.data.uid, familyId)
+            )
+          )
+          && request.resource.data.viewerAuthUid is string
+          && request.resource.data.viewerAuthUid == resource.data.viewerAuthUid
           && request.resource.data.notificationId == resource.data.notificationId
           && request.resource.data.seenAt is timestamp;
-        allow delete: if isFamilyMember(familyId) && resource.data.uid == request.auth.uid;
+        allow delete: if isFamilyMember(familyId)
+          && (
+            resource.data.uid == request.auth.uid
+            || (
+              resource.data.viewerAuthUid == request.auth.uid
+              && resource.data.viewerAuthUid is string
+              && isFamilyAdmin(familyId)
+              && userBelongsToFamily(resource.data.uid, familyId)
+            )
+          );
       }
 
       match /pushSubscriptions/{subscriptionId} {

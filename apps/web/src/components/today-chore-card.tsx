@@ -26,7 +26,6 @@ type TodayChoreCardProps = {
   disabled: boolean;
   isExiting?: boolean;
   isCreatePending?: boolean;
-  isDeletePending?: boolean;
   onDelete: (choreId: string) => Promise<void> | void;
   onComplete: (
     choreId: string,
@@ -81,7 +80,6 @@ export function TodayChoreCard({
   disabled,
   isExiting = false,
   isCreatePending = false,
-  isDeletePending = false,
   onDelete,
   onComplete,
   onMoveUp,
@@ -109,7 +107,7 @@ export function TodayChoreCard({
         dropIndicatorPosition === "before" ? " is-drop-before" : ""
       }${dropIndicatorPosition === "after" ? " is-drop-after" : ""}${
         isCreatePending ? " is-create-pending" : ""
-      }${isDeletePending ? " is-delete-pending" : ""}`}
+      }`}
       draggable={canReorder && !disabled && !isExiting}
       onDragStart={(event) => {
         if (!canReorder || disabled || isExiting) {
@@ -148,9 +146,6 @@ export function TodayChoreCard({
       }>
       {isCreatePending ? (
         <span className="today-chore-loading-highlight today-chore-loading-highlight-gold" aria-hidden="true" />
-      ) : null}
-      {isDeletePending ? (
-        <span className="today-chore-loading-highlight today-chore-loading-highlight-red" aria-hidden="true" />
       ) : null}
       <AddEditChoresDialog
         chore={{

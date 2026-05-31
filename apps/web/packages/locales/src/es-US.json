@@ -50,8 +50,16 @@
   "changeLog": {
     "title": "Registro de cambios",
     "subtitle": "Ultimas actualizaciones",
+    "daySubtitle": "Actualizaciones publicadas el {date}",
+    "daySubtitleMissing": "Actualizaciones del {date}",
     "empty": "Todavia no hay actualizaciones. Vuelve pronto para ver los ultimos cambios de Family Chores.",
     "imageAlt": "Ilustracion de actualizacion para {subject}",
+    "sections": {
+      "features": "Funciones nuevas",
+      "bugFixes": "Correcciones",
+      "emptyFeatures": "No hubo funciones nuevas ese dia.",
+      "emptyBugFixes": "No hubo correcciones ese dia."
+    },
     "types": {
       "feature": "Funcion nueva",
       "bugFix": "Correccion"

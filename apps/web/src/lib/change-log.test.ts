@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHANGE_LOG_ENTRY_TYPES, getChangeLogEntries } from "@/lib/change-log";
+import { CHANGE_LOG_ENTRY_TYPES, getChangeLogEntries, getChangeLogEntryGroup, getChangeLogEntryGroups } from "@/lib/change-log";
 
 describe("change log data", () => {
   it("contains valid entries with required fields", () => {
@@ -25,5 +25,27 @@ describe("change log data", () => {
       const current = entries[index];
       expect(previous.date.localeCompare(current.date)).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  it("groups entries by date with feature and bug-fix buckets", () => {
+    const groups = getChangeLogEntryGroups();
+
+    expect(groups.length).toBeGreaterThan(0);
+
+    for (const group of groups) {
+      expect(group.entries.length).toBeGreaterThan(0);
+      expect(group.entries.every((entry) => entry.date === group.date)).toBe(true);
+      expect(group.features.every((entry) => entry.type === "Feature")).toBe(true);
+      expect(group.bugFixes.every((entry) => entry.type === "Bug Fix")).toBe(true);
+    }
+  });
+
+  it("returns a single date group when requested", () => {
+    const firstEntry = getChangeLogEntries()[0];
+    expect(firstEntry).toBeTruthy();
+
+    const group = getChangeLogEntryGroup(firstEntry.date);
+    expect(group?.date).toBe(firstEntry.date);
+    expect(group?.entries.some((entry) => entry.id === firstEntry.id)).toBe(true);
   });
 });

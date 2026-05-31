@@ -24,6 +24,18 @@ type RequesterContext = {
   aliases: Set<string>;
 };
 
+type NotificationsPatchDebugContext = {
+  sessionUid: string;
+  sessionEmail: string;
+  authUid: string;
+  authEmail: string;
+  familyId: string;
+  requesterRole: "admin" | "player";
+  requesterAliases: string[];
+  requestedIds: string[];
+  visibleIds: string[];
+};
+
 type NotificationItem = {
   id: string;
   kind: string;
@@ -247,6 +259,16 @@ function compareString(a: string, b: string) {
   return a.localeCompare(b);
 }
 
+function logNotificationsPatchDebug(label: string, context: NotificationsPatchDebugContext) {
+  console.error(
+    label,
+    JSON.stringify({
+      ...context,
+      switched: context.sessionUid !== context.authUid,
+    }),
+  );
+}
+
 function sortNotifications(
   rows: NotificationItem[],
   sortBy: NotificationSortBy,
@@ -423,6 +445,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
+    let debugContext: NotificationsPatchDebugContext | null = null;
     const { session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
@@ -430,21 +453,85 @@ export async function PATCH(request: NextRequest) {
         if (!familyId) {
           return null;
         }
-        const now = new Date().toISOString();
-        await Promise.all(
-          ids.map((notificationId) =>
-            createOrReplaceDocument(
-              `families/${familyId}/notificationSeen/${session.uid}_${notificationId}`,
-              {
-                uid: stringField(session.uid),
-                notificationId: stringField(notificationId),
-                seenAt: timestampField(now),
-                updatedAt: timestampField(now),
-              },
-              idToken,
-            ),
-          ),
+        const requester = await getRequesterContext(
+          familyId,
+          session.uid,
+          session.email,
+          idToken,
         );
+        const notificationDocs = await Promise.all(
+          ids.map(async (notificationId) => {
+            try {
+              const doc = await getDocument(`families/${familyId}/notifications/${notificationId}`, idToken);
+              return { id: notificationId, doc };
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (reason.includes("FIRESTORE_HTTP_404")) {
+                return null;
+              }
+              throw error;
+            }
+          }),
+        );
+
+        const visibleIds = notificationDocs
+          .map((entry) => {
+            if (!entry) {
+              return null;
+            }
+            const actorUid = readString(entry.doc.fields, "actorUid");
+            const relatedIds = readStringArray(entry.doc.fields, "relatedIds");
+            const triggeredByViewer = actorUid === session.uid;
+            const visibleToViewer =
+              requester.role === "admin"
+                ? true
+                : isVisibleToPlayer(relatedIds, requester.aliases);
+            if (!visibleToViewer || triggeredByViewer) {
+              return null;
+            }
+            return entry.id;
+          })
+          .filter((notificationId): notificationId is string => Boolean(notificationId));
+
+        debugContext = {
+          sessionUid: session.uid,
+          sessionEmail: session.email,
+          authUid: session.authUid || session.uid,
+          authEmail: session.authEmail || session.email,
+          familyId,
+          requesterRole: requester.role,
+          requesterAliases: [...requester.aliases].sort(),
+          requestedIds: ids,
+          visibleIds,
+        };
+
+        if (visibleIds.length === 0) {
+          logNotificationsPatchDebug("[NOTIFICATIONS_PATCH_SKIP]", debugContext);
+          return null;
+        }
+        const now = new Date().toISOString();
+        try {
+          await Promise.all(
+            visibleIds.map((notificationId) =>
+              createOrReplaceDocument(
+                `families/${familyId}/notificationSeen/${session.uid}_${notificationId}`,
+                {
+                  uid: stringField(session.uid),
+                  viewerAuthUid: stringField(session.authUid || session.uid),
+                  notificationId: stringField(notificationId),
+                  seenAt: timestampField(now),
+                  updatedAt: timestampField(now),
+                },
+                idToken,
+              ),
+            ),
+          );
+        } catch (error) {
+          if (debugContext) {
+            logNotificationsPatchDebug("[NOTIFICATIONS_PATCH_WRITE_DEBUG]", debugContext);
+          }
+          throw error;
+        }
         return null;
       },
     );

@@ -50,8 +50,16 @@
   "changeLog": {
     "title": "Change Log",
     "subtitle": "Latest updates",
+    "daySubtitle": "Updates published on {date}",
+    "daySubtitleMissing": "Updates for {date}",
     "empty": "No updates yet. Check back soon for the latest Family Chores changes.",
     "imageAlt": "Update artwork for {subject}",
+    "sections": {
+      "features": "Features",
+      "bugFixes": "Bug Fixes",
+      "emptyFeatures": "No features for this day.",
+      "emptyBugFixes": "No bug fixes for this day."
+    },
     "types": {
       "feature": "Feature",
       "bugFix": "Bug Fix"

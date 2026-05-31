@@ -28,6 +28,13 @@ import Link from "next/link";
 import { TodayChoreCard } from "@/components/today-chore-card";
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { Line } from "react-chartjs-2";
+import {
+  createApprovalAssigneeSelections,
+  listApprovalPayouts,
+  toggleApprovalAssigneeSelection,
+  updateApprovalAssigneeCoins,
+  type ApprovalAssigneeSelectionMap,
+} from "@packages/core";
 import { getDashboardChorePage } from "@/lib/ui/chore-dashboard";
 import type { FamilySnapshotChore, FamilySnapshotMember } from "@/lib/family/types";
 import {
@@ -120,6 +127,16 @@ function choreMatchesMember(chore: FamilySnapshotChore, member: FamilySnapshotMe
     (chore.assigneeIds ?? []).some((id) => memberAliases.has(normalizeAssigneeAlias(id))) ||
     Boolean(chore.assigneeId && memberAliases.has(normalizeAssigneeAlias(chore.assigneeId)))
   );
+}
+
+function getApprovalAssigneeIds(chore: FamilySnapshotChore, members: FamilySnapshotMember[]) {
+  if (chore.assigneeScope === "family") {
+    return members.filter((member) => member.status === "active").map((member) => member.id);
+  }
+  if (chore.assigneeIds && chore.assigneeIds.length > 0) {
+    return chore.assigneeIds;
+  }
+  return chore.assigneeId ? [chore.assigneeId] : [];
 }
 
 function normalizeChoreTitle(value: string) {
@@ -416,7 +433,6 @@ export function TodayChoresPanel({
   const [exitingChoreIds, setExitingChoreIds] = useState<Record<string, true>>({});
   const [optimisticallyCompletedIds, setOptimisticallyCompletedIds] = useState<Record<string, true>>({});
   const [optimisticallyRemovedIds, setOptimisticallyRemovedIds] = useState<Record<string, true>>({});
-  const [pendingDeleteChoreIds, setPendingDeleteChoreIds] = useState<Record<string, true>>({});
   const [pendingCreateChoresByRequestId, setPendingCreateChoresByRequestId] =
     useState<Record<string, FamilySnapshotChore>>({});
   const [localOpenOrderIds, setLocalOpenOrderIds] = useState<string[] | null>(null);
@@ -429,7 +445,7 @@ export function TodayChoresPanel({
   const [reorderBusy, setReorderBusy] = useState(false);
   const [choreActionError, setChoreActionError] = useState("");
   const [pendingApproveChore, setPendingApproveChore] = useState<FamilySnapshotChore | null>(null);
-  const [approvalCoinsByAssignee, setApprovalCoinsByAssignee] = useState<Record<string, number>>({});
+  const [approvalSelectionsByAssignee, setApprovalSelectionsByAssignee] = useState<ApprovalAssigneeSelectionMap>({});
   const [choreScopeSelection, setChoreScopeSelection] =
     useState<ChoreScopeSelection | null>(readChoreScopeSelection);
   const [completionWindow, setCompletionWindow] = useState<CompletionWindow>(readCompletionWindow);
@@ -443,6 +459,10 @@ export function TodayChoresPanel({
   const [completionStatsRefreshTick, setCompletionStatsRefreshTick] = useState(0);
   const [visibleChoreCount, setVisibleChoreCount] = useState(CHORE_PAGE_SIZE);
   const completionHideTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingApprovalAssigneeIds = useMemo(
+    () => (pendingApproveChore ? getApprovalAssigneeIds(pendingApproveChore, members) : []),
+    [members, pendingApproveChore],
+  );
 
 
   useEffect(() => {
@@ -530,19 +550,6 @@ export function TodayChoresPanel({
 
   useEffect(() => {
     setOptimisticallyRemovedIds((current) => {
-      const openChoreIds = new Set(chores.map((chore) => chore.id));
-      let changed = false;
-      const next: Record<string, true> = {};
-      for (const choreId of Object.keys(current)) {
-        if (openChoreIds.has(choreId)) {
-          next[choreId] = true;
-        } else {
-          changed = true;
-        }
-      }
-      return changed ? next : current;
-    });
-    setPendingDeleteChoreIds((current) => {
       const openChoreIds = new Set(chores.map((chore) => chore.id));
       let changed = false;
       const next: Record<string, true> = {};
@@ -754,12 +761,10 @@ export function TodayChoresPanel({
   }, [selectedChoreScope, quickSortState, chores]);
   const hasBusyChoreAction = Object.keys(busyActionsById).length > 0;
   const hasPendingCreates = Object.keys(pendingCreateChoresByRequestId).length > 0;
-  const hasPendingDeletes = Object.keys(pendingDeleteChoreIds).length > 0;
   const canReorderChores =
     viewerRole === "admin" &&
     !hasBusyChoreAction &&
     !hasPendingCreates &&
-    !hasPendingDeletes &&
     quickSortState === null;
   useEffect(() => {
     if (canReorderChores) {
@@ -1038,29 +1043,16 @@ export function TodayChoresPanel({
     }
     setChoreActionError("");
     setBusyActionsById((current) => ({ ...current, [choreId]: "delete" }));
-    setPendingDeleteChoreIds((current) => ({ ...current, [choreId]: true }));
     try {
       const response = await fetch(`/api/chores/${choreId}`, { method: "DELETE" });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? `REMOVE_CHORE_HTTP_${response.status}`);
       }
-      setPendingDeleteChoreIds((current) => {
-        const next = { ...current };
-        delete next[choreId];
-        return next;
-      });
-      setExitingChoreIds((current) => ({ ...current, [choreId]: true }));
-      await new Promise((resolve) => setTimeout(resolve, CHORE_EXIT_ANIMATION_MS));
       setOptimisticallyRemovedIds((current) => ({ ...current, [choreId]: true }));
       await onReload();
     } catch (removeError) {
       setChoreActionError(normalizeError(removeError, "remove_chore_failed"));
-      setPendingDeleteChoreIds((current) => {
-        const next = { ...current };
-        delete next[choreId];
-        return next;
-      });
     } finally {
       setBusyActionsById((current) => {
         const next = { ...current };
@@ -1082,20 +1074,10 @@ export function TodayChoresPanel({
       chore?.assigneeScope === "family" || (chore?.assigneeIds?.length ?? 0) > 1;
     const needsApprovalCoinPrompt = isMultiOrFamily || chore?.choreType === "see_and_do";
     if (viewerRole === "admin" && chore && needsApprovalCoinPrompt) {
-      const assigneeIds = chore.assigneeScope === "family"
-        ? members.filter((member) => member.status === "active").map((member) => member.id)
-        : (chore.assigneeIds && chore.assigneeIds.length > 0
-          ? chore.assigneeIds
-          : chore.assigneeId
-            ? [chore.assigneeId]
-            : []);
-      const defaultCoins =
-        assigneeIds.length > 0 ? Math.ceil((chore.coinValue ?? 0) / assigneeIds.length) : chore.coinValue ?? 0;
-      const nextCoins: Record<string, number> = {};
-      for (const assigneeId of assigneeIds) {
-        nextCoins[assigneeId] = defaultCoins;
-      }
-      setApprovalCoinsByAssignee(nextCoins);
+      const assigneeIds = getApprovalAssigneeIds(chore, members);
+      setApprovalSelectionsByAssignee(
+        createApprovalAssigneeSelections(assigneeIds, chore.coinValue ?? 0),
+      );
       setPendingApproveChore(chore);
       return;
     }
@@ -1174,10 +1156,7 @@ export function TodayChoresPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "complete",
-          approvalPayouts: Object.entries(approvalCoinsByAssignee).map(([assigneeId, coinValue]) => ({
-            assigneeId,
-            coinValue: Math.max(0, Math.trunc(Number(coinValue) || 0)),
-          })),
+          approvalPayouts: listApprovalPayouts(approvalSelectionsByAssignee, pendingApprovalAssigneeIds),
         }),
       });
       if (!completeResponse.ok) {
@@ -1185,7 +1164,7 @@ export function TodayChoresPanel({
         throw new Error(body.error ?? `COMPLETE_CHORE_HTTP_${completeResponse.status}`);
       }
       setPendingApproveChore(null);
-      setApprovalCoinsByAssignee({});
+      setApprovalSelectionsByAssignee({});
       await onReload();
       setCompletionStatsRefreshTick((current) => current + 1);
       if (typeof window !== "undefined") {
@@ -1503,6 +1482,7 @@ export function TodayChoresPanel({
             {canCreateChores ? (
               <AddEditChoresDialog
                 createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
+                defaultAssigneeIds={selectedChoreMember ? [selectedChoreMember.id] : undefined}
                 hideTrigger
                 open={toolbarAddDialogOpen}
                 onOpenChange={setToolbarAddDialogOpen}
@@ -1522,6 +1502,7 @@ export function TodayChoresPanel({
                 <div className="chores-empty-cta">
                   <AddEditChoresDialog
                     createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
+                    defaultAssigneeIds={selectedChoreMember ? [selectedChoreMember.id] : undefined}
                     triggerLabel={playerSeeAndDoMode ? t("dashboard.addSeeAndDoChore") : t("common.actions.add")}
                     onSaved={onChoreSaved}
                   />
@@ -1570,7 +1551,6 @@ export function TodayChoresPanel({
                     }
                     isExiting={Boolean(exitingChoreIds[chore.id])}
                     isCreatePending={pendingCreateChoreIdSet.has(chore.id)}
-                    isDeletePending={Boolean(pendingDeleteChoreIds[chore.id])}
                     onDelete={onDeleteChore}
                     onComplete={onCompleteChore}
                     onMoveUp={(choreId) => onStepReorder(choreId, -1)}
@@ -1725,7 +1705,10 @@ export function TodayChoresPanel({
       </div>
       <ModalShell
         open={Boolean(pendingApproveChore)}
-        onRequestClose={() => setPendingApproveChore(null)}>
+        onRequestClose={() => {
+          setPendingApproveChore(null);
+          setApprovalSelectionsByAssignee({});
+        }}>
         <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
           {pendingApproveChore ? (
             <>
@@ -1734,7 +1717,10 @@ export function TodayChoresPanel({
                 <Button
                   type="button"
                   className="modal-close-button"
-                  onClick={() => setPendingApproveChore(null)}
+                  onClick={() => {
+                    setPendingApproveChore(null);
+                    setApprovalSelectionsByAssignee({});
+                  }}
                   aria-label={t("common.actions.close")}
                   title={t("common.actions.close")}>
                   X
@@ -1745,29 +1731,67 @@ export function TodayChoresPanel({
                 <strong>{pendingApproveChore.coinValue}</strong>
               </p>
               <div className="mb-4 flex flex-col gap-2">
-                {(
-                  pendingApproveChore.assigneeScope === "family"
-                    ? members.filter((member) => member.status === "active").map((member) => member.id)
-                    : pendingApproveChore.assigneeIds && pendingApproveChore.assigneeIds.length > 0
-                      ? pendingApproveChore.assigneeIds
-                      : pendingApproveChore.assigneeId
-                        ? [pendingApproveChore.assigneeId]
-                        : []
-                ).map((assigneeId) => {
+                {pendingApprovalAssigneeIds.map((assigneeId) => {
                   const member = memberByAlias.get(assigneeId);
+                  const selection = approvalSelectionsByAssignee[assigneeId] ?? {
+                    enabled: true,
+                    coinValue: 0,
+                  };
                   return (
-                    <label key={assigneeId} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 p-2">
-                      <span className="inline-flex items-center gap-2 text-sm text-slate-700">
+                    <div
+                      key={assigneeId}
+                      role="button"
+                      tabIndex={0}
+                      className={`approval-assignee-row${selection.enabled ? "" : " is-disabled"}`}
+                      onClick={() =>
+                        setApprovalSelectionsByAssignee((current) =>
+                          toggleApprovalAssigneeSelection(
+                            current,
+                            pendingApprovalAssigneeIds,
+                            assigneeId,
+                            pendingApproveChore.coinValue ?? 0,
+                          ),
+                        )
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") {
+                          return;
+                        }
+                        event.preventDefault();
+                        setApprovalSelectionsByAssignee((current) =>
+                          toggleApprovalAssigneeSelection(
+                            current,
+                            pendingApprovalAssigneeIds,
+                            assigneeId,
+                            pendingApproveChore.coinValue ?? 0,
+                          ),
+                        );
+                      }}>
+                      <span className="inline-flex min-w-0 items-center gap-3 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={selection.enabled}
+                          readOnly
+                          tabIndex={-1}
+                          aria-hidden="true"
+                          className="approval-assignee-checkbox"
+                        />
                         <FamilyMemberAvatar
+                          className={selection.enabled ? undefined : "approval-assignee-avatar-disabled"}
                           size={28}
                           borderWidth={1}
                           name={member?.name || t("dashboard.familyMemberFallback")}
                           avatarId={member?.avatarId || undefined}
                           avatarPhotoUrl={member?.avatarPhotoUrl || undefined}
                         />
-                        <span>{member?.name || assigneeId}</span>
+                        <span className={`approval-assignee-name${selection.enabled ? "" : " is-disabled"}`}>
+                          {member?.name || assigneeId}
+                        </span>
                       </span>
-                      <span className="relative inline-flex items-center">
+                      <span
+                        className="relative inline-flex items-center"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}>
                         <span className="pointer-events-none absolute left-2 inline-flex items-center text-amber-500">
                           <CoinIcon size={14} />
                         </span>
@@ -1775,17 +1799,21 @@ export function TodayChoresPanel({
                           type="number"
                           min={0}
                           step={1}
-                          value={approvalCoinsByAssignee[assigneeId] ?? 0}
+                          disabled={!selection.enabled}
+                          value={selection.enabled ? selection.coinValue : 0}
                           onChange={(event) =>
-                            setApprovalCoinsByAssignee((current) => ({
-                              ...current,
-                              [assigneeId]: Math.max(0, Math.trunc(Number(event.target.value) || 0)),
-                            }))
+                            setApprovalSelectionsByAssignee((current) =>
+                              updateApprovalAssigneeCoins(current, assigneeId, Number(event.target.value) || 0),
+                            )
                           }
-                          className="h-9 w-24 rounded-md border border-slate-300 py-1 pr-2 pl-7 text-right text-slate-800"
+                          className={`h-9 w-24 rounded-md border py-1 pr-2 pl-7 text-right text-slate-800${
+                            selection.enabled
+                              ? " border-slate-300 bg-white"
+                              : " cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                          }`}
                         />
                       </span>
-                    </label>
+                    </div>
                   );
                 })}
               </div>
@@ -1794,7 +1822,10 @@ export function TodayChoresPanel({
                   type="button"
                   className="btn btn-secondary"
                   disabled={Boolean(busyActionsById[pendingApproveChore.id])}
-                  onClick={() => setPendingApproveChore(null)}>
+                  onClick={() => {
+                    setPendingApproveChore(null);
+                    setApprovalSelectionsByAssignee({});
+                  }}>
                   {t("common.actions.cancel")}
                 </Button>
                 <Button

@@ -23,6 +23,12 @@
       }
     ],
     "paths": {
+      "@packages/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@packages/core/*": [
+        "../../packages/core/src/*"
+      ],
       "@packages/locales": [
         "./packages/locales/src/index.ts"
       ],

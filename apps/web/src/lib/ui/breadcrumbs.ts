@@ -72,6 +72,12 @@ export function getWebBreadcrumbTrail(pathname: string, t: Translate): Breadcrum
   }
 
   if (segments[0] === "change-log") {
+    if (segments.length > 1) {
+      return createBreadcrumbTrail([
+        { label: t("breadcrumbs.changeLog"), href: "/change-log" },
+        { label: decodePathSegment(segments[1]) || t("breadcrumbs.page") },
+      ]);
+    }
     return createBreadcrumbTrail([{ label: t("breadcrumbs.changeLog") }]);
   }
 

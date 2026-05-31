@@ -8,8 +8,14 @@ describe("change log locale keys", () => {
     for (const locale of [enUS, frFR, esUS]) {
       expect(locale.changeLog.title).toBeTruthy();
       expect(locale.changeLog.subtitle).toBeTruthy();
+      expect(locale.changeLog.daySubtitle).toBeTruthy();
+      expect(locale.changeLog.daySubtitleMissing).toBeTruthy();
       expect(locale.changeLog.empty).toBeTruthy();
       expect(locale.changeLog.imageAlt).toBeTruthy();
+      expect(locale.changeLog.sections.features).toBeTruthy();
+      expect(locale.changeLog.sections.bugFixes).toBeTruthy();
+      expect(locale.changeLog.sections.emptyFeatures).toBeTruthy();
+      expect(locale.changeLog.sections.emptyBugFixes).toBeTruthy();
       expect(locale.changeLog.types.feature).toBeTruthy();
       expect(locale.changeLog.types.bugFix).toBeTruthy();
       expect(locale.nav.changeLog).toBeTruthy();

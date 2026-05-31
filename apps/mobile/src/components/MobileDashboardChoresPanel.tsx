@@ -1,11 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import {
+  createApprovalAssigneeSelections,
   getDashboardChorePage,
+  listApprovalPayouts,
   sortDashboardChores,
+  toggleApprovalAssigneeSelection,
+  updateApprovalAssigneeCoins,
+  type ApprovalAssigneeSelectionMap,
   type DashboardSortDirection,
   type DashboardSortKey,
-} from "@packages/core/src/chore-dashboard";
+} from "@packages/core";
 import {
   completeMobileChore,
   createMobileChore,
@@ -22,6 +27,7 @@ import {
 } from "@/lib/api";
 import { MobileChoreEditorModal, type MobileChoreEditorSubmitPayload } from "@/components/MobileChoreEditorModal";
 import { loadDashboardChorePreferences, saveDashboardChorePreferences } from "@/lib/mobile-preferences";
+import { useMobileLocale } from "@/lib/locale";
 import { colors, radius, spacing, typography } from "@/theme";
 import { Badge, Button, Card, CoinPill, EmptyState, ErrorState, LoadingState } from "@/components/ui";
 
@@ -46,6 +52,16 @@ function choreMatchesMember(chore: MobileFamilyChore, member: MobileFamilyMember
     (chore.assigneeIds ?? []).some((id) => aliases.has(normalizeAlias(id))) ||
     Boolean(chore.assigneeId && aliases.has(normalizeAlias(chore.assigneeId)))
   );
+}
+
+function getApprovalAssigneeIds(chore: MobileFamilyChore, members: MobileFamilyMember[]) {
+  if (chore.assigneeScope === "family") {
+    return members.filter((member) => member.status === "active").map((member) => member.id);
+  }
+  if (chore.assigneeIds && chore.assigneeIds.length > 0) {
+    return chore.assigneeIds;
+  }
+  return chore.assigneeId ? [chore.assigneeId] : [];
 }
 
 function avatarUrl(avatarId?: string, avatarPhotoUrl?: string) {
@@ -118,6 +134,7 @@ function TableIcon({ color = colors.brandStrong }: { color?: string }) {
 }
 
 export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardChoresPanelProps) {
+  const { t } = useMobileLocale();
   const preferencesViewerKeyRef = useRef("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -138,6 +155,8 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
   const [celebrating, setCelebrating] = useState(false);
   const [menuChoreId, setMenuChoreId] = useState("");
   const [pendingDeleteChore, setPendingDeleteChore] = useState<MobileFamilyChore | null>(null);
+  const [pendingApproveChore, setPendingApproveChore] = useState<MobileFamilyChore | null>(null);
+  const [approvalSelectionsByAssignee, setApprovalSelectionsByAssignee] = useState<ApprovalAssigneeSelectionMap>({});
   const [editOpen, setEditOpen] = useState(false);
   const [editingChore, setEditingChore] = useState<MobileChoreDetail | null>(null);
   const [editLoading, setEditLoading] = useState(false);
@@ -224,8 +243,21 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
   const chorePage = getDashboardChorePage(filteredChores, visibleCount);
   const viewerAliasSet = useMemo(() => new Set(viewerAliases.map(normalizeAlias)), [viewerAliases]);
 
+  function closeApproveModal() {
+    setPendingApproveChore(null);
+    setApprovalSelectionsByAssignee({});
+  }
+
   async function completeChore(chore: MobileFamilyChore) {
     if (busyId) return;
+    const isMultiOrFamily = chore.assigneeScope === "family" || (chore.assigneeIds?.length ?? 0) > 1;
+    const needsApprovalCoinPrompt = isMultiOrFamily || chore.choreType === "see_and_do";
+    if (viewerRole === "admin" && needsApprovalCoinPrompt) {
+      const assigneeIds = getApprovalAssigneeIds(chore, members);
+      setApprovalSelectionsByAssignee(createApprovalAssigneeSelections(assigneeIds, chore.coinValue ?? 0));
+      setPendingApproveChore(chore);
+      return;
+    }
     setBusyId(chore.id);
     setCelebrating(true);
     setTimeout(() => setCelebrating(false), 900);
@@ -235,6 +267,27 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "complete_chore_failed");
       await load();
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  async function completeAndApproveChore() {
+    if (!pendingApproveChore || busyId) {
+      return;
+    }
+    const assigneeIds = getApprovalAssigneeIds(pendingApproveChore, members);
+    setBusyId(pendingApproveChore.id);
+    setError("");
+    try {
+      await completeMobileChore(
+        pendingApproveChore.id,
+        { approvalPayouts: listApprovalPayouts(approvalSelectionsByAssignee, assigneeIds) },
+      );
+      closeApproveModal();
+      await load({ silent: true });
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "complete_and_approve_failed");
     } finally {
       setBusyId("");
     }
@@ -585,14 +638,103 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
           </Pressable>
         </Pressable>
       </Modal>
+      <Modal visible={Boolean(pendingApproveChore)} transparent animationType="fade" onRequestClose={closeApproveModal}>
+        <Pressable style={styles.backdrop} onPress={closeApproveModal}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            {pendingApproveChore ? (
+              <>
+                {(() => {
+                  const assigneeIds = getApprovalAssigneeIds(pendingApproveChore, members);
+                  return (
+                    <>
+                      <Text style={styles.sheetTitle}>{t("dashboard.completeApproveTitle")}</Text>
+                      <Text style={styles.confirmText}>
+                        <Text style={styles.confirmTextStrong}>{pendingApproveChore.title}</Text> {t("dashboard.totalCoins")}{" "}
+                        <Text style={styles.confirmTextStrong}>{pendingApproveChore.coinValue ?? 0}</Text>
+                      </Text>
+                      <ScrollView style={styles.approvalList} contentContainerStyle={styles.approvalListContent}>
+                        {assigneeIds.map((assigneeId) => {
+                          const member = members.find((entry) => memberAliases(entry).includes(normalizeAlias(assigneeId)));
+                          const selection = approvalSelectionsByAssignee[assigneeId] ?? { enabled: true, coinValue: 0 };
+                          return (
+                            <Pressable
+                              key={assigneeId}
+                              accessibilityRole="checkbox"
+                              accessibilityState={{ checked: selection.enabled }}
+                              onPress={() =>
+                                setApprovalSelectionsByAssignee((current) =>
+                                  toggleApprovalAssigneeSelection(
+                                    current,
+                                    assigneeIds,
+                                    assigneeId,
+                                    pendingApproveChore.coinValue ?? 0,
+                                  ),
+                                )
+                              }
+                              style={({ pressed }) => [
+                                styles.approvalRow,
+                                !selection.enabled ? styles.approvalRowDisabled : null,
+                                pressed ? styles.actionPressed : null,
+                              ]}>
+                              <View style={styles.approvalIdentity}>
+                                <View style={[styles.approvalCheckbox, selection.enabled ? styles.approvalCheckboxChecked : null]}>
+                                  {selection.enabled ? <Text style={styles.approvalCheckboxMark}>✓</Text> : null}
+                                </View>
+                                <View style={!selection.enabled ? styles.approvalAvatarDisabled : null}>
+                                  <Avatar
+                                    name={member?.name || assigneeId}
+                                    imageUrl={member ? avatarUrl(member.avatarId, member.avatarPhotoUrl) : ""}
+                                    color={member?.dashboardPrimaryColor}
+                                  />
+                                </View>
+                                <Text style={[styles.approvalName, !selection.enabled ? styles.approvalNameDisabled : null]} numberOfLines={1}>
+                                  {member?.name || assigneeId}
+                                </Text>
+                              </View>
+                              <View style={styles.approvalAmountWrap}>
+                                <Text style={styles.approvalCoinPrefix}>$</Text>
+                                <TextInput
+                                  value={String(selection.enabled ? selection.coinValue : 0)}
+                                  editable={selection.enabled}
+                                  keyboardType="number-pad"
+                                  style={[styles.approvalAmountInput, !selection.enabled ? styles.approvalAmountInputDisabled : null]}
+                                  onChangeText={(value) =>
+                                    setApprovalSelectionsByAssignee((current) =>
+                                      updateApprovalAssigneeCoins(current, assigneeId, Number(value) || 0),
+                                    )
+                                  }
+                                />
+                              </View>
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
+                      <View style={styles.modalActions}>
+                        <Button label={t("common.actions.cancel")} variant="secondary" onPress={closeApproveModal} disabled={Boolean(busyId)} />
+                        <Button
+                          label={busyId === pendingApproveChore.id ? t("common.actions.loading") : t("dashboard.completeAndApprove")}
+                          onPress={() => void completeAndApproveChore()}
+                          disabled={Boolean(busyId)}
+                        />
+                      </View>
+                    </>
+                  );
+                })()}
+              </>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
       <MobileChoreEditorModal
         open={addOpen}
         mode="create"
         members={members}
         categories={categories}
+        defaultAssigneeIds={selectedMember ? [selectedMember.id] : undefined}
         saving={createSaving}
         onClose={() => setAddOpen(false)}
         onSubmit={addChore}
+        viewerKey={preferencesViewerKeyRef.current || "default"}
       />
       <MobileChoreEditorModal
         open={editOpen}
@@ -604,6 +746,7 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
         saving={editSaving}
         onClose={closeEditModal}
         onSubmit={saveEditedChore}
+        viewerKey={preferencesViewerKeyRef.current || "default"}
       />
     </Card>
   );
@@ -763,6 +906,71 @@ const styles = StyleSheet.create({
   sheetTitle: { color: colors.text, fontSize: typography.h3, fontWeight: "900" },
   confirmText: { color: colors.muted, fontSize: typography.body, fontWeight: "700" },
   confirmTextStrong: { color: colors.text, fontWeight: "900" },
+  approvalList: { maxHeight: 320 },
+  approvalListContent: { gap: spacing.sm },
+  approvalRow: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: "#fff",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  approvalRowDisabled: {
+    backgroundColor: "#f8fafc",
+    borderColor: "#dbe4ef",
+  },
+  approvalIdentity: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm, minWidth: 0 },
+  approvalCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  approvalCheckboxChecked: {
+    borderColor: colors.brand,
+    backgroundColor: colors.brand,
+  },
+  approvalCheckboxMark: { color: "#fff", fontSize: typography.small, fontWeight: "900" },
+  approvalAvatarDisabled: { opacity: 0.45 },
+  approvalName: { flex: 1, color: colors.text, fontSize: typography.body, fontWeight: "800" },
+  approvalNameDisabled: { color: colors.muted, textDecorationLine: "line-through" },
+  approvalAmountWrap: { width: 84, position: "relative", justifyContent: "center" },
+  approvalCoinPrefix: {
+    position: "absolute",
+    left: 10,
+    zIndex: 1,
+    color: "#b45309",
+    fontSize: typography.small,
+    fontWeight: "900",
+  },
+  approvalAmountInput: {
+    height: 42,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: "#fff",
+    color: colors.text,
+    paddingLeft: 26,
+    paddingRight: spacing.sm,
+    textAlign: "right",
+    fontSize: typography.body,
+    fontWeight: "800",
+  },
+  approvalAmountInputDisabled: {
+    backgroundColor: "#e2e8f0",
+    color: colors.muted,
+  },
+  modalActions: { flexDirection: "row", gap: spacing.sm },
   celebration: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255, 255, 255, 0.55)" },
   celebrationText: { color: colors.brandStrong, fontSize: 32, fontWeight: "900" },
 });

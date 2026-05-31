@@ -50,8 +50,16 @@
   "changeLog": {
     "title": "Journal des modifications",
     "subtitle": "Dernieres mises a jour",
+    "daySubtitle": "Mises a jour publiees le {date}",
+    "daySubtitleMissing": "Mises a jour du {date}",
     "empty": "Aucune mise a jour pour le moment. Revenez bientot pour voir les nouveautes de Family Chores.",
     "imageAlt": "Illustration de mise a jour pour {subject}",
+    "sections": {
+      "features": "Fonctionnalites",
+      "bugFixes": "Corrections",
+      "emptyFeatures": "Aucune fonctionnalite pour cette journee.",
+      "emptyBugFixes": "Aucune correction pour cette journee."
+    },
     "types": {
       "feature": "Fonctionnalite",
       "bugFix": "Correction"

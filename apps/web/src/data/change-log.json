@@ -1,5 +1,29 @@
 [
   {
+    "id": "group-chore-approval-assignee-toggle",
+    "date": "2026-05-31",
+    "type": "Bug Fix",
+    "subject": "Group chore approval payouts",
+    "description": "Fixed group chore approval so parents can exclude assignees and the remaining coins re-split automatically before approval.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "chore-editor-default-fields",
+    "date": "2026-05-31",
+    "type": "Feature",
+    "subject": "Faster chore editing",
+    "description": "The add chore form now keeps the most-used fields up front, remembers additional options, and defaults the assignee from your dashboard filter.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "dashboard-chore-delete-animation",
+    "date": "2026-05-31",
+    "type": "Bug Fix",
+    "subject": "Dashboard chore deletion",
+    "description": "Removed the extra delete animation from dashboard chore cards so chores disappear more cleanly.",
+    "image": "/file.svg"
+  },
+  {
     "id": "notification-badge-clears-for-players",
     "date": "2026-05-31",
     "type": "Bug Fix",

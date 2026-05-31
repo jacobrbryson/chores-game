@@ -23,9 +23,14 @@ type AchievementsPreferences = {
   hideComplete: boolean;
 };
 
+type ChoreEditorPreferences = {
+  additionalOptionsExpanded: boolean;
+};
+
 const DASHBOARD_PREFIX = "mobile:dashboard:chores";
 const ALL_CHORES_PREFIX = "mobile:chores:list";
 const ACHIEVEMENTS_PREFIX = "mobile:achievements";
+const CHORE_EDITOR_PREFIX = "mobile:chore:editor";
 
 function dashboardKey(viewerKey: string) {
   return `${DASHBOARD_PREFIX}:${viewerKey || "default"}`;
@@ -37,6 +42,10 @@ function allChoresKey(viewerKey: string) {
 
 function achievementsKey(viewerKey: string) {
   return `${ACHIEVEMENTS_PREFIX}:${viewerKey || "default"}`;
+}
+
+function choreEditorKey(viewerKey: string) {
+  return `${CHORE_EDITOR_PREFIX}:${viewerKey || "default"}`;
 }
 
 async function readJson<T>(key: string): Promise<T | null> {
@@ -122,4 +131,15 @@ export async function loadAchievementsPreferences(viewerKey: string): Promise<Ac
 
 export async function saveAchievementsPreferences(viewerKey: string, preferences: AchievementsPreferences) {
   await writeJson(achievementsKey(viewerKey), preferences);
+}
+
+export async function loadChoreEditorPreferences(viewerKey: string): Promise<ChoreEditorPreferences> {
+  const stored = await readJson<Partial<ChoreEditorPreferences>>(choreEditorKey(viewerKey));
+  return {
+    additionalOptionsExpanded: Boolean(stored?.additionalOptionsExpanded),
+  };
+}
+
+export async function saveChoreEditorPreferences(viewerKey: string, preferences: ChoreEditorPreferences) {
+  await writeJson(choreEditorKey(viewerKey), preferences);
 }
