@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { humanizeEnum } from "@/components/enum-chip";
 import { useLocale } from "@/components/locale-provider";
 import { getWebBreadcrumbSubtitle, getWebBreadcrumbTrail } from "@/lib/ui/breadcrumbs";
+import { useNotFound } from "@/lib/not-found-context";
 
 type AppBreadcrumbsProps = {
   hideGuestHomepage?: boolean;
@@ -15,6 +16,11 @@ type AppBreadcrumbsProps = {
 export function AppBreadcrumbs({ hideGuestHomepage = false }: AppBreadcrumbsProps) {
   const pathname = usePathname();
   const { t } = useLocale();
+  const { isNotFound } = useNotFound();
+
+  if (isNotFound) {
+    return null;
+  }
   const [memberBreadcrumb, setMemberBreadcrumb] = useState<{
     name: string;
     status: "active" | "invited";

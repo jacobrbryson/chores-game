@@ -12,6 +12,7 @@ import { PartyConfettiOverlay } from "@/components/party-confetti-overlay";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
 import { parseSessionToken } from "@/lib/auth/session";
 import { DEFAULT_LOCALE } from "@/lib/locale";
+import { NotFoundProvider } from "@/lib/not-found-context";
 
 export const metadata: Metadata = {
   title: "Family Chores",
@@ -51,6 +52,7 @@ export default async function RootLayout({
         />
       </head>
       <body className="antialiased">
+        <NotFoundProvider>
         <LocaleProvider initialLocale={locale}>
           <Suspense fallback={null}>
             <NavigationHistoryTracker />
@@ -69,6 +71,7 @@ export default async function RootLayout({
             </div>
           </div>
         </LocaleProvider>
+        </NotFoundProvider>
       </body>
     </html>
   );

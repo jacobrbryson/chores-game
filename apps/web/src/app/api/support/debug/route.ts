@@ -186,6 +186,14 @@ async function listCollectionGroup(collectionId: string, limit: number) {
   });
 }
 
+async function listAdminMembers() {
+  const docs = await adminRunQuery({
+    from: [{ collectionId: "members", allDescendants: true }],
+    limit: 2000,
+  });
+  return docs.filter((doc) => readString(doc.fields, "role") === "admin");
+}
+
 export async function GET(request: NextRequest) {
   const session = getSessionFromRequest(request);
   if (!session?.uid) {
@@ -202,13 +210,34 @@ export async function GET(request: NextRequest) {
   const selectedChoreId = (url.searchParams.get("choreId") ?? "").trim();
 
   try {
-    const [userDocs, familyDocs, choreDocs, auditDocs, notificationDocs] = await Promise.all([
+    const [userDocs, familyDocs, choreDocs, auditDocs, notificationDocs, adminMemberDocs] = await Promise.all([
       adminListDocuments("users", MAX_SUPPORT_ROWS),
       adminListDocuments("families", MAX_SUPPORT_ROWS),
       listCollectionGroup("chores", MAX_SUPPORT_ROWS),
       listCollectionGroup("auditLogs", 300),
       listCollectionGroup("notifications", 300),
+      listAdminMembers(),
     ]);
+
+    const emailByUid = new Map<string, string>();
+    for (const doc of userDocs) {
+      const uid = readString(doc.fields, "uid") || documentIdFromName(doc.name);
+      const email = readString(doc.fields, "email");
+      if (uid && email) emailByUid.set(uid, email);
+    }
+
+    const adminsByFamilyId = new Map<string, Array<{ name: string }>>();
+    const seenAdminKeys = new Set<string>();
+    for (const doc of adminMemberDocs) {
+      const fid = familyIdFromDocumentName(doc.name);
+      if (!fid) continue;
+      const uid = readString(doc.fields, "uid");
+      const name = readString(doc.fields, "name") || readString(doc.fields, "email") || "Admin";
+      const dedupeKey = `${fid}:${name}`;
+      if (seenAdminKeys.has(dedupeKey)) continue;
+      seenAdminKeys.add(dedupeKey);
+      adminsByFamilyId.set(fid, [...(adminsByFamilyId.get(fid) ?? []), { name }]);
+    }
 
     const users = userDocs
       .map(normalizeUser)
@@ -216,8 +245,15 @@ export async function GET(request: NextRequest) {
         containsQuery([user.uid, user.email, user.name, user.role, user.familyIds.join(" ")], query),
       );
     const families = familyDocs
-      .map(normalizeFamily)
-      .filter((family) => containsQuery([family.id, family.name, family.createdBy], query));
+      .map((doc) => {
+        const base = normalizeFamily(doc);
+        return {
+          ...base,
+          createdByEmail: emailByUid.get(base.createdBy) ?? "",
+          admins: adminsByFamilyId.get(base.id) ?? [],
+        };
+      })
+      .filter((family) => containsQuery([family.id, family.name, family.createdBy, family.createdByEmail], query));
     const chores = sortByUpdatedAtDesc(choreDocs.map(normalizeChore))
       .filter((chore) => !selectedFamilyId || chore.familyId === selectedFamilyId)
       .filter((chore) => !selectedUserId || chore.assigneeId === selectedUserId || chore.assigneeIds.includes(selectedUserId) || chore.googleTaskOwnerUid === selectedUserId)

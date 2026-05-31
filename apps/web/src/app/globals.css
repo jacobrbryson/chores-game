@@ -1826,6 +1826,16 @@ body {
   background: color-mix(in srgb, var(--accent) 24%, #ffffff);
 }
 
+.btn-danger {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+.btn-danger:hover {
+  background: #fecaca;
+}
+
 button:disabled,
 input:disabled,
 select:disabled,

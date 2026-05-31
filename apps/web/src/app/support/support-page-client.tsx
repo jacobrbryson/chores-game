@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
+import { ModalShell } from "@/components/modal-shell";
 import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
 
 type SupportUser = {
@@ -22,7 +23,9 @@ type SupportFamily = {
   id: string;
   name: string;
   createdBy: string;
+  createdByEmail: string;
   createdAt: string;
+  admins: Array<{ name: string }>;
 };
 
 type SupportChore = {
@@ -346,6 +349,13 @@ export default function SupportPageClient() {
   const [selectedEvent, setSelectedEvent] = useState<SupportEvent | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    entity: "family" | "user" | "chore";
+    id: string;
+    label: string;
+    familyId?: string;
+  } | null>(null);
 
   const loadSupportData = useCallback(async () => {
     const params = new URLSearchParams();
@@ -531,6 +541,53 @@ export default function SupportPageClient() {
     };
   }, [choreLedger, choreTimeline, selectedChore]);
 
+  function deleteEntity(
+    entity: "family" | "user" | "chore",
+    id: string,
+    label: string,
+    familyId?: string,
+  ) {
+    setPendingDelete({ entity, id, label, familyId });
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const { entity, id, familyId } = pendingDelete;
+    setPendingDelete(null);
+    setDeleting(id);
+    setError("");
+    try {
+      const response = await fetch("/api/support/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entity, id, familyId }),
+      });
+      const data = (await response.json()) as { message?: string; error?: string };
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Delete failed");
+      }
+      setPayload((prev) => {
+        if (!prev) return prev;
+        if (entity === "family") {
+          return { ...prev, families: prev.families.filter((f) => f.id !== id) };
+        }
+        if (entity === "user") {
+          return { ...prev, users: prev.users.filter((u) => u.uid !== id) };
+        }
+        return {
+          ...prev,
+          chores: prev.chores.map((c) =>
+            c.id === id && c.familyId === familyId ? { ...c, status: "Deleted" } : c,
+          ),
+        };
+      });
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Delete failed");
+    } finally {
+      setDeleting(null);
+    }
+  }
+
   function inspectChore(chore: SupportChore) {
     setFamilyId(chore.familyId);
     setUserId(chore.assigneeId || chore.googleTaskOwnerUid);
@@ -666,6 +723,7 @@ export default function SupportPageClient() {
                     <th className="px-3 py-2">Family</th>
                     <th className="px-3 py-2">Created By</th>
                     <th className="px-3 py-2">Created</th>
+                    <th className="px-3 py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -676,10 +734,28 @@ export default function SupportPageClient() {
                       onClick={() => setFamilyId(family.id)}>
                       <td className="px-3 py-2">
                         <div className="font-semibold text-slate-900">{family.name}</div>
-                        <div className="text-xs text-slate-500">{family.id}</div>
+                        {family.admins.length > 0 ? (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {family.admins.map((admin) => (
+                              <span
+                                key={admin.name}
+                                className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                                {admin.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </td>
-                      <td className="px-3 py-2">{compactId(family.createdBy)}</td>
+                      <td className="px-3 py-2">{family.createdByEmail || compactId(family.createdBy)}</td>
                       <td className="px-3 py-2">{formatDate(family.createdAt)}</td>
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          className="btn btn-danger"
+                          disabled={deleting === family.id}
+                          onClick={() => void deleteEntity("family", family.id, family.name)}>
+                          {deleting === family.id ? "Deleting…" : "Delete"}
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -726,6 +802,7 @@ export default function SupportPageClient() {
                     <th className="px-3 py-2">Coins</th>
                     <th className="px-3 py-2">Tasks</th>
                     <th className="px-3 py-2">Last Sign In</th>
+                    <th className="px-3 py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -738,12 +815,20 @@ export default function SupportPageClient() {
                         <div className="font-semibold text-slate-900">
                           {user.name || user.email || user.uid}
                         </div>
-                        <div className="text-xs text-slate-500">{compactId(user.uid)}</div>
+                        <div className="text-xs text-slate-500">{user.email || "-"}</div>
                       </td>
                       <td className="px-3 py-2">{user.role}</td>
                       <td className="px-3 py-2">{user.walletBalance}</td>
                       <td className="px-3 py-2">{user.googleTasksLinked ? "Linked" : "-"}</td>
                       <td className="px-3 py-2">{formatDate(user.lastSignInAt)}</td>
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          className="btn btn-danger"
+                          disabled={deleting === user.uid}
+                          onClick={() => void deleteEntity("user", user.uid, user.name || user.email || user.uid)}>
+                          {deleting === user.uid ? "Deleting…" : "Delete"}
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -813,9 +898,17 @@ export default function SupportPageClient() {
                       <td className="px-3 py-2">{formatDate(chore.submittedAt)}</td>
                       <td className="px-3 py-2">{formatDate(chore.updatedAt)}</td>
                       <td className="px-3 py-2">
-                        <Button className="btn btn-secondary" onClick={() => inspectChore(chore)}>
-                          Inspect
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button className="btn btn-secondary" onClick={() => inspectChore(chore)}>
+                            Inspect
+                          </Button>
+                          <Button
+                            className="btn btn-danger"
+                            disabled={deleting === chore.id || chore.status === "Deleted"}
+                            onClick={() => void deleteEntity("chore", chore.id, chore.title, chore.familyId)}>
+                            {deleting === chore.id ? "Deleting…" : "Delete"}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1005,6 +1098,45 @@ export default function SupportPageClient() {
           </pre>
         </section>
       ) : null}
+      <ModalShell open={Boolean(pendingDelete)} onRequestClose={() => setPendingDelete(null)}>
+        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+          {pendingDelete ? (
+            <>
+              <div className="modal-dialog-title-row mb-3">
+                <h3 className="text-lg font-bold text-slate-800">
+                  Delete {pendingDelete.entity}?
+                </h3>
+                <Button
+                  type="button"
+                  className="modal-close-button"
+                  onClick={() => setPendingDelete(null)}
+                  aria-label="Close">
+                  ✕
+                </Button>
+              </div>
+              <p className="mb-5 text-sm text-slate-600">
+                Are you sure you want to permanently delete{" "}
+                <strong className="text-slate-900">{pendingDelete.label}</strong>? This cannot be
+                undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setPendingDelete(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => void confirmDelete()}>
+                  Delete
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </ModalShell>
     </main>
   );
 }

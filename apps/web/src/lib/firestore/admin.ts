@@ -211,6 +211,25 @@ export async function adminPatchDocument(
   });
 }
 
+export async function adminDeleteDocument(path: string) {
+  const token = await getAdminAccessToken();
+  const response = await fetch(`${baseDocumentsUrl()}/${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const json = (await response.json()) as { error?: { message?: string } };
+      detail = json.error?.message ?? "";
+    } catch {
+      detail = await response.text();
+    }
+    throw new Error(`FIRESTORE_ADMIN_HTTP_${response.status}${detail ? `_${detail}` : ""}`);
+  }
+}
+
 export async function adminCreateOrReplaceDocument(
   path: string,
   fields: Record<string, FirestoreValue>,
