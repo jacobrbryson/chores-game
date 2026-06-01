@@ -177,6 +177,10 @@ export function getWebBreadcrumbSubtitle(pathname: string, t: Translate): string
     return t("breadcrumbs.profileSubtitle");
   }
 
+  if (segments[0] === "docs" && segments[1] === "api") {
+    return t("breadcrumbs.apiSubtitle");
+  }
+
   if (segments[0] === "change-log") {
     return t("breadcrumbs.changeLogSubtitle");
   }

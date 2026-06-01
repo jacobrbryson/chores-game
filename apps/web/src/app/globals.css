@@ -1324,6 +1324,20 @@ body {
   margin-top: 22px;
 }
 
+.marketing-hero-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.marketing-hero-actions-note {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  color: #e2eefb;
+}
+
 .marketing-hero-note {
   margin-top: 14px;
   max-width: 46ch;
@@ -1692,7 +1706,7 @@ body {
 
 .marketing-final-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
@@ -1984,6 +1998,50 @@ textarea:disabled {
 .family-panel h3 {
   margin: 0;
   color: #1c4e84;
+}
+
+.dashboard-onboarding-card {
+  padding: 16px;
+}
+
+.dashboard-onboarding-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-onboarding-card p.small {
+  margin-top: 6px;
+  color: #335985;
+}
+
+.dashboard-onboarding-dismiss {
+  flex: 0 0 auto;
+  margin: -6px -6px 0 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: #5a7aa6;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.dashboard-onboarding-dismiss:hover {
+  background: rgb(28 78 132 / 0.08);
+  color: #1c4e84;
+}
+
+.dashboard-onboarding-dismiss:focus-visible {
+  outline: 2px solid #5f86b5;
+  outline-offset: 2px;
 }
 
 .today-chores-layout {
@@ -2756,6 +2814,51 @@ textarea:disabled {
   display: block;
   width: 100%;
   margin-top: 2px;
+}
+
+.dashboard-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 28px 16px 24px;
+}
+
+.dashboard-empty-state-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 6px;
+  border-radius: 999px;
+  background: #e3eefc;
+  color: #2f6dbf;
+}
+
+.dashboard-empty-state-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.dashboard-empty-state-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1c4e84;
+}
+
+.dashboard-empty-state-body {
+  margin: 0;
+  max-width: 34ch;
+  color: #5a7aa6;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.dashboard-empty-state-actions {
+  margin-top: 10px;
 }
 
 .chores-add-more-cta {

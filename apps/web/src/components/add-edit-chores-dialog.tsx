@@ -343,10 +343,20 @@ export function AddEditChoresDialog({
     setAssigneeHydrated(true);
   }
 
+  // Reveal Additional Options from the locally stored preference, but only ever
+  // open it — never collapse — so a new chore that starts hidden does not flash
+  // open and then snap shut while the saved preference is resolving.
+  function revealAdditionalOptionsFromStorage() {
+    if (readAdditionalOptionsPreferenceFromStorage()) {
+      setShowAdditionalOptions(true);
+    }
+  }
+
   async function loadAdditionalOptionsPreference() {
     try {
       const response = await fetch("/api/preferences", { cache: "no-store" });
       if (!response.ok) {
+        revealAdditionalOptionsFromStorage();
         return;
       }
       const payload = (await response.json()) as {
@@ -355,9 +365,11 @@ export function AddEditChoresDialog({
       if (typeof payload.choreAdvancedOptionsOpenV2 === "boolean") {
         setShowAdditionalOptions(payload.choreAdvancedOptionsOpenV2);
         writeAdditionalOptionsPreferenceToStorage(payload.choreAdvancedOptionsOpenV2);
+      } else {
+        revealAdditionalOptionsFromStorage();
       }
     } catch {
-      // Keep local fallback value.
+      revealAdditionalOptionsFromStorage();
     }
   }
 
@@ -402,7 +414,10 @@ export function AddEditChoresDialog({
     setError("");
     setAssigneeHydrated(false);
     const localAdditionalOptionsPreference = readAdditionalOptionsPreferenceFromStorage();
-    hydrateFromChore(localAdditionalOptionsPreference);
+    // New chores always start with Additional Options hidden, then the saved
+    // preference (server, with local fallback) reveals it if it is set to open.
+    // Edit mode keeps the stored preference so existing field values stay visible.
+    hydrateFromChore(isEditMode ? localAdditionalOptionsPreference : false);
     void Promise.all([loadSuggestions(), loadMembers()]).catch((loadError) => {
       setError(normalizeError(loadError));
     });

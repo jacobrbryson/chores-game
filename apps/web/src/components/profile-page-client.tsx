@@ -138,6 +138,7 @@ export function ProfilePageClient({
     storageKey: "profile-page-active-tab",
     defaultTab: "general",
     validTabs: PROFILE_TAB_IDS,
+    urlParamKey: "tab",
   });
 
   const loadStoreSummary = useCallback(async () => {

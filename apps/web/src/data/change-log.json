@@ -1,5 +1,37 @@
 [
   {
+    "id": "dashboard-empty-state-polish",
+    "date": "2026-05-31",
+    "type": "Feature",
+    "subject": "A friendlier empty dashboard",
+    "description": "When there are no open chores, the dashboard now shows a clear, friendly message with an icon and a quick action to add a chore, instead of a single line of text.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "dashboard-onboarding-nudges",
+    "date": "2026-05-31",
+    "type": "Feature",
+    "subject": "Friendlier first steps",
+    "description": "Parents whose family has no kids yet now see a gentle prompt to add their first family member, and brand-new players get a quick welcome explaining how to earn and spend coins. Both can be dismissed.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "new-user-signin-bootstrap-fix",
+    "date": "2026-05-31",
+    "type": "Bug Fix",
+    "subject": "First-time Google sign-in",
+    "description": "Fixed an error that could stop brand-new accounts from finishing their first Google sign-in and creating their family.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "new-family-starter-content",
+    "date": "2026-05-31",
+    "type": "Feature",
+    "subject": "A head start for new families",
+    "description": "New families now begin with a guided getting-started checklist, example categories, and a starter reward so your dashboard is ready to use right away. Complete the steps to set up your family, then edit or remove anything to make it your own.",
+    "image": "/file.svg"
+  },
+  {
     "id": "group-chore-approval-assignee-toggle",
     "date": "2026-05-31",
     "type": "Bug Fix",

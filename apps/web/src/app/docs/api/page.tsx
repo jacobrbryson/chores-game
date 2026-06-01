@@ -1,22 +1,10 @@
-import { BackLink } from "@/components/back-link";
-
 export default function PublicApiDocsPage() {
   return (
-    <main className="panel family-page">
-      <div className="page-header-row">
-        <div className="page-header-inline">
-          <BackLink className="page-back-link" fallbackHref="/" />
-          <h1>Public API Docs</h1>
-        </div>
-      </div>
-      <p className="small family-page-subhead">
-        Interactive Swagger documentation for the read-only Family Chores public API.
-      </p>
-      <section className="family-page-card">
-        <iframe
-          title="Family Chores Swagger UI"
-          className="min-h-[78vh] w-full rounded-xl border border-slate-200 bg-white"
-          srcDoc={`<!doctype html>
+    <main className="space-y-3">
+      <iframe
+        title="Family Chores Swagger UI"
+        className="min-h-[78vh] w-full rounded-xl border border-slate-200 bg-white"
+        srcDoc={`<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -36,11 +24,10 @@ export default function PublicApiDocsPage() {
     </script>
   </body>
 </html>`}
-        />
-        <p className="small mt-3">
-          Raw OpenAPI JSON: <a href="/api/docs/openapi.json">/api/docs/openapi.json</a>
-        </p>
-      </section>
+      />
+      <p className="small mt-3">
+        Raw OpenAPI JSON: <a href="/api/docs/openapi.json">/api/docs/openapi.json</a>
+      </p>
     </main>
   );
 }

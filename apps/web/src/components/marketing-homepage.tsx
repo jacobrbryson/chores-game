@@ -181,6 +181,29 @@ export function MarketingHomepage({
               Parents get structure and control. Kids get visible progress, rewards,
               and game-like momentum that help responsibility feel real instead of abstract.
             </p>
+            <div className="marketing-hero-actions">
+              {hasGoogleCta ? (
+                <GoogleSignInButton
+                  mode="gsi"
+                  clientId={googleClientId!}
+                  loginUri={gsiLoginUri!}
+                  width={280}
+                  includeOnload={false}
+                  includeScript={false}
+                  wrapperClassName="google-signin-wrap marketing-google-cta"
+                />
+              ) : (
+                <Link href="#get-started" className="btn btn-primary">
+                  Get started
+                </Link>
+              )}
+              <Link href="#how-it-works" className="btn btn-secondary">
+                See how it works
+              </Link>
+            </div>
+            <p className="marketing-hero-actions-note">
+              Free to start. Sign in with Google to create your family in seconds.
+            </p>
           </div>
 
           <div className="marketing-hero-side">

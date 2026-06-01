@@ -8,6 +8,7 @@ import { CoinIcon } from "@/components/coin-icon";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { MenuActionButton } from "@/components/menu-action-button";
 import { ModalShell } from "@/components/modal-shell";
+import Link from "next/link";
 import { CSSProperties, useState } from "react";
 import type { FamilySnapshotChore } from "@/lib/family/types";
 
@@ -98,6 +99,10 @@ export function TodayChoreCard({
   const assigneeAvatarPhotoUrl = chore.assigneeAvatarPhotoUrl?.trim() || "";
   const isMultiOrFamilyAssignee =
     chore.assigneeScope === "family" || (chore.assigneeIds?.length ?? 0) > 1;
+  const actionHref = chore.actionHref?.trim() || "";
+  // Only honor internal app links (defense against seeded/edited external URLs).
+  const hasInternalActionHref = actionHref.startsWith("/") && !actionHref.startsWith("//");
+  const actionLabel = chore.actionLabel?.trim() || "Open";
 
   return (
     <li
@@ -183,8 +188,18 @@ export function TodayChoreCard({
               primaryColor={assigneePrimaryColor || undefined}
             />
             <div className="flex min-w-0 flex-col items-start gap-1">
-              <span className="today-chore-title-row">
-                <strong className="block break-words">{chore.title}</strong>
+              <span className="today-chore-title-row flex flex-wrap items-center gap-x-2 gap-y-1">
+                <strong className="break-words">{chore.title}</strong>
+                {hasInternalActionHref ? (
+                  <Link
+                    href={actionHref}
+                    draggable={false}
+                    onClick={(event) => event.stopPropagation()}
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:underline">
+                    {actionLabel}
+                    <span aria-hidden="true">&#8594;</span>
+                  </Link>
+                ) : null}
               </span>
               <span className="block break-words">{chore.assigneeName}</span>
               {(chore.categories?.length ?? 0) > 0 ? (

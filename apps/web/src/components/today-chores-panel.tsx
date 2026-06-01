@@ -1492,18 +1492,30 @@ export function TodayChoresPanel({
           </div>
           {choreActionError ? <Alert className="mb-3">{t("dashboard.choreUpdateError", { error: choreActionError })}</Alert> : null}
           {visibleChores.length === 0 ? (
-            <div className="flex flex-col gap-3 pt-1">
-              <p className="small">
+            <div className="dashboard-empty-state">
+              <span className="dashboard-empty-state-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 4.5h6a1 1 0 0 1 1 1v.5a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-.5a1 1 0 0 1 1-1Z" />
+                  <path d="M8 5.5H6a1 1 0 0 0-1 1V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6.5a1 1 0 0 0-1-1h-2" />
+                  <path d="m9 13 2 2 4-4" />
+                </svg>
+              </span>
+              <h4 className="dashboard-empty-state-title">
+                {selectedChoreMember
+                  ? t("dashboard.emptyHeadingMember", { name: selectedChoreMember.name })
+                  : t("dashboard.emptyHeading")}
+              </h4>
+              <p className="dashboard-empty-state-body">
                 {selectedChoreMember
                   ? t("dashboard.noChoresAssigned", { name: selectedChoreMember.name })
                   : t("dashboard.noOpenChores")}
               </p>
               {canCreateChores ? (
-                <div className="chores-empty-cta">
+                <div className="dashboard-empty-state-actions">
                   <AddEditChoresDialog
                     createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
                     defaultAssigneeIds={selectedChoreMember ? [selectedChoreMember.id] : undefined}
-                    triggerLabel={playerSeeAndDoMode ? t("dashboard.addSeeAndDoChore") : t("common.actions.add")}
+                    triggerLabel={playerSeeAndDoMode ? t("dashboard.addSeeAndDoChore") : t("dashboard.addChore")}
                     onSaved={onChoreSaved}
                   />
                 </div>

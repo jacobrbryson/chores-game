@@ -67,6 +67,10 @@ export type FamilySnapshotChore = {
   recurrenceType?: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: ChoreRecurrenceUnit;
+  // Optional in-app deep link (e.g. seeded getting-started tasks point at /family,
+  // /store, /profile). When present the dashboard card shows a quick-jump link.
+  actionHref?: string;
+  actionLabel?: string;
 };
 
 export type FamilySummaryResponse = {

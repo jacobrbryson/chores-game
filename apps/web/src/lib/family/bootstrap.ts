@@ -2,12 +2,11 @@ import { randomUUID } from "node:crypto";
 import {
   boolField,
   createOrReplaceDocument,
-  patchDocument,
-  stringArrayField,
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
 import { DEFAULT_LOCALE } from "@/lib/locale";
+import { seedStarterContent } from "@/lib/family/starter-content";
 
 type CreateFamilyForUserInput = {
   uid: string;
@@ -52,17 +51,21 @@ export async function createFamilyForUser({
     idToken,
   );
 
-  await patchDocument(
-    `users/${uid}`,
-    {
-      uid: stringField(uid),
-      locale: stringField(DEFAULT_LOCALE),
-      familyIds: stringArrayField([familyId]),
-      lastFamilyUpdateAt: timestampField(now),
-    },
-    idToken,
-    ["familyIds", "lastFamilyUpdateAt", "locale", "uid"],
-  );
+  // NOTE: we intentionally do NOT write the `users/{uid}` document here.
+  // For brand-new users that doc does not exist yet, and the hardened Firestore
+  // rules (`isValidSelfUserCreate`) reject a partial create — which previously
+  // failed sign-in with FIRESTORE_HTTP_403. Each caller is responsible for
+  // persisting the user doc with a complete, rules-valid shape:
+  //   - Google auth routes write the full `authFields` user doc right after this.
+  //   - The family members route relinks `familyIds` onto the existing admin doc.
+
+  // Best-effort starter content so the new family lands on a live dashboard.
+  // A seeding failure must never block sign-in / family creation.
+  try {
+    await seedStarterContent({ familyId, uid, userName, idToken });
+  } catch (error) {
+    console.error("[BOOTSTRAP] starter content seeding failed", error);
+  }
 
   return familyId;
 }

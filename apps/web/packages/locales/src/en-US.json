@@ -133,7 +133,14 @@
     "completeApproveTitle": "Complete and Approve Chore",
     "totalCoins": "total coins:",
     "familyMemberFallback": "Family member",
-    "completeAndApprove": "Complete and Approve"
+    "completeAndApprove": "Complete and Approve",
+    "addMemberNudgeTitle": "Add your first family member",
+    "addMemberNudgeBody": "Chores, coins, and rewards come to life once someone is there to earn them. Add a child or co-parent to get the whole family going.",
+    "addMemberNudgeCta": "Add a family member",
+    "playerWelcomeTitle": "Welcome! Here's how it works",
+    "playerWelcomeBody": "Complete your chores to earn coins, then spend them in the Store on themes, avatars, confetti, and family rewards.",
+    "emptyHeading": "You're all caught up!",
+    "emptyHeadingMember": "Nothing for {name} right now"
   },
   "choreDialog": {
     "addTitle": "Add Chores",
@@ -469,6 +476,7 @@
     "privacyPolicy": "Privacy Policy",
     "termsOfService": "Terms of Service",
     "page": "Page",
+    "apiSubtitle": "Interactive Swagger documentation for the read-only Family Chores public API.",
     "changeLogSubtitle": "Latest updates and fixes from the Family Chores app.",
     "choresSubtitle": "Sort, filter, and approve chores",
     "profileSubtitle": "Your account details and personalization settings.",

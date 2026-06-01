@@ -337,6 +337,7 @@ export default function FamilyPage() {
     storageKey: "family-page-active-tab",
     defaultTab: "members",
     validTabs: FAMILY_TAB_IDS,
+    urlParamKey: "tab",
   });
 
   const [showCategoryManager, setShowCategoryManager] = useState(false);

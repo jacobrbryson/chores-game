@@ -763,6 +763,8 @@ export async function GET(
               idToken,
             ),
             details: readString(choreDoc.fields, "details") || undefined,
+            actionHref: readString(choreDoc.fields, "actionHref") || undefined,
+            actionLabel: readString(choreDoc.fields, "actionLabel") || undefined,
             dueDate: readString(choreDoc.fields, "dueDate"),
             categoryIds,
             categories: resolveChoreCategories(categoryIds, categoryMap),

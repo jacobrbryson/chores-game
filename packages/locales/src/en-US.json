@@ -469,6 +469,7 @@
     "privacyPolicy": "Privacy Policy",
     "termsOfService": "Terms of Service",
     "page": "Page",
+    "apiSubtitle": "Interactive Swagger documentation for the read-only Family Chores public API.",
     "changeLogSubtitle": "Latest updates and fixes from the Family Chores app.",
     "choresSubtitle": "Sort, filter, and approve chores",
     "profileSubtitle": "Your account details and personalization settings.",

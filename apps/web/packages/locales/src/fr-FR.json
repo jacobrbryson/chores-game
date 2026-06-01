@@ -133,7 +133,14 @@
     "completeApproveTitle": "Terminer et approuver la tâche",
     "totalCoins": "pièces totales :",
     "familyMemberFallback": "Membre de la famille",
-    "completeAndApprove": "Terminer et approuver"
+    "completeAndApprove": "Terminer et approuver",
+    "addMemberNudgeTitle": "Ajoutez votre premier membre de la famille",
+    "addMemberNudgeBody": "Les tâches, les pièces et les récompenses prennent vie dès qu'une personne peut les gagner. Ajoutez un enfant ou un coparent pour lancer toute la famille.",
+    "addMemberNudgeCta": "Ajouter un membre de la famille",
+    "playerWelcomeTitle": "Bienvenue ! Voici comment ça marche",
+    "playerWelcomeBody": "Terminez vos tâches pour gagner des pièces, puis dépensez-les dans la boutique pour des thèmes, des avatars, des confettis et des récompenses familiales.",
+    "emptyHeading": "Vous êtes à jour !",
+    "emptyHeadingMember": "Rien pour {name} pour le moment"
   },
   "choreDialog": {
     "addTitle": "Ajouter des tâches",
@@ -469,6 +476,7 @@
     "privacyPolicy": "Politique de confidentialité",
     "termsOfService": "Conditions d'utilisation",
     "page": "Page",
+    "apiSubtitle": "Documentation Swagger interactive pour l'API publique en lecture seule de Family Chores.",
     "changeLogSubtitle": "Dernieres mises a jour et corrections de l'application Family Chores.",
     "choresSubtitle": "Triez, filtrez et approuvez les tâches",
     "profileSubtitle": "Les détails de votre compte et vos réglages de personnalisation.",

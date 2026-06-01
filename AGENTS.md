@@ -59,7 +59,7 @@ Build a family chore game where:
 - Add or update stable translation keys whenever UI copy changes, and keep supported locale files synchronized.
 - Initial supported locale files are `fr-FR`, `en-US`, and `es-US`, in that order.
 - Any new feature, notable user-facing change, or bug fix should add or update an entry in the web changelog JSON.
-- When a new changelog date is added to `apps/web/src/data/change-log.json`, add a matching `<url>` entry for that date in `apps/web/public/sitemap.xml`.
+- Changelog dates are included in the sitemap automatically via `apps/web/src/app/sitemap.ts`, which reads from the changelog JSON at build time — no manual sitemap edits needed when adding changelog entries.
 - Changelog entries must include `image`, `date`, `type`, `subject`, and `description`.
 - User-facing changelog page labels must be localized in all supported locale files.
 - Keep changelog entries concise and user-friendly; do not include internal implementation details.
@@ -632,3 +632,13 @@ Build a family chore game where:
   - Mobile Achievements now uses the richer web-backed achievements payload through `/api/v1/achievements`, preserving the legacy `items` field while also exposing `viewerRole` and full achievement metadata.
   - Mobile Achievements now matches web behavior more closely with admin audience tabs, player-only restriction handling, total/completed summary chips, a persisted `Hide Complete` toggle, and richer achievement cards with imagery, progress, and completed-date states.
   - Mobile achievement cards now request native-safe PNG renders of the web SVG catalog art through `GET /api/achievement-images/[imageName]`, so mobile uses the same achievement artwork as web without relying on native SVG image support.
+- New-family onboarding and sign-in bootstrap fix (2026-05-31):
+  - Brand-new families are now seeded with starter content on creation via `apps/web/src/lib/family/starter-content.ts`, so the first dashboard is live instead of empty. The seeded chores are a guided getting-started checklist (Add a family member, Assign your first chore, Create a family award, Sync with Google Tasks, Purchase an item in the store) under a `Getting Started` category, alongside a few example categories and one starter family reward. Seeding is best-effort and never blocks sign-in.
+  - The logged-out marketing homepage hero now includes a primary Google sign-in CTA (previously the only sign-in button was at the bottom of the page).
+  - Fixed first-time Google sign-in failing with `FIRESTORE_HTTP_403`: `createFamilyForUser` no longer writes the `users/{uid}` document. For new users that partial create violated the hardened `isValidSelfUserCreate` rule. Callers now own the user doc — the Google auth routes write the full `authFields` user doc immediately after bootstrap, and `POST /api/family/members` relinks `familyIds` onto the existing admin user doc after auto-creating a family.
+- Dashboard onboarding nudges (Tier 2) update (2026-05-31):
+  - Added `apps/web/src/components/dashboard-onboarding.tsx` with two dismissible, localized dashboard cards rendered by `FamilyCard`:
+    - `DashboardAddMemberNudge`: shown to admins whose family has no active `player` member, with a CTA to `/family?tab=members`.
+    - `DashboardPlayerWelcome`: shown to a brand-new player (lifetime coins earned == 0), explaining the earn/spend loop.
+  - Both persist dismissal in localStorage keyed by `familyId` + viewer uid and start hidden until storage resolves (no flash).
+  - New `dashboard.addMemberNudge*` and `dashboard.playerWelcome*` keys added to all supported locale files (`en-US`, `es-US`, `fr-FR`).

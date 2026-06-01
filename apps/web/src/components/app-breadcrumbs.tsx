@@ -18,9 +18,6 @@ export function AppBreadcrumbs({ hideGuestHomepage = false }: AppBreadcrumbsProp
   const { t } = useLocale();
   const { isNotFound } = useNotFound();
 
-  if (isNotFound) {
-    return null;
-  }
   const [memberBreadcrumb, setMemberBreadcrumb] = useState<{
     name: string;
     status: "active" | "invited";
@@ -42,10 +39,6 @@ export function AppBreadcrumbs({ hideGuestHomepage = false }: AppBreadcrumbsProp
       day: "2-digit",
       year: "numeric",
     }).format(new Date(parsed));
-  }
-
-  if (hideGuestHomepage && pathname === "/") {
-    return null;
   }
 
   const familyMemberMatch = useMemo(() => pathname.match(/^\/family\/([^/]+)$/), [pathname]);
@@ -109,6 +102,14 @@ export function AppBreadcrumbs({ hideGuestHomepage = false }: AppBreadcrumbsProp
     };
     return nextItems;
   }, [memberBreadcrumb, pathname, t]);
+
+  if (isNotFound) {
+    return null;
+  }
+
+  if (hideGuestHomepage && pathname === "/") {
+    return null;
+  }
 
   const subtitle = getWebBreadcrumbSubtitle(pathname, t);
   const subtitleContent: ReactNode = memberBreadcrumb ? (

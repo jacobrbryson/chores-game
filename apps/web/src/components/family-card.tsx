@@ -5,6 +5,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { useLocale } from "@/components/locale-provider";
+import {
+  DashboardAddMemberNudge,
+  DashboardPlayerWelcome,
+} from "@/components/dashboard-onboarding";
 import { TodayChoresPanel } from "@/components/today-chores-panel";
 import type { FamilySnapshotChore, FamilySummaryResponse } from "@/lib/family/types";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
@@ -37,6 +41,13 @@ export function FamilyCard() {
       .filter((value) => value.length > 0) ??
     [viewerUid].filter(Boolean);
   const familyId = summary?.family?.id ?? "";
+  const activePlayerCount =
+    summary?.members.filter((member) => member.status === "active" && member.role === "player").length ?? 0;
+  const viewerLifetimeCoinsEarned =
+    summary?.members.find((member) => member.uid === viewerUid || member.id === viewerUid)?.stats
+      .lifetimeCoinsEarned ?? 0;
+  const showAddMemberNudge = viewerRole === "admin" && activePlayerCount === 0;
+  const showPlayerWelcome = viewerRole === "player" && viewerLifetimeCoinsEarned === 0;
 
   function toFamilySnapshotStatus(value: string): FamilySnapshotChore["status"] {
     if (value === "Open" || value === "Submitted" || value === "Approved" || value === "Rejected") {
@@ -121,6 +132,8 @@ export function FamilyCard() {
           assigneeAvatarPhotoUrl?: string;
           dueDate: string;
           details?: string;
+          actionHref?: string;
+          actionLabel?: string;
           categoryIds?: string[];
           categories?: { id: string; name: string; color: string }[];
           coinValue: number;
@@ -149,6 +162,8 @@ export function FamilyCard() {
         assigneeAvatarPhotoUrl: chore.assigneeAvatarPhotoUrl,
         dueDate: chore.dueDate,
         details: chore.details,
+        actionHref: chore.actionHref,
+        actionLabel: chore.actionLabel,
         categoryIds: Array.isArray(chore.categoryIds) ? chore.categoryIds : [],
         categories: Array.isArray(chore.categories) ? chore.categories : [],
         coinValue: chore.coinValue,
@@ -369,14 +384,22 @@ export function FamilyCard() {
               </div>
             </article>
           ) : (
-            <TodayChoresPanel
-              chores={summary.choresToday}
-              members={summary.members}
-              viewerAssigneeIds={viewerAssigneeIds}
-              viewerRole={viewerRole}
-              onReload={() => loadSummary({ silent: true })}
-              completionStatsReloadKey={completionStatsReloadKey}
-            />
+            <>
+              {showAddMemberNudge ? (
+                <DashboardAddMemberNudge familyId={familyId} viewerUid={viewerUid} />
+              ) : null}
+              {showPlayerWelcome ? (
+                <DashboardPlayerWelcome familyId={familyId} viewerUid={viewerUid} />
+              ) : null}
+              <TodayChoresPanel
+                chores={summary.choresToday}
+                members={summary.members}
+                viewerAssigneeIds={viewerAssigneeIds}
+                viewerRole={viewerRole}
+                onReload={() => loadSummary({ silent: true })}
+                completionStatsReloadKey={completionStatsReloadKey}
+              />
+            </>
           )}
         </>
       ) : null}

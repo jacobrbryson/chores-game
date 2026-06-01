@@ -147,6 +147,9 @@ export async function POST(request: NextRequest) {
               userEmail: session.email,
               idToken,
             });
+            // createFamilyForUser no longer writes the user doc; the signed-in
+            // admin already has one, so relink their primary family explicitly.
+            await relinkUserPrimaryFamily(session.uid, familyId, idToken);
           }
           familyIds = [familyId];
         }
