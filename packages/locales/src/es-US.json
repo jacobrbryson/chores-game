@@ -38,7 +38,8 @@
     "support": "Soporte",
     "switchTo": "Cambiar a...",
     "returnToParent": "Volver al padre",
-    "logout": "Cerrar sesion"
+    "logout": "Cerrar sesion",
+    "myRequests": "Mis solicitudes"
   },
   "footer": {
     "ariaLabel": "Pie del sitio",
@@ -63,6 +64,30 @@
     "types": {
       "feature": "Funcion nueva",
       "bugFix": "Correccion"
+    },
+    "tabs": {
+      "recent": "Cambios recientes",
+      "requested": "Cambios solicitados"
+    },
+    "requested": {
+      "empty": "Todavia no hay cambios solicitados publicos.",
+      "loadError": "No se pudieron cargar los cambios solicitados: {error}",
+      "upvote": "Votar",
+      "upvoted": "Votado",
+      "loginToVote": "Inicia sesion para votar",
+      "voteCount": "{count} voto(s)",
+      "uncategorized": "Otras Solicitudes",
+      "types": {
+        "bug": "Error",
+        "feature": "Solicitud de funcion"
+      },
+      "status": {
+        "under_review": "En revision",
+        "planned": "Planificado",
+        "in_progress": "En progreso",
+        "completed": "Completado",
+        "declined": "Rechazado"
+      }
     }
   },
   "achievements": {
@@ -133,7 +158,14 @@
     "completeApproveTitle": "Completar y aprobar tarea",
     "totalCoins": "monedas totales:",
     "familyMemberFallback": "Miembro de la familia",
-    "completeAndApprove": "Completar y aprobar"
+    "completeAndApprove": "Completar y aprobar",
+    "addMemberNudgeTitle": "Agrega tu primer miembro de la familia",
+    "addMemberNudgeBody": "Las tareas, las monedas y las recompensas cobran vida cuando alguien puede ganarlas. Agrega a un hijo o a otro padre para poner en marcha a toda la familia.",
+    "addMemberNudgeCta": "Agregar un miembro de la familia",
+    "playerWelcomeTitle": "¡Bienvenido! Así funciona",
+    "playerWelcomeBody": "Completa tus tareas para ganar monedas y luego gástalas en la tienda en temas, avatares, confeti y recompensas familiares.",
+    "emptyHeading": "¡Estás al día!",
+    "emptyHeadingMember": "Nada para {name} por ahora"
   },
   "choreDialog": {
     "addTitle": "Agregar tareas",
@@ -383,7 +415,8 @@
       "general": "General",
       "inventory": "Inventario",
       "notifications": "Notificaciones",
-      "integrations": "Integraciones"
+      "integrations": "Integraciones",
+      "requests": "Mis solicitudes"
     }
   },
   "profileMenu": {
@@ -402,6 +435,232 @@
     "returnError": "No se pudo volver: {error}",
     "pinLabel": "PIN",
     "checking": "Verificando..."
+  },
+  "support": {
+    "bug": {
+      "menuLabel": "Reportar un error",
+      "title": "Reportar un error",
+      "intro": "Cuéntanos qué salió mal. Usaremos los detalles para investigarlo.",
+      "editTitle": "Editar reporte de error"
+    },
+    "feature": {
+      "menuLabel": "Solicitar una función",
+      "title": "Solicitar una función",
+      "intro": "¿Tienes una idea para mejorar Family Chores? Nos encantaría escucharla.",
+      "editTitle": "Editar solicitud de función"
+    },
+    "subjectLabel": "Asunto",
+    "subjectPlaceholder": "Un resumen breve",
+    "descriptionLabel": "Descripción",
+    "descriptionPlaceholder": "Añade todos los detalles que puedas",
+    "severityLabel": "Gravedad",
+    "severity": {
+      "low": "Baja",
+      "medium": "Media",
+      "high": "Alta"
+    },
+    "categoryLabel": "Categoría",
+    "categoryPlaceholder": "Selecciona una categoría (opcional)",
+    "categoryCustomPlaceholder": "Escribe una categoría personalizada…",
+    "categoryAll": "Todas las categorías",
+    "categories": {
+      "feature_rewards_motivation": "Recompensas y Motivación",
+      "feature_quests_adventures": "Misiones y Aventuras",
+      "feature_family_engagement": "Participación Familiar",
+      "feature_personalization": "Personalización",
+      "feature_sharing_growth": "Compartir y Crecimiento",
+      "feature_community": "Funciones Comunitarias",
+      "feature_task_management": "Gestión de Tareas",
+      "feature_notifications": "Notificaciones y Recordatorios",
+      "feature_analytics": "Análisis e Informes",
+      "bug_auth": "Autenticación e Inicio de Sesión",
+      "bug_chore_tracking": "Seguimiento de Tareas",
+      "bug_coin_rewards": "Cálculo de Monedas y Recompensas",
+      "bug_notifications": "Notificaciones y Alertas",
+      "bug_quests": "Problemas con Misiones y Aventuras",
+      "bug_store": "Tienda e Inventario",
+      "bug_family": "Gestión Familiar",
+      "bug_data_sync": "Sincronización y Carga de Datos",
+      "bug_interface": "Interfaz y Visualización",
+      "bug_performance": "Rendimiento y Velocidad",
+      "other": "Otro"
+    },
+    "currentPageLabel": "Página actual",
+    "submit": "Enviar",
+    "submitting": "Enviando...",
+    "successToast": "¡Gracias! Tu solicitud se ha enviado.",
+    "errors": {
+      "type_required": "Elige un tipo de solicitud.",
+      "type_invalid": "Ese tipo de solicitud no es válido.",
+      "subject_required": "Introduce un asunto.",
+      "subject_too_long": "El asunto es demasiado largo.",
+      "description_required": "Introduce una descripción.",
+      "description_too_long": "La descripción es demasiado larga.",
+      "severity_required": "Elige una gravedad.",
+      "severity_invalid": "Esa gravedad no es válida.",
+      "severity_not_allowed": "Las solicitudes de funciones no pueden tener gravedad.",
+      "rate_limited": "Has alcanzado el límite diario de solicitudes de soporte. Inténtalo de nuevo mañana.",
+      "family_not_found": "No encontramos tu familia. Completa la configuración e inténtalo de nuevo.",
+      "reauth_required": "Cierra sesión y vuelve a iniciarla, luego inténtalo de nuevo.",
+      "generic": "Algo salió mal. Inténtalo de nuevo.",
+      "not_editable": "Esta solicitud ya no se puede editar."
+    },
+    "type": {
+      "bug": "Error",
+      "feature": "Función"
+    },
+    "status": {
+      "new": "Nueva",
+      "triaged": "Clasificada",
+      "planned": "Planificada",
+      "in_progress": "En curso",
+      "done": "Hecha",
+      "declined": "Rechazada",
+      "duplicate": "Duplicada"
+    },
+    "updateToast": "Tu solicitud se ha actualizado.",
+    "submitUpdate": "Guardar cambios"
+  },
+  "myRequests": {
+    "pageTitle": "Mis solicitudes",
+    "title": "Mis solicitudes",
+    "subtitle": "Reportes de errores y solicitudes de funciones que has enviado.",
+    "empty": "Aún no has enviado ninguna solicitud.",
+    "loading": "Cargando tus solicitudes...",
+    "loadError": "No se pudieron cargar tus solicitudes: {error}",
+    "severityNone": "—",
+    "columns": {
+      "subject": "Asunto",
+      "type": "Tipo",
+      "category": "Categoría",
+      "severity": "Gravedad",
+      "status": "Estado",
+      "submitted": "Enviada",
+      "actions": "Acciones"
+    },
+    "pager": {
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "pageOf": "Página {page} de {totalPages} ({total})"
+    },
+    "appliedOn": "Aplicada el {date} — ver en el registro de cambios",
+    "actionsAriaLabel": "Opciones de la solicitud",
+    "menu": {
+      "edit": "Editar",
+      "cancel": "Cancelar"
+    },
+    "cancel": {
+      "title": "¿Cancelar esta solicitud?",
+      "body": "«{subject}» se quitará de tu lista. Nuestro equipo de soporte conservará un registro.",
+      "confirm": "Cancelar solicitud",
+      "keep": "Conservar",
+      "pending": "Cancelando..."
+    },
+    "cancelToast": "Tu solicitud se ha cancelado."
+  },
+  "supportManagement": {
+    "title": "Solicitudes de soporte",
+    "subtitle": "Revisa errores y solicitudes de funciones de todas las familias.",
+    "back": "Volver a soporte",
+    "cards": {
+      "total": "Solicitudes totales",
+      "new": "Nuevas",
+      "triaged": "Clasificadas",
+      "planned": "Planificadas",
+      "in_progress": "En curso",
+      "done": "Hechas",
+      "declined": "Rechazadas",
+      "duplicate": "Duplicadas",
+      "bugs": "Errores",
+      "features": "Solicitudes de funciones",
+      "highSeverityBugs": "Errores graves"
+    },
+    "filters": {
+      "search": "Buscar",
+      "type": "Tipo",
+      "status": "Estado",
+      "severity": "Severidad",
+      "category": "Categoría",
+      "sort": "Ordenar",
+      "family": "ID de familia",
+      "reporter": "Correo / UID del usuario",
+      "createdFrom": "Creada desde",
+      "createdTo": "Creada hasta",
+      "allTypes": "Todos los tipos",
+      "allStatuses": "Todos los estados",
+      "allSeverities": "Todas las severidades"
+    },
+    "sort": {
+      "updatedDesc": "Fecha de actualizacion",
+      "createdDesc": "Fecha de creacion",
+      "severity": "Severidad",
+      "status": "Estado",
+      "type": "Tipo"
+    },
+    "columns": {
+      "type": "Tipo",
+      "subject": "Asunto",
+      "status": "Estado",
+      "severity": "Severidad",
+      "category": "Categoría",
+      "reporter": "Enviada por",
+      "family": "Familia",
+      "created": "Creada",
+      "updated": "Actualizada",
+      "page": "Pagina",
+      "actions": "Acciones"
+    },
+    "actions": {
+      "refresh": "Actualizar",
+      "view": "Ver detalles",
+      "saving": "Guardando...",
+      "updateStatus": "Actualizar estado",
+      "delete": "Eliminar solicitud",
+      "deleteConfirm": "Confirmar eliminación",
+      "deletePending": "Eliminando...",
+      "rebuildSnapshot": "Reconstruir instantanea publica",
+      "rebuilding": "Reconstruyendo..."
+    },
+    "pager": {
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "pageOf": "Pagina {page} de {totalPages} ({total})"
+    },
+    "detailTitle": "Detalles de la solicitud",
+    "description": "Descripcion",
+    "history": "Historial de estado",
+    "activity": "Actividad de auditoria",
+    "noHistory": "Todavia no hay historial de estado.",
+    "noActivity": "Todavia no hay actividad de auditoria relacionada.",
+    "manageStatus": "Administrar estado",
+    "internalNote": "Nota interna",
+    "reportingHint": "Ultimos 7 dias: {recent} creadas, {closed} cerradas, tiempo medio de cierre {average} horas.",
+    "severityNone": "-",
+    "categoryNone": "—",
+    "categoryLabel": "Categoría",
+    "categoryHint": "Escribe un nuevo nombre de categoría o elige de la lista.",
+    "familyFallback": "Familia",
+    "empty": "No hay solicitudes de soporte que coincidan con los filtros actuales.",
+    "notice": {
+      "statusUpdated": "Solicitud de soporte actualizada.",
+      "deleted": "Solicitud de soporte eliminada.",
+      "publicUpdated": "Visibilidad publica actualizada.",
+      "snapshotRebuilt": "Instantanea publica reconstruida con exito."
+    },
+    "errors": {
+      "load": "No se pudieron cargar las solicitudes de soporte: {error}",
+      "detail": "No se pudieron cargar los detalles de la solicitud: {error}"
+    },
+    "deleteHint": "Eliminar quita esta solicitud de forma permanente. Los usuarios solo pueden cancelar; la eliminación es para operadores y normalmente no es necesaria.",
+    "public": {
+      "title": "Visibilidad publica",
+      "warning": "El titulo publico, la descripcion, el estado y el conteo de votos son visibles para todos. No incluyas correos, nombres de menores, nombres de familia, IDs de familia, notas internas ni diagnosticos.",
+      "isPublic": "Mostrar en Cambios solicitados",
+      "publicTitle": "Titulo publico",
+      "publicDescription": "Descripcion publica",
+      "publicStatus": "Estado publico",
+      "save": "Guardar visibilidad publica"
+    }
   },
   "family": {
     "languageUpdateError": "No se pudo actualizar el idioma: {error}",

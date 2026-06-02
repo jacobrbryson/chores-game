@@ -1,5 +1,13 @@
 [
   {
+    "id": "public-requested-changes",
+    "date": "2026-06-02",
+    "type": "Feature",
+    "subject": "Public requested changes",
+    "description": "The change log now includes requested changes that support has chosen to publish, with public statuses and upvotes for signed-in users.",
+    "image": "/file.svg"
+  },
+  {
     "id": "support-request-management",
     "date": "2026-06-01",
     "type": "Feature",

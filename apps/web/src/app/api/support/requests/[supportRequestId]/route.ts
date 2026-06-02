@@ -32,7 +32,7 @@ import {
 } from "@/lib/support/requests";
 
 type RouteContext = { params: Promise<{ supportRequestId: string }> };
-type OperatorPatchBody = { familyId?: unknown; status?: unknown; note?: unknown };
+type OperatorPatchBody = { familyId?: unknown; status?: unknown; note?: unknown; category?: unknown };
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -172,6 +172,7 @@ async function patchOperatorRequest(
   const familyId = typeof body.familyId === "string" ? body.familyId.trim() : "";
   const status = body.status;
   const note = typeof body.note === "string" ? body.note.trim().slice(0, 2000) : "";
+  const category = typeof body.category === "string" ? body.category.trim().slice(0, 100) : undefined;
   if (!familyId) {
     return NextResponse.json({ error: "family_id_required" }, { status: 400 });
   }
@@ -199,15 +200,22 @@ async function patchOperatorRequest(
   const historyId = `${now.replace(/[^0-9]/g, "")}_${randomUUID()}`;
   const auditId = `${now.replace(/[^0-9]/g, "")}_${randomUUID()}`;
 
+  const updateFields: Record<string, FirestoreValue> = {
+    status: stringField(status),
+    updatedAt: timestampField(now),
+  };
+  const updateMask = ["status", "updatedAt"];
+  if (category !== undefined) {
+    updateFields.category = stringField(category);
+    updateMask.push("category");
+  }
+
   await adminCommitWrites([
     {
       update: {
         path,
-        fields: {
-          status: stringField(status),
-          updatedAt: timestampField(now),
-        },
-        updateMask: ["status", "updatedAt"],
+        fields: updateFields,
+        updateMask,
       },
     },
     {
@@ -308,6 +316,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           subject: body.subject,
           description: body.description,
           severity: loaded.type === "bug" ? body.severity : undefined,
+          category: body.category,
         });
         if (!validation.ok) {
           return { kind: "validation" as const, error: validation.error };
@@ -316,9 +325,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         const fields: Record<string, FirestoreValue> = {
           subject: stringField(validation.value.subject),
           description: stringField(validation.value.description),
+          category: stringField(validation.value.category),
           updatedAt: timestampField(now),
         };
-        const mask = ["subject", "description", "updatedAt"];
+        const mask = ["subject", "description", "category", "updatedAt"];
         if (loaded.type === "bug" && validation.value.severity) {
           fields.severity = stringField(validation.value.severity);
           mask.push("severity");

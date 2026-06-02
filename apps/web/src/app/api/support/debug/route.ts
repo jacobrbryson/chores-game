@@ -20,7 +20,7 @@ import {
 export const runtime = "nodejs";
 const MAX_SUPPORT_ROWS = 100;
 
-type PlainValue = string | number | boolean | PlainValue[] | { [key: string]: PlainValue };
+type PlainValue = string | number | boolean | null | PlainValue[] | { [key: string]: PlainValue };
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -46,6 +46,9 @@ function toPlainValue(value: FirestoreValue): PlainValue {
   }
   if ("arrayValue" in value) {
     return (value.arrayValue.values ?? []).map(toPlainValue);
+  }
+  if ("nullValue" in value) {
+    return null;
   }
   return Object.fromEntries(
     Object.entries(value.mapValue.fields ?? {}).map(([key, entry]) => [key, toPlainValue(entry)]),

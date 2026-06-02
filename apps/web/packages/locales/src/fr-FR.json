@@ -64,6 +64,30 @@
     "types": {
       "feature": "Fonctionnalite",
       "bugFix": "Correction"
+    },
+    "tabs": {
+      "recent": "Modifications recentes",
+      "requested": "Modifications demandees"
+    },
+    "requested": {
+      "empty": "Aucune modification demandee n'est publique pour le moment.",
+      "loadError": "Impossible de charger les modifications demandees : {error}",
+      "upvote": "Voter",
+      "upvoted": "Vote ajoute",
+      "loginToVote": "Connectez-vous pour voter",
+      "voteCount": "{count} vote(s)",
+      "uncategorized": "Autres Demandes",
+      "types": {
+        "bug": "Bug",
+        "feature": "Demande de fonctionnalite"
+      },
+      "status": {
+        "under_review": "En examen",
+        "planned": "Planifie",
+        "in_progress": "En cours",
+        "completed": "Termine",
+        "declined": "Refuse"
+      }
     }
   },
   "achievements": {
@@ -435,6 +459,32 @@
       "medium": "Moyenne",
       "high": "Élevée"
     },
+    "categoryLabel": "Catégorie",
+    "categoryPlaceholder": "Sélectionner une catégorie (optionnel)",
+    "categoryCustomPlaceholder": "Saisir une catégorie personnalisée…",
+    "categoryAll": "Toutes les catégories",
+    "categories": {
+      "feature_rewards_motivation": "Récompenses et Motivation",
+      "feature_quests_adventures": "Quêtes et Aventures",
+      "feature_family_engagement": "Engagement Familial",
+      "feature_personalization": "Personnalisation",
+      "feature_sharing_growth": "Partage et Croissance",
+      "feature_community": "Fonctionnalités Communautaires",
+      "feature_task_management": "Gestion des Tâches",
+      "feature_notifications": "Notifications et Rappels",
+      "feature_analytics": "Analyses et Rapports",
+      "bug_auth": "Authentification et Connexion",
+      "bug_chore_tracking": "Suivi des Corvées",
+      "bug_coin_rewards": "Calcul des Pièces et Récompenses",
+      "bug_notifications": "Notifications et Alertes",
+      "bug_quests": "Problèmes de Quêtes et Aventures",
+      "bug_store": "Boutique et Inventaire",
+      "bug_family": "Gestion Familiale",
+      "bug_data_sync": "Synchronisation et Chargement des Données",
+      "bug_interface": "Interface et Affichage",
+      "bug_performance": "Performance et Réactivité",
+      "other": "Autre"
+    },
     "currentPageLabel": "Page actuelle",
     "submit": "Envoyer",
     "submitting": "Envoi...",
@@ -482,6 +532,7 @@
     "columns": {
       "subject": "Sujet",
       "type": "Type",
+      "category": "Catégorie",
       "severity": "Gravite",
       "status": "Statut",
       "submitted": "Envoyee",
@@ -529,6 +580,7 @@
       "type": "Type",
       "status": "Statut",
       "severity": "Severite",
+      "category": "Catégorie",
       "sort": "Trier",
       "family": "ID famille",
       "reporter": "E-mail / UID utilisateur",
@@ -550,6 +602,7 @@
       "subject": "Sujet",
       "status": "Statut",
       "severity": "Severite",
+      "category": "Catégorie",
       "reporter": "Envoyee par",
       "family": "Famille",
       "created": "Creee",
@@ -564,7 +617,9 @@
       "updateStatus": "Mettre a jour le statut",
       "delete": "Supprimer la demande",
       "deleteConfirm": "Confirmer la suppression",
-      "deletePending": "Suppression..."
+      "deletePending": "Suppression...",
+      "rebuildSnapshot": "Reconstruire l'instantane public",
+      "rebuilding": "Reconstruction..."
     },
     "pager": {
       "previous": "Precedent",
@@ -581,17 +636,31 @@
     "internalNote": "Note interne",
     "reportingHint": "7 derniers jours : {recent} creees, {closed} fermees, delai moyen de fermeture {average} heures.",
     "severityNone": "-",
+    "categoryNone": "—",
+    "categoryLabel": "Catégorie",
+    "categoryHint": "Saisissez un nouveau nom de catégorie ou choisissez dans la liste.",
     "familyFallback": "Famille",
     "empty": "Aucune demande de support ne correspond aux filtres actuels.",
     "notice": {
       "statusUpdated": "Demande de support mise a jour.",
-      "deleted": "Demande d'assistance supprimée."
+      "deleted": "Demande d'assistance supprimée.",
+      "publicUpdated": "Visibilite publique mise a jour.",
+      "snapshotRebuilt": "Instantane public reconstruit avec succes."
     },
     "errors": {
       "load": "Impossible de charger les demandes de support : {error}",
       "detail": "Impossible de charger les details de la demande : {error}"
     },
-    "deleteHint": "La suppression retire définitivement cette demande. Les utilisateurs peuvent seulement annuler ; la suppression est réservée aux opérateurs et rarement nécessaire."
+    "deleteHint": "La suppression retire définitivement cette demande. Les utilisateurs peuvent seulement annuler ; la suppression est réservée aux opérateurs et rarement nécessaire.",
+    "public": {
+      "title": "Visibilite publique",
+      "warning": "Le titre public, la description, le statut et le nombre de votes sont visibles par tout le monde. N'incluez pas d'e-mails, de noms d'enfants, de noms de famille, d'ID de famille, de notes internes ni de diagnostics.",
+      "isPublic": "Afficher dans les modifications demandees",
+      "publicTitle": "Titre public",
+      "publicDescription": "Description publique",
+      "publicStatus": "Statut public",
+      "save": "Enregistrer la visibilite publique"
+    }
   },
   "family": {
     "languageUpdateError": "Impossible de mettre a jour la langue : {error}",

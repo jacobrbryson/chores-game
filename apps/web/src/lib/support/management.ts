@@ -8,6 +8,9 @@ import {
 } from "@/lib/firestore/rest";
 import {
   normalizeSupportRequestStatus,
+  mapInternalStatusToPublicStatus,
+  isPublicSupportRequestStatus,
+  type PublicSupportRequestStatus,
   type SupportRequestSeverity,
   type SupportRequestStatus,
   type SupportRequestType,
@@ -22,12 +25,20 @@ export type SupportRequestListRecord = {
   descriptionPreview: string;
   status: SupportRequestStatus;
   severity: SupportRequestSeverity | null;
+  category: string;
   createdByUid: string;
   createdByDisplayName: string;
   createdByEmail: string;
   pageUrl: string;
   createdAt: string;
   updatedAt: string;
+  isPublic: boolean;
+  publicTitle: string;
+  publicDescription: string;
+  publicStatus: PublicSupportRequestStatus;
+  publicPublishedAt: string;
+  publicPublishedByUid: string;
+  publicUpdatedAt: string;
 };
 
 export type SupportRequestDetailRecord = SupportRequestListRecord & {
@@ -63,6 +74,7 @@ export type SupportRequestQuery = {
   type?: string;
   status?: string;
   severity?: string;
+  category?: string;
   q?: string;
   familyId?: string;
   reporter?: string;
@@ -121,6 +133,8 @@ function normalizeRequest(doc: FirestoreDocument, familyNameById: Map<string, st
   const familyId = familyIdFromDocumentName(doc.name);
   const type = readString(doc.fields, "type") === "feature" ? "feature" : "bug";
   const description = readString(doc.fields, "description");
+  const status = normalizeSupportRequestStatus(readString(doc.fields, "status"));
+  const publicStatus = readString(doc.fields, "publicStatus");
   return {
     id: documentIdFromName(doc.name),
     familyId,
@@ -129,8 +143,9 @@ function normalizeRequest(doc: FirestoreDocument, familyNameById: Map<string, st
     subject: readString(doc.fields, "subject"),
     description,
     descriptionPreview: buildDescriptionPreview(description),
-    status: normalizeSupportRequestStatus(readString(doc.fields, "status")),
+    status,
     severity: readSeverity(doc),
+    category: readString(doc.fields, "category"),
     createdByUid: readString(doc.fields, "createdByUid"),
     createdByDisplayName: readString(doc.fields, "createdByDisplayName"),
     createdByEmail: readString(doc.fields, "createdByEmail"),
@@ -138,6 +153,15 @@ function normalizeRequest(doc: FirestoreDocument, familyNameById: Map<string, st
     userAgent: readString(doc.fields, "userAgent"),
     createdAt: readTimestamp(doc.fields, "createdAt"),
     updatedAt: readTimestamp(doc.fields, "updatedAt"),
+    isPublic: readBoolean(doc.fields, "isPublic"),
+    publicTitle: readString(doc.fields, "publicTitle"),
+    publicDescription: readString(doc.fields, "publicDescription"),
+    publicStatus: isPublicSupportRequestStatus(publicStatus)
+      ? publicStatus
+      : mapInternalStatusToPublicStatus(status),
+    publicPublishedAt: readTimestamp(doc.fields, "publicPublishedAt"),
+    publicPublishedByUid: readString(doc.fields, "publicPublishedByUid"),
+    publicUpdatedAt: readTimestamp(doc.fields, "publicUpdatedAt"),
   };
 }
 
@@ -206,6 +230,7 @@ export function filterSupportRequests(
   const type = query.type?.trim();
   const status = query.status?.trim();
   const severity = query.severity?.trim();
+  const category = query.category?.trim();
   const familyId = query.familyId?.trim().toLowerCase() ?? "";
   const reporter = query.reporter?.trim().toLowerCase() ?? "";
   const search = query.q?.trim().toLowerCase() ?? "";
@@ -220,6 +245,9 @@ export function filterSupportRequests(
       return false;
     }
     if (severity && severity !== "all" && request.severity !== severity) {
+      return false;
+    }
+    if (category && category !== "all" && request.category !== category) {
       return false;
     }
     if (familyId && !request.familyId.toLowerCase().includes(familyId)) {

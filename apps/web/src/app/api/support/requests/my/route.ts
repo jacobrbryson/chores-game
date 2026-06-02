@@ -142,6 +142,7 @@ export async function GET(request: NextRequest) {
                 severity === "low" || severity === "medium" || severity === "high"
                   ? severity
                   : null,
+              category: readString(doc.fields, "category"),
               status: normalizeSupportRequestStatus(readString(doc.fields, "status")),
               appliedChangeLogDate: readString(doc.fields, "appliedChangeLogDate"),
               pageUrl: readString(doc.fields, "pageUrl"),
@@ -149,6 +150,13 @@ export async function GET(request: NextRequest) {
               createdAt: readTimestamp(doc.fields, "createdAt"),
               updatedAt: readTimestamp(doc.fields, "updatedAt"),
               deleted: false,
+              isPublic: readBoolean(doc.fields, "isPublic"),
+              publicTitle: readString(doc.fields, "publicTitle"),
+              publicDescription: readString(doc.fields, "publicDescription"),
+              publicStatus: "under_review",
+              publicPublishedAt: readTimestamp(doc.fields, "publicPublishedAt"),
+              publicPublishedByUid: readString(doc.fields, "publicPublishedByUid"),
+              publicUpdatedAt: readTimestamp(doc.fields, "publicUpdatedAt"),
             };
           })
           .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));

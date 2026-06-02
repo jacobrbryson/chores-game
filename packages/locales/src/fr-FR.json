@@ -38,7 +38,8 @@
     "support": "Support",
     "switchTo": "Basculer vers...",
     "returnToParent": "Revenir au parent",
-    "logout": "Se déconnecter"
+    "logout": "Se déconnecter",
+    "myRequests": "Mes demandes"
   },
   "footer": {
     "ariaLabel": "Pied de page du site",
@@ -63,6 +64,30 @@
     "types": {
       "feature": "Fonctionnalite",
       "bugFix": "Correction"
+    },
+    "tabs": {
+      "recent": "Modifications recentes",
+      "requested": "Modifications demandees"
+    },
+    "requested": {
+      "empty": "Aucune modification demandee n'est publique pour le moment.",
+      "loadError": "Impossible de charger les modifications demandees : {error}",
+      "upvote": "Voter",
+      "upvoted": "Vote ajoute",
+      "loginToVote": "Connectez-vous pour voter",
+      "voteCount": "{count} vote(s)",
+      "uncategorized": "Autres Demandes",
+      "types": {
+        "bug": "Bug",
+        "feature": "Demande de fonctionnalite"
+      },
+      "status": {
+        "under_review": "En examen",
+        "planned": "Planifie",
+        "in_progress": "En cours",
+        "completed": "Termine",
+        "declined": "Refuse"
+      }
     }
   },
   "achievements": {
@@ -133,7 +158,14 @@
     "completeApproveTitle": "Terminer et approuver la tâche",
     "totalCoins": "pièces totales :",
     "familyMemberFallback": "Membre de la famille",
-    "completeAndApprove": "Terminer et approuver"
+    "completeAndApprove": "Terminer et approuver",
+    "addMemberNudgeTitle": "Ajoutez votre premier membre de la famille",
+    "addMemberNudgeBody": "Les tâches, les pièces et les récompenses prennent vie dès qu'une personne peut les gagner. Ajoutez un enfant ou un coparent pour lancer toute la famille.",
+    "addMemberNudgeCta": "Ajouter un membre de la famille",
+    "playerWelcomeTitle": "Bienvenue ! Voici comment ça marche",
+    "playerWelcomeBody": "Terminez vos tâches pour gagner des pièces, puis dépensez-les dans la boutique pour des thèmes, des avatars, des confettis et des récompenses familiales.",
+    "emptyHeading": "Vous êtes à jour !",
+    "emptyHeadingMember": "Rien pour {name} pour le moment"
   },
   "choreDialog": {
     "addTitle": "Ajouter des tâches",
@@ -383,7 +415,8 @@
       "general": "Général",
       "inventory": "Inventaire",
       "notifications": "Notifications",
-      "integrations": "Intégrations"
+      "integrations": "Intégrations",
+      "requests": "Mes demandes"
     }
   },
   "profileMenu": {
@@ -403,12 +436,238 @@
     "pinLabel": "PIN",
     "checking": "Vérification..."
   },
+  "support": {
+    "bug": {
+      "menuLabel": "Signaler un bug",
+      "title": "Signaler un bug",
+      "intro": "Dites-nous ce qui n'a pas fonctionné. Nous utiliserons ces détails pour le corriger.",
+      "editTitle": "Modifier le signalement de bug"
+    },
+    "feature": {
+      "menuLabel": "Proposer une fonctionnalité",
+      "title": "Proposer une fonctionnalité",
+      "intro": "Vous avez une idée pour améliorer Family Chores ? Nous serions ravis de la connaître.",
+      "editTitle": "Modifier la demande de fonctionnalité"
+    },
+    "subjectLabel": "Sujet",
+    "subjectPlaceholder": "Un bref résumé",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Ajoutez autant de détails que possible",
+    "severityLabel": "Gravité",
+    "severity": {
+      "low": "Faible",
+      "medium": "Moyenne",
+      "high": "Élevée"
+    },
+    "categoryLabel": "Catégorie",
+    "categoryPlaceholder": "Sélectionner une catégorie (optionnel)",
+    "categoryCustomPlaceholder": "Saisir une catégorie personnalisée…",
+    "categoryAll": "Toutes les catégories",
+    "categories": {
+      "feature_rewards_motivation": "Récompenses et Motivation",
+      "feature_quests_adventures": "Quêtes et Aventures",
+      "feature_family_engagement": "Engagement Familial",
+      "feature_personalization": "Personnalisation",
+      "feature_sharing_growth": "Partage et Croissance",
+      "feature_community": "Fonctionnalités Communautaires",
+      "feature_task_management": "Gestion des Tâches",
+      "feature_notifications": "Notifications et Rappels",
+      "feature_analytics": "Analyses et Rapports",
+      "bug_auth": "Authentification et Connexion",
+      "bug_chore_tracking": "Suivi des Corvées",
+      "bug_coin_rewards": "Calcul des Pièces et Récompenses",
+      "bug_notifications": "Notifications et Alertes",
+      "bug_quests": "Problèmes de Quêtes et Aventures",
+      "bug_store": "Boutique et Inventaire",
+      "bug_family": "Gestion Familiale",
+      "bug_data_sync": "Synchronisation et Chargement des Données",
+      "bug_interface": "Interface et Affichage",
+      "bug_performance": "Performance et Réactivité",
+      "other": "Autre"
+    },
+    "currentPageLabel": "Page actuelle",
+    "submit": "Envoyer",
+    "submitting": "Envoi...",
+    "successToast": "Merci ! Votre demande a été envoyée.",
+    "errors": {
+      "type_required": "Veuillez choisir un type de demande.",
+      "type_invalid": "Ce type de demande n'est pas pris en charge.",
+      "subject_required": "Veuillez saisir un sujet.",
+      "subject_too_long": "Le sujet est trop long.",
+      "description_required": "Veuillez saisir une description.",
+      "description_too_long": "La description est trop longue.",
+      "severity_required": "Veuillez choisir une gravité.",
+      "severity_invalid": "Cette gravité n'est pas valide.",
+      "severity_not_allowed": "Les demandes de fonctionnalité ne peuvent pas avoir de gravité.",
+      "rate_limited": "Vous avez atteint la limite quotidienne de demandes d'assistance. Réessayez demain.",
+      "family_not_found": "Nous n'avons pas trouvé votre famille. Terminez la configuration et réessayez.",
+      "reauth_required": "Veuillez vous déconnecter puis vous reconnecter, et réessayer.",
+      "generic": "Une erreur s'est produite. Veuillez réessayer.",
+      "not_editable": "Cette demande ne peut plus être modifiée."
+    },
+    "type": {
+      "bug": "Bug",
+      "feature": "Fonctionnalité"
+    },
+    "status": {
+      "new": "Nouvelle",
+      "triaged": "Triee",
+      "planned": "Planifiee",
+      "in_progress": "En cours",
+      "done": "Terminee",
+      "declined": "Refusee",
+      "duplicate": "Dupliquee"
+    },
+    "updateToast": "Votre demande a ete mise a jour.",
+    "submitUpdate": "Enregistrer les modifications"
+  },
+  "myRequests": {
+    "pageTitle": "Mes demandes",
+    "title": "Mes demandes",
+    "subtitle": "Les bugs signales et les fonctionnalites que vous avez proposes.",
+    "empty": "Vous n'avez encore envoye aucune demande.",
+    "loading": "Chargement de vos demandes...",
+    "loadError": "Impossible de charger vos demandes : {error}",
+    "severityNone": "-",
+    "columns": {
+      "subject": "Sujet",
+      "type": "Type",
+      "category": "Catégorie",
+      "severity": "Gravite",
+      "status": "Statut",
+      "submitted": "Envoyee",
+      "actions": "Actions"
+    },
+    "pager": {
+      "previous": "Precedent",
+      "next": "Suivant",
+      "pageOf": "Page {page} sur {totalPages} ({total})"
+    },
+    "appliedOn": "Appliquee le {date} - voir dans le journal des modifications",
+    "actionsAriaLabel": "Options de la demande",
+    "menu": {
+      "edit": "Modifier",
+      "cancel": "Annuler"
+    },
+    "cancel": {
+      "title": "Annuler cette demande ?",
+      "body": "« {subject} » sera retirée de votre liste. Notre équipe d'assistance en conservera une trace.",
+      "confirm": "Annuler la demande",
+      "keep": "Conserver",
+      "pending": "Annulation..."
+    },
+    "cancelToast": "Votre demande a été annulée."
+  },
+  "supportManagement": {
+    "title": "Demandes de support",
+    "subtitle": "Consultez les bugs et demandes de fonctionnalite de toutes les familles.",
+    "back": "Retour au support",
+    "cards": {
+      "total": "Demandes totales",
+      "new": "Nouvelles",
+      "triaged": "Triees",
+      "planned": "Planifiees",
+      "in_progress": "En cours",
+      "done": "Terminees",
+      "declined": "Refusees",
+      "duplicate": "Dupliquees",
+      "bugs": "Bugs",
+      "features": "Demandes de fonctionnalite",
+      "highSeverityBugs": "Bugs graves"
+    },
+    "filters": {
+      "search": "Rechercher",
+      "type": "Type",
+      "status": "Statut",
+      "severity": "Severite",
+      "category": "Catégorie",
+      "sort": "Trier",
+      "family": "ID famille",
+      "reporter": "E-mail / UID utilisateur",
+      "createdFrom": "Creee depuis",
+      "createdTo": "Creee jusqu'a",
+      "allTypes": "Tous les types",
+      "allStatuses": "Tous les statuts",
+      "allSeverities": "Toutes les severites"
+    },
+    "sort": {
+      "updatedDesc": "Date de mise a jour",
+      "createdDesc": "Date de creation",
+      "severity": "Severite",
+      "status": "Statut",
+      "type": "Type"
+    },
+    "columns": {
+      "type": "Type",
+      "subject": "Sujet",
+      "status": "Statut",
+      "severity": "Severite",
+      "category": "Catégorie",
+      "reporter": "Envoyee par",
+      "family": "Famille",
+      "created": "Creee",
+      "updated": "Mise a jour",
+      "page": "Page",
+      "actions": "Actions"
+    },
+    "actions": {
+      "refresh": "Actualiser",
+      "view": "Voir les details",
+      "saving": "Enregistrement...",
+      "updateStatus": "Mettre a jour le statut",
+      "delete": "Supprimer la demande",
+      "deleteConfirm": "Confirmer la suppression",
+      "deletePending": "Suppression...",
+      "rebuildSnapshot": "Reconstruire l'instantane public",
+      "rebuilding": "Reconstruction..."
+    },
+    "pager": {
+      "previous": "Precedent",
+      "next": "Suivant",
+      "pageOf": "Page {page} sur {totalPages} ({total})"
+    },
+    "detailTitle": "Details de la demande",
+    "description": "Description",
+    "history": "Historique des statuts",
+    "activity": "Activite d'audit",
+    "noHistory": "Aucun historique de statut pour le moment.",
+    "noActivity": "Aucune activite d'audit liee pour le moment.",
+    "manageStatus": "Gerer le statut",
+    "internalNote": "Note interne",
+    "reportingHint": "7 derniers jours : {recent} creees, {closed} fermees, delai moyen de fermeture {average} heures.",
+    "severityNone": "-",
+    "categoryNone": "—",
+    "categoryLabel": "Catégorie",
+    "categoryHint": "Saisissez un nouveau nom de catégorie ou choisissez dans la liste.",
+    "familyFallback": "Famille",
+    "empty": "Aucune demande de support ne correspond aux filtres actuels.",
+    "notice": {
+      "statusUpdated": "Demande de support mise a jour.",
+      "deleted": "Demande d'assistance supprimée.",
+      "publicUpdated": "Visibilite publique mise a jour.",
+      "snapshotRebuilt": "Instantane public reconstruit avec succes."
+    },
+    "errors": {
+      "load": "Impossible de charger les demandes de support : {error}",
+      "detail": "Impossible de charger les details de la demande : {error}"
+    },
+    "deleteHint": "La suppression retire définitivement cette demande. Les utilisateurs peuvent seulement annuler ; la suppression est réservée aux opérateurs et rarement nécessaire.",
+    "public": {
+      "title": "Visibilite publique",
+      "warning": "Le titre public, la description, le statut et le nombre de votes sont visibles par tout le monde. N'incluez pas d'e-mails, de noms d'enfants, de noms de famille, d'ID de famille, de notes internes ni de diagnostics.",
+      "isPublic": "Afficher dans les modifications demandees",
+      "publicTitle": "Titre public",
+      "publicDescription": "Description publique",
+      "publicStatus": "Statut public",
+      "save": "Enregistrer la visibilite publique"
+    }
+  },
   "family": {
-    "languageUpdateError": "Impossible de mettre à jour la langue : {error}",
+    "languageUpdateError": "Impossible de mettre a jour la langue : {error}",
     "memberLanguageSaving": "Enregistrement...",
     "memberLanguageLabel": "Langue",
     "memberProfileTitle": "Profil familial",
-    "memberProfileSubtitle": "Détails du profil familial et récompenses en attente.",
+    "memberProfileSubtitle": "Details du profil familial et recompenses en attente.",
     "memberProfileLoading": "Chargement du profil familial...",
     "memberProfileError": "Impossible de charger le profil familial : {error}",
     "memberUpdateError": "Échec de la mise à jour du membre : {error}",

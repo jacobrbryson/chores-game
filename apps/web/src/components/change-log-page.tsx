@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ChangeLogTabs } from "@/components/change-log-tabs";
 import { getChangeLogEntryGroup, getChangeLogEntryGroups, type ChangeLogEntryType } from "@/lib/change-log";
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
@@ -111,16 +112,19 @@ export function ChangeLogIndexContent({ locale, t }: { locale: string; t: Transl
 
   if (groups.length === 0) {
     return (
-      <main className="panel family-page family-page-shell">
+      <ChangeLogTabs
+        recentContent={
         <section className="family-page-card change-log-empty-card">
           <p className="small">{t("changeLog.empty")}</p>
         </section>
-      </main>
+        }
+      />
     );
   }
 
   return (
-    <main className="panel family-page family-page-shell">
+    <ChangeLogTabs
+      recentContent={
       <section className="change-log-day-list" aria-label={t("changeLog.title")}>
         {groups.map((group) => (
           <Link key={group.date} href={`/change-log/${group.date}`} className="family-page-card change-log-day-card">
@@ -150,7 +154,8 @@ export function ChangeLogIndexContent({ locale, t }: { locale: string; t: Transl
           </Link>
         ))}
       </section>
-    </main>
+      }
+    />
   );
 }
 

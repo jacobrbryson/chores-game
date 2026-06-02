@@ -7,6 +7,7 @@ import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import { showToast } from "@/components/toast";
+import { CategorySelector } from "@/components/category-selector";
 import {
   MAX_SUPPORT_DESCRIPTION_LENGTH,
   MAX_SUPPORT_SUBJECT_LENGTH,
@@ -29,6 +30,7 @@ type SupportRequestDialogProps = {
     subject: string;
     description: string;
     severity: SupportRequestSeverity | null;
+    category: string;
   };
 };
 
@@ -54,6 +56,7 @@ export function SupportRequestDialog({
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [severity, setSeverity] = useState<SupportRequestSeverity>("medium");
+  const [category, setCategory] = useState("");
   const [pageUrl, setPageUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -71,6 +74,7 @@ export function SupportRequestDialog({
     setSubject("");
     setDescription("");
     setSeverity("medium");
+    setCategory("");
     setError("");
   }
 
@@ -83,6 +87,7 @@ export function SupportRequestDialog({
       setSubject(initialValues.subject);
       setDescription(initialValues.description);
       setSeverity(initialValues.severity ?? "medium");
+      setCategory(initialValues.category ?? "");
     } else {
       resetForm();
       setPageUrl(currentRoute());
@@ -109,6 +114,7 @@ export function SupportRequestDialog({
       subject,
       description,
       severity: isBug ? severity : undefined,
+      category,
     });
     if (!validation.ok) {
       setError(localizedError(validation.error));
@@ -129,12 +135,14 @@ export function SupportRequestDialog({
                   subject: validation.value.subject,
                   description: validation.value.description,
                   severity: validation.value.severity ?? undefined,
+                  category: validation.value.category || undefined,
                 }
               : {
                   type,
                   subject: validation.value.subject,
                   description: validation.value.description,
                   severity: validation.value.severity ?? undefined,
+                  category: validation.value.category || undefined,
                   pageUrl,
                 },
           ),
@@ -210,6 +218,21 @@ export function SupportRequestDialog({
               />
             </label>
           ) : null}
+
+          <label className="flex w-full flex-col gap-1.5">
+            <span className="text-sm font-medium text-slate-700">{t("support.categoryLabel")}</span>
+            <CategorySelector
+              type={type}
+              value={category}
+              onChange={setCategory}
+              labelFor={(key) => t(`support.categories.${key}`)}
+              selectClassName="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+              inputClassName="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+              placeholder={t("support.categoryPlaceholder")}
+              customPlaceholder={t("support.categoryCustomPlaceholder")}
+              customLabel={t("support.categoryLabel")}
+            />
+          </label>
 
           <label className="flex w-full flex-col gap-1.5">
             <span className="text-sm font-medium text-slate-700">{t("support.descriptionLabel")}</span>

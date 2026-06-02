@@ -14,8 +14,8 @@ function encodeBase64Url(input: string) {
   return Buffer.from(input).toString("base64url");
 }
 
-function bucketName() {
-  const bucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim();
+function bucketName(overrideBucket?: string) {
+  const bucket = overrideBucket?.trim() || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim();
   if (!bucket) {
     throw new Error("FIREBASE_STORAGE_BUCKET_MISSING");
   }
@@ -123,9 +123,10 @@ export async function uploadGcsObject(
   objectPath: string,
   body: Buffer,
   contentType = "application/octet-stream",
+  options?: { bucket?: string },
 ) {
   const token = await getStorageAccessToken();
-  const bucket = encodeURIComponent(bucketName());
+  const bucket = encodeURIComponent(bucketName(options?.bucket));
   const name = encodeURIComponent(objectPath.replace(/^\/+/, ""));
   const uploadBody = new Uint8Array(body).buffer as ArrayBuffer;
   const response = await fetch(
@@ -163,6 +164,15 @@ export async function uploadGcsJson(objectPath: string, value: unknown) {
     objectPath,
     Buffer.from(JSON.stringify(value, null, 2), "utf8"),
     "application/json; charset=utf-8",
+  );
+}
+
+export async function uploadGcsJsonToBucket(bucket: string, objectPath: string, value: unknown) {
+  return uploadGcsObject(
+    objectPath,
+    Buffer.from(JSON.stringify(value, null, 2), "utf8"),
+    "application/json; charset=utf-8",
+    { bucket },
   );
 }
 

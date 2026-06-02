@@ -6,6 +6,37 @@ import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
 import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
+import { CategorySelector } from "@/components/category-selector";
+import {
+  SUPPORT_REQUEST_SEVERITIES,
+  type SupportRequestSeverity,
+  type SupportRequestType,
+} from "@/lib/support/requests";
+
+// English labels for category keys — mirrors apps/web/packages/locales/src/en-US.json
+// support.categories. Kept here because the support console has no locale provider.
+const CATEGORY_LABELS: Record<string, string> = {
+  feature_rewards_motivation: "Rewards & Motivation",
+  feature_quests_adventures: "Quests & Adventures",
+  feature_family_engagement: "Family Engagement",
+  feature_personalization: "Personalization",
+  feature_sharing_growth: "Sharing & Growth",
+  feature_community: "Community Features",
+  feature_task_management: "Task Management",
+  feature_notifications: "Notifications & Reminders",
+  feature_analytics: "Analytics & Reporting",
+  bug_auth: "Authentication & Sign-In",
+  bug_chore_tracking: "Chore Tracking & Completion",
+  bug_coin_rewards: "Coin & Reward Calculation",
+  bug_notifications: "Notifications & Alerts",
+  bug_quests: "Quest & Adventure Issues",
+  bug_store: "Store & Inventory",
+  bug_family: "Family Management",
+  bug_data_sync: "Data Sync & Loading",
+  bug_interface: "Interface & Display",
+  bug_performance: "Performance & Responsiveness",
+  other: "Other",
+};
 
 type SupportUser = {
   uid: string;
@@ -330,6 +361,210 @@ function SearchInput({
   );
 }
 
+type CreateRequestDraft = {
+  familyId: string;
+  targetUid: string;
+  targetEmail: string;
+  targetDisplayName: string;
+  type: SupportRequestType;
+  category: string;
+  subject: string;
+  severity: SupportRequestSeverity;
+  description: string;
+  internalNote: string;
+};
+
+const EMPTY_DRAFT: CreateRequestDraft = {
+  familyId: "",
+  targetUid: "",
+  targetEmail: "",
+  targetDisplayName: "",
+  type: "bug",
+  category: "",
+  subject: "",
+  severity: "medium",
+  description: "",
+  internalNote: "",
+};
+
+function CreateRequestModal({
+  open,
+  draft,
+  onDraftChange,
+  onClose,
+  onSubmit,
+  submitting,
+  submitError,
+}: {
+  open: boolean;
+  draft: CreateRequestDraft;
+  onDraftChange: (patch: Partial<CreateRequestDraft>) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+  submitError: string;
+}) {
+  const isBug = draft.type === "bug";
+
+  return (
+    <ModalShell open={open} onRequestClose={onClose}>
+      <div className="family-modal-card w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="modal-dialog-title-row family-modal-title-row mb-4">
+          <h2 className="family-modal-title">Create Request on Behalf of User</h2>
+          <Button
+            type="button"
+            className="modal-close-button"
+            onClick={onClose}
+            aria-label="Close">
+            ✕
+          </Button>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          {/* Target user */}
+          <fieldset className="rounded-lg border border-slate-200 p-3">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Target User
+            </legend>
+            <div className="flex flex-col gap-3">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+                <span>Family ID <span className="font-normal text-rose-600">*</span></span>
+                <input
+                  value={draft.familyId}
+                  onChange={(e) => onDraftChange({ familyId: e.target.value })}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal"
+                  placeholder="Paste family ID from console"
+                />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+                  <span>User UID <span className="font-normal text-rose-600">*</span></span>
+                  <input
+                    value={draft.targetUid}
+                    onChange={(e) => onDraftChange({ targetUid: e.target.value })}
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal"
+                    placeholder="User UID"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+                  Email
+                  <input
+                    value={draft.targetEmail}
+                    onChange={(e) => onDraftChange({ targetEmail: e.target.value })}
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal"
+                    placeholder="user@example.com"
+                  />
+                </label>
+              </div>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+                Display Name
+                <input
+                  value={draft.targetDisplayName}
+                  onChange={(e) => onDraftChange({ targetDisplayName: e.target.value })}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal"
+                  placeholder="User's display name"
+                />
+              </label>
+            </div>
+          </fieldset>
+
+          {/* Request type */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+              <span>Type <span className="font-normal text-rose-600">*</span></span>
+              <select
+                value={draft.type}
+                onChange={(e) => onDraftChange({ type: e.target.value as SupportRequestType, category: "", severity: "medium" })}
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal">
+                <option value="bug">Bug Report</option>
+                <option value="feature">Feature Request</option>
+              </select>
+            </label>
+            <div className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+              Category
+              <CategorySelector
+                type={draft.type}
+                value={draft.category}
+                onChange={(val) => onDraftChange({ category: val })}
+                labelFor={(key) => CATEGORY_LABELS[key] ?? key}
+                selectClassName="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal"
+                inputClassName="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal"
+                placeholder="— Select a category —"
+                customPlaceholder="Enter a custom category…"
+                customLabel="Custom category"
+              />
+            </div>
+          </div>
+
+          {isBug ? (
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+              <span>Severity <span className="font-normal text-rose-600">*</span></span>
+              <select
+                value={draft.severity}
+                onChange={(e) => onDraftChange({ severity: e.target.value as SupportRequestSeverity })}
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal">
+                {SUPPORT_REQUEST_SEVERITIES.map((s) => (
+                  <option key={s} value={s}>
+                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+            <span>Subject <span className="font-normal text-rose-600">*</span></span>
+            <input
+              value={draft.subject}
+              onChange={(e) => onDraftChange({ subject: e.target.value })}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal"
+              placeholder="A short summary"
+              maxLength={150}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+            <span>Description <span className="font-normal text-rose-600">*</span></span>
+            <textarea
+              value={draft.description}
+              onChange={(e) => onDraftChange({ description: e.target.value })}
+              rows={4}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal"
+              placeholder="Full description of the bug or feature request"
+              maxLength={4000}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+            Internal Note
+            <textarea
+              value={draft.internalNote}
+              onChange={(e) => onDraftChange({ internalNote: e.target.value })}
+              rows={2}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal"
+              placeholder="Why was this created on behalf of the user? (admin-only, not shown to user)"
+              maxLength={2000}
+            />
+          </label>
+
+          {submitError ? (
+            <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{submitError}</p>
+          ) : null}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" className="btn btn-secondary" disabled={submitting} onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="button" className="btn btn-primary" disabled={submitting} onClick={onSubmit}>
+              {submitting ? "Creating…" : "Create Request"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
 export default function SupportPageClient() {
   const [activeTab, setActiveTab] = usePersistedTab<SupportTab>({
     storageKey: "support-page-active-tab",
@@ -357,6 +592,11 @@ export default function SupportPageClient() {
     label: string;
     familyId?: string;
   } | null>(null);
+  const [createRequestOpen, setCreateRequestOpen] = useState(false);
+  const [createRequestDraft, setCreateRequestDraft] = useState<CreateRequestDraft>(EMPTY_DRAFT);
+  const [createRequestSubmitting, setCreateRequestSubmitting] = useState(false);
+  const [createRequestError, setCreateRequestError] = useState("");
+  const [createRequestNotice, setCreateRequestNotice] = useState("");
 
   const loadSupportData = useCallback(async () => {
     const params = new URLSearchParams();
@@ -542,6 +782,62 @@ export default function SupportPageClient() {
     };
   }, [choreLedger, choreTimeline, selectedChore]);
 
+  function openCreateRequest(user?: SupportUser) {
+    setCreateRequestError("");
+    setCreateRequestNotice("");
+    setCreateRequestDraft(
+      user
+        ? {
+            ...EMPTY_DRAFT,
+            familyId: user.familyIds[0] ?? "",
+            targetUid: user.uid,
+            targetEmail: user.email,
+            targetDisplayName: user.name,
+          }
+        : EMPTY_DRAFT,
+    );
+    setCreateRequestOpen(true);
+  }
+
+  async function submitCreateRequest() {
+    if (createRequestSubmitting) return;
+    setCreateRequestError("");
+    setCreateRequestSubmitting(true);
+    try {
+      const response = await fetch("/api/support/requests/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          familyId: createRequestDraft.familyId.trim(),
+          targetUid: createRequestDraft.targetUid.trim(),
+          targetEmail: createRequestDraft.targetEmail.trim(),
+          targetDisplayName: createRequestDraft.targetDisplayName.trim(),
+          type: createRequestDraft.type,
+          subject: createRequestDraft.subject.trim(),
+          description: createRequestDraft.description.trim(),
+          severity: createRequestDraft.type === "bug" ? createRequestDraft.severity : undefined,
+          category: createRequestDraft.category || undefined,
+          internalNote: createRequestDraft.internalNote.trim() || undefined,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        supportRequest?: { id: string };
+      };
+      if (!response.ok) {
+        throw new Error(data.error ?? "create_support_request_failed");
+      }
+      setCreateRequestOpen(false);
+      setCreateRequestNotice(
+        `Request created (ID: ${data.supportRequest?.id ?? "—"}). View it in Bug Reports & Feature Requests.`,
+      );
+    } catch (err) {
+      setCreateRequestError(err instanceof Error ? err.message : "create_support_request_failed");
+    } finally {
+      setCreateRequestSubmitting(false);
+    }
+  }
+
   function deleteEntity(
     entity: "family" | "user" | "chore",
     id: string,
@@ -606,10 +902,29 @@ export default function SupportPageClient() {
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-3 py-4 sm:px-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900">Support Console</h1>
-        <Link href="/support/requests" className="btn btn-secondary">
-          Bug Reports & Feature Requests
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => openCreateRequest()}>
+            Create Request on Behalf
+          </Button>
+          <Link href="/support/requests" className="btn btn-secondary">
+            Bug Reports & Feature Requests
+          </Link>
+        </div>
       </div>
+      {createRequestNotice ? (
+        <div className="rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200">
+          {createRequestNotice}
+          <Button
+            type="button"
+            className="ml-3 text-xs underline"
+            onClick={() => setCreateRequestNotice("")}>
+            Dismiss
+          </Button>
+        </div>
+      ) : null}
       {payload ? (
         <section className="flex flex-col gap-3">
           <div className="flex flex-col gap-3 min-[560px]:flex-row min-[560px]:flex-nowrap">
@@ -829,12 +1144,19 @@ export default function SupportPageClient() {
                       <td className="px-3 py-2">{user.googleTasksLinked ? "Linked" : "-"}</td>
                       <td className="px-3 py-2">{formatDate(user.lastSignInAt)}</td>
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          className="btn btn-danger"
-                          disabled={deleting === user.uid}
-                          onClick={() => void deleteEntity("user", user.uid, user.name || user.email || user.uid)}>
-                          {deleting === user.uid ? "Deleting…" : "Delete"}
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            className="btn btn-secondary"
+                            onClick={() => openCreateRequest(user)}>
+                            Create Request
+                          </Button>
+                          <Button
+                            className="btn btn-danger"
+                            disabled={deleting === user.uid}
+                            onClick={() => void deleteEntity("user", user.uid, user.name || user.email || user.uid)}>
+                            {deleting === user.uid ? "Deleting…" : "Delete"}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1105,6 +1427,16 @@ export default function SupportPageClient() {
           </pre>
         </section>
       ) : null}
+      <CreateRequestModal
+        open={createRequestOpen}
+        draft={createRequestDraft}
+        onDraftChange={(patch) => setCreateRequestDraft((prev) => ({ ...prev, ...patch }))}
+        onClose={() => setCreateRequestOpen(false)}
+        onSubmit={() => void submitCreateRequest()}
+        submitting={createRequestSubmitting}
+        submitError={createRequestError}
+      />
+
       <ModalShell open={Boolean(pendingDelete)} onRequestClose={() => setPendingDelete(null)}>
         <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
           {pendingDelete ? (

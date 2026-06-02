@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { AddEditChoresDialog, type AddEditChoreSavedResult } from "@/components/add-edit-chores-dialog";
+import { AddEditChoresDialog, FAMILY_ASSIGNEE_OPTION_ID, type AddEditChoreSavedResult } from "@/components/add-edit-chores-dialog";
 import { Alert } from "@/components/alert";
 import { AppMenu } from "@/components/app-menu";
 import { Button } from "@/components/button";
@@ -1482,7 +1482,7 @@ export function TodayChoresPanel({
             {canCreateChores ? (
               <AddEditChoresDialog
                 createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
-                defaultAssigneeIds={selectedChoreMember ? [selectedChoreMember.id] : undefined}
+                defaultAssigneeIds={selectedChoreMember ? [selectedChoreMember.id] : selectedChoreScope === FAMILY_CHORE_SCOPE_SELECTION ? [FAMILY_ASSIGNEE_OPTION_ID] : undefined}
                 hideTrigger
                 open={toolbarAddDialogOpen}
                 onOpenChange={setToolbarAddDialogOpen}
@@ -1514,7 +1514,7 @@ export function TodayChoresPanel({
                 <div className="dashboard-empty-state-actions">
                   <AddEditChoresDialog
                     createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
-                    defaultAssigneeIds={selectedChoreMember ? [selectedChoreMember.id] : undefined}
+                    defaultAssigneeIds={selectedChoreMember ? [selectedChoreMember.id] : selectedChoreScope === FAMILY_CHORE_SCOPE_SELECTION ? [FAMILY_ASSIGNEE_OPTION_ID] : undefined}
                     triggerLabel={playerSeeAndDoMode ? t("dashboard.addSeeAndDoChore") : t("dashboard.addChore")}
                     onSaved={onChoreSaved}
                   />

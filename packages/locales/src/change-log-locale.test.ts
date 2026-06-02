@@ -18,6 +18,11 @@ describe("change log locale keys", () => {
       expect(locale.changeLog.sections.emptyBugFixes).toBeTruthy();
       expect(locale.changeLog.types.feature).toBeTruthy();
       expect(locale.changeLog.types.bugFix).toBeTruthy();
+      expect(locale.changeLog.tabs.recent).toBeTruthy();
+      expect(locale.changeLog.tabs.requested).toBeTruthy();
+      expect(locale.changeLog.requested.empty).toBeTruthy();
+      expect(locale.changeLog.requested.upvote).toBeTruthy();
+      expect(locale.changeLog.requested.status.under_review).toBeTruthy();
       expect(locale.nav.changeLog).toBeTruthy();
       expect(locale.footer.changeLog).toBeTruthy();
       expect(locale.breadcrumbs.changeLog).toBeTruthy();

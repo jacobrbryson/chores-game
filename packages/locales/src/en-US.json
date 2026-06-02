@@ -38,7 +38,8 @@
     "support": "Support",
     "switchTo": "Switch To...",
     "returnToParent": "Return to Parent",
-    "logout": "Logout"
+    "logout": "Logout",
+    "myRequests": "My Requests"
   },
   "footer": {
     "ariaLabel": "Site footer",
@@ -63,6 +64,30 @@
     "types": {
       "feature": "Feature",
       "bugFix": "Bug Fix"
+    },
+    "tabs": {
+      "recent": "Recent Changes",
+      "requested": "Requested Changes"
+    },
+    "requested": {
+      "empty": "No requested changes are public yet.",
+      "loadError": "Could not load requested changes: {error}",
+      "upvote": "Upvote",
+      "upvoted": "Upvoted",
+      "loginToVote": "Sign in to vote",
+      "voteCount": "{count} upvote(s)",
+      "uncategorized": "Other Requests",
+      "types": {
+        "bug": "Bug",
+        "feature": "Feature Request"
+      },
+      "status": {
+        "under_review": "Under Review",
+        "planned": "Planned",
+        "in_progress": "In Progress",
+        "completed": "Completed",
+        "declined": "Declined"
+      }
     }
   },
   "achievements": {
@@ -133,7 +158,14 @@
     "completeApproveTitle": "Complete and Approve Chore",
     "totalCoins": "total coins:",
     "familyMemberFallback": "Family member",
-    "completeAndApprove": "Complete and Approve"
+    "completeAndApprove": "Complete and Approve",
+    "addMemberNudgeTitle": "Add your first family member",
+    "addMemberNudgeBody": "Chores, coins, and rewards come to life once someone is there to earn them. Add a child or co-parent to get the whole family going.",
+    "addMemberNudgeCta": "Add a family member",
+    "playerWelcomeTitle": "Welcome! Here's how it works",
+    "playerWelcomeBody": "Complete your chores to earn coins, then spend them in the Store on themes, avatars, confetti, and family rewards.",
+    "emptyHeading": "You're all caught up!",
+    "emptyHeadingMember": "Nothing for {name} right now"
   },
   "choreDialog": {
     "addTitle": "Add Chores",
@@ -383,7 +415,8 @@
       "general": "General",
       "inventory": "Inventory",
       "notifications": "Notifications",
-      "integrations": "Integrations"
+      "integrations": "Integrations",
+      "requests": "My Requests"
     }
   },
   "profileMenu": {
@@ -402,6 +435,232 @@
     "returnError": "Could not switch back: {error}",
     "pinLabel": "PIN",
     "checking": "Checking..."
+  },
+  "support": {
+    "bug": {
+      "menuLabel": "Report a Bug",
+      "title": "Report a Bug",
+      "intro": "Tell us what went wrong. We'll use the details to track it down.",
+      "editTitle": "Edit bug report"
+    },
+    "feature": {
+      "menuLabel": "Request a Feature",
+      "title": "Request a Feature",
+      "intro": "Have an idea to make Family Chores better? We'd love to hear it.",
+      "editTitle": "Edit feature request"
+    },
+    "subjectLabel": "Subject",
+    "subjectPlaceholder": "A short summary",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Add as much detail as you can",
+    "severityLabel": "Severity",
+    "severity": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "categoryLabel": "Category",
+    "categoryPlaceholder": "Select a category (optional)",
+    "categoryCustomPlaceholder": "Enter a custom category…",
+    "categoryAll": "All categories",
+    "categories": {
+      "feature_rewards_motivation": "Rewards & Motivation",
+      "feature_quests_adventures": "Quests & Adventures",
+      "feature_family_engagement": "Family Engagement",
+      "feature_personalization": "Personalization",
+      "feature_sharing_growth": "Sharing & Growth",
+      "feature_community": "Community Features",
+      "feature_task_management": "Task Management",
+      "feature_notifications": "Notifications & Reminders",
+      "feature_analytics": "Analytics & Reporting",
+      "bug_auth": "Authentication & Sign-In",
+      "bug_chore_tracking": "Chore Tracking & Completion",
+      "bug_coin_rewards": "Coin & Reward Calculation",
+      "bug_notifications": "Notifications & Alerts",
+      "bug_quests": "Quest & Adventure Issues",
+      "bug_store": "Store & Inventory",
+      "bug_family": "Family Management",
+      "bug_data_sync": "Data Sync & Loading",
+      "bug_interface": "Interface & Display",
+      "bug_performance": "Performance & Responsiveness",
+      "other": "Other"
+    },
+    "currentPageLabel": "Current page",
+    "submit": "Submit",
+    "submitting": "Submitting...",
+    "successToast": "Thanks! Your request was submitted.",
+    "errors": {
+      "type_required": "Please choose a request type.",
+      "type_invalid": "That request type is not supported.",
+      "subject_required": "Please enter a subject.",
+      "subject_too_long": "Subject is too long.",
+      "description_required": "Please enter a description.",
+      "description_too_long": "Description is too long.",
+      "severity_required": "Please choose a severity.",
+      "severity_invalid": "That severity is not valid.",
+      "severity_not_allowed": "Feature requests can't have a severity.",
+      "rate_limited": "You've reached the daily limit for support requests. Please try again tomorrow.",
+      "family_not_found": "We couldn't find your family. Please finish setup and try again.",
+      "reauth_required": "Please sign out and sign in again, then try once more.",
+      "generic": "Something went wrong. Please try again.",
+      "not_editable": "This request can no longer be edited."
+    },
+    "type": {
+      "bug": "Bug",
+      "feature": "Feature"
+    },
+    "status": {
+      "new": "New",
+      "triaged": "Triaged",
+      "planned": "Planned",
+      "in_progress": "In Progress",
+      "done": "Done",
+      "declined": "Declined",
+      "duplicate": "Duplicate"
+    },
+    "updateToast": "Your request was updated.",
+    "submitUpdate": "Save changes"
+  },
+  "myRequests": {
+    "pageTitle": "My Requests",
+    "title": "My Requests",
+    "subtitle": "Bug reports and feature requests you've submitted.",
+    "empty": "You haven't submitted any requests yet.",
+    "loading": "Loading your requests...",
+    "loadError": "Could not load your requests: {error}",
+    "severityNone": "—",
+    "columns": {
+      "subject": "Subject",
+      "type": "Type",
+      "category": "Category",
+      "severity": "Severity",
+      "status": "Status",
+      "submitted": "Submitted",
+      "actions": "Actions"
+    },
+    "pager": {
+      "previous": "Previous",
+      "next": "Next",
+      "pageOf": "Page {page} of {totalPages} ({total})"
+    },
+    "appliedOn": "Applied on {date} — view in the change log",
+    "actionsAriaLabel": "Request options",
+    "menu": {
+      "edit": "Edit",
+      "cancel": "Cancel"
+    },
+    "cancel": {
+      "title": "Cancel this request?",
+      "body": "“{subject}” will be removed from your list. Our support team will still keep a record of it.",
+      "confirm": "Cancel request",
+      "keep": "Keep",
+      "pending": "Cancelling..."
+    },
+    "cancelToast": "Your request was cancelled."
+  },
+  "supportManagement": {
+    "title": "Support Requests",
+    "subtitle": "Review bug reports and feature requests across families.",
+    "back": "Back to Support",
+    "cards": {
+      "total": "Total requests",
+      "new": "New",
+      "triaged": "Triaged",
+      "planned": "Planned",
+      "in_progress": "In Progress",
+      "done": "Done",
+      "declined": "Declined",
+      "duplicate": "Duplicate",
+      "bugs": "Bugs",
+      "features": "Feature requests",
+      "highSeverityBugs": "High severity bugs"
+    },
+    "filters": {
+      "search": "Search",
+      "type": "Type",
+      "status": "Status",
+      "severity": "Severity",
+      "category": "Category",
+      "sort": "Sort",
+      "family": "Family ID",
+      "reporter": "User email / UID",
+      "createdFrom": "Created from",
+      "createdTo": "Created to",
+      "allTypes": "All types",
+      "allStatuses": "All statuses",
+      "allSeverities": "All severities"
+    },
+    "sort": {
+      "updatedDesc": "Updated date",
+      "createdDesc": "Created date",
+      "severity": "Severity",
+      "status": "Status",
+      "type": "Type"
+    },
+    "columns": {
+      "type": "Type",
+      "subject": "Subject",
+      "status": "Status",
+      "severity": "Severity",
+      "category": "Category",
+      "reporter": "Submitted by",
+      "family": "Family",
+      "created": "Created",
+      "updated": "Updated",
+      "page": "Page",
+      "actions": "Actions"
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "view": "View details",
+      "saving": "Saving...",
+      "updateStatus": "Update status",
+      "delete": "Delete request",
+      "deleteConfirm": "Confirm delete",
+      "deletePending": "Deleting...",
+      "rebuildSnapshot": "Rebuild Public Snapshot",
+      "rebuilding": "Rebuilding..."
+    },
+    "pager": {
+      "previous": "Previous",
+      "next": "Next",
+      "pageOf": "Page {page} of {totalPages} ({total})"
+    },
+    "detailTitle": "Request details",
+    "description": "Description",
+    "history": "Status history",
+    "activity": "Audit activity",
+    "noHistory": "No status history yet.",
+    "noActivity": "No related audit activity yet.",
+    "manageStatus": "Manage status",
+    "internalNote": "Internal note",
+    "reportingHint": "Last 7 days: {recent} created, {closed} closed, avg close time {average} hours.",
+    "severityNone": "-",
+    "categoryNone": "—",
+    "categoryLabel": "Category",
+    "categoryHint": "Type a new category name or pick from the list above.",
+    "familyFallback": "Family",
+    "empty": "No support requests match the current filters.",
+    "notice": {
+      "statusUpdated": "Support request updated.",
+      "deleted": "Support request deleted.",
+      "publicUpdated": "Public visibility updated.",
+      "snapshotRebuilt": "Public snapshot rebuilt successfully."
+    },
+    "errors": {
+      "load": "Could not load support requests: {error}",
+      "detail": "Could not load support request details: {error}"
+    },
+    "deleteHint": "Deleting permanently removes this request. Users can only cancel; deletion is for operators and is usually unnecessary.",
+    "public": {
+      "title": "Public visibility",
+      "warning": "Public title, description, status, and vote count are visible to everyone. Do not include emails, child names, family names, family IDs, internal notes, or diagnostic details.",
+      "isPublic": "Show on Requested Changes",
+      "publicTitle": "Public title",
+      "publicDescription": "Public description",
+      "publicStatus": "Public status",
+      "save": "Save public visibility"
+    }
   },
   "family": {
     "languageUpdateError": "Could not update language: {error}",

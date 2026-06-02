@@ -91,8 +91,39 @@ type AddEditChoresDialogProps = {
 };
 
 const LAST_ASSIGNEE_STORAGE_KEY = "chores_last_assignee_id";
-const FAMILY_ASSIGNEE_OPTION_ID = "__family__";
+export const FAMILY_ASSIGNEE_OPTION_ID = "__family__";
 const ADDITIONAL_OPTIONS_STORAGE_KEY = "chores_additional_options_open_v2";
+
+// ---------------------------------------------------------------------------
+// Module-level family-summary cache (stale-while-revalidate).
+// Shared across all dialog instances so the second open is always instant.
+// ---------------------------------------------------------------------------
+type FamilySummaryCache = {
+  members: FamilyMemberOption[];
+  categories: FamilyCategory[];
+  viewerUid: string;
+  cachedAt: number;
+};
+
+const FAMILY_SUMMARY_CACHE_TTL_MS = 5 * 60 * 1_000; // 5 minutes
+let familySummaryCache: FamilySummaryCache | null = null;
+
+function readFamilySummaryCache(): FamilySummaryCache | null {
+  if (!familySummaryCache) return null;
+  if (Date.now() - familySummaryCache.cachedAt > FAMILY_SUMMARY_CACHE_TTL_MS) {
+    familySummaryCache = null;
+    return null;
+  }
+  return familySummaryCache;
+}
+
+function writeFamilySummaryCache(
+  members: FamilyMemberOption[],
+  categories: FamilyCategory[],
+  viewerUid: string,
+) {
+  familySummaryCache = { members, categories, viewerUid, cachedAt: Date.now() };
+}
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
@@ -291,22 +322,15 @@ export function AddEditChoresDialog({
     setSuggestions(payload.suggestions ?? []);
   }
 
-  async function loadMembers() {
-    const tzOffsetMinutes = new Date().getTimezoneOffset();
-    const response = await fetch(`/api/family/summary?tzOffsetMinutes=${tzOffsetMinutes}`, {
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      const body = (await response.json()) as { error?: string };
-      throw new Error(body.error ?? `FAMILY_HTTP_${response.status}`);
-    }
-    const payload = (await response.json()) as {
-      members?: FamilyMemberOption[];
-      categories?: FamilyCategory[];
-      viewerUid?: string;
-    };
-    const allMembers = payload.members ?? [];
-    const allCategories = payload.categories ?? [];
+  // Applies a resolved member payload to component state. Called both on a
+  // cache hit (synchronously) and after a successful network response, so the
+  // setAssigneeIds updater form ("current.length > 0 ? current : …") ensures a
+  // second call never overwrites a selection the user has already made.
+  function applyMemberPayload(
+    allMembers: FamilyMemberOption[],
+    allCategories: FamilyCategory[],
+    viewerUid: string,
+  ) {
     setMembers(allMembers);
     setCategories(allCategories);
     if (chore) {
@@ -323,24 +347,64 @@ export function AddEditChoresDialog({
       setAssigneeHydrated(true);
       return;
     }
-    const preferredAssigneeIds = defaultAssigneeIds?.filter((value) => allMembers.some((member) => member.id === value)) ?? [];
+    const preferredAssigneeIds =
+      defaultAssigneeIds?.filter(
+        (value) =>
+          value === FAMILY_ASSIGNEE_OPTION_ID || allMembers.some((member) => member.id === value),
+      ) ?? [];
     const stickyAssigneeId = readLastAssigneeId();
-    const stickyMember = allMembers.find((member) => member.id === stickyAssigneeId);
+    const stickyIsFamily = stickyAssigneeId === FAMILY_ASSIGNEE_OPTION_ID;
+    const stickyMember = stickyIsFamily
+      ? null
+      : allMembers.find((member) => member.id === stickyAssigneeId);
     const viewer = allMembers.find(
-      (member) => member.id === payload.viewerUid || member.uid === payload.viewerUid,
+      (member) => member.id === viewerUid || member.uid === viewerUid,
     );
     setAssigneeIds((current) =>
       current.length > 0
         ? current
         : preferredAssigneeIds.length > 0
           ? preferredAssigneeIds
-          : stickyMember?.id
-            ? [stickyMember.id]
-            : viewer?.id
-              ? [viewer.id]
-              : [],
+          : stickyIsFamily
+            ? [FAMILY_ASSIGNEE_OPTION_ID]
+            : stickyMember?.id
+              ? [stickyMember.id]
+              : viewer?.id
+                ? [viewer.id]
+                : [],
     );
     setAssigneeHydrated(true);
+  }
+
+  async function loadMembers() {
+    // --- Instant path: apply cached data synchronously so the dialog renders
+    //     with assignee options already populated before the network response. ---
+    const cached = readFamilySummaryCache();
+    if (cached) {
+      applyMemberPayload(cached.members, cached.categories, cached.viewerUid);
+    }
+
+    // --- Background revalidation: always fetch fresh data. ---
+    const tzOffsetMinutes = new Date().getTimezoneOffset();
+    const response = await fetch(`/api/family/summary?tzOffsetMinutes=${tzOffsetMinutes}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      // If the cache already covered us, swallow the error silently.
+      if (cached) return;
+      const body = (await response.json()) as { error?: string };
+      throw new Error(body.error ?? `FAMILY_HTTP_${response.status}`);
+    }
+    const payload = (await response.json()) as {
+      members?: FamilyMemberOption[];
+      categories?: FamilyCategory[];
+      viewerUid?: string;
+    };
+    const allMembers = payload.members ?? [];
+    const allCategories = payload.categories ?? [];
+    const viewerUid = payload.viewerUid ?? "";
+    writeFamilySummaryCache(allMembers, allCategories, viewerUid);
+    applyMemberPayload(allMembers, allCategories, viewerUid);
   }
 
   // Reveal Additional Options from the locally stored preference, but only ever
@@ -493,7 +557,7 @@ export function AddEditChoresDialog({
       return;
     }
     const onlyAssigneeId = assigneeIds[0] ?? "";
-    if (!onlyAssigneeId || onlyAssigneeId === FAMILY_ASSIGNEE_OPTION_ID) {
+    if (!onlyAssigneeId) {
       return;
     }
     writeLastAssigneeId(onlyAssigneeId);

@@ -7,6 +7,16 @@ import {
   type SupportRequestListRecord,
 } from "@/lib/support/management";
 
+const publicDefaults = {
+  isPublic: false,
+  publicTitle: "",
+  publicDescription: "",
+  publicStatus: "under_review" as const,
+  publicPublishedAt: "",
+  publicPublishedByUid: "",
+  publicUpdatedAt: "",
+};
+
 const records: SupportRequestListRecord[] = [
   {
     id: "1",
@@ -17,12 +27,14 @@ const records: SupportRequestListRecord[] = [
     descriptionPreview: "Crash on chores page",
     status: "new",
     severity: "high",
+    category: "bug_chore_tracking",
     createdByUid: "u1",
     createdByDisplayName: "A",
     createdByEmail: "a@example.com",
     pageUrl: "/chores",
     createdAt: "2026-05-31T10:00:00.000Z",
     updatedAt: "2026-05-31T10:00:00.000Z",
+    ...publicDefaults,
   },
   {
     id: "2",
@@ -33,12 +45,14 @@ const records: SupportRequestListRecord[] = [
     descriptionPreview: "Need reminders",
     status: "done",
     severity: null,
+    category: "feature_notifications",
     createdByUid: "u2",
     createdByDisplayName: "B",
     createdByEmail: "b@example.com",
     pageUrl: "/profile",
     createdAt: "2026-05-20T10:00:00.000Z",
     updatedAt: "2026-05-28T10:00:00.000Z",
+    ...publicDefaults,
   },
 ];
 

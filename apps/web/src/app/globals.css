@@ -3252,8 +3252,27 @@ textarea:disabled {
   line-height: 1.6;
 }
 
+.change-log-vote-box {
+  display: flex;
+  min-width: 128px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  text-align: right;
+}
+
 .change-log-empty-card {
   text-align: center;
+}
+
+.change-log-category-heading {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-subtle, #64748b);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0;
+  padding: 0 2px;
 }
 
 .family-categories-card {
@@ -6378,6 +6397,11 @@ a.family-award-claim-card:focus-visible {
 
   .change-log-card {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .change-log-vote-box {
+    align-items: flex-start;
+    text-align: left;
   }
 
   .change-log-day-card {

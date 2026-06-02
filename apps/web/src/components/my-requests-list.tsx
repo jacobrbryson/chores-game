@@ -22,6 +22,7 @@ type MyRequestItem = {
   subject: string;
   description: string;
   severity: SupportRequestSeverity | null;
+  category: string;
   status: SupportRequestStatus;
   appliedChangeLogDate: string;
   createdAt: string;
@@ -238,7 +239,7 @@ export function MyRequestsList() {
                 <thead>
                   <tr>
                     <th>{t("myRequests.columns.subject")}</th>
-                    <th>{t("myRequests.columns.type")}</th>
+                    <th>{t("myRequests.columns.category")}</th>
                     <th>{t("myRequests.columns.severity")}</th>
                     <th>{t("myRequests.columns.status")}</th>
                     <th>{t("myRequests.columns.submitted")}</th>
@@ -250,12 +251,21 @@ export function MyRequestsList() {
                     const editable = isEditable(item.status);
                     return (
                       <tr key={item.id}>
-                        <td>{item.subject || "-"}</td>
                         <td>
-                          <EnumChip
-                            label={t(`support.type.${item.type}`)}
-                            tone={item.type === "bug" ? "rose" : "violet"}
-                          />
+                          <div>{item.subject || "-"}</div>
+                          <div className="mt-1">
+                            <EnumChip
+                              label={t(`support.type.${item.type}`)}
+                              tone={item.type === "bug" ? "rose" : "violet"}
+                            />
+                          </div>
+                        </td>
+                        <td className="text-sm text-slate-700">
+                          {item.category
+                            ? (t(`support.categories.${item.category}`) !== `support.categories.${item.category}`
+                                ? t(`support.categories.${item.category}`)
+                                : item.category)
+                            : <span className="text-slate-400">—</span>}
                         </td>
                         <td>
                           {item.severity ? (
@@ -349,6 +359,7 @@ export function MyRequestsList() {
                 subject: dialog.request.subject,
                 description: dialog.request.description,
                 severity: dialog.request.severity,
+                category: dialog.request.category ?? "",
               }
             : undefined
         }

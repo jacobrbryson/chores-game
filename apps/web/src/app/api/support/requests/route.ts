@@ -190,6 +190,7 @@ export async function POST(request: NextRequest) {
           // Bug reports carry a severity; feature requests omit it (an absent
           // field reads as null in Firestore rules, satisfying severity == null).
           ...(input.severity ? { severity: stringField(input.severity) } : {}),
+          category: stringField(input.category),
           status: stringField(DEFAULT_SUPPORT_REQUEST_STATUS),
           appliedChangeLogDate: stringField(""),
           pageUrl: stringField(input.pageUrl),

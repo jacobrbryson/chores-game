@@ -2,7 +2,8 @@ type FirestorePrimitive =
   | { stringValue: string }
   | { integerValue: string }
   | { timestampValue: string }
-  | { booleanValue: boolean };
+  | { booleanValue: boolean }
+  | { nullValue: null };
 
 type FirestoreArray = { arrayValue: { values?: FirestoreValue[] } };
 
@@ -439,6 +440,10 @@ export function timestampField(value: string): FirestoreValue {
 
 export function boolField(value: boolean): FirestoreValue {
   return { booleanValue: value };
+}
+
+export function nullField(): FirestoreValue {
+  return { nullValue: null };
 }
 
 export function integerField(value: number): FirestoreValue {

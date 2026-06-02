@@ -64,6 +64,30 @@
     "types": {
       "feature": "Funcion nueva",
       "bugFix": "Correccion"
+    },
+    "tabs": {
+      "recent": "Cambios recientes",
+      "requested": "Cambios solicitados"
+    },
+    "requested": {
+      "empty": "Todavia no hay cambios solicitados publicos.",
+      "loadError": "No se pudieron cargar los cambios solicitados: {error}",
+      "upvote": "Votar",
+      "upvoted": "Votado",
+      "loginToVote": "Inicia sesion para votar",
+      "voteCount": "{count} voto(s)",
+      "uncategorized": "Otras Solicitudes",
+      "types": {
+        "bug": "Error",
+        "feature": "Solicitud de funcion"
+      },
+      "status": {
+        "under_review": "En revision",
+        "planned": "Planificado",
+        "in_progress": "En progreso",
+        "completed": "Completado",
+        "declined": "Rechazado"
+      }
     }
   },
   "achievements": {
@@ -435,6 +459,32 @@
       "medium": "Media",
       "high": "Alta"
     },
+    "categoryLabel": "Categoría",
+    "categoryPlaceholder": "Selecciona una categoría (opcional)",
+    "categoryCustomPlaceholder": "Escribe una categoría personalizada…",
+    "categoryAll": "Todas las categorías",
+    "categories": {
+      "feature_rewards_motivation": "Recompensas y Motivación",
+      "feature_quests_adventures": "Misiones y Aventuras",
+      "feature_family_engagement": "Participación Familiar",
+      "feature_personalization": "Personalización",
+      "feature_sharing_growth": "Compartir y Crecimiento",
+      "feature_community": "Funciones Comunitarias",
+      "feature_task_management": "Gestión de Tareas",
+      "feature_notifications": "Notificaciones y Recordatorios",
+      "feature_analytics": "Análisis e Informes",
+      "bug_auth": "Autenticación e Inicio de Sesión",
+      "bug_chore_tracking": "Seguimiento de Tareas",
+      "bug_coin_rewards": "Cálculo de Monedas y Recompensas",
+      "bug_notifications": "Notificaciones y Alertas",
+      "bug_quests": "Problemas con Misiones y Aventuras",
+      "bug_store": "Tienda e Inventario",
+      "bug_family": "Gestión Familiar",
+      "bug_data_sync": "Sincronización y Carga de Datos",
+      "bug_interface": "Interfaz y Visualización",
+      "bug_performance": "Rendimiento y Velocidad",
+      "other": "Otro"
+    },
     "currentPageLabel": "Página actual",
     "submit": "Enviar",
     "submitting": "Enviando...",
@@ -482,6 +532,7 @@
     "columns": {
       "subject": "Asunto",
       "type": "Tipo",
+      "category": "Categoría",
       "severity": "Gravedad",
       "status": "Estado",
       "submitted": "Enviada",
@@ -529,6 +580,7 @@
       "type": "Tipo",
       "status": "Estado",
       "severity": "Severidad",
+      "category": "Categoría",
       "sort": "Ordenar",
       "family": "ID de familia",
       "reporter": "Correo / UID del usuario",
@@ -550,6 +602,7 @@
       "subject": "Asunto",
       "status": "Estado",
       "severity": "Severidad",
+      "category": "Categoría",
       "reporter": "Enviada por",
       "family": "Familia",
       "created": "Creada",
@@ -564,7 +617,9 @@
       "updateStatus": "Actualizar estado",
       "delete": "Eliminar solicitud",
       "deleteConfirm": "Confirmar eliminación",
-      "deletePending": "Eliminando..."
+      "deletePending": "Eliminando...",
+      "rebuildSnapshot": "Reconstruir instantanea publica",
+      "rebuilding": "Reconstruyendo..."
     },
     "pager": {
       "previous": "Anterior",
@@ -581,17 +636,31 @@
     "internalNote": "Nota interna",
     "reportingHint": "Ultimos 7 dias: {recent} creadas, {closed} cerradas, tiempo medio de cierre {average} horas.",
     "severityNone": "-",
+    "categoryNone": "—",
+    "categoryLabel": "Categoría",
+    "categoryHint": "Escribe un nuevo nombre de categoría o elige de la lista.",
     "familyFallback": "Familia",
     "empty": "No hay solicitudes de soporte que coincidan con los filtros actuales.",
     "notice": {
       "statusUpdated": "Solicitud de soporte actualizada.",
-      "deleted": "Solicitud de soporte eliminada."
+      "deleted": "Solicitud de soporte eliminada.",
+      "publicUpdated": "Visibilidad publica actualizada.",
+      "snapshotRebuilt": "Instantanea publica reconstruida con exito."
     },
     "errors": {
       "load": "No se pudieron cargar las solicitudes de soporte: {error}",
       "detail": "No se pudieron cargar los detalles de la solicitud: {error}"
     },
-    "deleteHint": "Eliminar quita esta solicitud de forma permanente. Los usuarios solo pueden cancelar; la eliminación es para operadores y normalmente no es necesaria."
+    "deleteHint": "Eliminar quita esta solicitud de forma permanente. Los usuarios solo pueden cancelar; la eliminación es para operadores y normalmente no es necesaria.",
+    "public": {
+      "title": "Visibilidad publica",
+      "warning": "El titulo publico, la descripcion, el estado y el conteo de votos son visibles para todos. No incluyas correos, nombres de menores, nombres de familia, IDs de familia, notas internas ni diagnosticos.",
+      "isPublic": "Mostrar en Cambios solicitados",
+      "publicTitle": "Titulo publico",
+      "publicDescription": "Descripcion publica",
+      "publicStatus": "Estado publico",
+      "save": "Guardar visibilidad publica"
+    }
   },
   "family": {
     "languageUpdateError": "No se pudo actualizar el idioma: {error}",

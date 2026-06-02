@@ -5,6 +5,38 @@
 export const SUPPORT_REQUEST_TYPES = ["bug", "feature"] as const;
 export type SupportRequestType = (typeof SUPPORT_REQUEST_TYPES)[number];
 
+export const FEATURE_CATEGORY_KEYS = [
+  "feature_rewards_motivation",
+  "feature_quests_adventures",
+  "feature_family_engagement",
+  "feature_personalization",
+  "feature_sharing_growth",
+  "feature_community",
+  "feature_task_management",
+  "feature_notifications",
+  "feature_analytics",
+  "other",
+] as const;
+
+export const BUG_CATEGORY_KEYS = [
+  "bug_auth",
+  "bug_chore_tracking",
+  "bug_coin_rewards",
+  "bug_notifications",
+  "bug_quests",
+  "bug_store",
+  "bug_family",
+  "bug_data_sync",
+  "bug_interface",
+  "bug_performance",
+  "other",
+] as const;
+
+export type FeatureCategoryKey = (typeof FEATURE_CATEGORY_KEYS)[number];
+export type BugCategoryKey = (typeof BUG_CATEGORY_KEYS)[number];
+
+export const MAX_SUPPORT_CATEGORY_LENGTH = 100;
+
 export const SUPPORT_REQUEST_SEVERITIES = ["low", "medium", "high"] as const;
 export type SupportRequestSeverity = (typeof SUPPORT_REQUEST_SEVERITIES)[number];
 
@@ -20,6 +52,15 @@ export const SUPPORT_REQUEST_STATUSES = [
   "duplicate",
 ] as const;
 export type SupportRequestStatus = (typeof SUPPORT_REQUEST_STATUSES)[number];
+
+export const PUBLIC_SUPPORT_REQUEST_STATUSES = [
+  "under_review",
+  "planned",
+  "in_progress",
+  "completed",
+  "declined",
+] as const;
+export type PublicSupportRequestStatus = (typeof PUBLIC_SUPPORT_REQUEST_STATUSES)[number];
 
 // Status assigned to brand-new requests created through this feature.
 export const DEFAULT_SUPPORT_REQUEST_STATUS: SupportRequestStatus = "new";
@@ -47,6 +88,8 @@ export const MAX_SUPPORT_SUBJECT_LENGTH = 150;
 export const MAX_SUPPORT_DESCRIPTION_LENGTH = 4000;
 export const MAX_SUPPORT_PAGE_URL_LENGTH = 2000;
 export const MAX_SUPPORT_USER_AGENT_LENGTH = 400;
+export const MAX_PUBLIC_SUPPORT_TITLE_LENGTH = 120;
+export const MAX_PUBLIC_SUPPORT_DESCRIPTION_LENGTH = 1200;
 
 export type SupportRequest = {
   id: string;
@@ -59,6 +102,7 @@ export type SupportRequest = {
   subject: string;
   description: string;
   severity: SupportRequestSeverity | null;
+  category: string;
   status: SupportRequestStatus;
   // Change-log day (YYYY-MM-DD) this request shipped in; only set when
   // `status === "applied"`, otherwise empty.
@@ -68,6 +112,13 @@ export type SupportRequest = {
   createdAt: string;
   updatedAt: string;
   deleted: boolean;
+  isPublic: boolean;
+  publicTitle: string;
+  publicDescription: string;
+  publicStatus: PublicSupportRequestStatus;
+  publicPublishedAt: string;
+  publicPublishedByUid: string;
+  publicUpdatedAt: string;
 };
 
 export type SupportRequestInput = {
@@ -75,6 +126,7 @@ export type SupportRequestInput = {
   subject?: unknown;
   description?: unknown;
   severity?: unknown;
+  category?: unknown;
   pageUrl?: unknown;
   userAgent?: unknown;
 };
@@ -84,6 +136,7 @@ export type NormalizedSupportRequest = {
   subject: string;
   description: string;
   severity: SupportRequestSeverity | null;
+  category: string;
   pageUrl: string;
   userAgent: string;
 };
@@ -99,6 +152,27 @@ export type SupportRequestValidationError =
   | "severity_invalid"
   | "severity_not_allowed";
 
+export type PublicSupportRequestInput = {
+  isPublic?: unknown;
+  publicTitle?: unknown;
+  publicDescription?: unknown;
+  publicStatus?: unknown;
+};
+
+export type NormalizedPublicSupportRequest = {
+  isPublic: boolean;
+  publicTitle: string;
+  publicDescription: string;
+  publicStatus: PublicSupportRequestStatus;
+};
+
+export type PublicSupportRequestValidationError =
+  | "public_title_required"
+  | "public_title_too_long"
+  | "public_description_required"
+  | "public_description_too_long"
+  | "public_status_invalid";
+
 export function isSupportRequestType(value: unknown): value is SupportRequestType {
   return (
     typeof value === "string" &&
@@ -111,6 +185,23 @@ export function isSupportRequestSeverity(value: unknown): value is SupportReques
     typeof value === "string" &&
     SUPPORT_REQUEST_SEVERITIES.includes(value as SupportRequestSeverity)
   );
+}
+
+export function isPublicSupportRequestStatus(value: unknown): value is PublicSupportRequestStatus {
+  return (
+    typeof value === "string" &&
+    PUBLIC_SUPPORT_REQUEST_STATUSES.includes(value as PublicSupportRequestStatus)
+  );
+}
+
+export function mapInternalStatusToPublicStatus(
+  status: SupportRequestStatus,
+): PublicSupportRequestStatus {
+  if (status === "planned") return "planned";
+  if (status === "in_progress") return "in_progress";
+  if (status === "done") return "completed";
+  if (status === "declined" || status === "duplicate") return "declined";
+  return "under_review";
 }
 
 function clampString(value: string, maxLength: number) {
@@ -162,6 +253,11 @@ export function validateSupportRequest(
     return { ok: false, error: "severity_not_allowed" };
   }
 
+  const category =
+    typeof input.category === "string"
+      ? clampString(input.category.trim(), MAX_SUPPORT_CATEGORY_LENGTH)
+      : "";
+
   const pageUrl =
     typeof input.pageUrl === "string"
       ? clampString(input.pageUrl.trim(), MAX_SUPPORT_PAGE_URL_LENGTH)
@@ -173,6 +269,52 @@ export function validateSupportRequest(
 
   return {
     ok: true,
-    value: { type, subject, description, severity, pageUrl, userAgent },
+    value: { type, subject, description, severity, category, pageUrl, userAgent },
+  };
+}
+
+export function validatePublicSupportRequest(
+  input: PublicSupportRequestInput,
+): { ok: true; value: NormalizedPublicSupportRequest } | { ok: false; error: PublicSupportRequestValidationError } {
+  const isPublic = input.isPublic === true;
+  const publicTitle = typeof input.publicTitle === "string" ? input.publicTitle.trim() : "";
+  const publicDescription =
+    typeof input.publicDescription === "string" ? input.publicDescription.trim() : "";
+  const publicStatus =
+    input.publicStatus === undefined || input.publicStatus === null || input.publicStatus === ""
+      ? "under_review"
+      : input.publicStatus;
+
+  if (!isPublic) {
+    return {
+      ok: true,
+      value: {
+        isPublic: false,
+        publicTitle,
+        publicDescription,
+        publicStatus: isPublicSupportRequestStatus(publicStatus) ? publicStatus : "under_review",
+      },
+    };
+  }
+
+  if (!publicTitle) {
+    return { ok: false, error: "public_title_required" };
+  }
+  if (publicTitle.length > MAX_PUBLIC_SUPPORT_TITLE_LENGTH) {
+    return { ok: false, error: "public_title_too_long" };
+  }
+  if (!publicDescription) {
+    return { ok: false, error: "public_description_required" };
+  }
+  if (publicDescription.length > MAX_PUBLIC_SUPPORT_DESCRIPTION_LENGTH) {
+    return { ok: false, error: "public_description_too_long" };
+  }
+  if (!isPublicSupportRequestStatus(publicStatus)) {
+    return { ok: false, error: "public_status_invalid" };
+  }
+
+  return {
+    ok: true,
+    value: { isPublic, publicTitle, publicDescription, publicStatus },
   };
 }

@@ -64,6 +64,30 @@
     "types": {
       "feature": "Feature",
       "bugFix": "Bug Fix"
+    },
+    "tabs": {
+      "recent": "Recent Changes",
+      "requested": "Requested Changes"
+    },
+    "requested": {
+      "empty": "No requested changes are public yet.",
+      "loadError": "Could not load requested changes: {error}",
+      "upvote": "Upvote",
+      "upvoted": "Upvoted",
+      "loginToVote": "Sign in to vote",
+      "voteCount": "{count} upvote(s)",
+      "uncategorized": "Other Requests",
+      "types": {
+        "bug": "Bug",
+        "feature": "Feature Request"
+      },
+      "status": {
+        "under_review": "Under Review",
+        "planned": "Planned",
+        "in_progress": "In Progress",
+        "completed": "Completed",
+        "declined": "Declined"
+      }
     }
   },
   "achievements": {
@@ -435,6 +459,32 @@
       "medium": "Medium",
       "high": "High"
     },
+    "categoryLabel": "Category",
+    "categoryPlaceholder": "Select a category (optional)",
+    "categoryCustomPlaceholder": "Enter a custom category…",
+    "categoryAll": "All categories",
+    "categories": {
+      "feature_rewards_motivation": "Rewards & Motivation",
+      "feature_quests_adventures": "Quests & Adventures",
+      "feature_family_engagement": "Family Engagement",
+      "feature_personalization": "Personalization",
+      "feature_sharing_growth": "Sharing & Growth",
+      "feature_community": "Community Features",
+      "feature_task_management": "Task Management",
+      "feature_notifications": "Notifications & Reminders",
+      "feature_analytics": "Analytics & Reporting",
+      "bug_auth": "Authentication & Sign-In",
+      "bug_chore_tracking": "Chore Tracking & Completion",
+      "bug_coin_rewards": "Coin & Reward Calculation",
+      "bug_notifications": "Notifications & Alerts",
+      "bug_quests": "Quest & Adventure Issues",
+      "bug_store": "Store & Inventory",
+      "bug_family": "Family Management",
+      "bug_data_sync": "Data Sync & Loading",
+      "bug_interface": "Interface & Display",
+      "bug_performance": "Performance & Responsiveness",
+      "other": "Other"
+    },
     "currentPageLabel": "Current page",
     "submit": "Submit",
     "submitting": "Submitting...",
@@ -482,6 +532,7 @@
     "columns": {
       "subject": "Subject",
       "type": "Type",
+      "category": "Category",
       "severity": "Severity",
       "status": "Status",
       "submitted": "Submitted",
@@ -529,6 +580,7 @@
       "type": "Type",
       "status": "Status",
       "severity": "Severity",
+      "category": "Category",
       "sort": "Sort",
       "family": "Family ID",
       "reporter": "User email / UID",
@@ -550,6 +602,7 @@
       "subject": "Subject",
       "status": "Status",
       "severity": "Severity",
+      "category": "Category",
       "reporter": "Submitted by",
       "family": "Family",
       "created": "Created",
@@ -564,7 +617,9 @@
       "updateStatus": "Update status",
       "delete": "Delete request",
       "deleteConfirm": "Confirm delete",
-      "deletePending": "Deleting..."
+      "deletePending": "Deleting...",
+      "rebuildSnapshot": "Rebuild Public Snapshot",
+      "rebuilding": "Rebuilding..."
     },
     "pager": {
       "previous": "Previous",
@@ -581,17 +636,31 @@
     "internalNote": "Internal note",
     "reportingHint": "Last 7 days: {recent} created, {closed} closed, avg close time {average} hours.",
     "severityNone": "-",
+    "categoryNone": "—",
+    "categoryLabel": "Category",
+    "categoryHint": "Type a new category name or pick from the list above.",
     "familyFallback": "Family",
     "empty": "No support requests match the current filters.",
     "notice": {
       "statusUpdated": "Support request updated.",
-      "deleted": "Support request deleted."
+      "deleted": "Support request deleted.",
+      "publicUpdated": "Public visibility updated.",
+      "snapshotRebuilt": "Public snapshot rebuilt successfully."
     },
     "errors": {
       "load": "Could not load support requests: {error}",
       "detail": "Could not load support request details: {error}"
     },
-    "deleteHint": "Deleting permanently removes this request. Users can only cancel; deletion is for operators and is usually unnecessary."
+    "deleteHint": "Deleting permanently removes this request. Users can only cancel; deletion is for operators and is usually unnecessary.",
+    "public": {
+      "title": "Public visibility",
+      "warning": "Public title, description, status, and vote count are visible to everyone. Do not include emails, child names, family names, family IDs, internal notes, or diagnostic details.",
+      "isPublic": "Show on Requested Changes",
+      "publicTitle": "Public title",
+      "publicDescription": "Public description",
+      "publicStatus": "Public status",
+      "save": "Save public visibility"
+    }
   },
   "family": {
     "languageUpdateError": "Could not update language: {error}",

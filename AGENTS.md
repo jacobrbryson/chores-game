@@ -693,3 +693,13 @@ Build a family chore game where:
     - immutable family audit logs (`eventType: support_request_status_changed`, `source: support_admin`)
   - Internal support notes are stored only on immutable history/audit records, not on the main user-visible request document.
   - `/support/requests` uses shared locale keys (`supportManagement.*`, `support.status.*`, `support.type.*`, `support.severity.*`) even though the broader `/support` diagnostics console remains an internal operator surface.
+- Public requested changes and voting update (2026-06-02):
+  - `/change-log` now has two tabs: `Recent Changes` for the existing changelog JSON and `Requested Changes` for support requests explicitly published by support operators.
+  - Support request public visibility is operator-managed from `/support`; support operators can publish, unpublish, edit curated public title/description, and choose a public status.
+  - Public support request fields (`isPublic`, `publicTitle`, `publicDescription`, `publicStatus`, `publicPublishedAt`, `publicPublishedByUid`, `publicUpdatedAt`) are separate from private request subject/description, reporter, family, diagnostics, notes, and audit data.
+  - Public requested changes must never expose user email, child name, family name, family ID, internal support notes, private descriptions, or raw diagnostic data.
+  - The public `/api/change-log/requested` read path is backed by curated JSON in the `assets-family-chores` bucket at `change-log/requested-changes.json` by default, not by live Firestore reads. This keeps the page available to logged-out users and avoids Firestore/admin/index failures on the public route.
+  - Support publish/unpublish actions and vote changes refresh that bucket JSON best-effort; public page reads should gracefully return an empty list if the JSON file is missing or unavailable.
+  - Generic voting uses `votes/{targetType}*{targetId}*{uid}` and `voteAggregates/{targetType}_{targetId}`. The initial supported vote target is `public_support_request`; do not add changelog item, shared prize, or quest voting without extending this model.
+  - Voting is server-side only through `/api/votes`; Firestore client writes to `votes` and `voteAggregates` are denied.
+  - Mobile does not currently expose changelog/release notes, so requested changes are intentionally web-only until a mobile changelog surface exists.

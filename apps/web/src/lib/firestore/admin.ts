@@ -12,17 +12,36 @@ type FirestoreRunQueryResult = {
   document?: FirestoreDocument;
 };
 
-type AdminCommitWrite = {
-  update: {
-    path: string;
-    fields: Record<string, FirestoreValue>;
-    updateMask?: string[];
-    currentDocument?: {
-      exists?: boolean;
-      updateTime?: string;
+type AdminCommitWrite =
+  | {
+      update: {
+        path: string;
+        fields: Record<string, FirestoreValue>;
+        updateMask?: string[];
+        currentDocument?: {
+          exists?: boolean;
+          updateTime?: string;
+        };
+      };
+    }
+  | {
+      delete: {
+        path: string;
+        currentDocument?: {
+          exists?: boolean;
+          updateTime?: string;
+        };
+      };
+    }
+  | {
+      transform: {
+        path: string;
+        fieldTransforms: Array<{
+          fieldPath: string;
+          increment: FirestoreValue;
+        }>;
+      };
     };
-  };
-};
 
 let cachedToken: { token: string; expiresAtMillis: number } | null = null;
 
@@ -274,16 +293,32 @@ export async function adminCommitWrites(writes: AdminCommitWrite[]) {
     {
       method: "POST",
       body: JSON.stringify({
-        writes: writes.map((write) => ({
-          update: {
-            name: toAdminDocumentName(write.update.path),
-            fields: write.update.fields,
-          },
-          updateMask: write.update.updateMask
-            ? { fieldPaths: write.update.updateMask }
-            : undefined,
-          currentDocument: write.update.currentDocument,
-        })),
+        writes: writes.map((write) => {
+          if ("delete" in write) {
+            return {
+              delete: toAdminDocumentName(write.delete.path),
+              currentDocument: write.delete.currentDocument,
+            };
+          }
+          if ("transform" in write) {
+            return {
+              transform: {
+                document: toAdminDocumentName(write.transform.path),
+                fieldTransforms: write.transform.fieldTransforms,
+              },
+            };
+          }
+          return {
+            update: {
+              name: toAdminDocumentName(write.update.path),
+              fields: write.update.fields,
+            },
+            updateMask: write.update.updateMask
+              ? { fieldPaths: write.update.updateMask }
+              : undefined,
+            currentDocument: write.update.currentDocument,
+          };
+        }),
       }),
     },
   );
