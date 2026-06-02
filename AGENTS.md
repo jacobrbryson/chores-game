@@ -58,6 +58,11 @@ Build a family chore game where:
 - Do not hardcode user-facing strings in web or mobile UI when a shared locale key should be used instead.
 - Add or update stable translation keys whenever UI copy changes, and keep supported locale files synchronized.
 - Initial supported locale files are `fr-FR`, `en-US`, and `es-US`, in that order.
+- All new user-facing features must explicitly consider:
+  - Localization for `fr-FR`, `en-US`, and `es-US`.
+  - Web and mobile parity; implement in both apps where applicable and document intentional exceptions.
+  - Support visibility; support operators should be able to inspect or report on the feature where practical.
+  - Auditability; important state changes should be logged or otherwise diagnosable.
 - Any new feature, notable user-facing change, or bug fix should add or update an entry in the web changelog JSON.
 - Changelog dates are included in the sitemap automatically via `apps/web/src/app/sitemap.ts`, which reads from the changelog JSON at build time — no manual sitemap edits needed when adding changelog entries.
 - Changelog entries must include `image`, `date`, `type`, `subject`, and `description`.
@@ -642,3 +647,49 @@ Build a family chore game where:
     - `DashboardPlayerWelcome`: shown to a brand-new player (lifetime coins earned == 0), explaining the earn/spend loop.
   - Both persist dismissal in localStorage keyed by `familyId` + viewer uid and start hidden until storage resolves (no flash).
   - New `dashboard.addMemberNudge*` and `dashboard.playerWelcome*` keys added to all supported locale files (`en-US`, `es-US`, `fr-FR`).
+- In-app support requests (bug reports + feature requests) update (2026-06-01):
+  - Authenticated users can submit bug reports and feature requests from the profile menu (web `ProfileMenu` and mobile `MobileProfileMenu`). Selecting a menu action closes the menu first, then opens the shared `SupportRequestDialog` (web) / `MobileSupportRequestModal` (mobile).
+  - The `/support` route remains a separate operator/debugging console (gated by `SUPPORT_ADMIN_EMAILS` / `SUPPORT_ADMIN_UIDS`) and is intentionally NOT replaced by this feature.
+  - Firestore path: family-scoped `families/{familyId}/supportRequests/{supportRequestId}`.
+    - Fields: `id`, `familyId`, `createdByUid`, `createdByMemberId`, `createdByDisplayName`, `createdByEmail`, `type`, `subject`, `description`, `severity`, `status`, `appliedChangeLogDate`, `pageUrl`, `userAgent`, `createdAt`, `updatedAt`, `deleted`.
+    - `severity` is present only for bug reports (`low|medium|high`); feature requests omit the field (reads as null).
+  - Allowed request types: `bug`, `feature` (see `apps/web/src/lib/support/requests.ts`).
+  - Status lifecycle (explicit constants): `new` -> `triaged` -> `planned` -> `in_progress` -> `done` | `declined` | `duplicate`. New requests are created as `new` (`DEFAULT_SUPPORT_REQUEST_STATUS`).
+    - Legacy stored statuses are normalized on read (`submitted` -> `new`, `acknowledged` -> `triaged`, `applied` -> `done`, `rejected` -> `declined`) so no Firestore migration is required.
+  - User permissions / Firestore rules:
+    - Family members may create support requests in their own active family.
+    - Authors can read only their own requests (`resource.data.createdByUid == request.auth.uid`); broad family reads are denied for regular users. Operator/admin tooling uses server-side credentials.
+    - Safe self-service: an author may edit (`subject`/`description`/`severity`) their own request only while it is still open/`new`, and may **cancel** their own request in any status. Cancelling sets `cancelledByUser: true` (+ `cancelledAt`) — it hides the request from the user's own list but keeps the document intact for support/record-keeping. `status`/`type` are immutable on these paths, and **end users can never delete**; only a support operator can actually delete a request.
+  - API:
+    - `POST /api/support/requests` — signed-in + active family required; validates type/subject/description; severity required for bugs and rejected for feature requests; scoped to the caller's active family.
+    - `GET /api/support/requests/my` — returns only the caller's requests in their active family, newest-first, with `page`/`limit` pagination (limit max 100). Excludes `deleted` and `cancelledByUser` docs. Statuses are normalized on read so legacy rows map into the current workflow without migration.
+    - `PATCH /api/support/requests/{id}` — owner-only edit of `subject`/`description`/`severity`, allowed only while the request is open/`new` (`409 not_editable` otherwise; type is immutable so severity rules follow the existing type). Also handles operator status changes when the body carries operator fields (`familyId`/`status`/`note`).
+    - `DELETE /api/support/requests/{id}` — owner-only **cancel** (sets `cancelledByUser`, not a delete), allowed in any status.
+    - Operator delete: `POST /api/support/delete` with `{ entity: "supportRequest", id, familyId }` (support-admin only) hard-deletes the document via server-side admin credentials. This is the only true delete path.
+  - My Requests UI: every row has a three-dot options menu (shared `AppMenu` + `MenuActionButton`, menu closes before the dialog/confirm opens). `Edit` (reuses `SupportRequestDialog` in edit mode) is shown only while the request is still open/`new`; `Cancel request` (confirmation modal that notes support keeps a record) is always available. Operators get a guarded `Delete request` action in the `/support/requests` detail panel.
+    - Mobile uses versioned proxies `POST /api/v1/support/requests` and `GET /api/v1/support/requests/my`.
+  - Rate limiting: server-side, backed by a reusable family-scoped counter limiter (`apps/web/src/lib/rate-limit/limiter.ts`, counters at `families/{familyId}/rateLimits/{counterId}`, daily UTC window, monotonic via rules). Support request limits: 10 per user per day and 30 per family per day. The limiter is generic (action registry) so other end-user creatable resources (chores, members, categories, awards, ...) can adopt it later. Rate-limited submissions return `429` with a friendly localized error.
+  - Audit: an immutable family audit log entry (`eventType: support_request_created`, `source: support`) is written best-effort on create via `writeAuditLogBestEffort`, including `supportRequestId` and `type` (the description is intentionally never logged).
+  - UX: successful submission closes the modal, resets the form, and shows a success toast via the new shared toast (`apps/web/src/components/toast.tsx`, `showToast()` + `<ToastViewport />` in the root layout — event-driven, mirroring `wallet:refresh` / `notifications:refresh`). Submit is disabled while submitting to avoid duplicate submissions; server/API errors render through the shared `Alert` component.
+  - Localization: all user-facing strings live under the `support.*` locale keys in every supported locale file (`en-US`, `es-US`, `fr-FR`); error codes map to `support.errors.*`.
+- Support request viewing surfaces update (2026-06-01):
+  - End-users can review their own submissions and current status via a dedicated `/my-requests` page (deliberately not under `/support`, which stays the operator console) and via a new `My Requests` tab on `/profile`.
+  - Both surfaces render the shared `apps/web/src/components/my-requests-list.tsx` (card/list + pager, like `/notifications`), backed by `GET /api/support/requests/my`. The list also hosts the `Report a Bug` / `Request a Feature` actions (opening the shared `SupportRequestDialog`) and refreshes on successful submit.
+  - Status and type chips are localized via `support.status.*` and `support.type.*`; page chrome lives under `myRequests.*`.
+  - The web profile dropdown menu (`ProfileMenu`) no longer includes `Change Log`, `Report a Bug`, `Request a Feature`, or a `My Requests` link. End-users reach their submissions via the `My Requests` tab on `/profile` (the standalone `/my-requests` page still works if linked directly). Submission entry points live on those My Requests surfaces. (Mobile `MobileProfileMenu` retains its inline `Report a Bug` / `Request a Feature` actions.)
+- Operator support-request management update (2026-06-01):
+  - Added `/support/requests` (linked from the `/support` operator console; gated by the same `isSupportAdmin` env allowlists, `notFound()` otherwise). This is the operator surface for managing user-submitted requests and is separate from family-admin tooling.
+  - Support operator access is controlled only by `SUPPORT_ADMIN_EMAILS` and `SUPPORT_ADMIN_UIDS`; regular family admins and players are never support operators unless explicitly allowlisted.
+  - Support operator management is web-only for now. End-user support-request submission should continue to exist on both web and mobile where feedback entry points exist; mobile does not expose operator tooling.
+  - Backed by support-admin-only APIs using server-side admin Firestore credentials (collection-group query over `supportRequests`), so operators can read across all families regardless of client rules:
+    - `GET /api/support/requests` — paginated cross-family request list with filtering, search, sorting, and lightweight list records.
+    - `GET /api/support/requests/summary` — reporting totals by status, type, severity, recent-created, recent-closed, and average close time.
+    - `GET /api/support/requests/{requestId}?familyId=...` — full detail, immutable status history, and related audit activity for the family-scoped request.
+    - `PATCH /api/support/requests/{requestId}` with `{ familyId, status, note? }` — support-operator status update.
+  - Status updates write:
+    - request `status`
+    - request `updatedAt`
+    - immutable history entries at `families/{familyId}/supportRequests/{supportRequestId}/history/{historyId}`
+    - immutable family audit logs (`eventType: support_request_status_changed`, `source: support_admin`)
+  - Internal support notes are stored only on immutable history/audit records, not on the main user-visible request document.
+  - `/support/requests` uses shared locale keys (`supportManagement.*`, `support.status.*`, `support.type.*`, `support.severity.*`) even though the broader `/support` diagnostics console remains an internal operator surface.

@@ -12,6 +12,18 @@ type FirestoreRunQueryResult = {
   document?: FirestoreDocument;
 };
 
+type AdminCommitWrite = {
+  update: {
+    path: string;
+    fields: Record<string, FirestoreValue>;
+    updateMask?: string[];
+    currentDocument?: {
+      exists?: boolean;
+      updateTime?: string;
+    };
+  };
+};
+
 let cachedToken: { token: string; expiresAtMillis: number } | null = null;
 
 function getProjectId() {
@@ -125,9 +137,21 @@ async function getAdminAccessToken() {
   }
 
   const serviceAccount = await readServiceAccount();
-  cachedToken = serviceAccount
-    ? await fetchServiceAccountToken(serviceAccount)
-    : await fetchMetadataToken();
+  try {
+    cachedToken = serviceAccount
+      ? await fetchServiceAccountToken(serviceAccount)
+      : await fetchMetadataToken();
+  } catch (error) {
+    // No explicit service account configured means we fell back to the GCP
+    // metadata server, which only exists on deployed App Hosting. Locally that
+    // surfaces as an opaque "fetch failed" — give operators an actionable hint.
+    if (!serviceAccount) {
+      throw new Error(
+        "ADMIN_CREDENTIALS_UNAVAILABLE: no service account found. Set FIREBASE_SERVICE_ACCOUNT_KEY or GOOGLE_APPLICATION_CREDENTIALS in apps/web/.env.local and restart the dev server (env files load at startup). The GCP metadata server is only available when deployed.",
+      );
+    }
+    throw error;
+  }
   return cachedToken.token;
 }
 
@@ -155,6 +179,10 @@ async function requestFirestoreAdmin<T>(url: string, init?: RequestInit) {
   }
 
   return (await response.json()) as T;
+}
+
+function toAdminDocumentName(path: string) {
+  return `projects/${getProjectId()}/databases/(default)/documents/${path}`;
 }
 
 export async function adminListDocuments(path: string, pageSize = 100) {
@@ -238,4 +266,25 @@ export async function adminCreateOrReplaceDocument(
     method: "PATCH",
     body: JSON.stringify({ fields }),
   });
+}
+
+export async function adminCommitWrites(writes: AdminCommitWrite[]) {
+  return requestFirestoreAdmin<{ writeResults?: Array<{ updateTime?: string }> }>(
+    `${baseDatabaseUrl()}/documents:commit`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        writes: writes.map((write) => ({
+          update: {
+            name: toAdminDocumentName(write.update.path),
+            fields: write.update.fields,
+          },
+          updateMask: write.update.updateMask
+            ? { fieldPaths: write.update.updateMask }
+            : undefined,
+          currentDocument: write.update.currentDocument,
+        })),
+      }),
+    },
+  );
 }

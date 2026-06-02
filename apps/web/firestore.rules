@@ -1092,6 +1092,113 @@ service cloud.firestore {
         allow create, update: if isFamilyMember(familyId);
         allow delete: if false;
       }
+
+      // User-submitted bug reports / feature requests. Authors can read only
+      // their own; broad family reads are denied here (operator/admin tooling
+      // uses server-side credentials). No client updates/deletes.
+      match /supportRequests/{supportRequestId} {
+        allow read: if isSignedIn() && resource.data.createdByUid == request.auth.uid;
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.familyId == familyId
+          && request.resource.data.createdByUid == request.auth.uid
+          && request.resource.data.type in ["bug", "feature"]
+          && request.resource.data.subject is string
+          && request.resource.data.subject.size() > 0
+          && request.resource.data.description is string
+          && request.resource.data.description.size() > 0
+          && request.resource.data.status == "new"
+          && request.resource.data.deleted == false
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp
+          && (
+            (
+              request.resource.data.type == "bug"
+              && request.resource.data.severity in ["low", "medium", "high"]
+            )
+            || (
+              request.resource.data.type == "feature"
+              && !("severity" in request.resource.data)
+            )
+          );
+        // Safe self-service for the author. Editing (subject/description/severity)
+        // is allowed only while the request is still open ("new"/legacy
+        // "submitted"); cancelling (setting cancelledByUser, which hides it from
+        // the user's own list) is allowed in any status. Status/type are immutable
+        // here, and the author can never delete — only a support operator can
+        // actually delete a request (via server-side admin credentials).
+        allow update: if isSignedIn()
+          && resource.data.createdByUid == request.auth.uid
+          && request.resource.data.createdByUid == resource.data.createdByUid
+          && request.resource.data.type == resource.data.type
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.updatedAt is timestamp
+          && (
+            (
+              (resource.data.status == "new" || resource.data.status == "submitted")
+              && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+                "subject",
+                "description",
+                "severity",
+                "updatedAt"
+              ])
+              && request.resource.data.subject is string
+              && request.resource.data.subject.size() > 0
+              && request.resource.data.description is string
+              && request.resource.data.description.size() > 0
+              && (
+                (
+                  resource.data.type == "bug"
+                  && request.resource.data.severity in ["low", "medium", "high"]
+                )
+                || (
+                  resource.data.type == "feature"
+                  && !("severity" in request.resource.data)
+                )
+              )
+            )
+            || (
+              request.resource.data.diff(resource.data).changedKeys().hasOnly([
+                "cancelledByUser",
+                "cancelledAt",
+                "updatedAt"
+              ])
+              && request.resource.data.cancelledByUser == true
+              && request.resource.data.cancelledAt is timestamp
+            )
+          );
+        allow delete: if false;
+
+        match /history/{historyId} {
+          allow read, create, update, delete: if false;
+        }
+      }
+
+      // Reusable per-family rate-limit counters. Generic across actions so other
+      // end-user creatable resources can adopt the same limiter. Counts are
+      // monotonic (no decrements) and never deletable.
+      match /rateLimits/{counterId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.familyId == familyId
+          && request.resource.data.action is string
+          && request.resource.data.scope is string
+          && request.resource.data.subjectId is string
+          && request.resource.data.windowKey is string
+          && request.resource.data.count is int
+          && request.resource.data.count == 1
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp;
+        allow update: if isFamilyMember(familyId)
+          && request.resource.data.familyId == familyId
+          && request.resource.data.action == resource.data.action
+          && request.resource.data.scope == resource.data.scope
+          && request.resource.data.subjectId == resource.data.subjectId
+          && request.resource.data.windowKey == resource.data.windowKey
+          && request.resource.data.count is int
+          && request.resource.data.count == resource.data.count + 1
+          && request.resource.data.updatedAt is timestamp;
+        allow delete: if false;
+      }
     }
 
     match /inviteLookup/{email} {
@@ -1113,4 +1220,3 @@ service cloud.firestore {
     }
   }
 }
-

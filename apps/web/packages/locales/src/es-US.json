@@ -38,7 +38,8 @@
     "support": "Soporte",
     "switchTo": "Cambiar a...",
     "returnToParent": "Volver al padre",
-    "logout": "Cerrar sesion"
+    "logout": "Cerrar sesion",
+    "myRequests": "Mis solicitudes"
   },
   "footer": {
     "ariaLabel": "Pie del sitio",
@@ -390,7 +391,8 @@
       "general": "General",
       "inventory": "Inventario",
       "notifications": "Notificaciones",
-      "integrations": "Integraciones"
+      "integrations": "Integraciones",
+      "requests": "Mis solicitudes"
     }
   },
   "profileMenu": {
@@ -409,6 +411,187 @@
     "returnError": "No se pudo volver: {error}",
     "pinLabel": "PIN",
     "checking": "Verificando..."
+  },
+  "support": {
+    "bug": {
+      "menuLabel": "Reportar un error",
+      "title": "Reportar un error",
+      "intro": "Cuéntanos qué salió mal. Usaremos los detalles para investigarlo.",
+      "editTitle": "Editar reporte de error"
+    },
+    "feature": {
+      "menuLabel": "Solicitar una función",
+      "title": "Solicitar una función",
+      "intro": "¿Tienes una idea para mejorar Family Chores? Nos encantaría escucharla.",
+      "editTitle": "Editar solicitud de función"
+    },
+    "subjectLabel": "Asunto",
+    "subjectPlaceholder": "Un resumen breve",
+    "descriptionLabel": "Descripción",
+    "descriptionPlaceholder": "Añade todos los detalles que puedas",
+    "severityLabel": "Gravedad",
+    "severity": {
+      "low": "Baja",
+      "medium": "Media",
+      "high": "Alta"
+    },
+    "currentPageLabel": "Página actual",
+    "submit": "Enviar",
+    "submitting": "Enviando...",
+    "successToast": "¡Gracias! Tu solicitud se ha enviado.",
+    "errors": {
+      "type_required": "Elige un tipo de solicitud.",
+      "type_invalid": "Ese tipo de solicitud no es válido.",
+      "subject_required": "Introduce un asunto.",
+      "subject_too_long": "El asunto es demasiado largo.",
+      "description_required": "Introduce una descripción.",
+      "description_too_long": "La descripción es demasiado larga.",
+      "severity_required": "Elige una gravedad.",
+      "severity_invalid": "Esa gravedad no es válida.",
+      "severity_not_allowed": "Las solicitudes de funciones no pueden tener gravedad.",
+      "rate_limited": "Has alcanzado el límite diario de solicitudes de soporte. Inténtalo de nuevo mañana.",
+      "family_not_found": "No encontramos tu familia. Completa la configuración e inténtalo de nuevo.",
+      "reauth_required": "Cierra sesión y vuelve a iniciarla, luego inténtalo de nuevo.",
+      "generic": "Algo salió mal. Inténtalo de nuevo.",
+      "not_editable": "Esta solicitud ya no se puede editar."
+    },
+    "type": {
+      "bug": "Error",
+      "feature": "Función"
+    },
+    "status": {
+      "new": "Nueva",
+      "triaged": "Clasificada",
+      "planned": "Planificada",
+      "in_progress": "En curso",
+      "done": "Hecha",
+      "declined": "Rechazada",
+      "duplicate": "Duplicada"
+    },
+    "updateToast": "Tu solicitud se ha actualizado.",
+    "submitUpdate": "Guardar cambios"
+  },
+  "myRequests": {
+    "pageTitle": "Mis solicitudes",
+    "title": "Mis solicitudes",
+    "subtitle": "Reportes de errores y solicitudes de funciones que has enviado.",
+    "empty": "Aún no has enviado ninguna solicitud.",
+    "loading": "Cargando tus solicitudes...",
+    "loadError": "No se pudieron cargar tus solicitudes: {error}",
+    "severityNone": "—",
+    "columns": {
+      "subject": "Asunto",
+      "type": "Tipo",
+      "severity": "Gravedad",
+      "status": "Estado",
+      "submitted": "Enviada",
+      "actions": "Acciones"
+    },
+    "pager": {
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "pageOf": "Página {page} de {totalPages} ({total})"
+    },
+    "appliedOn": "Aplicada el {date} — ver en el registro de cambios",
+    "actionsAriaLabel": "Opciones de la solicitud",
+    "menu": {
+      "edit": "Editar",
+      "cancel": "Cancelar"
+    },
+    "cancel": {
+      "title": "¿Cancelar esta solicitud?",
+      "body": "«{subject}» se quitará de tu lista. Nuestro equipo de soporte conservará un registro.",
+      "confirm": "Cancelar solicitud",
+      "keep": "Conservar",
+      "pending": "Cancelando..."
+    },
+    "cancelToast": "Tu solicitud se ha cancelado."
+  },
+  "supportManagement": {
+    "title": "Solicitudes de soporte",
+    "subtitle": "Revisa errores y solicitudes de funciones de todas las familias.",
+    "back": "Volver a soporte",
+    "cards": {
+      "total": "Solicitudes totales",
+      "new": "Nuevas",
+      "triaged": "Clasificadas",
+      "planned": "Planificadas",
+      "in_progress": "En curso",
+      "done": "Hechas",
+      "declined": "Rechazadas",
+      "duplicate": "Duplicadas",
+      "bugs": "Errores",
+      "features": "Solicitudes de funciones",
+      "highSeverityBugs": "Errores graves"
+    },
+    "filters": {
+      "search": "Buscar",
+      "type": "Tipo",
+      "status": "Estado",
+      "severity": "Severidad",
+      "sort": "Ordenar",
+      "family": "ID de familia",
+      "reporter": "Correo / UID del usuario",
+      "createdFrom": "Creada desde",
+      "createdTo": "Creada hasta",
+      "allTypes": "Todos los tipos",
+      "allStatuses": "Todos los estados",
+      "allSeverities": "Todas las severidades"
+    },
+    "sort": {
+      "updatedDesc": "Fecha de actualizacion",
+      "createdDesc": "Fecha de creacion",
+      "severity": "Severidad",
+      "status": "Estado",
+      "type": "Tipo"
+    },
+    "columns": {
+      "type": "Tipo",
+      "subject": "Asunto",
+      "status": "Estado",
+      "severity": "Severidad",
+      "reporter": "Enviada por",
+      "family": "Familia",
+      "created": "Creada",
+      "updated": "Actualizada",
+      "page": "Pagina",
+      "actions": "Acciones"
+    },
+    "actions": {
+      "refresh": "Actualizar",
+      "view": "Ver detalles",
+      "saving": "Guardando...",
+      "updateStatus": "Actualizar estado",
+      "delete": "Eliminar solicitud",
+      "deleteConfirm": "Confirmar eliminación",
+      "deletePending": "Eliminando..."
+    },
+    "pager": {
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "pageOf": "Pagina {page} de {totalPages} ({total})"
+    },
+    "detailTitle": "Detalles de la solicitud",
+    "description": "Descripcion",
+    "history": "Historial de estado",
+    "activity": "Actividad de auditoria",
+    "noHistory": "Todavia no hay historial de estado.",
+    "noActivity": "Todavia no hay actividad de auditoria relacionada.",
+    "manageStatus": "Administrar estado",
+    "internalNote": "Nota interna",
+    "reportingHint": "Ultimos 7 dias: {recent} creadas, {closed} cerradas, tiempo medio de cierre {average} horas.",
+    "severityNone": "-",
+    "familyFallback": "Familia",
+    "empty": "No hay solicitudes de soporte que coincidan con los filtros actuales.",
+    "notice": {
+      "statusUpdated": "Solicitud de soporte actualizada.",
+      "deleted": "Solicitud de soporte eliminada."
+    },
+    "errors": {
+      "load": "No se pudieron cargar las solicitudes de soporte: {error}",
+      "detail": "No se pudieron cargar los detalles de la solicitud: {error}"
+    },
+    "deleteHint": "Eliminar quita esta solicitud de forma permanente. Los usuarios solo pueden cancelar; la eliminación es para operadores y normalmente no es necesaria."
   },
   "family": {
     "languageUpdateError": "No se pudo actualizar el idioma: {error}",

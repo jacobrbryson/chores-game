@@ -8128,3 +8128,78 @@ a.family-award-claim-card:focus-visible {
     width: 100%;
   }
 }
+
+/* My Requests reuses .family-table styling but has 6 columns, while the shared
+   table forces fixed widths on only the first 3 (42/24/34 = 100%), which would
+   collapse Status/Submitted/Actions to zero width. Opt back into content-based
+   layout for this table only. */
+.family-table.my-requests-table {
+  table-layout: auto;
+  min-width: 760px;
+}
+.my-requests-table th:first-child,
+.my-requests-table td:first-child,
+.my-requests-table th:nth-child(2),
+.my-requests-table td:nth-child(2),
+.my-requests-table th:nth-child(3),
+.my-requests-table td:nth-child(3) {
+  width: auto;
+}
+.my-requests-table td:first-child {
+  white-space: normal;
+}
+.my-requests-table .family-table-actions-col {
+  width: 1%;
+  text-align: right;
+}
+
+/* Applied support requests link to their change-log day. */
+.my-requests-applied-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.my-requests-applied-link:hover .enum-chip,
+.my-requests-applied-link:focus-visible .enum-chip {
+  text-decoration: underline;
+}
+
+/* App-wide toast stack: bottom-right on desktop, bottom-centered on mobile. */
+.app-toast-viewport {
+  position: fixed;
+  z-index: 200;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.app-toast {
+  pointer-events: auto;
+  animation: app-toast-in 180ms ease-out;
+}
+
+@keyframes app-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .app-toast-viewport {
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    max-width: none;
+    align-items: stretch;
+  }
+}

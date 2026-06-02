@@ -10,6 +10,7 @@ import { LocaleProvider } from "@/components/locale-provider";
 import { NavigationHistoryTracker } from "@/components/navigation-history-tracker";
 import { PartyConfettiOverlay } from "@/components/party-confetti-overlay";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
+import { ToastViewport } from "@/components/toast";
 import { parseSessionToken } from "@/lib/auth/session";
 import { DEFAULT_LOCALE } from "@/lib/locale";
 import { NotFoundProvider } from "@/lib/not-found-context";
@@ -60,6 +61,7 @@ export default async function RootLayout({
           <ThemePreferenceSync />
           <PartyConfettiOverlay />
           <AchievementUnlockListener />
+          <ToastViewport />
           <div className="shell">
             <div className="container app-layout">
               <div className="app-main">

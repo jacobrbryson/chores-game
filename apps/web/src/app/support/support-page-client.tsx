@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
@@ -603,6 +604,12 @@ export default function SupportPageClient() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-3 py-4 sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-bold text-slate-900">Support Console</h1>
+        <Link href="/support/requests" className="btn btn-secondary">
+          Bug Reports & Feature Requests
+        </Link>
+      </div>
       {payload ? (
         <section className="flex flex-col gap-3">
           <div className="flex flex-col gap-3 min-[560px]:flex-row min-[560px]:flex-nowrap">

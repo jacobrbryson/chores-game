@@ -308,6 +308,44 @@ export async function findFirstFamilyIdByMemberEmail(email: string, idToken: str
   return "";
 }
 
+// Runs a Firestore structured query. When `parentPath` is provided the query is
+// scoped to that document's subcollections (e.g. "families/{familyId}"),
+// otherwise it runs from the database root. Returns the matched documents.
+export async function runQuery(
+  structuredQuery: Record<string, unknown>,
+  idToken: string,
+  parentPath = "",
+): Promise<FirestoreDocument[]> {
+  const url = parentPath
+    ? `${getBasePath()}/${parentPath}:runQuery`
+    : getRunQueryPath();
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ structuredQuery }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const json = (await response.json()) as { error?: { message?: string } };
+      detail = json.error?.message ?? "";
+    } catch {
+      detail = await response.text();
+    }
+    throw new Error(`FIRESTORE_HTTP_${response.status}${detail ? `_${detail}` : ""}`);
+  }
+
+  const rows = (await response.json()) as FirestoreRunQueryResult[];
+  return rows
+    .map((row) => row.document)
+    .filter((doc): doc is FirestoreDocument => Boolean(doc));
+}
+
 export function documentIdFromName(name: string) {
   const parts = name.split("/");
   return parts[parts.length - 1] ?? "";

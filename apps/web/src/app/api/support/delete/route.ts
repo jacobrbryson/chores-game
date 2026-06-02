@@ -31,6 +31,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "missing_family_id" }, { status: 400 });
       }
       await adminDeleteDocument(`families/${familyId}/chores/${id}`);
+    } else if (entity === "supportRequest") {
+      // Only a support operator can actually delete a support request. End users
+      // can only cancel (cancelledByUser), which keeps the record for support.
+      if (!familyId) {
+        return NextResponse.json({ error: "missing_family_id" }, { status: 400 });
+      }
+      await adminDeleteDocument(`families/${familyId}/supportRequests/${id}`);
     } else {
       return NextResponse.json({ error: "invalid_entity" }, { status: 400 });
     }

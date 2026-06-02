@@ -139,15 +139,6 @@ const supportIcon = (
   </ProfileMenuItemIcon>
 );
 
-const changeLogIcon = (
-  <ProfileMenuItemIcon>
-    <path d="M6.25 4.5h7.5l3 3v8.75A1.25 1.25 0 0 1 15.5 17.5h-9A1.25 1.25 0 0 1 5.25 16.25v-10.5A1.25 1.25 0 0 1 6.5 4.5Z" />
-    <path d="M13.75 4.75v3h3" />
-    <path d="M8.25 10h5.5" />
-    <path d="M8.25 13h3.75" />
-  </ProfileMenuItemIcon>
-);
-
 const switchIcon = (
   <ProfileMenuItemIcon>
     <path d="M7 6.25h8.25" />
@@ -589,9 +580,6 @@ export function ProfileMenu({
         </MenuActionLink>
         <MenuActionLink href="/family" fullWidth onClick={() => setOpen(false)} leading={familyIcon}>
           {t("nav.manageFamily")}
-        </MenuActionLink>
-        <MenuActionLink href="/change-log" fullWidth onClick={() => setOpen(false)} leading={changeLogIcon}>
-          {t("nav.changeLog")}
         </MenuActionLink>
         {showSupportLink ? (
           <MenuActionLink href="/support" fullWidth onClick={() => setOpen(false)} leading={supportIcon}>

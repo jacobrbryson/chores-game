@@ -10,6 +10,7 @@ import { ProfileApiAccessCard } from "@/components/profile/profile-api-access-ca
 import { ProfileCustomizationModals } from "@/components/profile/profile-customization-modals";
 import { ProfileDetailsSection } from "@/components/profile/profile-details-section";
 import { ProfileGoogleLinkCard } from "@/components/profile/profile-google-link-card";
+import { MyRequestsList } from "@/components/my-requests-list";
 import {
   ProfileSectionTabs,
   type ProfileSectionTabId,
@@ -61,6 +62,7 @@ const PROFILE_TAB_IDS: readonly ProfileSectionTabId[] = [
   "inventory",
   "notifications",
   "integrations",
+  "requests",
 ];
 
 function normalizeTaskListIds(taskListIds: string[]) {
@@ -1024,6 +1026,8 @@ export function ProfilePageClient({
           </section>
         )
       ) : null}
+
+      {activeTab === "requests" ? <MyRequestsList /> : null}
 
         </div>
       </section>

@@ -1,5 +1,21 @@
 [
   {
+    "id": "support-request-management",
+    "date": "2026-06-01",
+    "type": "Feature",
+    "subject": "Better support request tracking",
+    "description": "Support operators can now review bug reports and feature requests, update their status, and track request history in the support console.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "in-app-support-requests",
+    "date": "2026-06-01",
+    "type": "Feature",
+    "subject": "Report bugs and request features",
+    "description": "You can now report a bug or request a feature right from the profile menu. Add a subject and description (and a severity for bugs) and send it our way. Available on web and mobile.",
+    "image": "/file.svg"
+  },
+  {
     "id": "dashboard-empty-state-polish",
     "date": "2026-05-31",
     "type": "Feature",

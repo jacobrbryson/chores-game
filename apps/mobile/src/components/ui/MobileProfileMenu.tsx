@@ -3,6 +3,7 @@ import { Image, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } fr
 import { appBaseUrl, signOut } from "@/lib/api";
 import { useMobileLocale } from "@/lib/locale";
 import { AvatarBadge } from "@/components/ui/AvatarBadge";
+import { MobileSupportRequestModal } from "@/components/MobileSupportRequestModal";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 
 type Props = {
@@ -39,6 +40,7 @@ export function MobileProfileMenu({
   const { t } = useMobileLocale();
   const [open, setOpen] = React.useState(false);
   const [pendingLogout, setPendingLogout] = React.useState(false);
+  const [supportType, setSupportType] = React.useState<"bug" | "feature" | null>(null);
   const initial = (name.trim()[0] || email.trim()[0] || "U").toUpperCase();
 
   async function openWebPath(path: string) {
@@ -61,6 +63,20 @@ export function MobileProfileMenu({
       },
     },
     { label: t("nav.manageFamily"), onPress: () => openWebPath("/family") },
+    {
+      label: t("support.bug.menuLabel"),
+      onPress: () => {
+        setOpen(false);
+        setSupportType("bug");
+      },
+    },
+    {
+      label: t("support.feature.menuLabel"),
+      onPress: () => {
+        setOpen(false);
+        setSupportType("feature");
+      },
+    },
     {
       label: pendingLogout ? t("common.actions.loading") : t("nav.logout"),
       tone: "danger",
@@ -142,6 +158,11 @@ export function MobileProfileMenu({
           </Pressable>
         </Pressable>
       </Modal>
+      <MobileSupportRequestModal
+        visible={supportType !== null}
+        type={supportType ?? "bug"}
+        onClose={() => setSupportType(null)}
+      />
     </>
   );
 }
