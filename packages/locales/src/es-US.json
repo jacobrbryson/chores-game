@@ -133,10 +133,12 @@
   },
   "dashboard": {
     "tabs": {
+      "feed": "Novedades",
       "chores": "Tareas",
       "store": "Tienda",
       "achievements": "Logros",
-      "quests": "Misiones"
+      "quests": "Misiones",
+      "ariaLabel": "Secciones del panel"
     },
     "loading": "Cargando el panel de tareas",
     "familyLoadError": "No se pudo cargar el resumen familiar: {error}",
@@ -190,6 +192,27 @@
     "playerWelcomeBody": "Completa tus tareas para ganar monedas y luego gástalas en la tienda en temas, avatares, confeti y recompensas familiares.",
     "emptyHeading": "¡Estás al día!",
     "emptyHeadingMember": "Nada para {name} por ahora"
+  },
+  "feed": {
+    "ariaLabel": "Novedades de la familia",
+    "loading": "Cargando las novedades de la familia",
+    "loadError": "No se pudieron cargar las novedades de la familia: {error}",
+    "emptyTitle": "Aún no hay nada",
+    "emptyBody": "A medida que tu familia complete tareas, gane recompensas y desbloquee logros, los momentos destacados aparecerán aquí.",
+    "justNow": "ahora mismo",
+    "loadMore": "Cargar más",
+    "loadingMore": "Cargando...",
+    "actions": {
+      "viewChore": "Ver tarea",
+      "viewReward": "Ver recompensa"
+    },
+    "events": {
+      "chore_created": "Nueva tarea añadida",
+      "chore_completed": "Tarea completada",
+      "chore_approved": "Tarea aprobada",
+      "chore_rejected": "La tarea necesita otro intento",
+      "reward_claimed": "Recompensa canjeada"
+    }
   },
   "choreDialog": {
     "addTitle": "Agregar tareas",

@@ -2044,6 +2044,168 @@ textarea:disabled {
   padding: 16px;
 }
 
+/* Family Activity Feed: compact, cheerful card/list over reused family activity records. */
+.dashboard-home-tabs {
+  margin-bottom: 12px;
+}
+
+/* Selected dashboard tab: filled brand pill with white label so the active tab clearly
+   stands out from the inactive pills. Scoped to the dashboard Chores/Feed tabs only
+   (button mode -> aria-pressed) so the other shared pill navs keep their own styling. */
+.dashboard-home-tabs nav button[aria-pressed="true"],
+.dashboard-home-tabs nav button[aria-pressed="true"]:hover {
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--brand, #0072b2), #005e92);
+  color: #ffffff;
+  box-shadow: 0 9px 18px rgba(21, 57, 99, 0.18);
+}
+
+/* Hover affordance for the non-selected dashboard tabs: a brand-tinted lift so they read
+   as clickable without competing with the filled selected pill. */
+.dashboard-home-tabs nav button[aria-pressed="false"] {
+  transition:
+    background-color 130ms ease,
+    border-color 130ms ease,
+    color 130ms ease,
+    box-shadow 130ms ease,
+    transform 130ms ease;
+}
+
+.dashboard-home-tabs nav button[aria-pressed="false"]:hover {
+  border-color: color-mix(in srgb, var(--brand, #0072b2) 45%, #ffffff);
+  background: color-mix(in srgb, var(--brand, #0072b2) 12%, #ffffff);
+  color: #0f3c6c;
+  box-shadow: 0 8px 16px rgba(21, 57, 99, 0.14);
+  transform: translateY(-1px);
+}
+
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feed-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid #d6e4f9;
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg, #ffffff, #f4f8ff);
+}
+
+.feed-card-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+}
+
+.feed-card-emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: #eaf2ff;
+  font-size: 20px;
+}
+
+.feed-card-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(28, 78, 132, 0.25);
+  font-size: 12px;
+}
+
+.feed-card-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.feed-card-headline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.feed-card-title {
+  font-weight: 600;
+  color: #1c4e84;
+}
+
+.feed-card-time {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: #6b7c93;
+  white-space: nowrap;
+}
+
+.feed-card-message {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: #334155;
+  overflow-wrap: anywhere;
+}
+
+.feed-card-action {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.feed-card-action:hover {
+  text-decoration: underline;
+}
+
+.feed-empty {
+  text-align: center;
+  padding: 28px 16px;
+}
+
+.feed-empty-emoji {
+  font-size: 32px;
+  margin-bottom: 6px;
+}
+
+.feed-card-skeleton {
+  align-items: center;
+}
+
+.feed-skeleton-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.feed-skeleton-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.feed-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+
 /* Smart Ghost Chores: deliberately softer/"suggestion" styling so these never look
    like real, assigned chores. Muted background + dashed border + ghost badge. */
 .ghost-suggestions {

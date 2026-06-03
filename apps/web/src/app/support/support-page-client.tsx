@@ -6,6 +6,7 @@ import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
 import { SupportCommunityAwardsPanel } from "@/components/support-community-awards-panel";
+import { SupportFeedPanel } from "@/components/support-feed-panel";
 import { SupportGhostChoresPanel } from "@/components/support-ghost-chores-panel";
 import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
 import { CategorySelector } from "@/components/category-selector";
@@ -929,6 +930,7 @@ export default function SupportPageClient() {
       ) : null}
       <SupportCommunityAwardsPanel />
       <SupportGhostChoresPanel />
+      {payload ? <SupportFeedPanel events={payload.events} /> : null}
       {payload ? (
         <section className="flex flex-col gap-3">
           <div className="flex flex-col gap-3 min-[560px]:flex-row min-[560px]:flex-nowrap">

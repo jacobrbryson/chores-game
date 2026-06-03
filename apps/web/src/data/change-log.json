@@ -1,5 +1,21 @@
 [
   {
+    "id": "family-activity-feed",
+    "date": "2026-06-03",
+    "type": "Feature",
+    "subject": "Family Activity Feed",
+    "description": "Families can now see recent chores, rewards, achievements, quests, and other progress in one cheerful dashboard feed. The signed-in dashboard keeps your familiar Chores view front and center, with a new Feed tab a tap away.",
+    "image": "/store/theme.png"
+  },
+  {
+    "id": "store-purchase-success-dialog",
+    "date": "2026-06-03",
+    "type": "Bug Fix",
+    "subject": "Store purchase confirmation",
+    "description": "Purchasing an item in the Store now shows a confirmation dialog with the item image, a message telling you where it was added (Inventory, Unclaimed Family Awards, or Profile), and quick actions to equip it, claim it, or jump to the relevant section.",
+    "image": "/store3/family-rewards.png"
+  },
+  {
     "id": "profile-awards-inventory",
     "date": "2026-06-03",
     "type": "Feature",
@@ -9,18 +25,18 @@
   },
   {
     "id": "smart-ghost-chores",
-    "date": "2026-06-02",
+    "date": "2026-06-03",
     "type": "Feature",
     "subject": "Smart Ghost Chores",
-    "description": "When a player finishes all of their chores, the dashboard now shows friendly \"Suggested Chore\" ideas they can request. A parent can approve a request to turn it into a real chore — until then, suggestions never affect coins, stats, or streaks.",
+    "description": "When a player runs out of chores, the dashboard now suggests safe, age-appropriate \"Suggested Chore\" ideas. Add one with a tap or dismiss it to see another, and hover a suggestion to learn why it was picked. Suggestions are clearly marked and never affect coins, stats, or streaks until they're added. Available on web and mobile.",
     "image": "/store/theme.png"
   },
   {
     "id": "community-award-library",
-    "date": "2026-06-02",
+    "date": "2026-06-03",
     "type": "Feature",
     "subject": "Community Award Library",
-    "description": "Parents can now discover reviewed reward ideas from other families, vote on favorites, and copy approved awards into their own Family Awards.",
+    "description": "Parents can submit Family Awards for review, browse approved community ideas from the Family Awards tab, vote on favorites, and copy them into their own family. The library is also available on mobile.",
     "image": "/store3/family-rewards.png"
   },
   {

@@ -133,10 +133,12 @@
   },
   "dashboard": {
     "tabs": {
+      "feed": "Feed",
       "chores": "Chores",
       "store": "Store",
       "achievements": "Achievements",
-      "quests": "Quests"
+      "quests": "Quests",
+      "ariaLabel": "Dashboard sections"
     },
     "loading": "Loading chores dashboard",
     "familyLoadError": "Could not load family snapshot: {error}",
@@ -190,6 +192,27 @@
     "playerWelcomeBody": "Complete your chores to earn coins, then spend them in the Store on themes, avatars, confetti, and family rewards.",
     "emptyHeading": "You're all caught up!",
     "emptyHeadingMember": "Nothing for {name} right now"
+  },
+  "feed": {
+    "ariaLabel": "Family activity feed",
+    "loading": "Loading family feed",
+    "loadError": "Could not load the family feed: {error}",
+    "emptyTitle": "Nothing here yet",
+    "emptyBody": "As your family completes chores, earns rewards, and unlocks achievements, the highlights will show up here.",
+    "justNow": "just now",
+    "loadMore": "Load more",
+    "loadingMore": "Loading...",
+    "actions": {
+      "viewChore": "View chore",
+      "viewReward": "View reward"
+    },
+    "events": {
+      "chore_created": "New chore added",
+      "chore_completed": "Chore completed",
+      "chore_approved": "Chore approved",
+      "chore_rejected": "Chore needs another try",
+      "reward_claimed": "Reward redeemed"
+    }
   },
   "choreDialog": {
     "addTitle": "Add Chores",

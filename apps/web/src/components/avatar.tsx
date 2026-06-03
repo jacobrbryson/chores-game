@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties, type ImgHTMLAttributes, type ReactNode } from "react";
+import { CSSProperties, type ImgHTMLAttributes, type ReactNode, useEffect, useState } from "react";
 
 type AvatarProps = {
   name?: string;
@@ -79,6 +79,13 @@ export function Avatar({
 }: AvatarProps) {
   const src = resolveAvatarSrc(avatarId, photoUrl);
   const fallbackText = resolveInitial(name, initial);
+  // Gracefully fall back to initials/fallback when the image fails to load (e.g. an
+  // expired or referrer-blocked Google profile photo) instead of showing a broken image.
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
+  const showImage = Boolean(src) && !imageFailed;
   const normalizedPrimaryColor = normalizeColorValue(primaryColor);
   const normalizedSecondaryColor = normalizeColorValue(secondaryColor);
   const resolvedSecondaryColor =
@@ -100,7 +107,7 @@ export function Avatar({
       style={avatarStyle}
       aria-hidden={ariaHidden ? true : undefined}
       aria-label={ariaHidden ? undefined : alt || `${name || "User"} avatar`}>
-      {src ? (
+      {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           className={joinClassNames("app-avatar-image", imageClassName)}
@@ -109,6 +116,7 @@ export function Avatar({
           loading={loading}
           decoding={decoding}
           referrerPolicy={referrerPolicy}
+          onError={() => setImageFailed(true)}
         />
       ) : (
         <span className={joinClassNames("app-avatar-fallback", fallbackClassName)}>

@@ -111,9 +111,15 @@ function AppContent({
       case "profile": return <ProfileScreen onGoDashboard={goDashboard} />;
       case "all-chores": return <ChoresScreen onGoDashboard={goDashboard} />;
       case "login": return <LoginPlaceholderScreen />;
-      default: return <HomeScreen onOpenAllChores={() => setTab("all-chores")} />;
+      default: return (
+        <HomeScreen
+          viewerKey={sessionMe?.uid}
+          onOpenAllChores={() => setTab("all-chores")}
+          onOpenStore={() => setTab("store")}
+        />
+      );
     }
-  }, [authState, tab]);
+  }, [authState, tab, sessionMe?.uid]);
 
   if (authState === "checking") {
     return (

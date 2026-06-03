@@ -1,4 +1,4 @@
-import { FamilyCard } from "@/components/family-card";
+import { DashboardHome } from "@/components/dashboard-home";
 import { MarketingHomepage } from "@/components/marketing-homepage";
 import { cookies } from "next/headers";
 import { parseSessionToken } from "@/lib/auth/session";
@@ -43,7 +43,7 @@ export default async function Home({ searchParams }: HomeProps) {
 		<>
 			{sessionUser ? (
 				<main className="dashboard">
-					<FamilyCard />
+					<DashboardHome viewerKey={sessionUser.uid} />
 				</main>
 			) : (
 				<MarketingHomepage

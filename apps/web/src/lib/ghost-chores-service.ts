@@ -42,8 +42,12 @@ export type GhostViewerContext = {
   aliases: string[];
   openChoreCount: number;
   openChoreKeys: Set<string>;
-  /** Titles the viewer already has as a *repeating* chore (any status) — never re-suggest. */
-  recurringChoreKeys: Set<string>;
+  /**
+   * Titles of every non-deleted chore the viewer already has, in ANY status
+   * (open, submitted, approved-today, or repeating). We never re-suggest these, so a
+   * daily chore the player already completed today won't reappear as a ghost suggestion.
+   */
+  ownedChoreKeys: Set<string>;
 };
 
 function normalizeEmail(value: string) {
@@ -177,7 +181,7 @@ export async function resolveGhostViewerContext(session: {
 
   const choreDocs = await adminListDocuments(`families/${familyId}/chores`, 500);
   const openChoreKeys = new Set<string>();
-  const recurringChoreKeys = new Set<string>();
+  const ownedChoreKeys = new Set<string>();
   let openChoreCount = 0;
   for (const doc of choreDocs) {
     if (readBoolean(doc.fields, "deleted")) {
@@ -196,14 +200,13 @@ export async function resolveGhostViewerContext(session: {
       continue;
     }
     const titleKey = ghostSuggestionKey(readString(doc.fields, "title"));
+    // Never re-suggest a chore the viewer already has, in any status. This covers a
+    // daily chore already completed today (status Approved/Submitted) and repeating
+    // chores whose next occurrence isn't currently open.
+    ownedChoreKeys.add(titleKey);
     if (status === "Open") {
       openChoreCount += 1;
       openChoreKeys.add(titleKey);
-    }
-    // A repeating chore recurs regardless of its current status, so never re-suggest it.
-    const recurrenceType = readString(doc.fields, "recurrenceType");
-    if (recurrenceType && recurrenceType !== "none") {
-      recurringChoreKeys.add(titleKey);
     }
   }
 
@@ -214,7 +217,7 @@ export async function resolveGhostViewerContext(session: {
     aliases: Array.from(aliases),
     openChoreCount,
     openChoreKeys,
-    recurringChoreKeys,
+    ownedChoreKeys,
   };
 }
 
@@ -282,7 +285,7 @@ export async function getGhostSuggestionsForViewer(
     listGhostRecords(context.familyId),
   ]);
 
-  const excludeKeys = new Set<string>([...context.openChoreKeys, ...context.recurringChoreKeys]);
+  const excludeKeys = new Set<string>([...context.openChoreKeys, ...context.ownedChoreKeys]);
   for (const record of records) {
     // Hide a player's own dismissed/requested suggestions and any already-converted ones.
     const ownedByViewer = record.playerUid === context.aliases[0] || context.aliases.includes(record.playerUid);

@@ -74,6 +74,53 @@ export async function addMobileGhostSuggestion(
   });
 }
 
+export type MobileFeedActor = {
+  uid: string;
+  name: string;
+  avatarId: string;
+  avatarPhotoUrl: string;
+  primaryColor: string;
+};
+
+export type MobileFeedItem = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  actor: MobileFeedActor | null;
+  icon: string;
+  action: "view_chore" | "view_reward" | null;
+  createdAt: string;
+  metadata: { choreId?: string; choreTitle?: string };
+};
+
+export type MobileFeedPage = {
+  items: MobileFeedItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+};
+
+export async function fetchMobileFeed(page = 1, limit = 20): Promise<MobileFeedPage> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const payload = await apiFetch(`/feed?${params.toString()}`);
+  const pagination = payload?.pagination ?? {};
+  return {
+    items: Array.isArray(payload?.items) ? (payload.items as MobileFeedItem[]) : [],
+    pagination: {
+      page: typeof pagination.page === "number" ? pagination.page : page,
+      pageSize: typeof pagination.pageSize === "number" ? pagination.pageSize : limit,
+      total: typeof pagination.total === "number" ? pagination.total : 0,
+      totalPages: typeof pagination.totalPages === "number" ? pagination.totalPages : 1,
+      hasMore: Boolean(pagination.hasMore),
+    },
+  };
+}
+
 export type MobileStoreSummary = {
   balance: number;
   avatarUrl: string;

@@ -27,10 +27,15 @@ type ChoreEditorPreferences = {
   additionalOptionsExpanded: boolean;
 };
 
+const DASHBOARD_TAB_PREFIX = "mobile:dashboard:tab";
 const DASHBOARD_PREFIX = "mobile:dashboard:chores";
 const ALL_CHORES_PREFIX = "mobile:chores:list";
 const ACHIEVEMENTS_PREFIX = "mobile:achievements";
 const CHORE_EDITOR_PREFIX = "mobile:chore:editor";
+
+function dashboardTabKey(viewerKey: string) {
+  return `${DASHBOARD_TAB_PREFIX}:${viewerKey || "default"}`;
+}
 
 function dashboardKey(viewerKey: string) {
   return `${DASHBOARD_PREFIX}:${viewerKey || "default"}`;
@@ -89,6 +94,22 @@ function isChoreSortBy(value: unknown): value is ChoreSortBy {
 
 function isStatusFilter(value: unknown): value is StatusFilter {
   return value === "" || value === "needs_approval" || value === "completed";
+}
+
+export type DashboardTab = "feed" | "chores";
+
+function isDashboardTab(value: unknown): value is DashboardTab {
+  return value === "feed" || value === "chores";
+}
+
+// Chores is the default dashboard tab; selection sticks per signed-in viewer.
+export async function loadDashboardTabPreference(viewerKey: string): Promise<DashboardTab> {
+  const stored = await readJson<{ tab?: DashboardTab }>(dashboardTabKey(viewerKey));
+  return isDashboardTab(stored?.tab) ? stored.tab : "chores";
+}
+
+export async function saveDashboardTabPreference(viewerKey: string, tab: DashboardTab) {
+  await writeJson(dashboardTabKey(viewerKey), { tab });
 }
 
 export async function loadDashboardChorePreferences(viewerKey: string): Promise<DashboardChorePreferences> {

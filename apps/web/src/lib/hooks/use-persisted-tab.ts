@@ -26,32 +26,32 @@ function readUrlTab<TabId extends string>(
   }
 }
 
-function readInitialTab<TabId extends string>({
-  storageKey,
-  defaultTab,
-  validTabs,
-  urlParamKey,
-}: PersistedTabOptions<TabId>) {
+function readStoredTab<TabId extends string>(
+  storageKey: string,
+  validTabs: readonly TabId[],
+): TabId | null {
   if (typeof window === "undefined") {
-    return defaultTab;
+    return null;
   }
-
   try {
-    const urlTab = readUrlTab(urlParamKey, validTabs);
-    if (urlTab) {
-      return urlTab;
-    }
     const storedTab = window.localStorage.getItem(storageKey);
-    return storedTab && validTabs.includes(storedTab as TabId) ? (storedTab as TabId) : defaultTab;
+    return storedTab && validTabs.includes(storedTab as TabId) ? (storedTab as TabId) : null;
   } catch {
-    return defaultTab;
+    return null;
   }
 }
 
 export function usePersistedTab<TabId extends string>(
   options: PersistedTabOptions<TabId>,
 ): [TabId, Dispatch<SetStateAction<TabId>>] {
-  const [activeTab, setActiveTabState] = useState<TabId>(() => readInitialTab(options));
+  const { storageKey, defaultTab, validTabs, urlParamKey } = options;
+
+  // Always initialize to the default so server and first client render agree. Reading
+  // localStorage during render causes a hydration mismatch, which React resolves by
+  // throwing away the client value and snapping back to the server-rendered default —
+  // i.e. the stored tab would never stick. We resolve the persisted/deep-linked value in
+  // the mount effect below instead.
+  const [activeTab, setActiveTabState] = useState<TabId>(defaultTab);
 
   const setActiveTab = useCallback<Dispatch<SetStateAction<TabId>>>(
     (nextValue) => {
@@ -60,10 +60,10 @@ export function usePersistedTab<TabId extends string>(
           typeof nextValue === "function"
             ? (nextValue as (currentValue: TabId) => TabId)(current)
             : nextValue;
-        const safeValue = options.validTabs.includes(resolvedValue) ? resolvedValue : options.defaultTab;
+        const safeValue = validTabs.includes(resolvedValue) ? resolvedValue : defaultTab;
 
         try {
-          window.localStorage.setItem(options.storageKey, safeValue);
+          window.localStorage.setItem(storageKey, safeValue);
         } catch {
           // Ignore storage failures; tab switching should still work.
         }
@@ -71,19 +71,22 @@ export function usePersistedTab<TabId extends string>(
         return safeValue;
       });
     },
-    [options],
+    [storageKey, defaultTab, validTabs],
   );
 
-  // Reliable deep-link handling: the render-time initializer can read a stale
-  // URL during an App Router client transition (falling back to the stored tab).
-  // This mount effect re-reads the committed URL and honors `?tab=` if present.
+  // Resolve the persisted (or deep-linked) tab after mount. Keyed on storageKey so it also
+  // re-resolves when the viewer changes (e.g. switching managed-child profiles), restoring
+  // that viewer's last selection. URL `?tab=` wins over the stored value when present.
   useEffect(() => {
-    const urlTab = readUrlTab(options.urlParamKey, options.validTabs);
-    if (urlTab) {
-      setActiveTab(urlTab);
+    const resolved = readUrlTab(urlParamKey, validTabs) ?? readStoredTab(storageKey, validTabs);
+    if (resolved) {
+      // setState directly (not setActiveTab) so we don't re-write the same value back.
+      setActiveTabState(resolved);
+    } else {
+      setActiveTabState(defaultTab);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [storageKey]);
 
   return [activeTab, setActiveTab];
 }

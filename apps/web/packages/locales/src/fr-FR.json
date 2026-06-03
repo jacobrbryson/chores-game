@@ -133,10 +133,12 @@
   },
   "dashboard": {
     "tabs": {
+      "feed": "Actualités",
       "chores": "Tâches",
       "store": "Boutique",
       "achievements": "Succès",
-      "quests": "Quêtes"
+      "quests": "Quêtes",
+      "ariaLabel": "Sections du tableau de bord"
     },
     "loading": "Chargement du tableau des tâches",
     "familyLoadError": "Impossible de charger le résumé familial : {error}",
@@ -190,6 +192,27 @@
     "playerWelcomeBody": "Terminez vos tâches pour gagner des pièces, puis dépensez-les dans la boutique pour des thèmes, des avatars, des confettis et des récompenses familiales.",
     "emptyHeading": "Vous êtes à jour !",
     "emptyHeadingMember": "Rien pour {name} pour le moment"
+  },
+  "feed": {
+    "ariaLabel": "Actualités de la famille",
+    "loading": "Chargement des actualités de la famille",
+    "loadError": "Impossible de charger les actualités de la famille : {error}",
+    "emptyTitle": "Rien pour l'instant",
+    "emptyBody": "Au fur et à mesure que votre famille termine des tâches, gagne des récompenses et débloque des succès, les moments forts apparaîtront ici.",
+    "justNow": "à l'instant",
+    "loadMore": "Voir plus",
+    "loadingMore": "Chargement...",
+    "actions": {
+      "viewChore": "Voir la tâche",
+      "viewReward": "Voir la récompense"
+    },
+    "events": {
+      "chore_created": "Nouvelle tâche ajoutée",
+      "chore_completed": "Tâche terminée",
+      "chore_approved": "Tâche approuvée",
+      "chore_rejected": "La tâche doit être refaite",
+      "reward_claimed": "Récompense échangée"
+    }
   },
   "choreDialog": {
     "addTitle": "Ajouter des tâches",
