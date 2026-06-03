@@ -3,6 +3,7 @@ import type { StoreCategory } from "@/lib/store/catalog";
 import type { OwnedItemSummary } from "@/lib/items/owned-items";
 
 export type ProfilePageClientProps = {
+  uid: string;
   name: string;
   email: string;
   role: "admin" | "player";

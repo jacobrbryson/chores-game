@@ -1,4 +1,28 @@
 {
+  "ghost": {
+    "heading": "Envie de faire quelque chose ?",
+    "subheading": "Voici quelques idées de tâches sans danger. Demande à un parent d'en ajouter une pour de vrai.",
+    "badge": "Tâche suggérée",
+    "notAssigned": "Juste une idée — pas encore attribuée.",
+    "coins": "{coins} pièces",
+    "suggestedDivider": "Tâches suggérées",
+    "reasonBuiltin": "Suggérée car c'est une tâche sûre et populaire pour les enfants.",
+    "reasonRecent": "Suggérée car ta famille a ajouté cette tâche récemment.",
+    "reasonHistory": "Suggérée car ta famille fait souvent cette tâche.",
+    "addChore": "Ajouter la tâche",
+    "adding": "Ajout…",
+    "addError": "Impossible d'ajouter cette tâche. Réessaie.",
+    "request": "Demander la tâche",
+    "requesting": "Envoi…",
+    "requested": "Demandée ! Un parent va l'examiner.",
+    "dismiss": "Ignorer",
+    "requestError": "Impossible de demander cette idée. Réessaie.",
+    "adminHeading": "Demandes suggérées",
+    "adminEmpty": "Aucune demande de tâche suggérée pour le moment.",
+    "approve": "Approuver et créer",
+    "approving": "Approbation…",
+    "reject": "Refuser"
+  },
   "common": {
     "actions": {
       "add": "Ajouter",
@@ -374,6 +398,15 @@
     "notNow": "Pas maintenant",
     "applyNow": "Appliquer maintenant",
     "applying": "Application...",
+    "purchaseSuccessTitle": "Félicitations !",
+    "purchaseSuccessHasBeenAdded": "a été ajouté à votre",
+    "purchaseSuccessInventory": "Inventaire",
+    "purchaseSuccessAwards": "Récompenses Familiales Non Réclamées",
+    "purchaseSuccessProfile": "Profil",
+    "purchaseSuccessClaimNow": "Réclamer Maintenant",
+    "purchaseSuccessEquipNow": "Équiper Maintenant",
+    "purchaseSuccessBackToQuests": "Retour aux Quêtes",
+    "purchaseSuccessContinueShopping": "Continuer les Achats",
     "tabs": {
       "family": "Famille",
       "colors": "Couleurs",
@@ -402,6 +435,8 @@
     "inventorySubtitle": "Objets, collections et déblocages de ce compte.",
     "inventoryLoading": "Chargement de l'inventaire...",
     "inventoryEmpty": "Aucun objet pour le moment. Terminez des tâches, des quêtes et des achats pour remplir l'inventaire.",
+    "familySummaryLoadError": "Impossible de charger les recompenses familiales et les objets possedes : {error}",
+    "awardGuardianAcknowledgement": "Votre parent ou tuteur doit reconnaitre cette recompense pour la reclamer.",
     "googleAccountTitle": "Compte Google",
     "googleAccountLoading": "Chargement de l'état du compte Google...",
     "googleAccountLinkError": "Impossible de lier le compte Google : {error}",
@@ -704,6 +739,42 @@
       "awards": "Récompenses",
       "categories": "Catégories",
       "quests": "Quêtes"
+    },
+    "awards": {
+      "submitToCommunity": "Soumettre aux prix communautaires",
+      "submitToCommunityHelp": "Les soumissions de prix communautaires sont examinees avant de devenir publiques.",
+      "communityStatus": "Communaute : {status}",
+      "communityRejection": "Note d'examen : {reason}",
+      "communityStatuses": {
+        "not_submitted": "Non soumis",
+        "pending_review": "En attente d'examen",
+        "approved": "Approuve",
+        "rejected": "Rejete",
+        "withdrawn": "Retire",
+        "hidden": "Masque"
+      }
+    }
+  },
+  "communityAwards": {
+    "title": "Bibliotheque de prix communautaires",
+    "subtitle": "Decouvrez des idees de recompenses examinees par le support et copiez-les dans vos prix familiaux.",
+    "searchPlaceholder": "Rechercher des prix communautaires",
+    "searchLabel": "Rechercher des prix communautaires",
+    "search": "Rechercher",
+    "loadError": "Impossible de charger les prix communautaires : {error}",
+    "empty": "Aucun prix communautaire approuve ne correspond a cette vue.",
+    "coinAmount": "{coins} pieces",
+    "metrics": "{votes} vote(s) / {copies} copie(s)",
+    "vote": "Voter",
+    "voted": "Vote",
+    "voting": "Vote...",
+    "copy": "Copier dans ma famille",
+    "copying": "Copie...",
+    "copySuccess": "Prix copie dans vos prix familiaux.",
+    "pageOf": "Page {page} sur {totalPages} ({total})",
+    "sort": {
+      "most_popular": "Les plus populaires",
+      "newest": "Les plus recents"
     }
   },
   "breadcrumbs": {

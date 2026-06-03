@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Alert } from "@/components/alert";
 import Link from "next/link";
 import { AppTabs, type AppTabItem } from "@/components/app-tabs";
@@ -76,21 +77,19 @@ function getOptionPrice(category: StoreCategory, option: StoreOption) {
 
 export function StorePageClient() {
   const { t } = useLocale();
+  const router = useRouter();
   const [summary, setSummary] = useState<StoreSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
-  const [actionSuccess, setActionSuccess] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [modalSearchQuery, setModalSearchQuery] = useState("");
   const [pendingOptionId, setPendingOptionId] = useState("");
   const [previewOptionId, setPreviewOptionId] = useState("");
   const [previewConfettiOptionId, setPreviewConfettiOptionId] = useState("");
-  const [applyNowPrompt, setApplyNowPrompt] = useState<{
-    categoryId: string;
-    optionId: string;
-    title: string;
-    message: string;
+  const [purchaseSuccess, setPurchaseSuccess] = useState<{
+    category: StoreCategory;
+    option: StoreOption;
   } | null>(null);
   const previewActiveRef = useRef(false);
   const confettiPreviewResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -322,7 +321,6 @@ export function StorePageClient() {
     }
     setPendingOptionId(option.id);
     setActionError("");
-    setActionSuccess("");
     try {
       if (category.kind === "reward") {
         return;
@@ -371,7 +369,6 @@ export function StorePageClient() {
     }
     setPendingOptionId(option.id);
     setActionError("");
-    setActionSuccess("");
     try {
       const response = await postStoreAction({
         action: "purchase_option",
@@ -383,33 +380,9 @@ export function StorePageClient() {
         throw new Error(body.error ?? `PURCHASE_OPTION_HTTP_${response.status}`);
       }
       await loadSummary({ showLoading: false, clearError: false });
-      if (category.kind === "quest_item") {
-        setActionSuccess(t("store.itemAddedToInventory", { item: option.label }));
-      }
       window.dispatchEvent(new Event("wallet:refresh"));
       window.dispatchEvent(new Event("profile-avatar:refresh"));
-      if (category.kind === "color" && option.theme) {
-        setApplyNowPrompt({
-          categoryId: category.id,
-          optionId: option.id,
-          title: t("store.applyThemeNowTitle"),
-          message: t("store.purchaseCompleteApplyNow", { item: option.label }),
-        });
-      } else if (category.kind === "avatar") {
-        setApplyNowPrompt({
-          categoryId: category.id,
-          optionId: option.id,
-          title: t("store.applyAvatarNowTitle"),
-          message: t("store.purchaseCompleteApplyNow", { item: option.label }),
-        });
-      } else if (category.kind === "confetti") {
-        setApplyNowPrompt({
-          categoryId: category.id,
-          optionId: option.id,
-          title: t("store.applyConfettiNowTitle"),
-          message: t("store.purchaseCompleteApplyNow", { item: option.label }),
-        });
-      }
+      setPurchaseSuccess({ category, option });
     } catch (purchaseError) {
       if (typeof window !== "undefined") {
         console.error("[STORE_PURCHASE_CLIENT_ERROR]", {
@@ -430,7 +403,6 @@ export function StorePageClient() {
     }
     setPendingOptionId("google-avatar");
     setActionError("");
-    setActionSuccess("");
     try {
       const response = await postStoreAction({ action: "set_google_avatar" });
       if (!response.ok) {
@@ -498,8 +470,7 @@ export function StorePageClient() {
                   setModalSearchQuery("");
                   setActiveCategoryId(categoryId);
                   setActionError("");
-                  setActionSuccess("");
-                }}
+                              }}
               />
             </div>
 
@@ -534,11 +505,6 @@ export function StorePageClient() {
                     />
                   </div>
                   {actionError ? <Alert className="mt-2">{t("store.updateError", { error: actionError })}</Alert> : null}
-                  {actionSuccess ? (
-                    <Alert tone="success" role="status" className="mt-2">
-                      {actionSuccess}
-                    </Alert>
-                  ) : null}
                 </header>
                 <div className="store-options-grid">
                   {selectedCategory.kind === "avatar" &&
@@ -863,63 +829,164 @@ export function StorePageClient() {
           </section>
 
           <ModalShell
-            open={Boolean(applyNowPrompt)}
+            open={Boolean(purchaseSuccess)}
             onRequestClose={() => {
               if (!pendingOptionId) {
-                setApplyNowPrompt(null);
+                setPurchaseSuccess(null);
               }
             }}>
-            {applyNowPrompt ? (
-              <section className="store-options-modal">
-                <header className="store-options-modal-header">
-                  <div className="store-options-modal-title-row modal-dialog-title-row">
-                    <h3>{applyNowPrompt.title}</h3>
+            {purchaseSuccess ? (() => {
+              const { category, option } = purchaseSuccess;
+              const rewardImage = category.kind === "reward" ? findFamilyRewardImageOption(option.value) : null;
+              const isAdmin = summary?.viewerRole === "admin";
+              const primaryColor = option.theme?.primary ?? option.value;
+              const secondaryColor = option.theme?.secondary ?? primaryColor;
+              const tertiaryColor = option.theme?.tertiary ?? primaryColor;
+              const confettiColors = option.confetti?.colors ?? ["#94a3b8", "#64748b", "#cbd5e1"];
+              const confettiShapes = option.confetti?.shapes ?? ["rect", "circle", "streamer"];
+              const destLabel =
+                category.kind === "quest_item"
+                  ? t("store.purchaseSuccessInventory")
+                  : category.kind === "reward"
+                    ? t("store.purchaseSuccessAwards")
+                    : t("store.purchaseSuccessProfile");
+              const destHref =
+                category.kind === "quest_item"
+                  ? "/profile?tab=inventory"
+                  : "/profile";
+              return (
+                <section className="store-success-modal">
+                  <div className="store-success-modal-header">
+                    <h3>{t("store.purchaseSuccessTitle")}</h3>
                     <Button
                       type="button"
                       className="modal-close-button"
-                      onClick={() => {
-                        if (!pendingOptionId) {
-                          setApplyNowPrompt(null);
-                        }
-                      }}
+                      onClick={() => { if (!pendingOptionId) setPurchaseSuccess(null); }}
                       aria-label={t("common.actions.close")}
                       title={t("common.actions.close")}>
                       X
                     </Button>
                   </div>
-                  <p className="small">{applyNowPrompt.message}</p>
-                </header>
-                <div className="store-options-actions">
-                  <Button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={pendingOptionId.length > 0}
-                    onClick={() => setApplyNowPrompt(null)}>
-                    {t("store.notNow")}
-                  </Button>
-                  <Button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={pendingOptionId.length > 0}
-                    onClick={async () => {
-                      if (!summary) {
-                        setApplyNowPrompt(null);
-                        return;
-                      }
-                      const category = summary.categories.find((entry) => entry.id === applyNowPrompt.categoryId);
-                      const option = category?.options.find((entry) => entry.id === applyNowPrompt.optionId);
-                      if (!category || !option) {
-                        setApplyNowPrompt(null);
-                        return;
-                      }
-                      await applyOption(category, option, true);
-                      setApplyNowPrompt(null);
-                    }}>
-                    {pendingOptionId.length > 0 ? t("store.applying") : t("store.applyNow")}
-                  </Button>
-                </div>
-              </section>
-            ) : null}
+                  <div className="store-success-preview">
+                    {category.kind === "reward" ? (
+                      <Image
+                        src={rewardImage?.imagePath ?? "/rewards/screens.png"}
+                        alt={option.label}
+                        width={120}
+                        height={120}
+                        className="store-option-reward-image"
+                      />
+                    ) : category.kind === "quest_item" ? (
+                      <Image
+                        src={option.itemImage || "/assets/items/placeholder.png"}
+                        alt={option.label}
+                        width={96}
+                        height={96}
+                        className="store-option-reward-image"
+                      />
+                    ) : category.kind === "avatar" ? (
+                      <Avatar
+                        size={80}
+                        borderWidth={2}
+                        name={option.label}
+                        avatarId={option.value}
+                        alt={option.label}
+                      />
+                    ) : category.kind === "color" ? (
+                      <div className="store-option-theme-preview">
+                        <span
+                          className="store-option-color"
+                          style={{ backgroundColor: primaryColor }}
+                          aria-hidden="true"
+                        />
+                        <span
+                          className="store-option-color store-option-color-secondary"
+                          style={{ backgroundColor: secondaryColor }}
+                          aria-hidden="true"
+                        />
+                        <span
+                          className="store-option-color store-option-color-tertiary"
+                          style={{ backgroundColor: tertiaryColor }}
+                          aria-hidden="true"
+                        />
+                      </div>
+                    ) : category.kind === "confetti" ? (
+                      <div
+                        className="store-option-confetti-preview"
+                        style={
+                          {
+                            "--confetti-color-a": confettiColors[0] ?? "#60a5fa",
+                            "--confetti-color-b": confettiColors[1] ?? "#f97316",
+                            width: "100%",
+                          } as CSSProperties
+                        }>
+                        {Array.from({ length: 10 }, (_unused, chipIndex) => {
+                          const chipShape = confettiShapes[chipIndex % confettiShapes.length] ?? "rect";
+                          const chipColor = confettiColors[chipIndex % confettiColors.length] ?? "#60a5fa";
+                          return (
+                            <span
+                              key={`success-chip-${chipIndex}`}
+                              className={`store-option-confetti-chip${
+                                chipShape === "circle" ? " store-option-confetti-chip-circle" : chipShape === "streamer" ? " store-option-confetti-chip-streamer" : ""
+                              }`}
+                              style={
+                                {
+                                  left: `${10 + ((chipIndex * 9) % 80)}%`,
+                                  top: `${14 + ((chipIndex * 17) % 64)}%`,
+                                  "--chip-color": chipColor,
+                                  animationDelay: `${(chipIndex % 5) * 70}ms`,
+                                } as CSSProperties
+                              }
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                  <p className="store-success-message">
+                    <strong>{option.label}</strong>{" "}
+                    {t("store.purchaseSuccessHasBeenAdded")}{" "}
+                    <Link href={destHref}>{destLabel}</Link>.
+                  </p>
+                  <div className="store-success-actions">
+                    {category.kind === "quest_item" ? (
+                      <Button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => { router.push("/quests"); }}>
+                        {t("store.purchaseSuccessBackToQuests")}
+                      </Button>
+                    ) : category.kind === "reward" && isAdmin ? (
+                      <Button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => { router.push("/profile"); }}>
+                        {t("store.purchaseSuccessClaimNow")}
+                      </Button>
+                    ) : (category.kind === "color" || category.kind === "avatar" || category.kind === "confetti") ? (
+                      <Button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={pendingOptionId.length > 0}
+                        onClick={async () => {
+                          if (pendingOptionId) return;
+                          await applyOption(category, option, true);
+                          setPurchaseSuccess(null);
+                        }}>
+                        {pendingOptionId.length > 0 ? t("store.applying") : t("store.purchaseSuccessEquipNow")}
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={pendingOptionId.length > 0}
+                      onClick={() => { if (!pendingOptionId) setPurchaseSuccess(null); }}>
+                      {t("store.purchaseSuccessContinueShopping")}
+                    </Button>
+                  </div>
+                </section>
+              );
+            })() : null}
           </ModalShell>
         </>
       ) : null}

@@ -1,4 +1,28 @@
 {
+  "ghost": {
+    "heading": "Need something to do?",
+    "subheading": "Here are some safe chore ideas. Ask a parent to add one for real.",
+    "badge": "Suggested Chore",
+    "notAssigned": "Just an idea — not assigned yet.",
+    "coins": "{coins} coins",
+    "suggestedDivider": "Suggested Chores",
+    "reasonBuiltin": "Suggested because it's a safe, popular chore for kids.",
+    "reasonRecent": "Suggested because your family added this chore recently.",
+    "reasonHistory": "Suggested because your family does this chore often.",
+    "addChore": "Add Chore",
+    "adding": "Adding…",
+    "addError": "Could not add this chore. Please try again.",
+    "request": "Request chore",
+    "requesting": "Requesting…",
+    "requested": "Requested! A parent will review it.",
+    "dismiss": "Dismiss",
+    "requestError": "Could not request this idea. Please try again.",
+    "adminHeading": "Suggested requests",
+    "adminEmpty": "No suggested chore requests right now.",
+    "approve": "Approve & create",
+    "approving": "Approving…",
+    "reject": "Reject"
+  },
   "common": {
     "actions": {
       "add": "Add",
@@ -374,6 +398,15 @@
     "notNow": "Not now",
     "applyNow": "Apply now",
     "applying": "Applying...",
+    "purchaseSuccessTitle": "Congratulations!",
+    "purchaseSuccessHasBeenAdded": "has been added to your",
+    "purchaseSuccessInventory": "Inventory",
+    "purchaseSuccessAwards": "Unclaimed Family Awards",
+    "purchaseSuccessProfile": "Profile",
+    "purchaseSuccessClaimNow": "Claim Now",
+    "purchaseSuccessEquipNow": "Equip Now",
+    "purchaseSuccessBackToQuests": "Back to Quests",
+    "purchaseSuccessContinueShopping": "Continue Shopping",
     "tabs": {
       "family": "Family",
       "colors": "Colors",
@@ -402,6 +435,8 @@
     "inventorySubtitle": "Items, collectibles, and unlocks in this account inventory.",
     "inventoryLoading": "Loading inventory...",
     "inventoryEmpty": "No owned items yet. Complete chores, quests, and store purchases to build inventory.",
+    "familySummaryLoadError": "Could not load family awards and owned items: {error}",
+    "awardGuardianAcknowledgement": "Your parent or guardian must acknowledge this reward in order to claim.",
     "googleAccountTitle": "Google Account",
     "googleAccountLoading": "Loading Google account status...",
     "googleAccountLinkError": "Could not link Google account: {error}",
@@ -704,6 +739,42 @@
       "awards": "Awards",
       "categories": "Categories",
       "quests": "Quests"
+    },
+    "awards": {
+      "submitToCommunity": "Submit to Community Awards",
+      "submitToCommunityHelp": "Community Award submissions are reviewed before becoming public.",
+      "communityStatus": "Community: {status}",
+      "communityRejection": "Review note: {reason}",
+      "communityStatuses": {
+        "not_submitted": "Not submitted",
+        "pending_review": "Pending review",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "withdrawn": "Withdrawn",
+        "hidden": "Hidden"
+      }
+    }
+  },
+  "communityAwards": {
+    "title": "Community Award Library",
+    "subtitle": "Discover reviewed reward ideas from other families and copy them into your own Family Awards.",
+    "searchPlaceholder": "Search community awards",
+    "searchLabel": "Search community awards",
+    "search": "Search",
+    "loadError": "Could not load community awards: {error}",
+    "empty": "No approved community awards match this view yet.",
+    "coinAmount": "{coins} coins",
+    "metrics": "{votes} vote(s) / {copies} copy/copies",
+    "vote": "Vote",
+    "voted": "Voted",
+    "voting": "Voting...",
+    "copy": "Copy to My Family",
+    "copying": "Copying...",
+    "copySuccess": "Award copied to your Family Awards.",
+    "pageOf": "Page {page} of {totalPages} ({total})",
+    "sort": {
+      "most_popular": "Most Popular",
+      "newest": "Newest"
     }
   },
   "breadcrumbs": {

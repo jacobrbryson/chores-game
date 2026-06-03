@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { AddEditChoresDialog, FAMILY_ASSIGNEE_OPTION_ID, type AddEditChoreSavedResult } from "@/components/add-edit-chores-dialog";
+import { GhostChoreEmptyStateSuggestions } from "@/components/ghost-chore-suggestions";
 import { Alert } from "@/components/alert";
 import { AppMenu } from "@/components/app-menu";
 import { Button } from "@/components/button";
@@ -1296,14 +1297,14 @@ export function TodayChoresPanel({
                         ariaHidden
                       />
                     ) : (
-                      <span className="today-chores-family-avatar" aria-hidden="true">
-                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
-                          <circle cx="7" cy="7" r="2" />
-                          <circle cx="13.25" cy="8" r="1.75" />
-                          <path d="M3.75 15a3.5 3.5 0 0 1 6.5 0" />
-                          <path d="M11 14.75a3 3 0 0 1 5-.75" />
-                        </svg>
-                      </span>
+                      <FamilyMemberAvatar
+                        className="today-chores-family-avatar"
+                        name="Family"
+                        size={30}
+                        borderWidth={2}
+                        isFamily
+                        ariaHidden
+                      />
                     )}
                     <span className="today-chores-scope-trigger-text">
                       {selectedChoreMember?.name || "Family"}
@@ -1337,14 +1338,14 @@ export function TodayChoresPanel({
                   }`}
                   onClick={() => updateChoreScopeSelection(FAMILY_CHORE_SCOPE_SELECTION)}>
                   <span className="today-chores-scope-option-main">
-                    <span className="today-chores-family-avatar" aria-hidden="true">
-                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
-                        <circle cx="7" cy="7" r="2" />
-                        <circle cx="13.25" cy="8" r="1.75" />
-                        <path d="M3.75 15a3.5 3.5 0 0 1 6.5 0" />
-                        <path d="M11 14.75a3 3 0 0 1 5-.75" />
-                      </svg>
-                    </span>
+                    <FamilyMemberAvatar
+                      className="today-chores-family-avatar"
+                      name="Family"
+                      size={30}
+                      borderWidth={2}
+                      isFamily
+                      ariaHidden
+                    />
                     <span className="today-chores-scope-option-copy">
                       <span>All Family</span>
                       <span>All open chores</span>
@@ -1510,16 +1511,11 @@ export function TodayChoresPanel({
                   ? t("dashboard.noChoresAssigned", { name: selectedChoreMember.name })
                   : t("dashboard.noOpenChores")}
               </p>
-              {canCreateChores ? (
-                <div className="dashboard-empty-state-actions">
-                  <AddEditChoresDialog
-                    createMode={playerSeeAndDoMode ? "see_and_do" : "default"}
-                    defaultAssigneeIds={selectedChoreMember ? [selectedChoreMember.id] : selectedChoreScope === FAMILY_CHORE_SCOPE_SELECTION ? [FAMILY_ASSIGNEE_OPTION_ID] : undefined}
-                    triggerLabel={playerSeeAndDoMode ? t("dashboard.addSeeAndDoChore") : t("dashboard.addChore")}
-                    onSaved={onChoreSaved}
-                  />
-                </div>
-              ) : null}
+              <GhostChoreEmptyStateSuggestions
+                assigneeId={selectedChoreMember?.id}
+                assigneeName={selectedChoreMember?.name}
+                onAdded={onReload}
+              />
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -1857,7 +1853,6 @@ export function TodayChoresPanel({
     </article>
   );
 }
-
 
 
 

@@ -1,4 +1,28 @@
 {
+  "ghost": {
+    "heading": "¿Buscas algo que hacer?",
+    "subheading": "Aquí tienes algunas ideas de tareas seguras. Pídele a un adulto que añada una de verdad.",
+    "badge": "Tarea sugerida",
+    "notAssigned": "Solo es una idea: aún no está asignada.",
+    "coins": "{coins} monedas",
+    "suggestedDivider": "Tareas sugeridas",
+    "reasonBuiltin": "Sugerida porque es una tarea segura y popular para niños.",
+    "reasonRecent": "Sugerida porque tu familia agregó esta tarea recientemente.",
+    "reasonHistory": "Sugerida porque tu familia hace esta tarea con frecuencia.",
+    "addChore": "Agregar tarea",
+    "adding": "Agregando…",
+    "addError": "No se pudo agregar esta tarea. Inténtalo de nuevo.",
+    "request": "Solicitar tarea",
+    "requesting": "Solicitando…",
+    "requested": "¡Solicitada! Un adulto la revisará.",
+    "dismiss": "Descartar",
+    "requestError": "No se pudo solicitar esta idea. Inténtalo de nuevo.",
+    "adminHeading": "Solicitudes sugeridas",
+    "adminEmpty": "No hay solicitudes de tareas sugeridas por ahora.",
+    "approve": "Aprobar y crear",
+    "approving": "Aprobando…",
+    "reject": "Rechazar"
+  },
   "common": {
     "actions": {
       "add": "Agregar",
@@ -374,6 +398,15 @@
     "notNow": "Ahora no",
     "applyNow": "Aplicar ahora",
     "applying": "Aplicando...",
+    "purchaseSuccessTitle": "¡Felicidades!",
+    "purchaseSuccessHasBeenAdded": "se ha añadido a tu",
+    "purchaseSuccessInventory": "Inventario",
+    "purchaseSuccessAwards": "Premios Familiares sin Reclamar",
+    "purchaseSuccessProfile": "Perfil",
+    "purchaseSuccessClaimNow": "Reclamar Ahora",
+    "purchaseSuccessEquipNow": "Equipar Ahora",
+    "purchaseSuccessBackToQuests": "Volver a Misiones",
+    "purchaseSuccessContinueShopping": "Continuar Comprando",
     "tabs": {
       "family": "Familia",
       "colors": "Colores",
@@ -402,6 +435,8 @@
     "inventorySubtitle": "Objetos, coleccionables y desbloqueos de esta cuenta.",
     "inventoryLoading": "Cargando inventario...",
     "inventoryEmpty": "Todavia no hay objetos. Completa tareas, misiones y compras para llenar el inventario.",
+    "familySummaryLoadError": "No se pudieron cargar los premios familiares y objetos obtenidos: {error}",
+    "awardGuardianAcknowledgement": "Tu padre, madre o tutor debe reconocer esta recompensa para poder reclamarla.",
     "googleAccountTitle": "Cuenta de Google",
     "googleAccountLoading": "Cargando el estado de la cuenta de Google...",
     "googleAccountLinkError": "No se pudo vincular la cuenta de Google: {error}",
@@ -704,6 +739,20 @@
       "awards": "Premios",
       "categories": "Categorias",
       "quests": "Misiones"
+    },
+    "awards": {
+      "submitToCommunity": "Enviar a Premios comunitarios",
+      "submitToCommunityHelp": "Los envios de premios comunitarios se revisan antes de hacerse publicos.",
+      "communityStatus": "Comunidad: {status}",
+      "communityRejection": "Nota de revision: {reason}",
+      "communityStatuses": {
+        "not_submitted": "No enviado",
+        "pending_review": "Pendiente de revision",
+        "approved": "Aprobado",
+        "rejected": "Rechazado",
+        "withdrawn": "Retirado",
+        "hidden": "Oculto"
+      }
     }
   },
   "breadcrumbs": {
@@ -773,5 +822,27 @@
   "mobile": {
     "checkingSessionTitle": "Verificando sesion...",
     "checkingSessionBody": "Espera mientras verificamos tu inicio de sesion de Family Chores."
+  },
+  "communityAwards": {
+    "title": "Biblioteca de premios comunitarios",
+    "subtitle": "Descubre ideas de recompensas revisadas por soporte y copialas a tus Premios familiares.",
+    "searchPlaceholder": "Buscar premios comunitarios",
+    "searchLabel": "Buscar premios comunitarios",
+    "search": "Buscar",
+    "loadError": "No se pudieron cargar los premios comunitarios: {error}",
+    "empty": "No hay premios comunitarios aprobados para esta vista.",
+    "coinAmount": "{coins} monedas",
+    "metrics": "{votes} voto(s) / {copies} copia(s)",
+    "vote": "Votar",
+    "voted": "Votado",
+    "voting": "Votando...",
+    "copy": "Copiar a mi familia",
+    "copying": "Copiando...",
+    "copySuccess": "Premio copiado a tus Premios familiares.",
+    "pageOf": "Pagina {page} de {totalPages} ({total})",
+    "sort": {
+      "most_popular": "Mas populares",
+      "newest": "Mas recientes"
+    }
   }
 }

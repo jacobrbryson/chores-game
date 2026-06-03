@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type AppLocale } from "@packages/locales";
-import { apiClient, apiFetch, patchMobileProfile } from "@/lib/api";
+import {
+  apiClient,
+  apiFetch,
+  claimMobileProfileAward,
+  fetchMobileProfileSummary,
+  patchMobileProfile,
+  type MobileProfileSummary,
+} from "@/lib/api";
 import { useMobileLocale } from "@/lib/locale";
 import { colors, spacing, typography } from "@/theme";
-import { AppScreen, AvatarBadge, Button, Card, CoinPill, EmptyState, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
+import { AppScreen, AvatarBadge, Button, Card, CoinPill, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
+import { MobileProfileFamilySummary } from "@/components/MobileProfileFamilySummary";
 
 type ProfileData = {
   name: string;
@@ -37,6 +45,9 @@ type Props = {
 export function ProfileScreen({ right, onGoDashboard }: Props) {
   const { t, setLocale } = useMobileLocale();
   const [state, setState] = useState<{ loading: boolean; error?: string; data: ProfileData | null }>({ loading: true, data: null });
+  const [familySummary, setFamilySummary] = useState<MobileProfileSummary | null>(null);
+  const [familySummaryError, setFamilySummaryError] = useState("");
+  const [claimingAwardId, setClaimingAwardId] = useState("");
   const [localePending, setLocalePending] = useState(false);
   const [localeError, setLocaleError] = useState("");
 
@@ -44,9 +55,14 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
     Promise.all([
       apiClient.auth.me().catch(() => null),
       apiFetch("/achievements").catch(() => ({ items: [] })),
+      fetchMobileProfileSummary().catch((error: unknown) => {
+        setFamilySummaryError(error instanceof Error ? error.message : "profile_family_summary_unavailable");
+        return null;
+      }),
     ])
-      .then(([meRaw, achievements]) => {
+      .then(([meRaw, achievements, summary]) => {
         const me = meRaw as MeResponse | null;
+        setFamilySummary(summary);
         const count = Array.isArray(achievements?.items) ? achievements.items.filter((a: any) => a.completed).length : 0;
         if (!me) {
           setState({ loading: false, error: "unauthorized", data: null });
@@ -91,6 +107,22 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
     }
   }
 
+  async function onClaimAward(awardId: string) {
+    if (claimingAwardId) {
+      return;
+    }
+    setClaimingAwardId(awardId);
+    setFamilySummaryError("");
+    try {
+      await claimMobileProfileAward(awardId);
+      setFamilySummary(await fetchMobileProfileSummary());
+    } catch (error) {
+      setFamilySummaryError(error instanceof Error ? error.message : "claim_award_failed");
+    } finally {
+      setClaimingAwardId("");
+    }
+  }
+
   return (
     <AppScreen
       title={t("nav.profile")}
@@ -131,10 +163,12 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
             {localeError ? <Text style={styles.error}>{localeError}</Text> : null}
           </Card>
 
-          <Card>
-            <SectionHeader title={t("profile.familyInventoryTitle")} />
-            <EmptyState message={t("profile.familyInventoryPlaceholder")} />
-          </Card>
+          {familySummaryError ? <ErrorState message={t("profile.familySummaryLoadError", { error: familySummaryError })} /> : null}
+          <MobileProfileFamilySummary
+            summary={familySummary}
+            claimingAwardId={claimingAwardId}
+            onClaimAward={(awardId) => void onClaimAward(awardId)}
+          />
         </>
       ) : null}
     </AppScreen>

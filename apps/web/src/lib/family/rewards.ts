@@ -4,6 +4,7 @@ import {
   readBoolean,
   readInteger,
   readString,
+  readTimestamp,
   type FirestoreValue,
 } from "@/lib/firestore/rest";
 
@@ -16,6 +17,12 @@ export type FamilyReward = {
   familyLimit?: number;
   familyRedeemedCount?: number;
   disabled?: boolean;
+  submitToCommunityAwards?: boolean;
+  communityAwardSubmissionId?: string | null;
+  communityAwardSubmissionStatus?: string | null;
+  communityAwardSubmittedAt?: string | null;
+  communityAwardReviewedAt?: string | null;
+  communityAwardRejectionReason?: string | null;
 };
 
 export type FamilyRewardImageOption = {
@@ -112,6 +119,7 @@ export function parseFamilyRewards(
       const familyRedeemedCount = normalizeFamilyRewardLimit(
         readInteger(doc.fields, "familyRedeemedCount"),
       );
+      const communityAwardSubmissionStatus = readString(doc.fields, "communityAwardSubmissionStatus");
       return {
         id,
         deleted,
@@ -122,6 +130,12 @@ export function parseFamilyRewards(
         individualLimit,
         familyLimit,
         familyRedeemedCount,
+        submitToCommunityAwards: readBoolean(doc.fields, "submitToCommunityAwards"),
+        communityAwardSubmissionId: readString(doc.fields, "communityAwardSubmissionId") || null,
+        communityAwardSubmissionStatus: communityAwardSubmissionStatus || null,
+        communityAwardSubmittedAt: readTimestamp(doc.fields, "communityAwardSubmittedAt") || null,
+        communityAwardReviewedAt: readTimestamp(doc.fields, "communityAwardReviewedAt") || null,
+        communityAwardRejectionReason: readString(doc.fields, "communityAwardRejectionReason") || null,
       };
     })
     .filter(
@@ -144,6 +158,12 @@ export function parseFamilyRewards(
       familyLimit: reward.familyLimit > 0 ? reward.familyLimit : undefined,
       familyRedeemedCount: reward.familyRedeemedCount > 0 ? reward.familyRedeemedCount : undefined,
       disabled: reward.disabled === true,
+      submitToCommunityAwards: reward.submitToCommunityAwards === true,
+      communityAwardSubmissionId: reward.communityAwardSubmissionId,
+      communityAwardSubmissionStatus: reward.communityAwardSubmissionStatus,
+      communityAwardSubmittedAt: reward.communityAwardSubmittedAt,
+      communityAwardReviewedAt: reward.communityAwardReviewedAt,
+      communityAwardRejectionReason: reward.communityAwardRejectionReason,
     }));
 }
 

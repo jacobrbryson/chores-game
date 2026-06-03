@@ -9,6 +9,10 @@ import { ProfileAdminNotificationsCard } from "@/components/profile/profile-admi
 import { ProfileApiAccessCard } from "@/components/profile/profile-api-access-card";
 import { ProfileCustomizationModals } from "@/components/profile/profile-customization-modals";
 import { ProfileDetailsSection } from "@/components/profile/profile-details-section";
+import {
+  ProfileFamilySummarySection,
+  type ProfileFamilySummary,
+} from "@/components/profile/profile-family-summary-section";
 import { ProfileGoogleLinkCard } from "@/components/profile/profile-google-link-card";
 import { MyRequestsList } from "@/components/my-requests-list";
 import {
@@ -85,6 +89,7 @@ function haveSameTaskListSelection(leftTaskListIds: string[], rightTaskListIds: 
 }
 
 export function ProfilePageClient({
+  uid,
   name,
   email,
   role,
@@ -95,8 +100,13 @@ export function ProfilePageClient({
 }: ProfilePageClientProps) {
   const { t } = useLocale();
   const [storeSummary, setStoreSummary] = useState<StoreProfileSummary | null>(null);
+  const [familySummary, setFamilySummary] = useState<ProfileFamilySummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [familySummaryLoading, setFamilySummaryLoading] = useState(true);
   const [error, setError] = useState("");
+  const [familySummaryError, setFamilySummaryError] = useState("");
+  const [claimingAwardId, setClaimingAwardId] = useState("");
+  const [claimError, setClaimError] = useState("");
   const [storedConfettiOptionId, setStoredConfettiOptionId] = useState(DEFAULT_CONFETTI_OPTION_ID);
 
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
@@ -162,6 +172,36 @@ export function ProfilePageClient({
     }
   }, []);
 
+  const loadFamilySummary = useCallback(async () => {
+    if (!uid) {
+      setFamilySummary(null);
+      setFamilySummaryLoading(false);
+      return;
+    }
+    setFamilySummaryLoading(true);
+    setFamilySummaryError("");
+    try {
+      const response = await fetch(`/api/family/members/${encodeURIComponent(uid)}/profile`, {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        if (response.status === 404 && body.error === "family_not_found") {
+          setFamilySummary(null);
+          return;
+        }
+        throw new Error(body.error ?? `PROFILE_FAMILY_SUMMARY_HTTP_${response.status}`);
+      }
+      const payload = (await response.json()) as ProfileFamilySummary;
+      setFamilySummary(payload);
+    } catch (errorValue) {
+      setFamilySummary(null);
+      setFamilySummaryError(errorValue instanceof Error ? errorValue.message : "profile_family_summary_unavailable");
+    } finally {
+      setFamilySummaryLoading(false);
+    }
+  }, [uid]);
+
   const loadGoogleTasksSummary = useCallback(async () => {
     setGoogleTasksLoading(true);
     setGoogleTasksError("");
@@ -202,8 +242,9 @@ export function ProfilePageClient({
 
   useEffect(() => {
     void loadStoreSummary();
+    void loadFamilySummary();
     void loadGoogleTasksSummary();
-  }, [loadGoogleTasksSummary, loadStoreSummary]);
+  }, [loadFamilySummary, loadGoogleTasksSummary, loadStoreSummary]);
 
   useEffect(() => {
     void loadPushNotificationSummary();
@@ -415,6 +456,29 @@ export function ProfilePageClient({
       setAvatarActionError(errorValue instanceof Error ? errorValue.message : "avatar_update_failed");
     } finally {
       setAvatarActionPending("");
+    }
+  }
+
+  async function onClaimAward(awardId: string) {
+    if (!familySummary?.canManageAwards || claimingAwardId) {
+      return;
+    }
+    setClaimingAwardId(awardId);
+    setClaimError("");
+    try {
+      const response = await fetch(
+        `/api/family/members/${encodeURIComponent(familySummary.member.id)}/awards/${encodeURIComponent(awardId)}`,
+        { method: "PATCH" },
+      );
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? `PROFILE_AWARD_CLAIM_HTTP_${response.status}`);
+      }
+      await loadFamilySummary();
+    } catch (errorValue) {
+      setClaimError(errorValue instanceof Error ? errorValue.message : "claim_award_failed");
+    } finally {
+      setClaimingAwardId("");
     }
   }
 
@@ -825,61 +889,74 @@ export function ProfilePageClient({
         </div>
         <div className="app-tab-panel-body p-5">
       {activeTab === "general" ? (
-        <ProfileDetailsSection
-        displayName={displayName}
-        displayEmail={displayEmail}
-        role={role}
-        locale={selectedLocale}
-        localePending={localePending}
-        localeError={localeError}
-        isLoading={isLoading}
-        canEditName={role === "admin" && !isSwitched}
-        isEditingName={isEditingName}
-        editedName={editedName}
-        namePending={namePending}
-        nameError={nameError}
-        picture={picture}
-        activeAvatarId={activeAvatarId}
-        activeAvatarPhotoUrl={activeAvatarPhotoUrl}
-        themePalette={themePalette}
-        activeThemeName={activeThemeName}
-        isDefaultThemeActive={isDefaultThemeActive}
-        activeConfettiName={activeConfettiName}
-        isDefaultConfettiActive={isDefaultConfettiActive}
-        activeConfettiColors={activeConfettiColors}
-        onNameDraftChange={(value) => {
-          setEditedName(value);
-          setNameError("");
-        }}
-        onStartNameEdit={() => {
-          setEditedName(displayName);
-          setNameError("");
-          setIsEditingName(true);
-        }}
-        onCancelNameEdit={() => {
-          setEditedName(displayName);
-          setNameError("");
-          setIsEditingName(false);
-        }}
-        onSaveNameEdit={() => {
-          void onSaveNameEdit();
-        }}
-        onLocaleChange={(value) => {
-          void onChangeLocale(value);
-        }}
-        onOpenAvatarDialog={() => {
-          setAvatarActionError("");
-          setAvatarDialogOpen(true);
-        }}
-        onOpenThemeDialog={() => {
-          setThemeActionError("");
-          setThemeDialogOpen(true);
-        }}
-        onOpenConfettiDialog={() => {
-          setConfettiActionError("");
-          setConfettiDialogOpen(true);
-        }}
-        />
+        <div className="profile-general-stack">
+          <ProfileDetailsSection
+          displayName={displayName}
+          displayEmail={displayEmail}
+          role={role}
+          locale={selectedLocale}
+          localePending={localePending}
+          localeError={localeError}
+          isLoading={isLoading}
+          canEditName={role === "admin" && !isSwitched}
+          isEditingName={isEditingName}
+          editedName={editedName}
+          namePending={namePending}
+          nameError={nameError}
+          picture={picture}
+          activeAvatarId={activeAvatarId}
+          activeAvatarPhotoUrl={activeAvatarPhotoUrl}
+          themePalette={themePalette}
+          activeThemeName={activeThemeName}
+          isDefaultThemeActive={isDefaultThemeActive}
+          activeConfettiName={activeConfettiName}
+          isDefaultConfettiActive={isDefaultConfettiActive}
+          activeConfettiColors={activeConfettiColors}
+          onNameDraftChange={(value) => {
+            setEditedName(value);
+            setNameError("");
+          }}
+          onStartNameEdit={() => {
+            setEditedName(displayName);
+            setNameError("");
+            setIsEditingName(true);
+          }}
+          onCancelNameEdit={() => {
+            setEditedName(displayName);
+            setNameError("");
+            setIsEditingName(false);
+          }}
+          onSaveNameEdit={() => {
+            void onSaveNameEdit();
+          }}
+          onLocaleChange={(value) => {
+            void onChangeLocale(value);
+          }}
+          onOpenAvatarDialog={() => {
+            setAvatarActionError("");
+            setAvatarDialogOpen(true);
+          }}
+          onOpenThemeDialog={() => {
+            setThemeActionError("");
+            setThemeDialogOpen(true);
+          }}
+          onOpenConfettiDialog={() => {
+            setConfettiActionError("");
+            setConfettiDialogOpen(true);
+          }}
+          />
+          <ProfileFamilySummarySection
+            summary={familySummary}
+            isLoading={familySummaryLoading}
+            error={familySummaryError}
+            canManageAwards={familySummary?.canManageAwards === true}
+            claimingAwardId={claimingAwardId}
+            claimError={claimError}
+            onClaimAward={(awardId) => {
+              void onClaimAward(awardId);
+            }}
+          />
+        </div>
       ) : null}
 
       {activeTab === "inventory" ? (
@@ -1074,4 +1151,3 @@ export function ProfilePageClient({
     </main>
   );
 }
-

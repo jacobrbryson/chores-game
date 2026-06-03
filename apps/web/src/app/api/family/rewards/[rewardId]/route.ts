@@ -17,6 +17,10 @@ import {
   timestampField,
 } from "@/lib/firestore/rest";
 import {
+  submitFamilyRewardToCommunity,
+  withdrawFamilyRewardCommunitySubmission,
+} from "@/lib/community-awards";
+import {
   isFamilyRewardImageId,
   isValidFamilyRewardCoinCost,
   isValidFamilyRewardLimit,
@@ -34,6 +38,7 @@ type UpdateRewardBody = {
   individualLimit?: unknown;
   familyLimit?: unknown;
   disabled?: unknown;
+  submitToCommunityAwards?: unknown;
 };
 
 type ViewerRole = "admin" | "player";
@@ -151,13 +156,15 @@ export async function PATCH(
   const hasIndividualLimit = body.individualLimit !== undefined;
   const hasFamilyLimit = body.familyLimit !== undefined;
   const hasDisabled = body.disabled !== undefined;
+  const hasSubmitToCommunityAwards = body.submitToCommunityAwards !== undefined;
   if (
     !hasDescription &&
     !hasCoinCost &&
     !hasImageId &&
     !hasIndividualLimit &&
     !hasFamilyLimit &&
-    !hasDisabled
+    !hasDisabled &&
+    !hasSubmitToCommunityAwards
   ) {
     return NextResponse.json({ error: "update_values_required" }, { status: 400 });
   }
@@ -168,6 +175,7 @@ export async function PATCH(
   const individualLimit = hasIndividualLimit ? normalizeFamilyRewardLimit(body.individualLimit) : 0;
   const familyLimit = hasFamilyLimit ? normalizeFamilyRewardLimit(body.familyLimit) : 0;
   const disabled = hasDisabled ? body.disabled === true : false;
+  const submitToCommunityAwards = hasSubmitToCommunityAwards ? body.submitToCommunityAwards === true : false;
 
   if (hasDescription && !description) {
     return NextResponse.json({ error: "description_required" }, { status: 400 });
@@ -226,6 +234,10 @@ export async function PATCH(
         const existingCoinCost = normalizeFamilyRewardCoinCost(readInteger(rewardDoc.fields, "coinCost"));
         const existingImageId = readString(rewardDoc.fields, "imageId").trim();
         const existingDisabled = readBoolean(rewardDoc.fields, "disabled");
+        const existingSubmitToCommunityAwards = readBoolean(rewardDoc.fields, "submitToCommunityAwards");
+        const existingSubmissionId = readString(rewardDoc.fields, "communityAwardSubmissionId");
+        const existingSubmissionStatus = readString(rewardDoc.fields, "communityAwardSubmissionStatus");
+        const existingCreatedAt = readString(rewardDoc.fields, "createdAt");
         const existingIndividualLimit = normalizeFamilyRewardLimit(
           readInteger(rewardDoc.fields, "individualLimit"),
         );
@@ -237,6 +249,9 @@ export async function PATCH(
         const nextCoinCost = hasCoinCost ? coinCost : existingCoinCost;
         const nextImageId = hasImageId ? imageId : existingImageId;
         const nextDisabled = hasDisabled ? disabled : existingDisabled;
+        const nextSubmitToCommunityAwards = hasSubmitToCommunityAwards
+          ? submitToCommunityAwards
+          : existingSubmitToCommunityAwards;
         const nextIndividualLimit = hasIndividualLimit ? individualLimit : existingIndividualLimit;
         const nextFamilyLimit = hasFamilyLimit ? familyLimit : existingFamilyLimit;
 
@@ -266,11 +281,53 @@ export async function PATCH(
             individualLimit: integerField(nextIndividualLimit),
             familyLimit: integerField(nextFamilyLimit),
             disabled: boolField(nextDisabled),
+            submitToCommunityAwards: boolField(nextSubmitToCommunityAwards),
             updatedAt: timestampField(now),
           },
           idToken,
-          ["description", "coinCost", "imageId", "individualLimit", "familyLimit", "disabled", "updatedAt"],
+          ["description", "coinCost", "imageId", "individualLimit", "familyLimit", "disabled", "submitToCommunityAwards", "updatedAt"],
         );
+        let communityAwardSubmissionId = existingSubmissionId || null;
+        let communityAwardSubmissionStatus = existingSubmissionStatus || null;
+        let communityAwardSubmittedAt: string | null = null;
+        const canUpsertCommunitySubmission =
+          hasSubmitToCommunityAwards &&
+          nextSubmitToCommunityAwards &&
+          (
+            !existingSubmitToCommunityAwards ||
+            existingSubmissionStatus === "pending_review" ||
+            existingSubmissionStatus === "rejected" ||
+            existingSubmissionStatus === "withdrawn"
+          );
+        if (canUpsertCommunitySubmission) {
+          communityAwardSubmissionId = await submitFamilyRewardToCommunity({
+            familyId,
+            rewardId,
+            submittedByUid: session.uid,
+            submittedByEmail: session.email ?? "",
+            description: nextDescription,
+            coinCost: nextCoinCost,
+            imageId: nextImageId,
+            existingSubmissionId,
+            existingStatus: existingSubmissionStatus,
+            rewardCreatedAt: existingCreatedAt,
+          });
+          communityAwardSubmissionStatus = "pending_review";
+          communityAwardSubmittedAt = now;
+        } else if (hasSubmitToCommunityAwards && !nextSubmitToCommunityAwards && existingSubmitToCommunityAwards) {
+          await withdrawFamilyRewardCommunitySubmission({
+            familyId,
+            rewardId,
+            actorUid: session.uid,
+            actorEmail: session.email ?? "",
+            submissionId: existingSubmissionId,
+            existingStatus: existingSubmissionStatus,
+          });
+          communityAwardSubmissionStatus =
+            existingSubmissionStatus === "approved" || existingSubmissionStatus === "hidden"
+              ? existingSubmissionStatus
+              : "withdrawn";
+        }
 
         return {
           kind: "ok" as const,
@@ -282,6 +339,10 @@ export async function PATCH(
             individualLimit: nextIndividualLimit > 0 ? nextIndividualLimit : undefined,
             familyLimit: nextFamilyLimit > 0 ? nextFamilyLimit : undefined,
             disabled: nextDisabled,
+            submitToCommunityAwards: nextSubmitToCommunityAwards,
+            communityAwardSubmissionId,
+            communityAwardSubmissionStatus,
+            communityAwardSubmittedAt,
           },
         };
       });

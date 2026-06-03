@@ -80,20 +80,22 @@ function RequestedChangeCard({
         <p className="change-log-description">{requestedChange.publicDescription}</p>
       </div>
       <div className="change-log-vote-box">
-        <Button
-          className={`btn ${requestedChange.viewerVote ? "btn-primary" : "btn-secondary"}`}
-          disabled={!requestedChange.canVote || votePendingId === requestedChange.id}
-          onClick={() => onVote(requestedChange)}
-          aria-pressed={requestedChange.viewerVote === 1}
-          title={
-            requestedChange.canVote
-              ? t("changeLog.requested.upvote")
-              : t("changeLog.requested.loginToVote")
-          }
+        {requestedChange.canVote ? (
+          <Button
+            className={`btn ${requestedChange.viewerVote ? "btn-primary" : "btn-secondary"}`}
+            disabled={votePendingId === requestedChange.id}
+            onClick={() => onVote(requestedChange)}
+            aria-pressed={requestedChange.viewerVote === 1}
+            title={t("changeLog.requested.upvote")}
+          >
+            {requestedChange.viewerVote ? t("changeLog.requested.upvoted") : t("changeLog.requested.upvote")}
+          </Button>
+        ) : null}
+        <div
+          className="small"
+          title={!requestedChange.canVote ? t("changeLog.requested.loginToVote") : undefined}
+          style={!requestedChange.canVote ? { cursor: "default" } : undefined}
         >
-          {requestedChange.viewerVote ? t("changeLog.requested.upvoted") : t("changeLog.requested.upvote")}
-        </Button>
-        <div className="small">
           {t("changeLog.requested.voteCount", { count: requestedChange.upvoteCount })}
         </div>
       </div>

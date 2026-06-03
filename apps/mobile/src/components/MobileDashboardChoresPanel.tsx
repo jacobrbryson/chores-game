@@ -26,6 +26,7 @@ import {
   type MobileFamilyMember,
 } from "@/lib/api";
 import { MobileChoreEditorModal, type MobileChoreEditorSubmitPayload } from "@/components/MobileChoreEditorModal";
+import { MobileGhostChores } from "@/components/MobileGhostChores";
 import { loadDashboardChorePreferences, saveDashboardChorePreferences } from "@/lib/mobile-preferences";
 import { useMobileLocale } from "@/lib/locale";
 import { colors, radius, spacing, typography } from "@/theme";
@@ -432,7 +433,14 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
       </View>
       {error ? <ErrorState message={error} /> : null}
       {chorePage.visibleItems.length === 0 ? (
-        <EmptyState message={selectedMember ? `No chores assigned to ${selectedMember.name} right now.` : "No open chores right now."} />
+        <>
+          <EmptyState message={selectedMember ? `No chores assigned to ${selectedMember.name} right now.` : "No open chores right now."} />
+          <MobileGhostChores
+            assigneeId={selectedMember?.id}
+            assigneeName={selectedMember?.name}
+            onAdded={() => load({ silent: true })}
+          />
+        </>
       ) : (
         <View style={styles.list}>
           {chorePage.visibleItems.map((chore) => {

@@ -1,9 +1,7 @@
 "use client";
 
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type AppLocale } from "@packages/locales";
-import Image from "next/image";
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AccountSwitchModal } from "@/components/account-switch-modal";
 import { Alert } from "@/components/alert";
 import { Avatar } from "@/components/avatar";
@@ -13,7 +11,7 @@ import { ModalShell } from "@/components/modal-shell";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import { formatDateTime } from "@/components/profile/profile-page.utils";
 import { dispatchAppLocaleChanged, useLocale } from "@/components/locale-provider";
-import { findFamilyRewardImageOption } from "@/lib/family/rewards";
+import { ProfileFamilySummarySection } from "@/components/profile/profile-family-summary-section";
 
 type FamilyMemberProfileClientProps = {
   memberId: string;
@@ -79,39 +77,6 @@ type FamilyMemberProfileResponse = {
   claimedAwards: FamilyAwardClaim[];
 };
 
-function categoryIcon(category: string) {
-  const key = category.trim().toLowerCase();
-  if (key.includes("confetti")) return "\u{1F389}";
-  if (key.includes("avatar")) return "\u{1F9D1}";
-  if (key.includes("color")) return "\u{1F3A8}";
-  if (key.includes("quest")) return "\u{1F5FA}\uFE0F";
-  if (key.includes("reward")) return "\u{1F3C6}";
-  if (key.includes("inventory")) return "\u{1F392}";
-  return "\u2728";
-}
-
-function categoryTone(category: string) {
-  const key = category.trim().toLowerCase();
-  if (key.includes("confetti")) return "violet" as const;
-  if (key.includes("avatar")) return "indigo" as const;
-  if (key.includes("color")) return "teal" as const;
-  if (key.includes("quest")) return "amber" as const;
-  if (key.includes("reward")) return "rose" as const;
-  if (key.includes("inventory")) return "green" as const;
-  return "blue" as const;
-}
-
-function categoryCardStyle(category: string) {
-  const tone = categoryTone(category);
-  if (tone === "violet") return { backgroundColor: "#f5f3ff", borderColor: "#ddd6fe" };
-  if (tone === "indigo") return { backgroundColor: "#eef2ff", borderColor: "#c7d2fe" };
-  if (tone === "teal") return { backgroundColor: "#f0fdfa", borderColor: "#99f6e4" };
-  if (tone === "amber") return { backgroundColor: "#fffbeb", borderColor: "#fde68a" };
-  if (tone === "rose") return { backgroundColor: "#fff1f2", borderColor: "#fecdd3" };
-  if (tone === "green") return { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" };
-  return { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" };
-}
-
 export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClientProps) {
   const { t } = useLocale();
   const localeOptions: TailwindSelectOption<AppLocale>[] = SUPPORTED_LOCALES.map((option) => ({
@@ -159,16 +124,6 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
   useEffect(() => {
     void loadProfile();
   }, [loadProfile]);
-
-  const categoryCounts = useMemo(() => {
-    const byCategory = new Map<string, number>();
-    for (const item of profile?.ownedItems ?? []) {
-      byCategory.set(item.category, (byCategory.get(item.category) ?? 0) + Math.max(0, item.quantity));
-    }
-    return Array.from(byCategory.entries())
-      .map(([category, count]) => ({ category, count }))
-      .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
-  }, [profile?.ownedItems]);
 
   const canManageThisMember = Boolean(
     profile &&
@@ -459,92 +414,18 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
             </article>
           </section>
 
-          <section className="family-page-card family-member-awards-card" aria-label="Unclaimed family awards">
-            <div className="family-page-card-header family-member-awards-header">
-              <div>
-                <h2>{t("family.unclaimedAwards")}</h2>
-                <p className="small family-page-subhead">
-                  {t("family.pendingRewards", {
-                    count: profile.unclaimedAwards.length,
-                    suffix: profile.unclaimedAwards.length === 1 ? "" : "s",
-                  })}
-                </p>
-              </div>
-              <Link href={`/family/${encodeURIComponent(memberId)}/awards`} className="family-member-history-link">
-                {t("family.viewClaimedAwards", { count: profile.claimedAwards.length })}
-              </Link>
-            </div>
-
-            {claimError ? <Alert>{t("family.claimAwardError", { error: claimError })}</Alert> : null}
-
-            {profile.unclaimedAwards.length === 0 ? (
-              <p className="small">{t("family.noUnclaimedAwards")}</p>
-            ) : (
-              <div className="family-award-claim-list">
-                {profile.unclaimedAwards.map((award) => {
-                  const rewardImage = findFamilyRewardImageOption(award.rewardImageId);
-                  return (
-                    <article key={award.id} className="family-award-claim-card">
-                      <div className="family-award-claim-media">
-                        <Image
-                          src={rewardImage?.imagePath ?? "/rewards/screens.png"}
-                          alt={rewardImage?.label ?? award.rewardDescription}
-                          width={120}
-                          height={120}
-                          className="family-award-claim-image"
-                        />
-                      </div>
-                      <div className="family-award-claim-copy">
-                        <h3>{award.rewardDescription}</h3>
-                        <p className="small">{award.coinCost} coins</p>
-                        <p className="small">{t("family.purchasedAt", { value: formatDateTime(award.purchasedAt) })}</p>
-                      </div>
-                      {profile.canManageAwards ? (
-                        <div className="family-award-claim-actions">
-                          <Button type="button" className="btn btn-primary" disabled={claimingAwardId.length > 0} onClick={() => void onClaimAward(award.id)}>
-                            {claimingAwardId === award.id ? t("family.claiming") : t("family.claim")}
-                          </Button>
-                        </div>
-                      ) : null}
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <section className="family-page-card profile-owned-items-card" aria-label="Owned items summary">
-            <div className="family-page-card-header family-member-awards-header">
-              <div>
-                <h2>{t("family.ownedItems")}</h2>
-                <p className="small family-page-subhead">{t("family.ownedItemsSubtitle")}</p>
-              </div>
-              <Link href={`/family/${encodeURIComponent(memberId)}/items`} className="family-member-history-link">
-                {t("family.viewAllItems", { count: profile.ownedItems.length })}
-              </Link>
-            </div>
-            {categoryCounts.length === 0 ? (
-              <p className="small">{t("family.noOwnedItems")}</p>
-            ) : (
-              <div className="family-award-claim-list">
-                {categoryCounts.map(({ category, count }) => (
-                  <Link
-                    key={category}
-                    href={`/family/${encodeURIComponent(memberId)}/items?category=${encodeURIComponent(category)}`}
-                    className="family-award-claim-card family-category-summary-card"
-                    style={categoryCardStyle(category)}>
-                    <div className="family-award-claim-media family-category-summary-media" aria-hidden="true">
-                      <div className="family-category-summary-icon">{categoryIcon(category)}</div>
-                    </div>
-                    <div className="family-award-claim-copy">
-                      <h3>{humanizeEnum(category)}</h3>
-                      <p className="small">{t("family.itemCount", { count, suffix: count === 1 ? "" : "s" })}</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </section>
+          <ProfileFamilySummarySection
+            summary={profile}
+            isLoading={false}
+            error=""
+            memberId={memberId}
+            canManageAwards={profile.canManageAwards}
+            claimingAwardId={claimingAwardId}
+            claimError={claimError}
+            onClaimAward={(awardId) => {
+              void onClaimAward(awardId);
+            }}
+          />
         </>
       ) : null}
       <AccountSwitchModal

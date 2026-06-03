@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import type React from "react";
-import { Avatar } from "@/components/avatar";
 import { ChoreCategoriesChip } from "@/components/chore-categories-chip";
 import { CoinIcon } from "@/components/coin-icon";
 import { EnumChip } from "@/components/enum-chip";
+import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 
 type ChoreCategory = {
   id: string;
@@ -18,6 +18,7 @@ type ChoreListCardChore = {
   title: string;
   status: string;
   choreType?: string;
+  assigneeScope?: "single" | "multiple" | "family";
   assigneeName: string;
   assigneeAvatarId?: string;
   assigneeAvatarPhotoUrl?: string;
@@ -83,16 +84,14 @@ export function ChoreListCard({
             className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
             aria-expanded={expanded}
             onClick={() => setExpanded((current) => !current)}>
-            <Avatar
+            <FamilyMemberAvatar
               size={40}
               name={chore.assigneeName || "Assignee"}
               avatarId={chore.assigneeAvatarId}
-              photoUrl={chore.assigneeAvatarPhotoUrl}
+              avatarPhotoUrl={chore.assigneeAvatarPhotoUrl}
               primaryColor={chore.assigneePrimaryColor || undefined}
-              secondaryColor={chore.assigneePrimaryColor || undefined}
-              fallbackColor={chore.assigneePrimaryColor ? "#ffffff" : undefined}
+              isFamily={chore.assigneeScope === "family"}
               ariaHidden
-              referrerPolicy="no-referrer"
             />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">

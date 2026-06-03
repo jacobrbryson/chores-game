@@ -9,6 +9,7 @@ import { AppMenu } from "@/components/app-menu";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
+import { CommunityAwardsLibrary } from "@/components/community-awards-page-client";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
 import { FamilySectionTabs, type FamilySectionTabId } from "@/components/family/family-section-tabs";
 import { FamilyQuestsSection } from "@/components/family-quests-section";
@@ -50,6 +51,7 @@ type RewardFormState = {
   imageId: string;
   individualLimit: string;
   familyLimit: string;
+  submitToCommunityAwards: boolean;
 };
 
 type PendingRemoveReward = {
@@ -175,6 +177,7 @@ const initialRewardFormState: RewardFormState = {
   imageId: FAMILY_REWARD_IMAGE_OPTIONS[0]?.id ?? "screen_time",
   individualLimit: "",
   familyLimit: "",
+  submitToCommunityAwards: false,
 };
 
 function formatRewardLimitSummary(reward: FamilyReward) {
@@ -602,6 +605,7 @@ export default function FamilyPage() {
       imageId: reward.imageId,
       individualLimit: reward.individualLimit ? String(reward.individualLimit) : "",
       familyLimit: reward.familyLimit ? String(reward.familyLimit) : "",
+      submitToCommunityAwards: reward.submitToCommunityAwards === true,
     });
     setRewardError("");
     setShowRewardEditor(true);
@@ -670,6 +674,7 @@ export default function FamilyPage() {
             imageId,
             individualLimit,
             familyLimit,
+            submitToCommunityAwards: rewardForm.submitToCommunityAwards,
           }),
         },
       );
@@ -1125,6 +1130,20 @@ export default function FamilyPage() {
                                     {reward.disabled ? (
                                       <span className="small font-medium text-amber-700">Disabled</span>
                                     ) : null}
+                                    <span className="small text-slate-500">
+                                      {t("family.awards.communityStatus", {
+                                        status: t(
+                                          `family.awards.communityStatuses.${reward.communityAwardSubmissionStatus || "not_submitted"}`,
+                                        ),
+                                      })}
+                                    </span>
+                                    {reward.communityAwardSubmissionStatus === "rejected" && reward.communityAwardRejectionReason ? (
+                                      <span className="small text-rose-700">
+                                        {t("family.awards.communityRejection", {
+                                          reason: reward.communityAwardRejectionReason,
+                                        })}
+                                      </span>
+                                    ) : null}
                                   </div>
                                 </div>
                                 {canManageMembers ? (
@@ -1212,6 +1231,7 @@ export default function FamilyPage() {
                           </Button>
                         </div>
                       ) : null}
+                      {canManageMembers ? <CommunityAwardsLibrary embedded /> : null}
                     </section>
                     ) : null}
                     {activeFamilyTab === "quests" ? <FamilyQuestsSection /> : null}
@@ -1435,6 +1455,27 @@ export default function FamilyPage() {
                 <span className="small text-slate-500">Use `0` or leave blank for unlimited.</span>
               </label>
             </div>
+            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <input
+                type="checkbox"
+                checked={rewardForm.submitToCommunityAwards}
+                onChange={(event) =>
+                  setRewardForm((current) => ({
+                    ...current,
+                    submitToCommunityAwards: event.target.checked,
+                  }))
+                }
+                className="mt-1 h-4 w-4"
+              />
+              <span className="grid gap-1">
+                <span className="text-sm font-semibold text-slate-800">
+                  {t("family.awards.submitToCommunity")}
+                </span>
+                <span className="small text-slate-600">
+                  {t("family.awards.submitToCommunityHelp")}
+                </span>
+              </span>
+            </label>
             {rewardError ? <Alert>Reward update failed: {rewardError}</Alert> : null}
             <div className="family-modal-actions">
               {editingRewardId ? (
@@ -1592,6 +1633,3 @@ export default function FamilyPage() {
     </>
   );
 }
-
-
-

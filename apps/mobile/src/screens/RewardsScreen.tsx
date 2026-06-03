@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   fetchMobileStoreState,
   postMobileStoreAction,
@@ -9,6 +9,7 @@ import {
   type MobileStoreState,
 } from "@/lib/api";
 import { colors, radius, spacing, typography } from "@/theme";
+import { MobileCommunityAwardsLibrary } from "@/components/MobileCommunityAwardsLibrary";
 import { AppScreen, AvatarBadge, Button, Card, CoinPill, EmptyState, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
 
 const STORE_CATEGORY_ORDER = ["family_awards", "customize_colors", "customize_avatar", "victory_confetti", "quest_items"];
@@ -128,6 +129,11 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
   const [actionSuccess, setActionSuccess] = useState("");
   const [pendingOptionId, setPendingOptionId] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [purchaseSuccess, setPurchaseSuccess] = useState<{
+    category: MobileStoreCategory;
+    option: MobileStoreOption;
+    isAdmin: boolean;
+  } | null>(null);
 
   async function loadStore(showLoading = true) {
     if (showLoading) {
@@ -178,7 +184,7 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
   async function runStoreAction(
     optionId: string,
     action: () => Promise<void>,
-    successMessage?: string,
+    onSuccess?: { message?: string; showDialog?: { category: MobileStoreCategory; option: MobileStoreOption; isAdmin: boolean } },
   ) {
     setPendingOptionId(optionId);
     setActionError("");
@@ -186,8 +192,11 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
     try {
       await action();
       await loadStore(false);
-      if (successMessage) {
-        setActionSuccess(successMessage);
+      if (onSuccess?.message) {
+        setActionSuccess(onSuccess.message);
+      }
+      if (onSuccess?.showDialog) {
+        setPurchaseSuccess(onSuccess.showDialog);
       }
       onStoreUpdated?.();
     } catch (storeActionError) {
@@ -223,6 +232,8 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
       return;
     }
 
+    const isAdmin = store.viewerRole === "admin";
+
     if (isRewardOption) {
       if (!canAfford) {
         setActionError("insufficient_funds");
@@ -234,7 +245,7 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
           categoryId: category.id,
           optionId: option.id,
         });
-      }, `${option.label} redeemed`);
+      }, { showDialog: { category, option, isAdmin } });
       return;
     }
 
@@ -252,7 +263,7 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
           categoryId: category.id,
           optionId: option.id,
         });
-      }, `${option.label} added to your quest inventory`);
+      }, { showDialog: { category, option, isAdmin } });
       return;
     }
 
@@ -265,7 +276,7 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
             : { action: "set_confetti", optionId: option.id };
       await runStoreAction(option.id, async () => {
         await postMobileStoreAction(actionBody);
-      }, category.kind === "color" ? `${option.label} is now active` : `${option.label} applied`);
+      }, { message: category.kind === "color" ? `${option.label} is now active` : `${option.label} applied` });
       return;
     }
 
@@ -280,13 +291,13 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
         categoryId: category.id,
         optionId: option.id,
       });
-    }, `${option.label} purchased`);
+    }, { showDialog: { category, option, isAdmin } });
   }
 
   async function handleGoogleAvatarPress() {
     await runStoreAction("google-avatar", async () => {
       await postMobileStoreAction({ action: "set_google_avatar" });
-    }, "Google avatar applied");
+    }, { message: "Google avatar applied" });
   }
 
   return (
@@ -437,8 +448,113 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
               )}
             </Card>
           ) : null}
+          {store.viewerRole === "admin" ? (
+            <MobileCommunityAwardsLibrary onAwardCopied={() => void loadStore(false)} />
+          ) : null}
         </>
       ) : null}
+
+      <Modal
+        visible={Boolean(purchaseSuccess)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPurchaseSuccess(null)}>
+        {purchaseSuccess ? (
+          <View style={styles.modalBackdrop}>
+            <View style={styles.successModal}>
+              <View style={styles.successModalHeader}>
+                <Text style={styles.successTitle}>Congratulations!</Text>
+                <Pressable onPress={() => setPurchaseSuccess(null)} style={styles.closeButton}>
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </Pressable>
+              </View>
+              <View style={styles.successPreview}>
+                {(purchaseSuccess.category.kind === "reward" || purchaseSuccess.category.kind === "quest_item") ? (
+                  <Image
+                    source={{
+                      uri: toAppAssetUrl(
+                        purchaseSuccess.category.kind === "reward"
+                          ? (FAMILY_REWARD_IMAGE_PATHS[purchaseSuccess.option.value] ?? "/rewards/screens.png")
+                          : (purchaseSuccess.option.itemImage || "/assets/items/placeholder.png")
+                      ),
+                    }}
+                    style={styles.successImage}
+                  />
+                ) : purchaseSuccess.category.kind === "avatar" ? (
+                  <AvatarBadge
+                    name={purchaseSuccess.option.label}
+                    imageUrl={toAppAssetUrl(`/avatars/default/${encodeURIComponent(purchaseSuccess.option.value)}`)}
+                    size={80}
+                  />
+                ) : purchaseSuccess.category.kind === "color" ? (
+                  <View style={styles.successColorRow}>
+                    <View style={[styles.successColorChip, { backgroundColor: purchaseSuccess.option.theme?.primary ?? purchaseSuccess.option.value }]} />
+                    <View style={[styles.successColorChip, styles.successColorChipSmall, { backgroundColor: purchaseSuccess.option.theme?.secondary ?? purchaseSuccess.option.value }]} />
+                    <View style={[styles.successColorChip, styles.successColorChipSmall, { backgroundColor: purchaseSuccess.option.theme?.tertiary ?? purchaseSuccess.option.value }]} />
+                  </View>
+                ) : purchaseSuccess.category.kind === "confetti" ? (
+                  <View style={styles.successConfettiRow}>
+                    {(purchaseSuccess.option.confetti?.colors ?? [colors.accent, colors.brand, colors.coin]).slice(0, 6).map((color, index) => (
+                      <View key={`success-confetti-${index}`} style={[styles.successConfettiChip, { backgroundColor: color }]} />
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+              <Text style={styles.successMessage}>
+                <Text style={styles.successItemName}>{purchaseSuccess.option.label}</Text>
+                {" has been added to your "}
+                <Text style={styles.successDestLink}>
+                  {purchaseSuccess.category.kind === "quest_item"
+                    ? "Inventory"
+                    : purchaseSuccess.category.kind === "reward"
+                      ? "Unclaimed Family Awards"
+                      : "Profile"}
+                </Text>
+                .
+              </Text>
+              <View style={styles.successActions}>
+                {purchaseSuccess.category.kind === "quest_item" ? (
+                  <Button
+                    label="Back to Quests"
+                    variant="secondary"
+                    onPress={() => setPurchaseSuccess(null)}
+                  />
+                ) : purchaseSuccess.category.kind === "reward" && purchaseSuccess.isAdmin ? (
+                  <Button
+                    label="Claim Now"
+                    variant="secondary"
+                    onPress={() => setPurchaseSuccess(null)}
+                  />
+                ) : (purchaseSuccess.category.kind === "color" || purchaseSuccess.category.kind === "avatar" || purchaseSuccess.category.kind === "confetti") ? (
+                  <Button
+                    label="Equip Now"
+                    variant="secondary"
+                    onPress={() => {
+                      const cat = purchaseSuccess.category;
+                      const opt = purchaseSuccess.option;
+                      setPurchaseSuccess(null);
+                      const actionBody =
+                        cat.kind === "color"
+                          ? { action: "set_theme", optionId: opt.id }
+                          : cat.kind === "avatar"
+                            ? { action: "set_avatar", avatarId: opt.value }
+                            : { action: "set_confetti", optionId: opt.id };
+                      void runStoreAction(opt.id, async () => {
+                        await postMobileStoreAction(actionBody);
+                      }, { message: cat.kind === "color" ? `${opt.label} is now active` : `${opt.label} applied` });
+                    }}
+                  />
+                ) : null}
+                <Button
+                  label="Continue Shopping"
+                  variant="primary"
+                  onPress={() => setPurchaseSuccess(null)}
+                />
+              </View>
+            </View>
+          </View>
+        ) : null}
+      </Modal>
     </AppScreen>
   );
 }
@@ -551,5 +667,106 @@ const styles = StyleSheet.create({
     fontSize: typography.small,
     fontWeight: "700",
     color: colors.brandStrong,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.lg,
+  },
+  successModal: {
+    width: "100%",
+    maxWidth: 400,
+    backgroundColor: "#ffffff",
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    gap: spacing.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  successModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  successTitle: {
+    fontSize: typography.h3,
+    fontWeight: "800",
+    color: colors.text,
+    flex: 1,
+  },
+  closeButton: {
+    padding: spacing.xs,
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: colors.muted,
+    fontWeight: "700",
+  },
+  successPreview: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f0f7ff",
+    borderWidth: 1,
+    borderColor: "#dbe9fa",
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    minHeight: 96,
+  },
+  successImage: {
+    width: 100,
+    height: 100,
+    borderRadius: radius.md,
+    resizeMode: "contain",
+  },
+  successColorRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "center",
+  },
+  successColorChip: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.1)",
+  },
+  successColorChipSmall: {
+    width: 30,
+    height: 30,
+  },
+  successConfettiRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    justifyContent: "center",
+  },
+  successConfettiChip: {
+    width: 16,
+    height: 16,
+    borderRadius: radius.sm,
+  },
+  successMessage: {
+    fontSize: typography.body,
+    color: colors.text,
+    lineHeight: 22,
+  },
+  successItemName: {
+    fontWeight: "800",
+  },
+  successDestLink: {
+    color: colors.brand,
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
+  successActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+    flexWrap: "wrap",
   },
 });

@@ -1,5 +1,29 @@
 [
   {
+    "id": "profile-awards-inventory",
+    "date": "2026-06-03",
+    "type": "Feature",
+    "subject": "Richer profile overview",
+    "description": "Profile pages now show pending family awards and owned item summaries so kids can see rewards and inventory in one place.",
+    "image": "/store3/avatar.png"
+  },
+  {
+    "id": "smart-ghost-chores",
+    "date": "2026-06-02",
+    "type": "Feature",
+    "subject": "Smart Ghost Chores",
+    "description": "When a player finishes all of their chores, the dashboard now shows friendly \"Suggested Chore\" ideas they can request. A parent can approve a request to turn it into a real chore — until then, suggestions never affect coins, stats, or streaks.",
+    "image": "/store/theme.png"
+  },
+  {
+    "id": "community-award-library",
+    "date": "2026-06-02",
+    "type": "Feature",
+    "subject": "Community Award Library",
+    "description": "Parents can now discover reviewed reward ideas from other families, vote on favorites, and copy approved awards into their own Family Awards.",
+    "image": "/store3/family-rewards.png"
+  },
+  {
     "id": "public-requested-changes",
     "date": "2026-06-02",
     "type": "Feature",

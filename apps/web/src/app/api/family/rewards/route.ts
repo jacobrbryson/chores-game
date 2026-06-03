@@ -9,6 +9,7 @@ import {
   findFirstFamilyIdByMemberUid,
   getDocument,
   listDocuments,
+  nullField,
   readBoolean,
   readString,
   readStringArray,
@@ -28,6 +29,7 @@ import {
   normalizeFamilyRewardLimit,
 } from "@/lib/family/rewards";
 import { trackAchievementEvent } from "@/lib/achievements/service";
+import { submitFamilyRewardToCommunity } from "@/lib/community-awards";
 
 type CreateRewardBody = {
   description?: unknown;
@@ -35,6 +37,7 @@ type CreateRewardBody = {
   imageId?: unknown;
   individualLimit?: unknown;
   familyLimit?: unknown;
+  submitToCommunityAwards?: unknown;
 };
 
 type ViewerRole = "admin" | "player";
@@ -188,6 +191,7 @@ export async function POST(request: NextRequest) {
   const imageId = typeof body.imageId === "string" ? body.imageId.trim() : "";
   const individualLimit = normalizeFamilyRewardLimit(body.individualLimit);
   const familyLimit = normalizeFamilyRewardLimit(body.familyLimit);
+  const submitToCommunityAwards = body.submitToCommunityAwards === true;
 
   if (!description) {
     return NextResponse.json({ error: "description_required" }, { status: 400 });
@@ -240,12 +244,33 @@ export async function POST(request: NextRequest) {
             familyRedeemedCount: integerField(0),
             disabled: boolField(false),
             deleted: boolField(false),
+            submitToCommunityAwards: boolField(false),
+            communityAwardSubmissionId: stringField(""),
+            communityAwardSubmissionStatus: stringField(""),
+            communityAwardSubmittedAt: nullField(),
+            communityAwardReviewedAt: nullField(),
+            communityAwardRejectionReason: stringField(""),
             createdBy: stringField(session.uid),
             createdAt: timestampField(now),
             updatedAt: timestampField(now),
           },
           idToken,
         );
+        let communityAwardSubmissionId = "";
+        let communityAwardSubmissionStatus = "";
+        if (submitToCommunityAwards) {
+          communityAwardSubmissionId = await submitFamilyRewardToCommunity({
+            familyId,
+            rewardId,
+            submittedByUid: session.uid,
+            submittedByEmail: session.email ?? "",
+            description,
+            coinCost,
+            imageId,
+            rewardCreatedAt: now,
+          });
+          communityAwardSubmissionStatus = "pending_review";
+        }
         await trackAchievementEvent({
           uid: session.uid,
           familyId,
@@ -268,6 +293,12 @@ export async function POST(request: NextRequest) {
             familyLimit: familyLimit > 0 ? familyLimit : undefined,
             familyRedeemedCount: undefined,
             disabled: false,
+            submitToCommunityAwards,
+            communityAwardSubmissionId: communityAwardSubmissionId || null,
+            communityAwardSubmissionStatus: communityAwardSubmissionStatus || null,
+            communityAwardSubmittedAt: submitToCommunityAwards ? now : null,
+            communityAwardReviewedAt: null,
+            communityAwardRejectionReason: null,
           },
         };
       });

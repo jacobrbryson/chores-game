@@ -19,6 +19,7 @@ export default async function ProfilePage() {
 
   return (
     <ProfilePageClient
+      uid={sessionUser.uid}
       name={sessionUser.name || ""}
       email={sessionUser.email || ""}
       role={sessionUser.role}

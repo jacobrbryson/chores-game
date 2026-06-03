@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
 import { Alert } from "@/components/alert";
-import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { ChipOverflowRow } from "@/components/chip-overflow-row";
 import { ChoreListCard } from "@/components/chore-list-card";
 import { CoinIcon } from "@/components/coin-icon";
+import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
@@ -1729,14 +1729,14 @@ export default function ChoresPage() {
                 ).map((assigneeId) => (
                   <label key={assigneeId} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 p-2">
                     <span className="inline-flex items-center gap-2 text-sm text-slate-700">
-                      <Avatar
+                      <FamilyMemberAvatar
                         size={28}
                         borderWidth={1}
                         name={assigneeDirectoryByAlias[assigneeId]?.name || t("choresPage.familyMemberFallback")}
                         avatarId={assigneeDirectoryByAlias[assigneeId]?.avatarId}
-                        photoUrl={assigneeDirectoryByAlias[assigneeId]?.avatarPhotoUrl}
+                        avatarPhotoUrl={assigneeDirectoryByAlias[assigneeId]?.avatarPhotoUrl}
+                        isFamily={pendingApproveChore.assigneeScope === "family" && !assigneeDirectoryByAlias[assigneeId]}
                         ariaHidden
-                        referrerPolicy="no-referrer"
                       />
                       <span>{assigneeDirectoryByAlias[assigneeId]?.name || assigneeId}</span>
                     </span>

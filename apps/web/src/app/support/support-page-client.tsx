@@ -5,6 +5,8 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
+import { SupportCommunityAwardsPanel } from "@/components/support-community-awards-panel";
+import { SupportGhostChoresPanel } from "@/components/support-ghost-chores-panel";
 import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
 import { CategorySelector } from "@/components/category-selector";
 import {
@@ -925,6 +927,8 @@ export default function SupportPageClient() {
           </Button>
         </div>
       ) : null}
+      <SupportCommunityAwardsPanel />
+      <SupportGhostChoresPanel />
       {payload ? (
         <section className="flex flex-col gap-3">
           <div className="flex flex-col gap-3 min-[560px]:flex-row min-[560px]:flex-nowrap">

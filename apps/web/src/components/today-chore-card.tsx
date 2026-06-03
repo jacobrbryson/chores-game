@@ -186,6 +186,7 @@ export function TodayChoreCard({
               avatarId={assigneeAvatarId}
               avatarPhotoUrl={assigneeAvatarPhotoUrl}
               primaryColor={assigneePrimaryColor || undefined}
+              isFamily={chore.assigneeScope === "family"}
             />
             <div className="flex min-w-0 flex-col items-start gap-1">
               <span className="today-chore-title-row flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -341,7 +342,6 @@ export function TodayChoreCard({
     </li>
   );
 }
-
 
 
 

@@ -1,5 +1,10 @@
 import { adminCommitWrites, adminGetDocument, adminRunQuery } from "@/lib/firestore/admin";
 import {
+  COMMUNITY_AWARD_TARGET_TYPE,
+  getCommunityAwardRecord,
+} from "@/lib/community-awards";
+
+import {
   documentIdFromName,
   integerField,
   nullField,
@@ -13,6 +18,7 @@ import {
 export const PUBLIC_SUPPORT_REQUEST_TARGET_TYPE = "public_support_request";
 export const VOTE_TARGET_TYPES = [
   PUBLIC_SUPPORT_REQUEST_TARGET_TYPE,
+  COMMUNITY_AWARD_TARGET_TYPE,
   "changelog_item",
   "shared_prize",
   "quest",
@@ -35,8 +41,8 @@ export function isVoteTargetType(value: unknown): value is VoteTargetType {
   return typeof value === "string" && VOTE_TARGET_TYPES.includes(value as VoteTargetType);
 }
 
-export function isSupportedVoteTargetType(value: unknown): value is typeof PUBLIC_SUPPORT_REQUEST_TARGET_TYPE {
-  return value === PUBLIC_SUPPORT_REQUEST_TARGET_TYPE;
+export function isSupportedVoteTargetType(value: unknown): value is typeof PUBLIC_SUPPORT_REQUEST_TARGET_TYPE | typeof COMMUNITY_AWARD_TARGET_TYPE {
+  return value === PUBLIC_SUPPORT_REQUEST_TARGET_TYPE || value === COMMUNITY_AWARD_TARGET_TYPE;
 }
 
 export function buildVoteId(targetType: VoteTargetType, targetId: string, uid: string) {
@@ -50,6 +56,13 @@ export function buildVoteAggregateId(targetType: VoteTargetType, targetId: strin
 async function findPublicSupportRequest(targetId: string) {
   const docs = await adminRunQuery({
     from: [{ collectionId: "supportRequests", allDescendants: true }],
+    where: {
+      fieldFilter: {
+        field: { fieldPath: "id" },
+        op: "EQUAL",
+        value: { stringValue: targetId },
+      },
+    },
     limit: 500,
   });
   const doc = docs.find(
@@ -68,10 +81,14 @@ async function findPublicSupportRequest(targetId: string) {
 }
 
 async function validateVisibleTarget(targetType: VoteTargetType, targetId: string) {
-  if (targetType !== PUBLIC_SUPPORT_REQUEST_TARGET_TYPE) {
-    return null;
+  if (targetType === COMMUNITY_AWARD_TARGET_TYPE) {
+    const award = await getCommunityAwardRecord(targetId);
+    return award?.status === "approved" ? { id: award.id, familyId: null } : null;
   }
-  return findPublicSupportRequest(targetId);
+  if (targetType === PUBLIC_SUPPORT_REQUEST_TARGET_TYPE) {
+    return findPublicSupportRequest(targetId);
+  }
+  return null;
 }
 
 async function readVote(path: string) {
@@ -136,7 +153,7 @@ export async function toggleVote(input: {
 
   if (existingVote && readInteger(existingVote.fields, "value") === 1) {
     const nextUpvotes = Math.max(0, aggregate.upvoteCount - 1);
-    await adminCommitWrites([
+    const writes: Parameters<typeof adminCommitWrites>[0] = [
       {
         delete: {
           path: votePath,
@@ -156,7 +173,20 @@ export async function toggleVote(input: {
           },
         },
       },
-    ]);
+    ];
+    if (input.targetType === COMMUNITY_AWARD_TARGET_TYPE) {
+      writes.push({
+        update: {
+          path: `communityAwards/${targetId}`,
+          fields: {
+            voteCount: integerField(nextUpvotes),
+            updatedAt: timestampField(now),
+          },
+          updateMask: ["voteCount", "updatedAt"],
+        },
+      });
+    }
+    await adminCommitWrites(writes);
     return {
       ok: true,
       targetType: input.targetType,
@@ -169,7 +199,7 @@ export async function toggleVote(input: {
   }
 
   const nextUpvotes = aggregate.upvoteCount + 1;
-  await adminCommitWrites([
+  const writes: Parameters<typeof adminCommitWrites>[0] = [
     {
       update: {
         path: votePath,
@@ -198,7 +228,20 @@ export async function toggleVote(input: {
         },
       },
     },
-  ]);
+  ];
+  if (input.targetType === COMMUNITY_AWARD_TARGET_TYPE) {
+    writes.push({
+      update: {
+        path: `communityAwards/${targetId}`,
+        fields: {
+          voteCount: integerField(nextUpvotes),
+          updatedAt: timestampField(now),
+        },
+        updateMask: ["voteCount", "updatedAt"],
+      },
+    });
+  }
+  await adminCommitWrites(writes);
 
   return {
     ok: true,

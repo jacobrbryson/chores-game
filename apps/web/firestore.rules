@@ -863,6 +863,15 @@ service cloud.firestore {
         allow delete: if isFamilyAdmin(familyId);
       }
 
+      // Smart Ghost Chores: deterministic *suggested* chores generated on read.
+      // Requests/dismissals/approvals are written exclusively by the server using
+      // admin credentials, so client writes are denied. Family members may read
+      // their own family's ghost suggestion records.
+      match /ghostChoreSuggestions/{suggestionId} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update, delete: if false;
+      }
+
       match /chores/{choreId} {
         allow read: if isFamilyMember(familyId);
         allow create: if isFamilyAdmin(familyId)
@@ -1220,6 +1229,10 @@ service cloud.firestore {
     }
 
     match /voteAggregates/{aggregateId} {
+      allow read, write: if false;
+    }
+
+    match /communityAwards/{communityAwardId} {
       allow read, write: if false;
     }
 

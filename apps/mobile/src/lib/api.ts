@@ -28,9 +28,83 @@ export async function apiFetch(path: string, init?: RequestInit) {
   return json?.ok ? json.data : json;
 }
 
+export type MobileGhostSuggestion = {
+  id: string;
+  suggestedTitle: string;
+  suggestedDescription: string;
+  suggestedCoinValue: number;
+  source: string;
+};
+
+export async function fetchMobileGhostSuggestions(): Promise<{
+  suggestions: MobileGhostSuggestion[];
+  eligible: boolean;
+}> {
+  const data = (await apiFetch("/chores/ghost-suggestions")) as {
+    suggestions?: MobileGhostSuggestion[];
+    eligible?: boolean;
+  };
+  return {
+    suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+    eligible: Boolean(data.eligible),
+  };
+}
+
+export async function requestMobileGhostSuggestion(suggestionId: string) {
+  return apiFetch(`/chores/ghost-suggestions/${encodeURIComponent(suggestionId)}/request`, {
+    method: "POST",
+    body: "{}",
+  });
+}
+
+export async function dismissMobileGhostSuggestion(suggestionId: string) {
+  return apiFetch(`/chores/ghost-suggestions/${encodeURIComponent(suggestionId)}/dismiss`, {
+    method: "POST",
+    body: "{}",
+  });
+}
+
+export async function addMobileGhostSuggestion(
+  suggestionId: string,
+  body: { assigneeId?: string; assigneeName?: string } = {},
+) {
+  return apiFetch(`/chores/ghost-suggestions/${encodeURIComponent(suggestionId)}/add`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export type MobileStoreSummary = {
   balance: number;
   avatarUrl: string;
+};
+
+export type MobileFamilyAwardClaim = {
+  id: string;
+  rewardDescription: string;
+  rewardImageId: string;
+  coinCost: number;
+  purchasedAt?: string;
+};
+
+export type MobileOwnedItem = {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  category: string;
+  quantity: number;
+};
+
+export type MobileProfileSummary = {
+  canManageAwards: boolean;
+  member: {
+    id: string;
+    role: "admin" | "player";
+  };
+  unclaimedAwards: MobileFamilyAwardClaim[];
+  claimedAwards: MobileFamilyAwardClaim[];
+  ownedItems: MobileOwnedItem[];
 };
 
 export type MobileStoreOption = {
@@ -82,6 +156,30 @@ export type MobileStoreState = {
   selectedConfettiOptionId: string;
   viewerRole?: "admin" | "player";
   categories: MobileStoreCategory[];
+};
+
+export type MobileCommunityAward = {
+  id: string;
+  publicTitle: string;
+  publicDescription: string;
+  publicCoinAmount: number;
+  publicImage: string;
+  publicImagePath: string;
+  publicCategory: string;
+  publicTags: string[];
+  voteCount: number;
+  copyCount: number;
+  viewerVote: 1 | null;
+};
+
+export type MobileCommunityAwardsState = {
+  awards: MobileCommunityAward[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 };
 
 export type MobileFamilyMember = {
@@ -272,6 +370,35 @@ export async function fetchMobileStoreSummary(): Promise<MobileStoreSummary> {
   };
 }
 
+export async function fetchMobileProfileSummary(): Promise<MobileProfileSummary | null> {
+  try {
+    const summary = await apiFetch("/me/profile-summary");
+    return {
+      canManageAwards: summary?.canManageAwards === true,
+      member: {
+        id: typeof summary?.member?.id === "string" ? summary.member.id : "",
+        role: summary?.member?.role === "admin" ? "admin" : "player",
+      },
+      unclaimedAwards: Array.isArray(summary?.unclaimedAwards) ? summary.unclaimedAwards : [],
+      claimedAwards: Array.isArray(summary?.claimedAwards) ? summary.claimedAwards : [],
+      ownedItems: Array.isArray(summary?.ownedItems) ? summary.ownedItems : [],
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message === "family_not_found" || message === "member_not_found") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function claimMobileProfileAward(awardId: string) {
+  return apiFetch(`/me/awards/${encodeURIComponent(awardId)}/claim`, {
+    method: "POST",
+    body: "{}",
+  });
+}
+
 export function toAppAssetUrl(path: string) {
   if (!path) {
     return "";
@@ -341,6 +468,51 @@ export async function postMobileStoreAction(body: Record<string, unknown>) {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export async function fetchMobileCommunityAwards(input: {
+  page?: number;
+  q?: string;
+  sort?: "most_popular" | "newest";
+} = {}): Promise<MobileCommunityAwardsState> {
+  const params = new URLSearchParams();
+  params.set("page", String(input.page ?? 1));
+  params.set("limit", "6");
+  params.set("sort", input.sort ?? "most_popular");
+  if (input.q?.trim()) {
+    params.set("q", input.q.trim());
+  }
+  const payload = await apiFetch(`/community/awards?${params.toString()}`);
+  return {
+    awards: Array.isArray(payload?.items) ? payload.items : [],
+    pagination: {
+      page: typeof payload?.pagination?.page === "number" ? payload.pagination.page : 1,
+      limit: typeof payload?.pagination?.limit === "number" ? payload.pagination.limit : 6,
+      total: typeof payload?.pagination?.total === "number" ? payload.pagination.total : 0,
+      totalPages: typeof payload?.pagination?.totalPages === "number" ? payload.pagination.totalPages : 1,
+    },
+  };
+}
+
+export async function copyMobileCommunityAward(awardId: string) {
+  return apiFetch(`/community/awards/${encodeURIComponent(awardId)}/copy`, {
+    method: "POST",
+    body: "{}",
+  });
+}
+
+export async function voteMobileCommunityAward(awardId: string) {
+  const response = await fetch(`${appBaseUrl}/api/votes`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ targetType: "community_award", targetId: awardId, value: 1 }),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(String(json?.error ?? `COMMUNITY_AWARD_VOTE_FAILED_${response.status}`));
+  }
+  return json;
 }
 
 export async function fetchMobileFamilySummary(): Promise<MobileFamilySummary> {
