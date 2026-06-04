@@ -468,6 +468,20 @@
     "googleLinkUnavailable": "Google sign-in is not configured for linking.",
     "notificationsTitle": "Notifications",
     "notificationsAdminOnly": "Browser push notification settings are only available for active admin profiles.",
+    "newsletter": {
+      "title": "Email Preferences",
+      "description": "Choose whether Family Chores should send a weekly family highlights email to this parent account.",
+      "weeklyFamilyHighlightsEmail": "Weekly Family Highlights Email",
+      "loading": "Loading email preference...",
+      "enabled": "Weekly family highlights email is on.",
+      "disabled": "Weekly family highlights email is off.",
+      "turnOn": "Turn On",
+      "turnOff": "Turn Off",
+      "saving": "Saving...",
+      "enabledSuccess": "Weekly family highlights email turned on.",
+      "disabledSuccess": "Weekly family highlights email turned off.",
+      "saveError": "Could not save email preference: {error}"
+    },
     "accountSubtitle": "Your account",
     "tabs": {
       "general": "General",
@@ -475,6 +489,37 @@
       "notifications": "Notifications",
       "integrations": "Integrations",
       "requests": "My Requests"
+    }
+  },
+  "newsletter": {
+    "weekly": {
+      "subject": "Your Family Chores highlights for {startDate} to {endDate}",
+      "title": "Weekly Family Highlights",
+      "greeting": "Hello, {familyName} family!",
+      "familyFallbackName": "your",
+      "intro": "Here is your family's recap for {dateRange}.",
+      "metrics": {
+        "choresCompleted": "Chores completed",
+        "coinsEarned": "Coins earned",
+        "rewardsRedeemed": "Rewards redeemed",
+        "familyAwardsClaimed": "Family awards claimed",
+        "questsCompleted": "Quests completed",
+        "achievementsUnlocked": "Achievements unlocked",
+        "pendingApprovals": "Pending approvals"
+      },
+      "mostActiveHelper": "Most Active Helper",
+      "mostActiveHelperValue": "{name} with {count} completed chore(s)",
+      "noMostActiveHelper": "No standout helper this week yet.",
+      "recentHighlights": "Recent feed highlights",
+      "noRecentHighlights": "No recent highlights this week yet.",
+      "proTip": "Pro-tip of the week",
+      "openDashboard": "Open dashboard",
+      "managePreferences": "Manage email preferences",
+      "tips": {
+        "pendingApprovals": "You have chores waiting for approval. A quick review helps coins and momentum land while the week is still fresh.",
+        "kickstart": "Try adding one small recurring chore for each child. Consistent wins make the weekly summary more rewarding.",
+        "praise": "Call out one specific win from this week when you open the app again. Specific praise helps the routine stick."
+      }
     }
   },
   "profileMenu": {

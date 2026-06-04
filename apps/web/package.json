@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-ses": "^3.1061.0",
     "@packages/core": "file:./packages/core",
     "@packages/locales": "file:./packages/locales",
     "@types/web-push": "^3.6.4",

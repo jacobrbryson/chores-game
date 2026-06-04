@@ -14,6 +14,7 @@ import {
   type ProfileFamilySummary,
 } from "@/components/profile/profile-family-summary-section";
 import { ProfileGoogleLinkCard } from "@/components/profile/profile-google-link-card";
+import { ProfileNewsletterPreferencesCard } from "@/components/profile/profile-newsletter-preferences-card";
 import { MyRequestsList } from "@/components/my-requests-list";
 import {
   ProfileSectionTabs,
@@ -956,6 +957,7 @@ export function ProfilePageClient({
               void onClaimAward(awardId);
             }}
           />
+          {role === "admin" && !isSwitched ? <ProfileNewsletterPreferencesCard /> : null}
         </div>
       ) : null}
 

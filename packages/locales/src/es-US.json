@@ -468,6 +468,20 @@
     "googleLinkUnavailable": "El inicio de sesion de Google no esta configurado para vinculacion.",
     "notificationsTitle": "Notificaciones",
     "notificationsAdminOnly": "Las notificaciones push del navegador solo estan disponibles para perfiles de administrador activos.",
+    "newsletter": {
+      "title": "Preferencias de correo",
+      "description": "Elige si Family Chores debe enviar un correo semanal con los mejores momentos de la familia a esta cuenta de padre o madre.",
+      "weeklyFamilyHighlightsEmail": "Correo semanal de mejores momentos familiares",
+      "loading": "Cargando la preferencia de correo...",
+      "enabled": "El correo semanal de mejores momentos esta activado.",
+      "disabled": "El correo semanal de mejores momentos esta desactivado.",
+      "turnOn": "Activar",
+      "turnOff": "Desactivar",
+      "saving": "Guardando...",
+      "enabledSuccess": "El correo semanal de mejores momentos se activo.",
+      "disabledSuccess": "El correo semanal de mejores momentos se desactivo.",
+      "saveError": "No se pudo guardar la preferencia de correo: {error}"
+    },
     "accountSubtitle": "Tu cuenta",
     "tabs": {
       "general": "General",
@@ -475,6 +489,37 @@
       "notifications": "Notificaciones",
       "integrations": "Integraciones",
       "requests": "Mis solicitudes"
+    }
+  },
+  "newsletter": {
+    "weekly": {
+      "subject": "Tus mejores momentos de Family Chores del {startDate} al {endDate}",
+      "title": "Resumen semanal familiar",
+      "greeting": "Hola, familia {familyName}!",
+      "familyFallbackName": "tu",
+      "intro": "Aqui tienes el resumen de tu familia para {dateRange}.",
+      "metrics": {
+        "choresCompleted": "Tareas completadas",
+        "coinsEarned": "Monedas ganadas",
+        "rewardsRedeemed": "Recompensas canjeadas",
+        "familyAwardsClaimed": "Premios familiares reclamados",
+        "questsCompleted": "Misiones completadas",
+        "achievementsUnlocked": "Logros desbloqueados",
+        "pendingApprovals": "Aprobaciones pendientes"
+      },
+      "mostActiveHelper": "Ayudante mas activo",
+      "mostActiveHelperValue": "{name} con {count} tarea(s) completada(s)",
+      "noMostActiveHelper": "Todavia no hay un ayudante destacado esta semana.",
+      "recentHighlights": "Momentos recientes del feed",
+      "noRecentHighlights": "Todavia no hay momentos recientes esta semana.",
+      "proTip": "Consejo de la semana",
+      "openDashboard": "Abrir panel",
+      "managePreferences": "Administrar preferencias de correo",
+      "tips": {
+        "pendingApprovals": "Tienes tareas esperando aprobacion. Revisarlas rapido ayuda a que las monedas y el impulso lleguen mientras la semana sigue fresca.",
+        "kickstart": "Prueba agregar una tarea pequena y recurrente para cada nino. Las victorias constantes hacen que el resumen semanal sea mas valioso.",
+        "praise": "Menciona una victoria especifica de esta semana cuando vuelvas a abrir la app. El reconocimiento concreto ayuda a mantener la rutina."
+      }
     }
   },
   "profileMenu": {

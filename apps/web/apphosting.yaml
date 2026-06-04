@@ -102,3 +102,31 @@ env:
     secret: PUSH_SUBSCRIPTION_SECRET
     availability:
       - RUNTIME
+  - variable: EMAIL_PROVIDER
+    secret: EMAIL_PROVIDER
+    availability:
+      - RUNTIME
+  - variable: EMAIL_FROM_ADDRESS
+    secret: EMAIL_FROM_ADDRESS
+    availability:
+      - RUNTIME
+  - variable: EMAIL_REPLY_TO_ADDRESS
+    secret: EMAIL_REPLY_TO_ADDRESS
+    availability:
+      - RUNTIME
+  - variable: AWS_REGION
+    secret: AWS_REGION
+    availability:
+      - RUNTIME
+  - variable: AWS_ACCESS_KEY_ID
+    secret: AWS_ACCESS_KEY_ID
+    availability:
+      - RUNTIME
+  - variable: AWS_SECRET_ACCESS_KEY
+    secret: AWS_SECRET_ACCESS_KEY
+    availability:
+      - RUNTIME
+  - variable: NEWSLETTER_INTERNAL_SECRET
+    secret: NEWSLETTER_INTERNAL_SECRET
+    availability:
+      - RUNTIME

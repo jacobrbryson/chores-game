@@ -8,6 +8,7 @@ import { ModalShell } from "@/components/modal-shell";
 import { SupportCommunityAwardsPanel } from "@/components/support-community-awards-panel";
 import { SupportFeedPanel } from "@/components/support-feed-panel";
 import { SupportGhostChoresPanel } from "@/components/support-ghost-chores-panel";
+import { SupportNewslettersPanel } from "@/components/support-newsletters-panel";
 import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
 import { CategorySelector } from "@/components/category-selector";
 import {
@@ -930,6 +931,7 @@ export default function SupportPageClient() {
       ) : null}
       <SupportCommunityAwardsPanel />
       <SupportGhostChoresPanel />
+      <SupportNewslettersPanel />
       {payload ? <SupportFeedPanel events={payload.events} /> : null}
       {payload ? (
         <section className="flex flex-col gap-3">

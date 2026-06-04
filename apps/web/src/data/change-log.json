@@ -1,11 +1,19 @@
 [
   {
+    "id": "weekly-family-highlights-email",
+    "date": "2026-06-03",
+    "type": "Feature",
+    "subject": "Weekly Family Highlights Email",
+    "description": "Parents can receive a weekly summary of completed chores, coins earned, rewards, quests, achievements, and helpful family tips.",
+    "image": "/globe.svg"
+  },
+  {
     "id": "family-activity-feed",
     "date": "2026-06-03",
     "type": "Feature",
     "subject": "Family Activity Feed",
     "description": "Families can now see recent chores, rewards, achievements, quests, and other progress in one cheerful dashboard feed. The signed-in dashboard keeps your familiar Chores view front and center, with a new Feed tab a tap away.",
-    "image": "/store/theme.png"
+    "image": "/store3/theme.png"
   },
   {
     "id": "store-purchase-success-dialog",

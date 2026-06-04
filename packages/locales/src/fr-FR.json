@@ -468,6 +468,20 @@
     "googleLinkUnavailable": "La connexion Google n'est pas configurée pour l'association.",
     "notificationsTitle": "Notifications",
     "notificationsAdminOnly": "Les notifications push du navigateur sont disponibles uniquement pour les profils administrateur actifs.",
+    "newsletter": {
+      "title": "Preferences e-mail",
+      "description": "Choisissez si Family Chores doit envoyer un e-mail hebdomadaire des moments forts de la famille a ce compte parent.",
+      "weeklyFamilyHighlightsEmail": "E-mail hebdomadaire des moments forts de la famille",
+      "loading": "Chargement de la preference e-mail...",
+      "enabled": "L'e-mail hebdomadaire des moments forts est active.",
+      "disabled": "L'e-mail hebdomadaire des moments forts est desactive.",
+      "turnOn": "Activer",
+      "turnOff": "Desactiver",
+      "saving": "Enregistrement...",
+      "enabledSuccess": "L'e-mail hebdomadaire des moments forts a ete active.",
+      "disabledSuccess": "L'e-mail hebdomadaire des moments forts a ete desactive.",
+      "saveError": "Impossible d'enregistrer la preference e-mail : {error}"
+    },
     "accountSubtitle": "Votre compte",
     "tabs": {
       "general": "Général",
@@ -475,6 +489,37 @@
       "notifications": "Notifications",
       "integrations": "Intégrations",
       "requests": "Mes demandes"
+    }
+  },
+  "newsletter": {
+    "weekly": {
+      "subject": "Vos moments forts Family Chores du {startDate} au {endDate}",
+      "title": "Moments forts hebdomadaires de la famille",
+      "greeting": "Bonjour, famille {familyName} !",
+      "familyFallbackName": "votre",
+      "intro": "Voici le recapitulatif de votre famille pour {dateRange}.",
+      "metrics": {
+        "choresCompleted": "Taches terminees",
+        "coinsEarned": "Pieces gagnees",
+        "rewardsRedeemed": "Recompenses echangees",
+        "familyAwardsClaimed": "Recompenses familiales reclamees",
+        "questsCompleted": "Quetes terminees",
+        "achievementsUnlocked": "Succes debloques",
+        "pendingApprovals": "Approvals en attente"
+      },
+      "mostActiveHelper": "Aide la plus active",
+      "mostActiveHelperValue": "{name} avec {count} tache(s) terminee(s)",
+      "noMostActiveHelper": "Pas encore d'aide vedette cette semaine.",
+      "recentHighlights": "Moments recents du fil",
+      "noRecentHighlights": "Aucun moment recent cette semaine pour l'instant.",
+      "proTip": "Astuce de la semaine",
+      "openDashboard": "Ouvrir le tableau de bord",
+      "managePreferences": "Gerer les preferences e-mail",
+      "tips": {
+        "pendingApprovals": "Des taches attendent votre approbation. Une verification rapide aide les pieces et l'elan a arriver pendant que la semaine est encore fraiche.",
+        "kickstart": "Essayez d'ajouter une petite tache recurrente pour chaque enfant. Des victoires regulieres rendent le recapitulatif hebdomadaire plus utile.",
+        "praise": "Soulignez une victoire precise de cette semaine a votre prochaine visite dans l'application. Des encouragements precis aident la routine a durer."
+      }
     }
   },
   "profileMenu": {

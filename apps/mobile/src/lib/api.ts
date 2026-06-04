@@ -590,6 +590,38 @@ export async function patchMobileProfile(body: Record<string, unknown>) {
   return json;
 }
 
+export async function getMobileNewsletterPreferences() {
+  const response = await fetch(`${appBaseUrl}/api/newsletter/preferences`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(String(json?.error ?? `NEWSLETTER_PREFERENCES_GET_FAILED_${response.status}`));
+  }
+  return {
+    weeklyFamilyHighlightsEmail: json?.weeklyFamilyHighlightsEmail === true,
+  };
+}
+
+export async function patchMobileNewsletterPreferences(body: {
+  weeklyFamilyHighlightsEmail: boolean;
+}) {
+  const response = await fetch(`${appBaseUrl}/api/newsletter/preferences`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(String(json?.error ?? `NEWSLETTER_PREFERENCES_PATCH_FAILED_${response.status}`));
+  }
+  return {
+    weeklyFamilyHighlightsEmail: json?.weeklyFamilyHighlightsEmail === true,
+  };
+}
+
 export async function patchMobileChore(choreId: string, body: Record<string, unknown>) {
   return apiFetch(`/chores/${encodeURIComponent(choreId)}`, {
     method: "PATCH",

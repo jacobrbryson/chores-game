@@ -6,6 +6,8 @@ import {
   apiFetch,
   claimMobileProfileAward,
   fetchMobileProfileSummary,
+  getMobileNewsletterPreferences,
+  patchMobileNewsletterPreferences,
   patchMobileProfile,
   type MobileProfileSummary,
 } from "@/lib/api";
@@ -50,6 +52,10 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
   const [claimingAwardId, setClaimingAwardId] = useState("");
   const [localePending, setLocalePending] = useState(false);
   const [localeError, setLocaleError] = useState("");
+  const [newsletterEnabled, setNewsletterEnabled] = useState(false);
+  const [newsletterLoading, setNewsletterLoading] = useState(false);
+  const [newsletterSaving, setNewsletterSaving] = useState(false);
+  const [newsletterError, setNewsletterError] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -86,6 +92,24 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
       });
   }, [t]);
 
+  useEffect(() => {
+    if (state.data?.role !== "admin") {
+      return;
+    }
+    setNewsletterLoading(true);
+    setNewsletterError("");
+    getMobileNewsletterPreferences()
+      .then((payload) => {
+        setNewsletterEnabled(payload.weeklyFamilyHighlightsEmail);
+      })
+      .catch((error) => {
+        setNewsletterError(error instanceof Error ? error.message : "newsletter_preferences_unavailable");
+      })
+      .finally(() => {
+        setNewsletterLoading(false);
+      });
+  }, [state.data?.role]);
+
   async function onChangeLocale(nextLocale: AppLocale) {
     if (!state.data || localePending || state.data.locale === nextLocale) {
       return;
@@ -120,6 +144,25 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
       setFamilySummaryError(error instanceof Error ? error.message : "claim_award_failed");
     } finally {
       setClaimingAwardId("");
+    }
+  }
+
+  async function onToggleNewsletter() {
+    if (newsletterSaving) {
+      return;
+    }
+    const nextValue = !newsletterEnabled;
+    setNewsletterSaving(true);
+    setNewsletterError("");
+    try {
+      const payload = await patchMobileNewsletterPreferences({
+        weeklyFamilyHighlightsEmail: nextValue,
+      });
+      setNewsletterEnabled(payload.weeklyFamilyHighlightsEmail);
+    } catch (error) {
+      setNewsletterError(error instanceof Error ? error.message : "newsletter_preferences_update_failed");
+    } finally {
+      setNewsletterSaving(false);
     }
   }
 
@@ -163,6 +206,34 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
             {localeError ? <Text style={styles.error}>{localeError}</Text> : null}
           </Card>
 
+          {state.data.role === "admin" ? (
+            <Card>
+              <SectionHeader title={t("profile.newsletter.title")} />
+              <Text style={styles.detail}>{t("profile.newsletter.description")}</Text>
+              <Text style={[styles.detail, styles.newsletterStatus]}>
+                {newsletterLoading
+                  ? t("profile.newsletter.loading")
+                  : newsletterEnabled
+                    ? t("profile.newsletter.enabled")
+                    : t("profile.newsletter.disabled")}
+              </Text>
+              <View style={styles.languageWrap}>
+                <Button
+                  label={
+                    newsletterSaving
+                      ? t("profile.newsletter.saving")
+                      : newsletterEnabled
+                        ? t("profile.newsletter.turnOff")
+                        : t("profile.newsletter.turnOn")
+                  }
+                  disabled={newsletterLoading || newsletterSaving}
+                  onPress={() => void onToggleNewsletter()}
+                />
+              </View>
+              {newsletterError ? <Text style={styles.error}>{newsletterError}</Text> : null}
+            </Card>
+          ) : null}
+
           {familySummaryError ? <ErrorState message={t("profile.familySummaryLoadError", { error: familySummaryError })} /> : null}
           <MobileProfileFamilySummary
             summary={familySummary}
@@ -181,5 +252,6 @@ const styles = StyleSheet.create({
   email: { fontSize: typography.small, color: colors.muted },
   detail: { fontSize: typography.body, color: colors.text },
   languageWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
+  newsletterStatus: { marginTop: spacing.sm },
   error: { fontSize: typography.small, color: "#b91c1c" },
 });
