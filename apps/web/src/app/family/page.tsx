@@ -3,7 +3,7 @@
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type AppLocale } from "@packages/locales";
 import Image from "next/image";
 import Link from "next/link";
-import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useMemo, useState } from "react";
+import { CSSProperties, Dispatch, FormEvent, ReactNode, SetStateAction, useEffect, useMemo, useState } from "react";
 import { Alert } from "@/components/alert";
 import { AppMenu } from "@/components/app-menu";
 import { Avatar } from "@/components/avatar";
@@ -12,6 +12,7 @@ import { CoinIcon } from "@/components/coin-icon";
 import { CommunityAwardsLibrary } from "@/components/community-awards-page-client";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
 import { FamilySectionTabs, type FamilySectionTabId } from "@/components/family/family-section-tabs";
+import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { FamilyQuestsSection } from "@/components/family-quests-section";
 import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
@@ -38,6 +39,7 @@ type FamilyCategory = FamilySummaryResponse["categories"][number];
 type CategoryFormState = {
   name: string;
   color: string;
+  memberId: string;
 };
 
 type PendingRemoveCategory = {
@@ -166,9 +168,45 @@ const initialMemberState: AddMemberState = {
   role: "player",
 };
 
+const CATEGORY_COLOR_PALETTE: string[] = [
+  // Reds
+  "#ef4444", "#dc2626", "#b91c1c", "#991b1b",
+  // Oranges
+  "#f97316", "#ea580c", "#c2410c", "#fb923c",
+  // Yellows / Ambers
+  "#f59e0b", "#d97706", "#b45309", "#fbbf24",
+  // Limes / Greens
+  "#84cc16", "#65a30d", "#16a34a", "#15803d",
+  // Teals / Cyans
+  "#14b8a6", "#0d9488", "#06b6d4", "#0891b2",
+  // Blues
+  "#3b82f6", "#2563eb", "#1d4ed8", "#1e40af",
+  // Indigos
+  "#6366f1", "#4f46e5", "#4338ca", "#3730a3",
+  // Violets / Purples
+  "#8b5cf6", "#7c3aed", "#6d28d9", "#a855f7",
+  // Pinks / Roses
+  "#ec4899", "#db2777", "#be185d", "#f472b6",
+  // Roses
+  "#f43f5e", "#e11d48", "#be123c", "#fb7185",
+  // Emeralds
+  "#10b981", "#059669", "#047857", "#34d399",
+  // Sky
+  "#0ea5e9", "#0284c7", "#0369a1", "#38bdf8",
+  // Slates / Grays
+  "#64748b", "#475569", "#334155", "#1e293b",
+  // Stone / Warmth
+  "#78716c", "#57534e", "#44403c", "#a8a29e",
+  // Warm accents
+  "#d946ef", "#c026d3", "#a21caf", "#e879f9",
+  // Additional warm neutrals
+  "#f87171", "#fca5a5", "#86efac", "#93c5fd",
+];
+
 const initialCategoryFormState: CategoryFormState = {
   name: "",
   color: "#3b82f6",
+  memberId: "",
 };
 
 const initialRewardFormState: RewardFormState = {
@@ -494,6 +532,7 @@ export default function FamilyPage() {
     setCategoryForm({
       name: category.name,
       color: category.color,
+      memberId: category.memberId ?? "",
     });
     setCategoryError("");
   }
@@ -530,6 +569,7 @@ export default function FamilyPage() {
           body: JSON.stringify({
             name: normalizedName,
             color: normalizedColor,
+            memberId: categoryForm.memberId,
           }),
         },
       );
@@ -538,6 +578,7 @@ export default function FamilyPage() {
         throw new Error(body.error ?? `CATEGORY_SAVE_HTTP_${response.status}`);
       }
       resetCategoryEditor();
+      setShowCategoryManager(false);
       await loadSummary();
     } catch (saveError) {
       const message =
@@ -792,6 +833,79 @@ export default function FamilyPage() {
 
   const members = useMemo(() => summary?.members ?? [], [summary]);
   const categories = useMemo(() => summary?.categories ?? [], [summary]);
+  // Group categories for the Categories tab: the whole-family bucket first,
+  // then each member with their own categories. Categories whose memberId no
+  // longer matches an active member fall back into the whole-family bucket.
+  const categoryGroups = useMemo(() => {
+    const memberIds = new Set(members.map((member) => member.id));
+    const familyCategories = categories.filter(
+      (category) => !category.memberId || !memberIds.has(category.memberId ?? ""),
+    );
+    const groups: Array<{
+      key: string;
+      label: string;
+      avatar: ReactNode;
+      categories: typeof categories;
+    }> = [
+      {
+        key: "__family__",
+        label: "Whole Family",
+        avatar: <FamilyMemberAvatar name="Family" size={28} borderWidth={2} isFamily ariaHidden />,
+        categories: familyCategories,
+      },
+    ];
+    for (const member of members) {
+      const memberCategories = categories.filter((category) => category.memberId === member.id);
+      if (memberCategories.length > 0) {
+        groups.push({
+          key: member.id,
+          label: member.name,
+          avatar: (
+            <FamilyMemberAvatar
+              name={member.name}
+              avatarId={member.avatarId}
+              avatarPhotoUrl={member.avatarPhotoUrl}
+              primaryColor={member.dashboardPrimaryColor?.trim() || "#1f69b7"}
+              size={28}
+              borderWidth={2}
+              ariaHidden
+            />
+          ),
+          categories: memberCategories,
+        });
+      }
+    }
+    return groups.filter((group) => group.categories.length > 0);
+  }, [categories, members]);
+  // Options for the "Assign to" select in the category editor, with avatars so
+  // it reads like the dashboard chore-scope picker.
+  const categoryAssignOptions = useMemo<TailwindSelectOption[]>(() => {
+    const familyOption: TailwindSelectOption = {
+      value: "",
+      label: "Whole Family",
+      leading: (
+        <FamilyMemberAvatar name="Family" size={24} borderWidth={2} isFamily ariaHidden />
+      ),
+    };
+    return [
+      familyOption,
+      ...members.map((member) => ({
+        value: member.id,
+        label: member.name,
+        leading: (
+          <FamilyMemberAvatar
+            name={member.name}
+            avatarId={member.avatarId}
+            avatarPhotoUrl={member.avatarPhotoUrl}
+            primaryColor={member.dashboardPrimaryColor?.trim() || "#1f69b7"}
+            size={24}
+            borderWidth={2}
+            ariaHidden
+          />
+        ),
+      })),
+    ];
+  }, [members]);
   const familyRewards = useMemo(() => rewards, [rewards]);
   const orderedFamilyRewards = useMemo(
     () =>
@@ -1028,40 +1142,50 @@ export default function FamilyPage() {
                     {activeFamilyTab === "categories" ? (
                     <section aria-label="Categories">
                       {categories.length > 0 ? (
-                        <div className="family-category-manage-list">
-                          {categories.map((category) => (
-                            <div key={category.id} className="family-category-manage-item">
-                              <span
-                                className="family-category-chip"
-                                style={{ "--category-color": category.color } as CSSProperties}>
-                                {category.name}
-                              </span>
-                              {canManageMembers ? (
-                                <div className="member-actions">
-                                  <Button
-                                    type="button"
-                                    className="btn btn-secondary member-action-btn"
-                                    disabled={Boolean(categoryActionLoading) || categorySaving}
-                                    onClick={() => {
-                                      onEditCategory(category);
-                                      setShowCategoryManager(true);
-                                    }}>
-                                    Edit
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    className="btn member-action-remove"
-                                    disabled={Boolean(categoryActionLoading) || categorySaving}
-                                    onClick={() =>
-                                      setPendingRemoveCategory({
-                                        id: category.id,
-                                        name: category.name,
-                                      })
-                                    }>
-                                    {categoryActionLoading?.categoryId === category.id ? "Working..." : "Delete"}
-                                  </Button>
-                                </div>
-                              ) : null}
+                        <div className="family-category-group-list">
+                          {categoryGroups.map((group) => (
+                            <div key={group.key} className="family-category-group">
+                              <h4 className="family-category-group-title">
+                                {group.avatar}
+                                <span>{group.label}</span>
+                              </h4>
+                              <div className="family-category-manage-list">
+                                {group.categories.map((category) => (
+                                  <div key={category.id} className="family-category-manage-item">
+                                    <span
+                                      className="family-category-chip"
+                                      style={{ "--category-color": category.color } as CSSProperties}>
+                                      {category.name}
+                                    </span>
+                                    {canManageMembers ? (
+                                      <div className="member-actions">
+                                        <Button
+                                          type="button"
+                                          className="btn btn-secondary member-action-btn"
+                                          disabled={Boolean(categoryActionLoading) || categorySaving}
+                                          onClick={() => {
+                                            onEditCategory(category);
+                                            setShowCategoryManager(true);
+                                          }}>
+                                          Edit
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          className="btn member-action-remove"
+                                          disabled={Boolean(categoryActionLoading) || categorySaving}
+                                          onClick={() =>
+                                            setPendingRemoveCategory({
+                                              id: category.id,
+                                              name: category.name,
+                                            })
+                                          }>
+                                          {categoryActionLoading?.categoryId === category.id ? "Working..." : "Delete"}
+                                        </Button>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1306,26 +1430,37 @@ export default function FamilyPage() {
               />
             </label>
             <label className="flex w-full flex-col gap-1.5">
-              <span className="text-sm font-medium text-slate-700">Chip Color</span>
-              <div className="family-category-color-row">
-                <input
-                  type="color"
-                  value={normalizeCategoryColor(categoryForm.color) || "#64748b"}
-                  onChange={(event) =>
-                    setCategoryForm((current) => ({ ...current, color: event.target.value }))
-                  }
-                  className="family-category-color-input"
-                />
-                <input
-                  value={categoryForm.color}
-                  onChange={(event) =>
-                    setCategoryForm((current) => ({ ...current, color: event.target.value }))
-                  }
-                  placeholder="#3b82f6"
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
-                />
-              </div>
+              <span className="text-sm font-medium text-slate-700">Assign to</span>
+              <TailwindSelect
+                ariaLabel="Assign category to"
+                value={categoryForm.memberId}
+                onChange={(value) =>
+                  setCategoryForm((current) => ({ ...current, memberId: value }))
+                }
+                options={categoryAssignOptions}
+                className="w-full"
+              />
+              <span className="text-xs text-slate-500">
+                Whole-family categories are available to everyone. Member categories only appear when
+                that person is assigned a chore.
+              </span>
             </label>
+            <div className="flex w-full flex-col gap-1.5">
+              <span className="text-sm font-medium text-slate-700">Chip Color</span>
+              <div className="family-category-color-grid">
+                {CATEGORY_COLOR_PALETTE.map((hex) => (
+                  <button
+                    key={hex}
+                    type="button"
+                    aria-label={hex}
+                    aria-pressed={normalizeCategoryColor(categoryForm.color) === hex}
+                    className={`family-category-color-swatch${normalizeCategoryColor(categoryForm.color) === hex ? " is-selected" : ""}`}
+                    style={{ backgroundColor: hex }}
+                    onClick={() => setCategoryForm((current) => ({ ...current, color: hex }))}
+                  />
+                ))}
+              </div>
+            </div>
             {categoryError ? <Alert>Category update failed: {categoryError}</Alert> : null}
             <div className="family-modal-actions">
               {editingCategoryId ? (

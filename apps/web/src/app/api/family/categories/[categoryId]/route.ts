@@ -29,6 +29,7 @@ import {
 type UpdateCategoryBody = {
   name?: unknown;
   color?: unknown;
+  memberId?: unknown;
 };
 
 type ViewerRole = "admin" | "player";
@@ -116,6 +117,21 @@ async function getViewerRole(
   return readString(memberByUid.fields, "role") === "admin" ? "admin" : "player";
 }
 
+async function listActiveMemberIds(familyId: string, idToken: string) {
+  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 200);
+  const ids = new Set<string>();
+  for (const doc of memberDocs) {
+    if (readBoolean(doc.fields, "deleted")) {
+      continue;
+    }
+    const id = documentIdFromName(doc.name);
+    if (id) {
+      ids.add(id);
+    }
+  }
+  return ids;
+}
+
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ categoryId: string }> },
@@ -142,12 +158,14 @@ export async function PATCH(
 
   const hasName = typeof body.name === "string";
   const hasColor = typeof body.color === "string";
-  if (!hasName && !hasColor) {
+  const hasMemberId = typeof body.memberId === "string";
+  if (!hasName && !hasColor && !hasMemberId) {
     return NextResponse.json({ error: "update_values_required" }, { status: 400 });
   }
 
   const name = hasName ? normalizeCategoryName(String(body.name)) : "";
   const color = hasColor ? normalizeCategoryColor(String(body.color)) : "";
+  const memberId = hasMemberId ? String(body.memberId).trim() : "";
   if (hasName && !name) {
     return NextResponse.json({ error: "name_required" }, { status: 400 });
   }
@@ -202,18 +220,28 @@ export async function PATCH(
           }
         }
 
+        if (hasMemberId && memberId) {
+          const memberIds = await listActiveMemberIds(familyId, idToken);
+          if (!memberIds.has(memberId)) {
+            return { kind: "member_not_found" as const };
+          }
+        }
+
         const existingColor = normalizeCategoryColor(readString(categoryDoc.fields, "color"));
         const nextColor = hasColor ? color : existingColor;
+        const existingMemberId = readString(categoryDoc.fields, "memberId").trim();
+        const nextMemberId = hasMemberId ? memberId : existingMemberId;
         const now = new Date().toISOString();
         await patchDocument(
           `families/${familyId}/categories/${categoryId}`,
           {
             name: stringField(nextName),
             color: stringField(nextColor),
+            memberId: stringField(nextMemberId),
             updatedAt: timestampField(now),
           },
           idToken,
-          ["name", "color", "updatedAt"],
+          ["name", "color", "memberId", "updatedAt"],
         );
 
         return {
@@ -222,6 +250,7 @@ export async function PATCH(
             id: categoryId,
             name: nextName,
             color: nextColor,
+            memberId: nextMemberId,
           },
         };
       });
@@ -234,6 +263,9 @@ export async function PATCH(
     }
     if (data.kind === "category_not_found") {
       return NextResponse.json({ error: "category_not_found" }, { status: 404 });
+    }
+    if (data.kind === "member_not_found") {
+      return NextResponse.json({ error: "member_not_found" }, { status: 404 });
     }
     if (data.kind === "name_required") {
       return NextResponse.json({ error: "name_required" }, { status: 400 });

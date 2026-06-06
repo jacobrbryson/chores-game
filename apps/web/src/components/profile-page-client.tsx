@@ -695,22 +695,22 @@ export function ProfilePageClient({
       return "";
     }
     if (!browserSupportsPushNotifications()) {
-      return "This browser does not support push notifications.";
+      return t("profile.notifications.pushBrowserUnsupported");
     }
     const permission =
       typeof Notification !== "undefined"
         ? Notification.permission
         : (pushSummary?.permission ?? "default");
     if (permission === "denied") {
-      return "Browser notifications are blocked for this site.";
+      return t("profile.notifications.pushBrowserBlocked");
     }
     if (permission === "granted") {
       return pushSummary?.hasStoredSubscription
-        ? "Push notifications are connected on this browser."
-        : "Permission granted. Save to connect this browser.";
+        ? t("profile.notifications.pushBrowserConnected")
+        : t("profile.notifications.pushBrowserReadyToSave");
     }
-    return "Notifications are off until you allow this site in your browser.";
-  }, [isSwitched, pushSummary?.hasStoredSubscription, pushSummary?.permission, role]);
+    return t("profile.notifications.pushBrowserPrompt");
+  }, [isSwitched, pushSummary?.hasStoredSubscription, pushSummary?.permission, role, t]);
 
   function onPushNotificationToggle(key: PushNotificationToggleKey, checked: boolean) {
     setPushError("");
@@ -780,7 +780,7 @@ export function ProfilePageClient({
           permission,
           unsubscribeEndpoint,
         });
-        setPushSuccess("Notifications turned off.");
+        setPushSuccess(t("profile.notifications.pushTurnedOff"));
         await loadPushNotificationSummary();
         setPushBrowserReady(false);
         return;
@@ -813,21 +813,21 @@ export function ProfilePageClient({
         permission,
         subscription: subscriptionJson,
       });
-      setPushSuccess("Notifications saved.");
+      setPushSuccess(t("profile.notifications.pushSaved"));
       await loadPushNotificationSummary();
       setPushBrowserReady(true);
     } catch (errorValue) {
       const message = errorValue instanceof Error ? errorValue.message : "push_notifications_update_failed";
       setPushError(
         message === "push_not_supported"
-          ? "This browser does not support push notifications."
+          ? t("profile.notifications.pushBrowserUnsupported")
           : message === "push_permission_denied"
-            ? "Notifications are blocked for this site."
+            ? t("profile.notifications.pushBrowserBlocked")
             : message === "push_permission_required"
-              ? "Allow browser notifications to turn this on."
+              ? t("profile.notifications.pushPermissionRequired")
               : message === "push_not_configured"
-                ? "Push notifications are not configured on the server."
-                : "Could not save push notification settings.",
+                ? t("profile.notifications.pushUnavailable")
+                : t("profile.notifications.pushGenericError"),
       );
     } finally {
       setPushSaving(false);
@@ -957,7 +957,6 @@ export function ProfilePageClient({
               void onClaimAward(awardId);
             }}
           />
-          {role === "admin" && !isSwitched ? <ProfileNewsletterPreferencesCard /> : null}
         </div>
       ) : null}
 
@@ -1075,23 +1074,36 @@ export function ProfilePageClient({
 
       {activeTab === "notifications" ? (
         role === "admin" && !isSwitched ? (
-          <ProfileAdminNotificationsCard
-            summary={pushSummary}
-            loading={pushLoading}
-            saving={pushSaving}
-            error={pushError}
-            success={pushSuccess}
-            browserStatus={pushBrowserStatus}
-            samplePending={pushSamplePending}
-            sampleDisabled={!canSendPushSample}
-            onToggle={onPushNotificationToggle}
-            onSave={() => {
-              void onSavePushNotifications();
-            }}
-            onSendSample={(type) => {
-              void onSendPushSample(type);
-            }}
-          />
+          <section aria-label={t("profile.notificationsTitle")} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="family-page-card-header">
+              <div>
+                <h2>{t("profile.notificationsTitle")}</h2>
+                <p className="small family-page-subhead">{t("profile.notificationsDescription")}</p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-5">
+              <ProfileAdminNotificationsCard
+                summary={pushSummary}
+                loading={pushLoading}
+                saving={pushSaving}
+                error={pushError}
+                success={pushSuccess}
+                browserStatus={pushBrowserStatus}
+                samplePending={pushSamplePending}
+                sampleDisabled={!canSendPushSample}
+                onToggle={onPushNotificationToggle}
+                onSave={() => {
+                  void onSavePushNotifications();
+                }}
+                onSendSample={(type) => {
+                  void onSendPushSample(type);
+                }}
+              />
+              <div className="border-t border-slate-200 pt-5">
+                <ProfileNewsletterPreferencesCard />
+              </div>
+            </div>
+          </section>
         ) : (
           <section aria-label="Notifications">
             <div className="family-page-card-header">

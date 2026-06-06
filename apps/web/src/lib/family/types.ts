@@ -9,6 +9,9 @@ export type FamilyCategory = {
   id: string;
   name: string;
   color: string;
+  // Family member this category belongs to. Empty/absent means the category
+  // applies to the whole family (shown to everyone).
+  memberId?: string;
 };
 
 export type FamilySnapshotMember = {

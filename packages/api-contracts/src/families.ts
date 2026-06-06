@@ -34,6 +34,7 @@ export const FamilyDashboardChoreSchema = z.object({
     id: EntityId,
     name: z.string(),
     color: z.string(),
+    memberId: z.string().optional(),
   })).optional(),
   coinValue: z.number().int().nonnegative().optional(),
   requireApproval: z.boolean().optional(),

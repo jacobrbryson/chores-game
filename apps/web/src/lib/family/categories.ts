@@ -64,7 +64,8 @@ export function parseFamilyCategories(
       );
       const rawColor = normalizeCategoryColor(readString(doc.fields, "color"));
       const color = isValidCategoryColor(rawColor) ? rawColor : CATEGORY_COLOR_FALLBACK;
-      return { id, deleted, name, color };
+      const memberId = readString(doc.fields, "memberId").trim();
+      return { id, deleted, name, color, memberId };
     })
     .filter((category) => !category.deleted && Boolean(category.id) && Boolean(category.name))
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -72,6 +73,7 @@ export function parseFamilyCategories(
       id: category.id,
       name: category.name,
       color: category.color,
+      memberId: category.memberId,
     }));
 }
 

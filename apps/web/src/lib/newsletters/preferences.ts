@@ -1,6 +1,7 @@
 import { DEFAULT_LOCALE, normalizeLocale, type AppLocale } from "@packages/locales";
 import {
   boolField,
+  type FirestoreValue,
   getDocument,
   patchDocument,
   readBoolean,
@@ -15,11 +16,20 @@ export type NewsletterPreferenceSummary = {
   weeklyFamilyHighlightsEmail: boolean;
 };
 
+export function resolveWeeklyFamilyHighlightsEmailPreference(
+  fields: Record<string, FirestoreValue> | undefined,
+) {
+  if (!fields || !(WEEKLY_FAMILY_HIGHLIGHTS_FIELD in fields)) {
+    return true;
+  }
+  return readBoolean(fields, WEEKLY_FAMILY_HIGHLIGHTS_FIELD);
+}
+
 export async function getNewsletterPreferences(uid: string, idToken: string) {
   const userDoc = await getDocument(`users/${uid}`, idToken);
   return {
     locale: normalizeLocale(readString(userDoc.fields, "locale")) || DEFAULT_LOCALE,
-    weeklyFamilyHighlightsEmail: readBoolean(userDoc.fields, WEEKLY_FAMILY_HIGHLIGHTS_FIELD),
+    weeklyFamilyHighlightsEmail: resolveWeeklyFamilyHighlightsEmailPreference(userDoc.fields),
   } satisfies NewsletterPreferenceSummary;
 }
 

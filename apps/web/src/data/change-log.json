@@ -1,7 +1,7 @@
 [
   {
     "id": "weekly-family-highlights-email",
-    "date": "2026-06-03",
+    "date": "2026-06-05",
     "type": "Feature",
     "subject": "Weekly Family Highlights Email",
     "description": "Parents can receive a weekly summary of completed chores, coins earned, rewards, quests, achievements, and helpful family tips.",
@@ -9,7 +9,7 @@
   },
   {
     "id": "family-activity-feed",
-    "date": "2026-06-03",
+    "date": "2026-06-05",
     "type": "Feature",
     "subject": "Family Activity Feed",
     "description": "Families can now see recent chores, rewards, achievements, quests, and other progress in one cheerful dashboard feed. The signed-in dashboard keeps your familiar Chores view front and center, with a new Feed tab a tap away.",
@@ -17,7 +17,7 @@
   },
   {
     "id": "store-purchase-success-dialog",
-    "date": "2026-06-03",
+    "date": "2026-06-05",
     "type": "Bug Fix",
     "subject": "Store purchase confirmation",
     "description": "Purchasing an item in the Store now shows a confirmation dialog with the item image, a message telling you where it was added (Inventory, Unclaimed Family Awards, or Profile), and quick actions to equip it, claim it, or jump to the relevant section.",
@@ -25,7 +25,7 @@
   },
   {
     "id": "profile-awards-inventory",
-    "date": "2026-06-03",
+    "date": "2026-06-05",
     "type": "Feature",
     "subject": "Richer profile overview",
     "description": "Profile pages now show pending family awards and owned item summaries so kids can see rewards and inventory in one place.",
@@ -33,15 +33,15 @@
   },
   {
     "id": "smart-ghost-chores",
-    "date": "2026-06-03",
+    "date": "2026-06-05",
     "type": "Feature",
     "subject": "Smart Ghost Chores",
     "description": "When a player runs out of chores, the dashboard now suggests safe, age-appropriate \"Suggested Chore\" ideas. Add one with a tap or dismiss it to see another, and hover a suggestion to learn why it was picked. Suggestions are clearly marked and never affect coins, stats, or streaks until they're added. Available on web and mobile.",
-    "image": "/store/theme.png"
+    "image": "/store3/theme.png"
   },
   {
     "id": "community-award-library",
-    "date": "2026-06-03",
+    "date": "2026-06-05",
     "type": "Feature",
     "subject": "Community Award Library",
     "description": "Parents can submit Family Awards for review, browse approved community ideas from the Family Awards tab, vote on favorites, and copy them into their own family. The library is also available on mobile.",
@@ -49,7 +49,7 @@
   },
   {
     "id": "public-requested-changes",
-    "date": "2026-06-02",
+    "date": "2026-06-05",
     "type": "Feature",
     "subject": "Public requested changes",
     "description": "The change log now includes requested changes that support has chosen to publish, with public statuses and upvotes for signed-in users.",
@@ -57,7 +57,7 @@
   },
   {
     "id": "support-request-management",
-    "date": "2026-06-01",
+    "date": "2026-06-05",
     "type": "Feature",
     "subject": "Better support request tracking",
     "description": "Support operators can now review bug reports and feature requests, update their status, and track request history in the support console.",
@@ -65,7 +65,7 @@
   },
   {
     "id": "in-app-support-requests",
-    "date": "2026-06-01",
+    "date": "2026-06-05",
     "type": "Feature",
     "subject": "Report bugs and request features",
     "description": "You can now report a bug or request a feature right from the profile menu. Add a subject and description (and a severity for bugs) and send it our way. Available on web and mobile.",

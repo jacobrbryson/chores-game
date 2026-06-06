@@ -1,12 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 
 export type TailwindSelectOption<T extends string = string> = {
   value: T;
   label: string;
   disabled?: boolean;
+  /** Optional element (e.g. an avatar) rendered before the label. */
+  leading?: ReactNode;
 };
 
 type TailwindSelectProps<T extends string = string> = {
@@ -136,8 +147,10 @@ export function TailwindSelect<T extends string = string>({
     };
   }, [open, updateMenuPosition]);
 
-  const selectedLabel =
-    selectedIndex >= 0 ? options[selectedIndex]?.label : options[firstEnabledIndex]?.label ?? "";
+  const selectedOption =
+    selectedIndex >= 0 ? options[selectedIndex] : options[firstEnabledIndex];
+  const selectedLabel = selectedOption?.label ?? "";
+  const selectedLeading = selectedOption?.leading ?? null;
 
   function findNextEnabledIndex(start: number, direction: 1 | -1) {
     if (options.length === 0) {
@@ -238,7 +251,14 @@ export function TailwindSelect<T extends string = string>({
                 )}
                 onMouseEnter={() => setHighlightedIndex(index)}
                 onClick={() => commitIndex(index)}>
-                {option.label}
+                {option.leading ? (
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="shrink-0">{option.leading}</span>
+                    <span className="truncate">{option.label}</span>
+                  </span>
+                ) : (
+                  option.label
+                )}
               </button>
             </li>
           );
@@ -262,7 +282,10 @@ export function TailwindSelect<T extends string = string>({
         )}
         onKeyDown={onButtonKeyDown}
         onClick={() => setOpen((current) => !current)}>
-        <span className="truncate text-left">{selectedLabel}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          {selectedLeading ? <span className="shrink-0">{selectedLeading}</span> : null}
+          <span className="truncate text-left">{selectedLabel}</span>
+        </span>
         <svg
           aria-hidden="true"
           viewBox="0 0 20 20"

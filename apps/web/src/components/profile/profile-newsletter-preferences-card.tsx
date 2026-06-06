@@ -79,14 +79,11 @@ export function ProfileNewsletterPreferencesCard() {
   }
 
   return (
-    <section
-      id="newsletter-preferences"
-      aria-label={t("profile.newsletter.title")}
-      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section id="newsletter-preferences" aria-label={t("profile.notifications.emailTitle")} className="space-y-4">
       <div className="family-page-card-header">
         <div>
-          <h2>{t("profile.newsletter.title")}</h2>
-          <p className="small family-page-subhead">{t("profile.newsletter.description")}</p>
+          <h3>{t("profile.notifications.emailTitle")}</h3>
+          <p className="small family-page-subhead">{t("profile.notifications.emailDescription")}</p>
         </div>
       </div>
       {error ? <Alert>{error}</Alert> : null}

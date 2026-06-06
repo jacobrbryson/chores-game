@@ -27,6 +27,7 @@ import { trackAchievementEvent } from "@/lib/achievements/service";
 type CategoryBody = {
   name?: unknown;
   color?: unknown;
+  memberId?: unknown;
 };
 
 type ViewerRole = "admin" | "player";
@@ -114,6 +115,21 @@ async function getViewerRole(
   return readString(memberByUid.fields, "role") === "admin" ? "admin" : "player";
 }
 
+async function listActiveMemberIds(familyId: string, idToken: string) {
+  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 200);
+  const ids = new Set<string>();
+  for (const doc of memberDocs) {
+    if (readBoolean(doc.fields, "deleted")) {
+      continue;
+    }
+    const id = doc.name.split("/").pop() ?? "";
+    if (id) {
+      ids.add(id);
+    }
+  }
+  return ids;
+}
+
 export async function GET(request: NextRequest) {
   const session = getSessionFromRequest(request);
   if (!session?.uid) {
@@ -177,6 +193,7 @@ export async function POST(request: NextRequest) {
   const name = typeof body.name === "string" ? normalizeCategoryName(body.name) : "";
   const color =
     typeof body.color === "string" ? normalizeCategoryColor(body.color) : "";
+  const memberId = typeof body.memberId === "string" ? body.memberId.trim() : "";
 
   if (!name) {
     return NextResponse.json({ error: "name_required" }, { status: 400 });
@@ -200,6 +217,13 @@ export async function POST(request: NextRequest) {
           return { kind: "forbidden_action" as const };
         }
 
+        if (memberId) {
+          const memberIds = await listActiveMemberIds(familyId, idToken);
+          if (!memberIds.has(memberId)) {
+            return { kind: "member_not_found" as const };
+          }
+        }
+
         const existingCategories = await listFamilyCategories(familyId, idToken);
         const normalizedName = name.toLowerCase();
         if (
@@ -215,6 +239,7 @@ export async function POST(request: NextRequest) {
           {
             name: stringField(name),
             color: stringField(color),
+            memberId: stringField(memberId),
             deleted: boolField(false),
             createdBy: stringField(session.uid),
             createdAt: timestampField(now),
@@ -239,6 +264,7 @@ export async function POST(request: NextRequest) {
             id: categoryId,
             name,
             color,
+            memberId,
           },
         };
       });
@@ -248,6 +274,9 @@ export async function POST(request: NextRequest) {
     }
     if (data.kind === "forbidden_action") {
       return NextResponse.json({ error: "forbidden_action" }, { status: 403 });
+    }
+    if (data.kind === "member_not_found") {
+      return NextResponse.json({ error: "member_not_found" }, { status: 404 });
     }
     if (data.kind === "category_name_exists") {
       return NextResponse.json({ error: "category_name_exists" }, { status: 409 });

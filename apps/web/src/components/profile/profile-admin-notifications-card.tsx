@@ -1,5 +1,6 @@
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
+import { useLocale } from "@/components/locale-provider";
 import type {
   PushNotificationSampleType,
   PushNotificationsProfileSummary,
@@ -20,21 +21,6 @@ type ProfileAdminNotificationsCardProps = {
   onSendSample: (type: PushNotificationSampleType) => void;
 };
 
-const TOGGLE_LABELS: Array<{
-  key: PushNotificationToggleKey;
-  label: string;
-  sampleType?: PushNotificationSampleType;
-}> = [
-  { key: "all", label: "All notifications" },
-  { key: "choreCompleted", label: "When someone completes a chore", sampleType: "chore_completed" },
-  { key: "rewardClaimed", label: "When someone claims a prize", sampleType: "reward_claimed" },
-  {
-    key: "choreApprovalRequired",
-    label: "When someone's chore requires approval",
-    sampleType: "chore_approval_required",
-  },
-];
-
 export function ProfileAdminNotificationsCard({
   summary,
   loading,
@@ -48,6 +34,7 @@ export function ProfileAdminNotificationsCard({
   onSave,
   onSendSample,
 }: ProfileAdminNotificationsCardProps) {
+  const { t } = useLocale();
   const settings = summary?.settings ?? {
     choreCompleted: false,
     rewardClaimed: false,
@@ -57,27 +44,46 @@ export function ProfileAdminNotificationsCard({
     settings.choreCompleted &&
     settings.rewardClaimed &&
     settings.choreApprovalRequired;
+  const toggleLabels: Array<{
+    key: PushNotificationToggleKey;
+    label: string;
+    sampleType?: PushNotificationSampleType;
+  }> = [
+    { key: "all", label: t("profile.notifications.pushAll") },
+    {
+      key: "choreCompleted",
+      label: t("profile.notifications.pushChoreCompleted"),
+      sampleType: "chore_completed",
+    },
+    {
+      key: "rewardClaimed",
+      label: t("profile.notifications.pushRewardClaimed"),
+      sampleType: "reward_claimed",
+    },
+    {
+      key: "choreApprovalRequired",
+      label: t("profile.notifications.pushApprovalRequired"),
+      sampleType: "chore_approval_required",
+    },
+  ];
 
   return (
-    <>
+    <section aria-label={t("profile.notifications.pushTitle")} className="space-y-4">
       <div className="family-page-card-header">
         <div>
-          <h2>Notifications</h2>
-          <p className="small family-page-subhead">
-            Admins can receive browser push notifications for family activity. Your browser will prompt you when you
-            turn them on.
-          </p>
+          <h3>{t("profile.notifications.pushTitle")}</h3>
+          <p className="small family-page-subhead">{t("profile.notifications.pushDescription")}</p>
         </div>
       </div>
-      {loading ? <p className="small">Loading notification settings...</p> : null}
+      {loading ? <p className="small">{t("profile.notifications.pushLoading")}</p> : null}
       {!loading && browserStatus ? <p className="small">{browserStatus}</p> : null}
       {!loading && summary && !summary.configured ? (
-        <Alert>Push notifications are not configured on the server yet.</Alert>
+        <Alert>{t("profile.notifications.pushUnavailable")}</Alert>
       ) : null}
-      {error ? <Alert>Could not save notification settings: {error}</Alert> : null}
+      {error ? <Alert>{t("profile.notifications.pushSaveError", { error })}</Alert> : null}
       {success ? <p className="small">{success}</p> : null}
       <div className="profile-notification-checkboxes">
-        {TOGGLE_LABELS.map((entry) => {
+        {toggleLabels.map((entry) => {
           const checked =
             entry.key === "all"
               ? allChecked
@@ -99,7 +105,9 @@ export function ProfileAdminNotificationsCard({
                   className="btn btn-secondary profile-notification-sample-btn"
                   disabled={sampleDisabled || !checked || samplePending.length > 0}
                   onClick={() => onSendSample(entry.sampleType!)}>
-                  {samplePending === entry.sampleType ? "Sending..." : "Send Sample"}
+                  {samplePending === entry.sampleType
+                    ? t("profile.notifications.pushSendingSample")
+                    : t("profile.notifications.pushSendSample")}
                 </Button>
               ) : null}
             </div>
@@ -112,9 +120,9 @@ export function ProfileAdminNotificationsCard({
           className="btn btn-primary"
           disabled={loading || saving || !summary?.configured}
           onClick={onSave}>
-          {saving ? "Saving..." : "Save notification settings"}
+          {saving ? t("profile.notifications.pushSaving") : t("profile.notifications.pushSave")}
         </Button>
       </div>
-    </>
+    </section>
   );
 }

@@ -266,13 +266,33 @@ export function AddEditChoresDialog({
   );
   const isFamilyAssignee = assigneeIds.includes(FAMILY_ASSIGNEE_OPTION_ID);
   const hasMultipleAssignees = isFamilyAssignee || assigneeIds.length > 1;
+  // Categories are filtered by who the chore is assigned to: whole-family
+  // categories are always available, member-specific categories appear only
+  // when that member is among the assignees. Categories already selected on the
+  // chore stay visible so an existing selection is never silently dropped.
+  const visibleCategories = useMemo(() => {
+    const memberIds = new Set(members.map((member) => member.id));
+    const selectedMemberIds = new Set(
+      assigneeIds.filter((id) => id !== FAMILY_ASSIGNEE_OPTION_ID),
+    );
+    const selectedCategoryIds = new Set(categoryIds);
+    return categories.filter((category) => {
+      const memberId = category.memberId ?? "";
+      const isFamilyWide = !memberId || !memberIds.has(memberId);
+      return (
+        isFamilyWide ||
+        selectedMemberIds.has(memberId) ||
+        selectedCategoryIds.has(category.id)
+      );
+    });
+  }, [categories, members, assigneeIds, categoryIds]);
   const categorySelectOptions = useMemo<TailwindSelectOption[]>(
     () =>
-      categories.map((category) => ({
+      visibleCategories.map((category) => ({
         value: category.id,
         label: category.name,
       })),
-    [categories],
+    [visibleCategories],
   );
   const hasGoogleTaskAssigneeChangeWarning =
     isEditMode &&

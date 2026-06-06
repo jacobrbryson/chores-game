@@ -54,7 +54,6 @@ describe("newsletter metrics and recipients", () => {
         return doc(path, {
           email: stringValue(""),
           locale: stringValue("en-US"),
-          weeklyFamilyHighlightsEmail: booleanValue(false),
           name: stringValue("Second Parent"),
         });
       }
@@ -88,6 +87,7 @@ describe("newsletter metrics and recipients", () => {
 
     expect(context.recipients.map((entry) => entry.uid)).toEqual(["admin-1", "admin-2"]);
     expect(getRecipientSkipReason(context.recipients[0])).toBe("");
+    expect(context.recipients[1]?.optedIn).toBe(true);
     expect(getRecipientSkipReason(context.recipients[1])).toBe("invalid_email");
   });
 

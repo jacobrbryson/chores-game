@@ -13,6 +13,7 @@ import type {
   WeeklyFamilyHighlightMetrics,
   WeeklyWindow,
 } from "@/lib/newsletters/types";
+import { resolveWeeklyFamilyHighlightsEmailPreference } from "@/lib/newsletters/preferences";
 import { isIsoWithinWindow } from "@/lib/newsletters/window";
 
 type FamilyContext = {
@@ -87,7 +88,7 @@ export async function loadNewsletterFamilyContext(familyId: string): Promise<Fam
         readString(memberDoc.fields, "name") ||
         email ||
         "Parent",
-      optedIn: userDoc ? readBoolean(userDoc.fields, "weeklyFamilyHighlightsEmail") : false,
+      optedIn: resolveWeeklyFamilyHighlightsEmailPreference(userDoc?.fields),
     });
   }
 

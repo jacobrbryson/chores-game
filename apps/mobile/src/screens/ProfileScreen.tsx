@@ -208,27 +208,37 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
 
           {state.data.role === "admin" ? (
             <Card>
-              <SectionHeader title={t("profile.newsletter.title")} />
-              <Text style={styles.detail}>{t("profile.newsletter.description")}</Text>
-              <Text style={[styles.detail, styles.newsletterStatus]}>
-                {newsletterLoading
-                  ? t("profile.newsletter.loading")
-                  : newsletterEnabled
-                    ? t("profile.newsletter.enabled")
-                    : t("profile.newsletter.disabled")}
-              </Text>
-              <View style={styles.languageWrap}>
-                <Button
-                  label={
-                    newsletterSaving
-                      ? t("profile.newsletter.saving")
-                      : newsletterEnabled
-                        ? t("profile.newsletter.turnOff")
-                        : t("profile.newsletter.turnOn")
-                  }
-                  disabled={newsletterLoading || newsletterSaving}
-                  onPress={() => void onToggleNewsletter()}
-                />
+              <SectionHeader title={t("profile.notificationsTitle")} />
+              <Text style={styles.detail}>{t("profile.notificationsDescription")}</Text>
+
+              <View style={styles.notificationGroup}>
+                <Text style={styles.notificationGroupTitle}>{t("profile.notifications.pushTitle")}</Text>
+                <Text style={styles.detail}>{t("profile.notifications.pushNoWebSupport")}</Text>
+              </View>
+
+              <View style={[styles.notificationGroup, styles.notificationGroupBorder]}>
+                <Text style={styles.notificationGroupTitle}>{t("profile.notifications.emailTitle")}</Text>
+                <Text style={styles.detail}>{t("profile.notifications.emailDescription")}</Text>
+                <Text style={[styles.detail, styles.newsletterStatus]}>
+                  {newsletterLoading
+                    ? t("profile.newsletter.loading")
+                    : newsletterEnabled
+                      ? t("profile.newsletter.enabled")
+                      : t("profile.newsletter.disabled")}
+                </Text>
+                <View style={styles.languageWrap}>
+                  <Button
+                    label={
+                      newsletterSaving
+                        ? t("profile.newsletter.saving")
+                        : newsletterEnabled
+                          ? t("profile.newsletter.turnOff")
+                          : t("profile.newsletter.turnOn")
+                    }
+                    disabled={newsletterLoading || newsletterSaving}
+                    onPress={() => void onToggleNewsletter()}
+                  />
+                </View>
               </View>
               {newsletterError ? <Text style={styles.error}>{newsletterError}</Text> : null}
             </Card>
@@ -252,6 +262,9 @@ const styles = StyleSheet.create({
   email: { fontSize: typography.small, color: colors.muted },
   detail: { fontSize: typography.body, color: colors.text },
   languageWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
+  notificationGroup: { marginTop: spacing.md },
+  notificationGroupBorder: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.md },
+  notificationGroupTitle: { fontSize: typography.body, fontWeight: "700", color: colors.text },
   newsletterStatus: { marginTop: spacing.sm },
   error: { fontSize: typography.small, color: "#b91c1c" },
 });
