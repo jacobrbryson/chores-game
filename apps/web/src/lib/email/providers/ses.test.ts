@@ -30,9 +30,10 @@ describe("SesEmailProvider", () => {
     process.env.AWS_ACCESS_KEY_ID = "test-key";
     process.env.AWS_SECRET_ACCESS_KEY = "test-secret";
     process.env.EMAIL_FROM_ADDRESS = "hello@example.com";
+    delete process.env.EMAIL_FROM_NAME;
   });
 
-  it("sends the expected SES payload", async () => {
+  it("sends the expected SES payload with a friendly from name", async () => {
     mockSend.mockResolvedValue({ MessageId: "msg-1" });
     const provider = new SesEmailProvider();
 
@@ -46,10 +47,27 @@ describe("SesEmailProvider", () => {
 
     expect(mockSendEmailCommand).toHaveBeenCalledWith(
       expect.objectContaining({
-        Source: "hello@example.com",
+        Source: '"Family Chores" <hello@example.com>',
         Destination: { ToAddresses: ["parent@example.com"] },
         ReplyToAddresses: ["reply@example.com"],
       }),
+    );
+  });
+
+  it("honors a configured EMAIL_FROM_NAME override", async () => {
+    process.env.EMAIL_FROM_NAME = "Bryson Chores";
+    mockSend.mockResolvedValue({ MessageId: "msg-2" });
+    const provider = new SesEmailProvider();
+
+    await provider.send({
+      to: ["parent@example.com"],
+      subject: "Weekly Highlights",
+      html: "<p>Hello</p>",
+      text: "Hello",
+    });
+
+    expect(mockSendEmailCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ Source: '"Bryson Chores" <hello@example.com>' }),
     );
   });
 

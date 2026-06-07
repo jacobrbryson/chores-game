@@ -6,7 +6,7 @@ import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { useLocale } from "@/components/locale-provider";
-import type { FeedActionType, FeedEventType } from "@/lib/feed/feed-events";
+import { feedTypeEmoji, type FeedActionType, type FeedEventType } from "@/lib/feed/feed-events";
 
 type FeedActor = {
   uid: string;
@@ -40,14 +40,6 @@ type FeedResponse = {
     totalPages: number;
     hasMore: boolean;
   };
-};
-
-const FEED_TYPE_EMOJI: Record<FeedEventType, string> = {
-  chore_created: "📝",
-  chore_completed: "✅",
-  chore_approved: "🌟",
-  chore_rejected: "🔁",
-  reward_claimed: "🎁",
 };
 
 function formatRelativeTime(value: string, locale: string, fallback: string) {
@@ -207,11 +199,11 @@ export function FamilyFeedPanel() {
                 />
               ) : (
                 <span className="feed-card-emoji" aria-hidden="true">
-                  {FEED_TYPE_EMOJI[item.type]}
+                  {feedTypeEmoji(item.type)}
                 </span>
               )}
               <span className="feed-card-badge" aria-hidden="true">
-                {FEED_TYPE_EMOJI[item.type]}
+                {feedTypeEmoji(item.type)}
               </span>
             </div>
             <div className="feed-card-body">

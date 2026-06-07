@@ -54,6 +54,24 @@ export function feedTypeIcon(type: FeedEventType): string {
   return FEED_TYPE_ICONS[type];
 }
 
+// Emoji rendered alongside each feed event. Shared so the in-app feed and the weekly
+// highlights email show the same icon for a given event type.
+const FEED_TYPE_EMOJI: Record<FeedEventType, string> = {
+  chore_created: "📝",
+  chore_completed: "✅",
+  chore_approved: "🌟",
+  chore_rejected: "🔁",
+  reward_claimed: "🎁",
+};
+
+// Fallback for notification kinds that surface in the email highlights but aren't part
+// of the curated feed event set.
+export const FEED_FALLBACK_EMOJI = "✨";
+
+export function feedTypeEmoji(type: FeedEventType): string {
+  return FEED_TYPE_EMOJI[type];
+}
+
 // Optional safe deep-link action for an event. Only surfaces that the viewer can already
 // reach are linked; never link to support/admin/operator-only surfaces.
 export type FeedActionType = "view_chore" | "view_reward";

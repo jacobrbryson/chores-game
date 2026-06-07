@@ -28,6 +28,58 @@ export async function apiFetch(path: string, init?: RequestInit) {
   return json?.ok ? json.data : json;
 }
 
+export type MobileDiscoverySection = {
+  sectionKey: string;
+  count: number;
+  lastSeenAt: string | null;
+  label: string;
+  children?: Record<string, MobileDiscoverySection>;
+};
+
+export type MobileDiscoverySummary = {
+  sections: Record<string, MobileDiscoverySection>;
+  totalCount: number;
+};
+
+// Discovery / What's New summary for the active mobile profile. Fails soft —
+// callers should treat a thrown error as "no badges".
+export async function fetchDiscoverySummary(
+  sections?: string[],
+): Promise<MobileDiscoverySummary> {
+  const query = sections && sections.length > 0 ? `?sections=${encodeURIComponent(sections.join(","))}` : "";
+  const data = (await apiFetch(`/discovery/summary${query}`)) as Partial<MobileDiscoverySummary>;
+  return {
+    sections: data.sections ?? {},
+    totalCount: typeof data.totalCount === "number" ? data.totalCount : 0,
+  };
+}
+
+export async function markDiscoverySeen(sections: string[]): Promise<void> {
+  const unique = Array.from(new Set(sections.filter(Boolean)));
+  if (unique.length === 0) {
+    return;
+  }
+  try {
+    await apiFetch("/discovery/seen", { method: "POST", body: JSON.stringify({ sections: unique }) });
+  } catch {
+    // Mark-seen must never block mobile navigation.
+  }
+}
+
+export function getDiscoverySectionCount(summary: MobileDiscoverySummary, sectionKey: string): number {
+  const top = summary.sections[sectionKey];
+  if (top) {
+    return top.count;
+  }
+  for (const parent of Object.values(summary.sections)) {
+    const child = parent.children?.[sectionKey];
+    if (child) {
+      return child.count;
+    }
+  }
+  return 0;
+}
+
 export type MobileGhostSuggestion = {
   id: string;
   suggestedTitle: string;

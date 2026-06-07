@@ -1,0 +1,143 @@
+{
+  "id": "privacy-policy",
+  "title": "Privacy Policy",
+  "version": "2026-06-06",
+  "effectiveDate": "2026-06-06",
+  "lastUpdated": "2026-06-06",
+  "requiresReacceptance": true,
+  "sections": [
+    {
+      "heading": "Overview",
+      "body": [
+        "Family Chores is a family chore management game developed by Orcwood Games. This Privacy Policy describes what information we collect, how we use it, and the choices parents and guardians have when using the app and related services.",
+        "This policy applies to all users of Family Chores, including parents, guardians, and child accounts. Child accounts are created and managed by parent or guardian accounts, and parents are responsible for their child's use of the app."
+      ]
+    },
+    {
+      "heading": "Information We Collect",
+      "body": [
+        "We collect the following categories of information to provide and improve the Family Chores service:"
+      ],
+      "items": [
+        "Account and identity information from Google sign-in, including name, email address, user ID, and a reference to your Google profile photo.",
+        "Family workspace data, including family name, member roles (parent/admin or child/player), chore assignments, submissions, approvals, rejections, rewards, redemptions, and associated timestamps.",
+        "Virtual economy data, including wallet balances, coin ledger transaction history, and store item ownership and redemption records.",
+        "Achievement, quest, and inventory progress records for each family member.",
+        "Family activity feed records, including event type, actor display name, and timestamps.",
+        "Optional Google Tasks integration data, including selected task list names and linked task metadata, when a user enables Google Tasks sync in their profile.",
+        "Referral and acquisition source data, such as referral codes or links used at sign-up or during family creation.",
+        "Entitlement and access tier information, including beta, early adopter, premium, or support-admin status.",
+        "Voting data: authenticated parent and administrator accounts may vote on publicly submitted feature requests. Votes are recorded per user. Child accounts cannot vote.",
+        "AI feature usage data: parent-controlled AI features may generate task or reward suggestions. Usage and feedback from AI features may be logged for quality purposes. Child accounts do not access AI features directly.",
+        "Technical data necessary to operate the service, including authentication session state and device or browser identifiers."
+      ]
+    },
+    {
+      "heading": "How We Use Information",
+      "body": [
+        "We use collected information to:"
+      ],
+      "items": [
+        "Provide core app features, including chore management, approvals, reward redemption, achievements, quests, and family activity.",
+        "Authenticate users and enforce role-based access controls so that family data is accessible only to authorized members.",
+        "Sync chore data with Google Tasks when a user has enabled the integration.",
+        "Maintain transaction and activity records for reliability, auditing, dispute resolution, and support.",
+        "Apply referral and entitlement logic, including unlocking features for beta or early-adopter accounts.",
+        "Run parent-controlled AI suggestion features.",
+        "Improve performance, stability, and product quality."
+      ]
+    },
+    {
+      "heading": "Public Content and SEO Boundaries",
+      "body": [
+        "Family Chores generates a public changelog page visible to all visitors. This page is built from support-approved, canonical content only and does not include private family data, member names, family identifiers, child names, or personal information.",
+        "Publicly viewable community content, such as feature request listings, is generated from support-approved data only. Private family identities, child names, and personal details are never exposed on public-facing pages."
+      ]
+    },
+    {
+      "heading": "Data Exports",
+      "body": [
+        "Parents and guardians can request a family data export from Family → Privacy. The export includes family profile data, member records, chores, rewards, achievements, quests, inventory, and the activity feed.",
+        "User-facing exports are intentionally sanitized. They exclude raw internal system identifiers, OAuth and authentication provider avatar URLs, child login and session timestamps, OAuth tokens, authentication hashes, and any support-internal notes.",
+        "Exports are scoped to the requesting family only. Cross-family data is never included."
+      ]
+    },
+    {
+      "heading": "Data Deletion and Retention",
+      "body": [
+        "Parents and guardians can request family data deletion from Family → Privacy. Deletion is not immediate — it is scheduled 30 days after the request is submitted, giving families time to cancel if submitted in error.",
+        "We retain information for as long as needed to provide the service, maintain records, comply with legal obligations, and resolve disputes. Retention periods may vary by data type.",
+        "When a deletion request is completed, family data and associated member data are removed from active systems in accordance with our data retention practices."
+      ]
+    },
+    {
+      "heading": "How Information Is Shared",
+      "body": [
+        "We share information only in the following limited circumstances:"
+      ],
+      "items": [
+        "Within your family group, so that assigned members can view relevant chores, activity, and status.",
+        "With service providers that help operate the app, such as authentication, cloud hosting, and database infrastructure providers.",
+        "When required by law, regulation, legal process, or as necessary to protect the rights, property, or safety of users or others."
+      ]
+    },
+    {
+      "heading": "Service Providers",
+      "body": [
+        "Family Chores relies on third-party service providers to operate, including Google for sign-in, cloud infrastructure, and optional Google Tasks integration, as well as other infrastructure partners. These providers process data under their own terms and privacy commitments in addition to our data processing agreements with them."
+      ]
+    },
+    {
+      "heading": "Support and Admin Access",
+      "body": [
+        "Orcwood Games support operators have limited, controlled access to family data for the purpose of investigating issues, verifying compliance, and operating the service. Support access is gated by specific authorized credentials and is logged. Support operators do not have access to authentication credentials, OAuth tokens, or private secrets."
+      ]
+    },
+    {
+      "heading": "Security",
+      "body": [
+        "We use reasonable technical and organizational safeguards — including encryption in transit, authentication token security, and restricted access controls — to protect data. No system is perfectly secure, and we cannot guarantee absolute security."
+      ]
+    },
+    {
+      "heading": "Children and Parental Consent",
+      "body": [
+        "Family Chores is designed for family participation with parent or guardian oversight. Parents and guardians are responsible for managing household access, approving child accounts, and reviewing activity.",
+        "We do not knowingly collect personal information from children without parental consent. Parents must record parental consent in the app before child accounts can participate in family features. Consent is versioned and audited.",
+        "Child-facing social or community features are disabled by default. When such features are added, they will require explicit opt-in by a parent or guardian before a child account can participate."
+      ]
+    },
+    {
+      "heading": "No Sale of Personal Information",
+      "body": [
+        "Family Chores does not sell personal information to third parties."
+      ]
+    },
+    {
+      "heading": "Data Regions",
+      "body": [
+        "Family Chores stores family data in the data region selected by the parent or guardian at consent time. The default data region is the United States (US). Supported regions include US, EU, UK, CA, and AU.",
+        "Data region selection affects where family data is stored and processed. Once a data region is set, migrating existing data to a different region is not currently supported."
+      ]
+    },
+    {
+      "heading": "Your Choices and Controls",
+      "items": [
+        "Export your family data at any time from Family → Privacy.",
+        "Request family data deletion from Family → Privacy. Deletion takes effect 30 days after the request and can be canceled during that period.",
+        "Unlink Google Tasks from your profile in the Profile page.",
+        "Update your family's data region in Family → Privacy before recording consent.",
+        "Contact us with privacy questions or data requests."
+      ]
+    },
+    {
+      "heading": "Contact",
+      "body": [
+        "For privacy questions or data requests, contact Orcwood Games."
+      ],
+      "links": [
+        { "text": "Contact Orcwood Games", "href": "https://orcwood.com" }
+      ]
+    }
+  ]
+}

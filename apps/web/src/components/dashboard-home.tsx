@@ -3,8 +3,15 @@
 import { AppTabs, type AppTabItem } from "@/components/app-tabs";
 import { FamilyCard } from "@/components/family-card";
 import { FamilyFeedPanel } from "@/components/family-feed-panel";
+import { DiscoveryBadge } from "@/components/discovery-badge";
+import { DiscoveryWhatsNewCard } from "@/components/discovery-whats-new-card";
 import { useLocale } from "@/components/locale-provider";
 import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
+import {
+  getSectionCount,
+  useDiscoverySummary,
+  useMarkDiscoverySeen,
+} from "@/lib/hooks/use-discovery";
 
 type DashboardHomeTabId = "chores" | "feed";
 
@@ -29,13 +36,28 @@ export function DashboardHome({ viewerKey }: DashboardHomeProps) {
     urlParamKey: "tab",
   });
 
+  const { summary } = useDiscoverySummary();
+  const choresCount = getSectionCount(summary, "chores");
+  // Mark chores discovery seen only while the Chores tab is actually active —
+  // the hidden-but-mounted chores panel must not clear the badge.
+  useMarkDiscoverySeen(["chores"], activeTab === "chores");
+
   const tabs: AppTabItem<DashboardHomeTabId>[] = [
-    { id: "chores", label: t("dashboard.tabs.chores") },
+    {
+      id: "chores",
+      label: (
+        <span className="dashboard-tab-label">
+          {t("dashboard.tabs.chores")}
+          <DiscoveryBadge count={choresCount} />
+        </span>
+      ),
+    },
     { id: "feed", label: t("dashboard.tabs.feed") },
   ];
 
   return (
     <div className="dashboard-home">
+      <DiscoveryWhatsNewCard />
       <div className="dashboard-home-tabs">
         <AppTabs
           ariaLabel={t("dashboard.tabs.ariaLabel")}

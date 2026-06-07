@@ -5,7 +5,7 @@ import {
 import {
   type EmailProvider,
   type EmailSendPayload,
-  getEmailFromAddress,
+  getEmailSource,
 } from "@/lib/email/provider";
 
 let cachedClient: SESClient | null = null;
@@ -34,7 +34,7 @@ export class SesEmailProvider implements EmailProvider {
   async send(payload: EmailSendPayload) {
     const client = getSesClient();
     const command = new SendEmailCommand({
-      Source: getEmailFromAddress(),
+      Source: getEmailSource(),
       Destination: {
         ToAddresses: payload.to,
       },

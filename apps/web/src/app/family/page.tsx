@@ -11,6 +11,7 @@ import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { CommunityAwardsLibrary } from "@/components/community-awards-page-client";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
+import { FamilyPrivacyTab } from "@/components/family/family-privacy-tab";
 import { FamilySectionTabs, type FamilySectionTabId } from "@/components/family/family-section-tabs";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { FamilyQuestsSection } from "@/components/family-quests-section";
@@ -73,7 +74,13 @@ type FamilyRewardsResponse = {
   rewards: FamilyReward[];
 };
 
-const FAMILY_TAB_IDS: readonly FamilySectionTabId[] = ["members", "awards", "categories", "quests"];
+const FAMILY_TAB_IDS: readonly FamilySectionTabId[] = [
+  "members",
+  "awards",
+  "categories",
+  "quests",
+  "privacy",
+];
 
 type AddMemberFieldsProps = {
   form: AddMemberState;
@@ -936,7 +943,11 @@ export default function FamilyPage() {
           {!isLoading && error ? <Alert>{t("family.membersLoadError", { error })}</Alert> : null}
           <section className="app-tab-panel">
             <div className="app-tab-panel-header flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
-              <FamilySectionTabs activeTab={activeFamilyTab} onChange={setActiveFamilyTab} />
+              <FamilySectionTabs
+                activeTab={activeFamilyTab}
+                onChange={setActiveFamilyTab}
+                includePrivacy={canManageMembers}
+              />
             </div>
             <div className="app-tab-panel-body p-5">
           {isLoading && !error ? (
@@ -945,6 +956,7 @@ export default function FamilyPage() {
               {activeFamilyTab === "awards" ? <AwardsSkeleton /> : null}
               {activeFamilyTab === "categories" ? <CategoriesSkeleton /> : null}
               {activeFamilyTab === "quests" ? <AwardsSkeleton /> : null}
+              {activeFamilyTab === "privacy" ? <AwardsSkeleton /> : null}
             </div>
           ) : null}
           {!isLoading && !error ? (
@@ -1359,6 +1371,7 @@ export default function FamilyPage() {
                     </section>
                     ) : null}
                     {activeFamilyTab === "quests" ? <FamilyQuestsSection /> : null}
+                    {activeFamilyTab === "privacy" && canManageMembers ? <FamilyPrivacyTab /> : null}
                   </div>
                 </>
               )}

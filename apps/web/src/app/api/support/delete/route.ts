@@ -38,6 +38,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "missing_family_id" }, { status: 400 });
       }
       await adminDeleteDocument(`families/${familyId}/supportRequests/${id}`);
+    } else if (entity === "familyMember") {
+      if (!familyId) {
+        return NextResponse.json({ error: "missing_family_id" }, { status: 400 });
+      }
+      await adminDeleteDocument(`families/${familyId}/members/${id}`);
     } else {
       return NextResponse.json({ error: "invalid_entity" }, { status: 400 });
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { CSSProperties, type ImgHTMLAttributes, type ReactNode, useEffect, useState } from "react";
+import { resolveAvatarSrc, resolveInitial } from "@/lib/avatar/resolve";
 
 type AvatarProps = {
   name?: string;
@@ -26,30 +27,6 @@ type AvatarProps = {
 
 function joinClassNames(...values: Array<string | undefined>) {
   return values.filter(Boolean).join(" ");
-}
-
-function resolveAvatarSrc(avatarId?: string, photoUrl?: string) {
-  const trimmedAvatarId = avatarId?.trim() ?? "";
-  if (trimmedAvatarId) {
-    return `/avatars/default/${encodeURIComponent(trimmedAvatarId)}`;
-  }
-  const trimmedPhotoUrl = photoUrl?.trim() ?? "";
-  if (trimmedPhotoUrl) {
-    return trimmedPhotoUrl;
-  }
-  return "";
-}
-
-function resolveInitial(name?: string, initial?: string) {
-  const fromInitial = initial?.trim().charAt(0).toUpperCase();
-  if (fromInitial) {
-    return fromInitial;
-  }
-  const fromName = name?.trim().charAt(0).toUpperCase();
-  if (fromName) {
-    return fromName;
-  }
-  return "?";
 }
 
 function normalizeColorValue(value?: string) {

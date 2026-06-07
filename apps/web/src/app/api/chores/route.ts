@@ -10,6 +10,7 @@ import {
   type FirestoreValue,
   getDocument,
   integerField,
+  listAllDocuments,
   listDocuments,
   patchDocument,
   readBoolean,
@@ -105,12 +106,16 @@ type AssigneeDirectoryEntry = {
   name: string;
   avatarId?: string;
   avatarPhotoUrl?: string;
+  primaryColor?: string;
 };
 
 type ViewerRole = "admin" | "player";
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
+const FAMILY_ASSIGNEE_NAME = "Family";
+const UNKNOWN_ASSIGNEE_NAME = "Unknown member";
+const FAMILY_ASSIGNEE_FILTER_ID = "__family__";
 type ChoreSortBy =
   | "sortOrder"
   | "title"
@@ -119,7 +124,12 @@ type ChoreSortBy =
   | "dueDate"
   | "completedAt"
   | "coinValue";
-type ChoreStatusFilter = "" | "completed" | "needs_approval";
+type ChoreStatusFilter =
+  | ""
+  | "completed"
+  | "needs_approval"
+  | "open";
+const MAX_CHORE_ARCHIVE = 5000;
 type CompletionWindowRange = {
   startMillis: number;
   endMillis: number;
@@ -252,11 +262,11 @@ async function getFamilyMemberName(
 ) {
   try {
     const memberDoc = await getDocument(`families/${familyId}/members/${memberId}`, idToken);
-    return readString(memberDoc.fields, "name") || "Unassigned";
+    return readString(memberDoc.fields, "name") || UNKNOWN_ASSIGNEE_NAME;
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";
     if (reason.includes("FIRESTORE_HTTP_404")) {
-      return "Unassigned";
+      return UNKNOWN_ASSIGNEE_NAME;
     }
     throw error;
   }
@@ -353,7 +363,7 @@ function normalizeChoreDoc(doc: {
         : assigneeScope === "multiple"
           ? "multiple"
           : "single",
-    assigneeName: readString(doc.fields, "assigneeName") || "Unassigned",
+    assigneeName: readString(doc.fields, "assigneeName") || UNKNOWN_ASSIGNEE_NAME,
     details: readString(doc.fields, "details") || undefined,
     dueDate: readString(doc.fields, "dueDate"),
     categoryIds: readChoreCategoryIds(doc.fields),
@@ -482,14 +492,98 @@ function normalizeOrderedChoreIds(value: unknown) {
 }
 
 function parseStatusFilter(value: string | null): ChoreStatusFilter {
-  if (value === "completed" || value === "needs_approval") {
+  if (
+    value === "completed" ||
+    value === "needs_approval" ||
+    value === "open"
+  ) {
     return value;
   }
   return "";
 }
 
-function parseAssigneeFilter(value: string | null) {
-  return (value ?? "").trim();
+function parseAssigneeFilters(values: string[]) {
+  const seen = new Set<string>();
+  for (const raw of values) {
+    for (const part of raw.split(",")) {
+      const trimmed = part.trim();
+      if (trimmed) {
+        seen.add(trimmed);
+      }
+    }
+  }
+  return Array.from(seen);
+}
+
+function parseCategoryFilter(values: string[]) {
+  const seen = new Set<string>();
+  for (const raw of values) {
+    for (const part of raw.split(",")) {
+      const trimmed = part.trim();
+      if (trimmed) {
+        seen.add(trimmed);
+      }
+    }
+  }
+  return seen;
+}
+
+function parseChoreTypeFilter(values: string[]) {
+  const seen = new Set<ChoreType>();
+  for (const raw of values) {
+    for (const part of raw.split(",")) {
+      const trimmed = part.trim();
+      if (trimmed === "normal" || trimmed === "group" || trimmed === "see_and_do") {
+        seen.add(trimmed);
+      }
+    }
+  }
+  return seen;
+}
+
+function parseRecurrenceTypeFilter(values: string[]) {
+  const seen = new Set<ChoreRecurrenceType>();
+  for (const raw of values) {
+    for (const part of raw.split(",")) {
+      const trimmed = part.trim();
+      if (
+        trimmed === "none" ||
+        trimmed === "instant" ||
+        trimmed === "daily" ||
+        trimmed === "weekly" ||
+        trimmed === "monthly" ||
+        trimmed === "custom"
+      ) {
+        seen.add(trimmed);
+      }
+    }
+  }
+  return seen;
+}
+
+function parseApprovalFilter(value: string | null): "yes" | "no" | "" {
+  if (value === "yes" || value === "no") {
+    return value;
+  }
+  return "";
+}
+
+function parseOptionalInt(value: string | null) {
+  if (value === null || value.trim() === "") {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return Math.trunc(parsed);
+}
+
+function parseIsoDate(value: string | null) {
+  if (value && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    return value.trim();
+  }
+  return "";
 }
 
 function parseTimezoneOffsetMinutes(value: string | null) {
@@ -602,24 +696,6 @@ function dueDateToIso(value: string) {
   return `${value}T00:00:00.000Z`;
 }
 
-function offsetIsoDateAt(value: number, timezoneOffsetMinutes: number) {
-  return new Date(toShiftedUtcMillis(value, timezoneOffsetMinutes))
-    .toISOString()
-    .slice(0, 10);
-}
-
-function isMoreThan24HoursAhead(
-  dueDate: string,
-  timezoneOffsetMinutes: number,
-  nowMillis = Date.now(),
-) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
-    return false;
-  }
-  const cutoffIsoDate = offsetIsoDateAt(nowMillis + 24 * 60 * 60 * 1000, timezoneOffsetMinutes);
-  return dueDate > cutoffIsoDate;
-}
-
 function isCompletedStatus(status: string) {
   return status === "Submitted" || status === "Approved";
 }
@@ -690,6 +766,44 @@ function buildAssigneeAliasToMemberId(
   return aliasToMemberId;
 }
 
+function canonicalizeAssigneeFilter(
+  value: string,
+  assigneeAliasToMemberId: Map<string, string>,
+) {
+  if (value === FAMILY_ASSIGNEE_FILTER_ID) {
+    return FAMILY_ASSIGNEE_FILTER_ID;
+  }
+  return (
+    assigneeAliasToMemberId.get(value) ??
+    assigneeAliasToMemberId.get(normalizeEmail(value)) ??
+    value
+  );
+}
+
+function getChoreAssigneeTargets(
+  doc: Pick<ChoreRow, "assigneeId" | "assigneeIds" | "assigneeScope">,
+  assigneeAliasToMemberId: Map<string, string>,
+) {
+  const targets = new Set<string>();
+  if (doc.assigneeScope === "family") {
+    targets.add(FAMILY_ASSIGNEE_FILTER_ID);
+    return targets;
+  }
+  for (const assigneeId of doc.assigneeIds ?? []) {
+    const canonicalAssigneeId = canonicalizeAssigneeFilter(assigneeId, assigneeAliasToMemberId);
+    if (canonicalAssigneeId) {
+      targets.add(canonicalAssigneeId);
+    }
+  }
+  if (doc.assigneeId) {
+    const canonicalAssigneeId = canonicalizeAssigneeFilter(doc.assigneeId, assigneeAliasToMemberId);
+    if (canonicalAssigneeId) {
+      targets.add(canonicalAssigneeId);
+    }
+  }
+  return targets;
+}
+
 function buildViewerAssigneeAliases(
   memberDocs: Array<{ name: string; fields?: Record<string, FirestoreValue> }>,
   uid: string,
@@ -737,12 +851,44 @@ function choreMatchesQuery(doc: ChoreRow, query: string) {
   if (query.length < 3) {
     return true;
   }
+  const completedAt = choreCompletedAt(doc);
+  const typeLabel =
+    doc.choreType === "group"
+      ? "group group chore"
+      : doc.choreType === "see_and_do"
+        ? "see and do see-and-do suggested chore"
+        : "normal normal chore";
+  const statusLabel =
+    doc.status === "Submitted" && doc.requireApproval
+      ? "submitted completed awaiting approval needs approval"
+      : isCompletedStatus(doc.status)
+        ? "completed submitted approved"
+        : doc.status === "Open"
+          ? "open"
+          : doc.status.toLowerCase();
+  const approvalLabel = doc.requireApproval
+    ? "approval required requires approval yes"
+    : "no approval approval not required no";
+  const recurrenceText =
+    doc.recurrenceType === "none"
+      ? "one time no repeat none"
+      : `${doc.recurrenceType} recurring repeats ${recurrenceLabel(doc).toLowerCase()}`;
   const haystack = [
+    doc.id,
     doc.title,
     doc.status,
+    statusLabel,
     doc.assigneeName,
+    doc.assigneeId ?? "",
     doc.details ?? "",
     doc.dueDate,
+    completedAt,
+    completedAt.slice(0, 10),
+    String(doc.coinValue),
+    `${doc.coinValue} coins`,
+    typeLabel,
+    approvalLabel,
+    recurrenceText,
     doc.categories.map((category) => category.name).join(" "),
   ]
     .join(" ")
@@ -842,8 +988,22 @@ export async function GET(request: NextRequest) {
   const sortBy = parseSortBy(request.nextUrl.searchParams.get("sortBy"));
   const sortDir = parseSortDir(request.nextUrl.searchParams.get("sortDir"));
   const query = normalizeSearch(request.nextUrl.searchParams.get("q"));
-  const assigneeFilter = parseAssigneeFilter(request.nextUrl.searchParams.get("assigneeId"));
+  const assigneeFilters = parseAssigneeFilters(request.nextUrl.searchParams.getAll("assigneeId"));
   const statusFilter = parseStatusFilter(request.nextUrl.searchParams.get("status"));
+  const categoryFilter = parseCategoryFilter(
+    request.nextUrl.searchParams.getAll("categoryId"),
+  );
+  const choreTypeFilter = parseChoreTypeFilter(request.nextUrl.searchParams.getAll("choreType"));
+  const recurrenceTypeFilter = parseRecurrenceTypeFilter(
+    request.nextUrl.searchParams.getAll("recurrenceType"),
+  );
+  const approvalFilter = parseApprovalFilter(request.nextUrl.searchParams.get("requireApproval"));
+  const coinMinFilter = parseOptionalInt(request.nextUrl.searchParams.get("coinMin"));
+  const coinMaxFilter = parseOptionalInt(request.nextUrl.searchParams.get("coinMax"));
+  const dueFromFilter = parseIsoDate(request.nextUrl.searchParams.get("dueFrom"));
+  const dueToFilter = parseIsoDate(request.nextUrl.searchParams.get("dueTo"));
+  const completedFromFilter = parseIsoDate(request.nextUrl.searchParams.get("completedFrom"));
+  const completedToFilter = parseIsoDate(request.nextUrl.searchParams.get("completedTo"));
   const completionWindow = parseCompletionWindow(request.nextUrl.searchParams.get("completedWindow"));
   const timezoneOffsetMinutes = parseTimezoneOffsetMinutes(
     request.nextUrl.searchParams.get("tzOffsetMinutes"),
@@ -898,17 +1058,15 @@ export async function GET(request: NextRequest) {
 
         const [memberDocs, docs, categories] = await Promise.all([
           listDocuments(`families/${familyId}/members`, idToken, 200),
-          listDocuments(`families/${familyId}/chores`, idToken, 500),
+          listAllDocuments(`families/${familyId}/chores`, idToken, { cap: MAX_CHORE_ARCHIVE }),
           listFamilyCategories(familyId, idToken),
         ]);
         const categoryMap = buildCategoryMap(categories);
         const assigneeAliasToMemberId = buildAssigneeAliasToMemberId(memberDocs);
         const viewerAssigneeAliases = buildViewerAssigneeAliases(memberDocs, session.uid, session.email);
-        const targetAssigneeId = assigneeFilter
-          ? assigneeAliasToMemberId.get(assigneeFilter) ??
-            assigneeAliasToMemberId.get(normalizeEmail(assigneeFilter)) ??
-            assigneeFilter
-          : "";
+        const targetAssigneeIds = assigneeFilters.map((assigneeFilter) =>
+          canonicalizeAssigneeFilter(assigneeFilter, assigneeAliasToMemberId),
+        );
         const assigneeAvatarByAlias = new Map<string, string>();
         const assigneeAvatarPhotoByAlias = new Map<string, string>();
         const assigneePrimaryColorByAlias = new Map<string, string>();
@@ -929,6 +1087,7 @@ export async function GET(request: NextRequest) {
             name: memberName,
             avatarId: avatarId || undefined,
             avatarPhotoUrl: avatarPhotoUrl || undefined,
+            primaryColor,
           };
           assigneeDirectoryByAlias.set(memberId, directoryEntry);
           if (avatarId) {
@@ -961,7 +1120,10 @@ export async function GET(request: NextRequest) {
             assigneePrimaryColorByAlias.set(normalizedEmail, primaryColor);
           }
         }
-        const filteredChores = docs
+        // The archive table shows every non-deleted chore the family has ever
+        // had (including chores scheduled in the future), so unlike the legacy
+        // dashboard read there is no "hide chores due >24h ahead" filter here.
+        const activeChores = docs
           .map((doc) => {
             const chore = normalizeChoreDoc(doc);
             return {
@@ -969,13 +1131,9 @@ export async function GET(request: NextRequest) {
               categories: resolveChoreCategories(chore.categoryIds, categoryMap),
             };
           })
-          .filter((doc) => !doc.deleted)
-          .filter((doc) => {
-            if (isCompletedStatus(doc.status)) {
-              return true;
-            }
-            return !isMoreThan24HoursAhead(doc.dueDate, timezoneOffsetMinutes);
-          })
+          .filter((doc) => !doc.deleted);
+        const totalUnfiltered = activeChores.length;
+        const filteredChores = activeChores
           .filter((doc) => {
             if (statusFilter === "") {
               return true;
@@ -983,21 +1141,86 @@ export async function GET(request: NextRequest) {
             if (statusFilter === "completed") {
               return isCompletedStatus(doc.status);
             }
-            return doc.status === "Submitted" && doc.requireApproval;
+            if (statusFilter === "needs_approval") {
+              return doc.status === "Submitted" && doc.requireApproval;
+            }
+            if (statusFilter === "open") {
+              return doc.status === "Open";
+            }
+            return true;
           })
           .filter((doc) => {
-            if (!targetAssigneeId) {
+            if (categoryFilter.size === 0) {
               return true;
             }
-            const assigneeId = doc.assigneeId ?? "";
-            if (!assigneeId) {
+            return doc.categoryIds.some((categoryId) => categoryFilter.has(categoryId));
+          })
+          .filter((doc) => {
+            if (choreTypeFilter.size === 0) {
+              return true;
+            }
+            return choreTypeFilter.has(doc.choreType);
+          })
+          .filter((doc) => {
+            if (recurrenceTypeFilter.size === 0) {
+              return true;
+            }
+            return recurrenceTypeFilter.has(doc.recurrenceType);
+          })
+          .filter((doc) => {
+            if (!approvalFilter) {
+              return true;
+            }
+            return approvalFilter === "yes" ? doc.requireApproval : !doc.requireApproval;
+          })
+          .filter((doc) => {
+            if (coinMinFilter !== null && doc.coinValue < coinMinFilter) {
               return false;
             }
-            const canonicalAssigneeId =
-              assigneeAliasToMemberId.get(assigneeId) ??
-              assigneeAliasToMemberId.get(normalizeEmail(assigneeId)) ??
-              assigneeId;
-            return canonicalAssigneeId === targetAssigneeId;
+            if (coinMaxFilter !== null && doc.coinValue > coinMaxFilter) {
+              return false;
+            }
+            return true;
+          })
+          .filter((doc) => {
+            if (!dueFromFilter && !dueToFilter) {
+              return true;
+            }
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(doc.dueDate)) {
+              return false;
+            }
+            if (dueFromFilter && doc.dueDate < dueFromFilter) {
+              return false;
+            }
+            if (dueToFilter && doc.dueDate > dueToFilter) {
+              return false;
+            }
+            return true;
+          })
+          .filter((doc) => {
+            if (!completedFromFilter && !completedToFilter) {
+              return true;
+            }
+            const completedDate = choreCompletedAt(doc).slice(0, 10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(completedDate)) {
+              return false;
+            }
+            if (completedFromFilter && completedDate < completedFromFilter) {
+              return false;
+            }
+            if (completedToFilter && completedDate > completedToFilter) {
+              return false;
+            }
+            return true;
+          })
+          .filter((doc) => {
+            if (targetAssigneeIds.length === 0) {
+              return true;
+            }
+            const choreAssigneeTargets = getChoreAssigneeTargets(doc, assigneeAliasToMemberId);
+            return targetAssigneeIds.every((targetAssigneeId) =>
+              choreAssigneeTargets.has(targetAssigneeId),
+            );
           })
           .filter((doc) => {
             if (!completionWindowRange) {
@@ -1072,6 +1295,8 @@ export async function GET(request: NextRequest) {
           assigneeDirectory: Array.from(new Map(
             Array.from(assigneeDirectoryByAlias.values()).map((entry) => [entry.id, entry] as const),
           ).values()),
+          familyCategories: categories,
+          totalUnfiltered,
           pagination: {
             page: pagination.page,
             pageSize: pagination.pageSize,
@@ -1335,14 +1560,14 @@ export async function POST(request: NextRequest) {
             : requestedChoreType;
         const resolvedAssigneeName =
           finalAssigneeScope === "family"
-            ? "Family"
+            ? FAMILY_ASSIGNEE_NAME
             : finalAssigneeIds.length > 1
               ? `${finalAssigneeIds.length} assignees`
               : finalSingleAssigneeId
                 ? resolvedForPlayer
                   ? requesterMemberName
                   : await getFamilyMemberName(familyId, finalSingleAssigneeId, idToken)
-                : "Unassigned";
+                : UNKNOWN_ASSIGNEE_NAME;
         if (finalSingleAssigneeId) {
           const activeChoreCount = await countActiveChoresForAssignee(
             familyId,

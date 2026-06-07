@@ -6,7 +6,7 @@ import styles from "@/components/app-tabs.module.css";
 
 export type AppTabItem<T extends string = string> = {
   id: T;
-  label: string;
+  label: ReactNode;
   href?: string;
   icon?: ReactNode;
   disabled?: boolean;

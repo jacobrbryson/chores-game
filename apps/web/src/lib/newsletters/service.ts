@@ -1,6 +1,6 @@
 import { createTranslator, normalizeLocale } from "@packages/locales";
 import { getCanonicalAppOrigin } from "@/lib/app-origin";
-import { getEmailProvider, getEmailReplyToAddresses } from "@/lib/email/provider";
+import { type EmailProvider, getEmailProvider, getEmailReplyToAddresses } from "@/lib/email/provider";
 import { renderEmailTemplate } from "@/lib/email/templates";
 import {
   adminCreateOrReplaceDocument,
@@ -27,6 +27,9 @@ import type {
   WeeklyWindow,
 } from "@/lib/newsletters/types";
 import { getPreviousWeeklyWindow } from "@/lib/newsletters/window";
+import { resolveAvatarSrc } from "@/lib/avatar/resolve";
+import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
+import { getChangeLogEntries } from "@/lib/change-log";
 
 function formatDateLabel(iso: string, locale: string) {
   return new Intl.DateTimeFormat(locale, {
@@ -44,6 +47,17 @@ function sanitizeErrorMessage(error: unknown) {
 
 function buildSendId(weekStartDateOnly: string, recipientUid: string) {
   return `weekly_${weekStartDateOnly}_${recipientUid}`;
+}
+
+function resolveHelperAvatarUrl(input: {
+  appOrigin: string;
+  avatarId: string;
+  avatarPhotoUrl: string;
+}) {
+  // Reuse the same resolution the in-app <Avatar /> uses, then absolutize the
+  // preset path (`/avatars/default/...`) since email clients can't load relative URLs.
+  const src = resolveAvatarSrc(input.avatarId, input.avatarPhotoUrl);
+  return src.startsWith("/") ? `${input.appOrigin}${src}` : src;
 }
 
 function buildProTip(input: {
@@ -135,6 +149,15 @@ export async function buildWeeklyFamilyHighlightsPreview(input: {
   });
   const locale = input.recipientLocale ?? family.recipients[0]?.locale ?? family.familyLocale;
   const appOrigin = getCanonicalAppOrigin();
+  // New features shipped within the same window the recap covers.
+  const recentEnhancements = getChangeLogEntries()
+    .filter(
+      (entry) =>
+        entry.type === "Feature" &&
+        entry.date >= window.weekStartDateOnly &&
+        entry.date <= window.weekEndDateOnly,
+    )
+    .map((entry) => ({ title: entry.subject, description: entry.description }));
   const rendered = renderEmailTemplate({
     templateId: "weekly-family-highlights",
     locale,
@@ -146,7 +169,7 @@ export async function buildWeeklyFamilyHighlightsPreview(input: {
       weekStartLabel: formatDateLabel(window.weekStart, locale),
       weekEndLabel: formatDateLabel(window.weekEnd, locale),
       dashboardUrl: `${appOrigin}/`,
-      managePreferencesUrl: `${appOrigin}/profile?tab=general#newsletter-preferences`,
+      managePreferencesUrl: `${appOrigin}/profile?tab=notifications#newsletter-preferences`,
       choresCompleted: metrics.choresCompleted,
       coinsEarned: metrics.coinsEarned,
       rewardsRedeemed: metrics.rewardsRedeemed,
@@ -156,7 +179,14 @@ export async function buildWeeklyFamilyHighlightsPreview(input: {
       pendingApprovals: metrics.pendingApprovals,
       mostActiveHelperName: metrics.mostActiveHelperName,
       mostActiveHelperCount: metrics.mostActiveHelperCount,
+      mostActiveHelperAvatarUrl: resolveHelperAvatarUrl({
+        appOrigin,
+        avatarId: metrics.mostActiveHelperAvatarId,
+        avatarPhotoUrl: metrics.mostActiveHelperAvatarPhotoUrl,
+      }),
+      mostActiveHelperAvatarColor: resolveMemberPrimaryColor(metrics.mostActiveHelperPrimaryColor),
       recentHighlights: metrics.recentHighlights,
+      recentEnhancements,
       proTip: buildProTip({
         locale,
         familyLocale: family.familyLocale,
@@ -185,7 +215,7 @@ export async function sendWeeklyFamilyHighlightsTest(input: {
   const provider = getEmailProvider();
   const result = await provider.send({
     to: [input.recipientEmail],
-    subject: `[Test] ${preview.rendered.subject}`,
+    subject: preview.rendered.subject,
     html: preview.rendered.html,
     text: preview.rendered.text,
     replyTo: getEmailReplyToAddresses(),
@@ -197,6 +227,154 @@ export async function sendWeeklyFamilyHighlightsTest(input: {
   };
 }
 
+type WeeklySendRecordSummary = Pick<
+  NewsletterSendRecord,
+  "familyId" | "id" | "recipientUid" | "recipientEmail" | "status" | "skippedReason" | "errorMessage" | "provider" | "providerMessageId"
+>;
+
+type WeeklySendOutcome = {
+  sent: number;
+  skipped: number;
+  failed: number;
+  records: WeeklySendRecordSummary[];
+  // Most recent successful send timestamp in this run, used by callers (e.g. the support
+  // console) to refresh the "Weekly Highlights sent" column without a full reload.
+  lastSentAt: string;
+};
+
+async function sendWeeklyHighlightsToFamily(input: {
+  familyId: string;
+  window: WeeklyWindow;
+  provider: EmailProvider;
+  replyTo: string[];
+  outcome: WeeklySendOutcome;
+}) {
+  const { familyId, window, provider, replyTo, outcome } = input;
+  const preview = await buildWeeklyFamilyHighlightsPreview({ familyId, window });
+
+  for (const recipient of preview.family.recipients) {
+    const sendId = buildSendId(window.weekStartDateOnly, recipient.uid);
+    const now = new Date().toISOString();
+    const existing = await readExistingSendRecord(familyId, sendId);
+    if (existing?.status === "sent") {
+      outcome.skipped += 1;
+      outcome.records.push({
+        familyId,
+        id: sendId,
+        recipientUid: recipient.uid,
+        recipientEmail: recipient.email,
+        status: "skipped",
+        skippedReason: "duplicate_sent",
+        errorMessage: "",
+        provider: existing.provider,
+        providerMessageId: existing.providerMessageId,
+      });
+      continue;
+    }
+
+    const skipReason = getRecipientSkipReason(recipient) || (!preview.metrics.hasActivity ? "no_activity" : "");
+    const baseRecord: NewsletterSendRecord = {
+      id: sendId,
+      familyId,
+      weekStart: window.weekStart,
+      weekEnd: window.weekEnd,
+      recipientUid: recipient.uid,
+      recipientEmail: recipient.email,
+      recipientLocale: recipient.locale,
+      status: skipReason ? "skipped" : "pending",
+      skippedReason: skipReason,
+      provider: existing?.provider ?? provider.name,
+      providerMessageId: "",
+      errorMessage: "",
+      createdAt: existing?.createdAt || now,
+      sentAt: "",
+      updatedAt: now,
+    };
+
+    if (skipReason) {
+      await writeSendRecord(baseRecord);
+      outcome.skipped += 1;
+      outcome.records.push({
+        familyId,
+        id: sendId,
+        recipientUid: recipient.uid,
+        recipientEmail: recipient.email,
+        status: "skipped",
+        skippedReason: skipReason,
+        errorMessage: "",
+        provider: provider.name,
+        providerMessageId: "",
+      });
+      continue;
+    }
+
+    await writeSendRecord(baseRecord);
+    try {
+      const sendResult = await provider.send({
+        to: [recipient.email],
+        subject: preview.rendered.subject,
+        html: preview.rendered.html,
+        text: preview.rendered.text,
+        replyTo,
+      });
+      const sentRecord: NewsletterSendRecord = {
+        ...baseRecord,
+        status: "sent",
+        provider: sendResult.provider,
+        providerMessageId: sendResult.messageId,
+        sentAt: now,
+        updatedAt: now,
+      };
+      await writeSendRecord(sentRecord);
+      outcome.sent += 1;
+      outcome.lastSentAt = now;
+      outcome.records.push({
+        familyId,
+        id: sendId,
+        recipientUid: recipient.uid,
+        recipientEmail: recipient.email,
+        status: "sent",
+        skippedReason: "",
+        errorMessage: "",
+        provider: sendResult.provider,
+        providerMessageId: sendResult.messageId,
+      });
+    } catch (error) {
+      const failedRecord: NewsletterSendRecord = {
+        ...baseRecord,
+        status: "failed",
+        errorMessage: sanitizeErrorMessage(error),
+        updatedAt: new Date().toISOString(),
+      };
+      await writeSendRecord(failedRecord);
+      outcome.failed += 1;
+      outcome.records.push({
+        familyId,
+        id: sendId,
+        recipientUid: recipient.uid,
+        recipientEmail: recipient.email,
+        status: "failed",
+        skippedReason: "",
+        errorMessage: failedRecord.errorMessage,
+        provider: provider.name,
+        providerMessageId: "",
+      });
+    }
+  }
+}
+
+export async function sendWeeklyFamilyHighlightsForFamily(input: {
+  familyId: string;
+  window?: WeeklyWindow;
+}) {
+  const window = input.window ?? getPreviousWeeklyWindow();
+  const provider = getEmailProvider();
+  const replyTo = getEmailReplyToAddresses();
+  const outcome: WeeklySendOutcome = { sent: 0, skipped: 0, failed: 0, records: [], lastSentAt: "" };
+  await sendWeeklyHighlightsToFamily({ familyId: input.familyId, window, provider, replyTo, outcome });
+  return { window, ...outcome };
+}
+
 export async function sendWeeklyFamilyHighlightsForAllFamilies(input?: {
   window?: WeeklyWindow;
 }) {
@@ -204,133 +382,22 @@ export async function sendWeeklyFamilyHighlightsForAllFamilies(input?: {
   const familyDocs = await adminListDocuments("families", 500);
   const provider = getEmailProvider();
   const replyTo = getEmailReplyToAddresses();
-  const results = {
-    sent: 0,
-    skipped: 0,
-    failed: 0,
-    records: [] as Array<Pick<NewsletterSendRecord, "familyId" | "id" | "recipientUid" | "recipientEmail" | "status" | "skippedReason" | "errorMessage" | "provider" | "providerMessageId">>,
-  };
+  const outcome: WeeklySendOutcome = { sent: 0, skipped: 0, failed: 0, records: [], lastSentAt: "" };
 
   for (const familyDoc of familyDocs) {
     const familyId = documentIdFromName(familyDoc.name);
     if (!familyId) {
       continue;
     }
-    const preview = await buildWeeklyFamilyHighlightsPreview({ familyId, window });
-
-    for (const recipient of preview.family.recipients) {
-      const sendId = buildSendId(window.weekStartDateOnly, recipient.uid);
-      const now = new Date().toISOString();
-      const existing = await readExistingSendRecord(familyId, sendId);
-      if (existing?.status === "sent") {
-        results.skipped += 1;
-        results.records.push({
-          familyId,
-          id: sendId,
-          recipientUid: recipient.uid,
-          recipientEmail: recipient.email,
-          status: "skipped",
-          skippedReason: "duplicate_sent",
-          errorMessage: "",
-          provider: existing.provider,
-          providerMessageId: existing.providerMessageId,
-        });
-        continue;
-      }
-
-      const skipReason = getRecipientSkipReason(recipient) || (!preview.metrics.hasActivity ? "no_activity" : "");
-      const baseRecord: NewsletterSendRecord = {
-        id: sendId,
-        familyId,
-        weekStart: window.weekStart,
-        weekEnd: window.weekEnd,
-        recipientUid: recipient.uid,
-        recipientEmail: recipient.email,
-        recipientLocale: recipient.locale,
-        status: skipReason ? "skipped" : "pending",
-        skippedReason: skipReason,
-        provider: existing?.provider ?? provider.name,
-        providerMessageId: "",
-        errorMessage: "",
-        createdAt: existing?.createdAt || now,
-        sentAt: "",
-        updatedAt: now,
-      };
-
-      if (skipReason) {
-        await writeSendRecord(baseRecord);
-        results.skipped += 1;
-        results.records.push({
-          familyId,
-          id: sendId,
-          recipientUid: recipient.uid,
-          recipientEmail: recipient.email,
-          status: "skipped",
-          skippedReason: skipReason,
-          errorMessage: "",
-          provider: provider.name,
-          providerMessageId: "",
-        });
-        continue;
-      }
-
-      await writeSendRecord(baseRecord);
-      try {
-        const sendResult = await provider.send({
-          to: [recipient.email],
-          subject: preview.rendered.subject,
-          html: preview.rendered.html,
-          text: preview.rendered.text,
-          replyTo,
-        });
-        const sentRecord: NewsletterSendRecord = {
-          ...baseRecord,
-          status: "sent",
-          provider: sendResult.provider,
-          providerMessageId: sendResult.messageId,
-          sentAt: now,
-          updatedAt: now,
-        };
-        await writeSendRecord(sentRecord);
-        results.sent += 1;
-        results.records.push({
-          familyId,
-          id: sendId,
-          recipientUid: recipient.uid,
-          recipientEmail: recipient.email,
-          status: "sent",
-          skippedReason: "",
-          errorMessage: "",
-          provider: sendResult.provider,
-          providerMessageId: sendResult.messageId,
-        });
-      } catch (error) {
-        const failedRecord: NewsletterSendRecord = {
-          ...baseRecord,
-          status: "failed",
-          errorMessage: sanitizeErrorMessage(error),
-          updatedAt: new Date().toISOString(),
-        };
-        await writeSendRecord(failedRecord);
-        results.failed += 1;
-        results.records.push({
-          familyId,
-          id: sendId,
-          recipientUid: recipient.uid,
-          recipientEmail: recipient.email,
-          status: "failed",
-          skippedReason: "",
-          errorMessage: failedRecord.errorMessage,
-          provider: provider.name,
-          providerMessageId: "",
-        });
-      }
-    }
+    await sendWeeklyHighlightsToFamily({ familyId, window, provider, replyTo, outcome });
   }
 
   return {
     window,
-    ...results,
+    sent: outcome.sent,
+    skipped: outcome.skipped,
+    failed: outcome.failed,
+    records: outcome.records,
   };
 }
 

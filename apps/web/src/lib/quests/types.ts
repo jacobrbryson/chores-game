@@ -115,6 +115,10 @@ export type QuestDefinition = {
   copyright?: string;
   version: string;
   difficulty: QuestDifficulty;
+  // Optional publish timestamp (ISO) consumed by the Discovery / What's New
+  // system to detect newly published quests. When absent the quest is treated
+  // as part of the baseline catalog (never "new").
+  publishedAt?: string;
   coverImage?: string;
   coverImageAlt?: string;
   summary: string;

@@ -84,6 +84,115 @@ Build a family chore game where:
   - purchase flow and insufficient funds
 - Avoid breaking changes to API contracts without updating this file.
 
+## Data Classification
+All new collections, documents, APIs, and fields must be classified into exactly one of these categories:
+- `PUBLIC`
+  - Approved changelog entries
+  - Approved community awards
+  - Approved SEO content
+- `FAMILY_PRIVATE`
+  - Chores
+  - Rewards
+  - Quest progress
+  - Family activity feed
+  - Achievement progress
+- `CHILD_SENSITIVE`
+  - Child names
+  - Child avatars
+  - Child activity history
+  - Child preferences
+  - Child login/session activity
+- `ADMIN_ONLY`
+  - Audit logs
+  - Support notes
+  - Moderation records
+  - Consent history
+  - Privacy requests
+  - Internal reporting
+- `SYSTEM_SECRET`
+  - Tokens
+  - OAuth credentials
+  - Internal security metadata
+  - Auth-provider identifiers
+  - Encryption or signing secrets
+- New features should document which classifications they introduce.
+
+## AI Feature Rules
+All AI-powered features must:
+- Default OFF for child users.
+- Require parent/admin enablement when applicable.
+- Never train models using family data.
+- Never expose one family's data to another family.
+- Clearly identify AI-generated content where appropriate.
+- Respect child privacy controls.
+- Support complete family-level disabling.
+- Be auditable when AI actions affect user data.
+
+## Public Content & SEO Rules
+Public SEO content may only be generated from:
+- Approved chores
+- Approved quests
+- Approved community awards
+- Approved support-published content
+- Approved changelog entries
+
+Public content must never contain:
+- Child names
+- Family names
+- Emails
+- Family identifiers
+- Internal IDs
+- Private support requests
+- Unapproved user-generated content
+
+All public content must be support-approved before publication.
+Public SEO pages should be generated from structured JSON content whenever practical.
+
+## Entitlements
+Feature access must be entitlement-driven.
+
+Supported entitlement types include:
+- `beta`
+- `referral`
+- `organic`
+- `early_adopter`
+- `premium`
+- `support_admin`
+
+Rules:
+- Beta users retain access to all features by default unless explicitly restricted.
+- New premium features must be protected by entitlement checks.
+- Do not hardcode premium access directly into UI components or API routes.
+- Authorization and entitlement checks must be enforced server-side.
+
+## Support Access Rules
+Support access exists only for:
+- debugging
+- abuse investigations
+- privacy requests
+- account recovery
+- moderation workflows
+
+Support operators should access the minimum data necessary.
+
+Support operators may not:
+- modify user data without audit logging
+- expose private family data
+- bypass privacy controls
+- access data unrelated to a support workflow
+
+Support actions should be auditable whenever practical.
+
+## Public Content Publishing / SEO
+- Public SEO content comes only from support-approved curated content in `publicContent`.
+- Public content must never expose private family, child, support, audit, source, or internal operator data.
+- Content lifecycle is `draft -> review -> approved -> published -> archived`.
+- Published content may be included in public routes and the sitemap when a real route exists.
+- Voting and community signals are review-priority signals only and never publish, promote, or archive content automatically.
+- Public content should stay locale-aware and JSON/export friendly.
+- Public page metadata should come from the content SEO fields.
+- Support manages content; the SEO dashboard reports metadata, readiness, sitemap, and lifecycle health.
+
 ## Recent Decisions (2026-02-15)
 - Localization baseline update (2026-05-30):
   - Shared locale infrastructure now lives in `packages/locales` and is consumed by both web and mobile.
@@ -762,3 +871,45 @@ Build a family chore game where:
   - Weekly email preference lives on the user record as `weeklyFamilyHighlightsEmail`. Default policy is opt-in (`false`) for safety. Web profile exposes the control for admins, and mobile profile exposes the same admin preference. Players do not see this setting.
   - Weekly newsletter content is built from existing family data only (chores, wallet ledger, family award claims, quest progress, achievements, notifications). It must never expose another family's data.
   - Support operator tooling is web-only and lives on `/support`. It supports weekly metrics, recent records/failures/skips, preview by family, and test-send to the requesting support admin only. Test-send must never target real family recipients.
+
+## Discovery / What's New System
+Discovery answers "what is new since I last looked?" — it is **separate from the notification system** (which answers "what happened?"). Discovery uses seen/unseen state, never notification read/unread state. Do **not** build a second notification system or add one-off badge logic per feature.
+
+- **Section model.** All discoverable surfaces are registered as sections in `apps/web/src/lib/discovery/sections.ts` (`DISCOVERY_SECTIONS`). Current keys: `chores`, `store` (+ nested `store:customize_colors`, `store:customize_avatar`, `store:victory_confetti`, `store:family_awards`, `store:quest_items`), `quests`, `achievements`, `changelog`, `community_awards`. New discoverable features must register a section key and contribute a count in `counts.ts`/`service.ts` rather than adding bespoke badge logic.
+- **State model.** Section-level last-seen timestamps (prefer over per-item rows) at `users/{profileUid}/discoveryState/{sectionKey}` with fields `sectionKey`, `lastSeenAt`, `seenByUid`, `seenByMemberId`, `updatedAt`. Nested store keys are encoded path-safely (`store:customize_avatar` -> doc id `store__customize_avatar`). No persistent per-item/per-user discovery rows; counts are derived from existing records (chores, family rewards, achievement progress, changelog JSON, quest `publishedAt`).
+- **Active-profile scoping.** Discovery is scoped to the **active** signed-in profile (`session.uid`/`session.memberId`), including switched/managed child profiles — never blindly to the authenticated parent. A switched parent writes the child's state via the family-admin Firestore rule (`canAdminManageUser`), so switched-child discovery state never overwrites the parent's.
+- **Server-side authorization.** All counts are computed server-side with the viewer's actual access (`apps/web/src/lib/discovery/service.ts`). Players only count their own visible/open chores and player-audience completed achievements; admins count family-wide. Admin-only sections (`community_awards`) are never exposed to players, and discovery payloads must not leak existence of inaccessible items.
+- **Library API** (`apps/web/src/lib/discovery/`): `DISCOVERY_SECTIONS`, `normalizeDiscoverySection`, `getDiscoverySummaryForViewer`, `markDiscoverySectionSeen`, `markManyDiscoverySectionsSeen`, `getLastSeenMapForViewer`, `getDiscoveryCountForSection`. Pure counting helpers live in `counts.ts` (unit-tested in `counts.test.ts`/`service.test.ts`).
+- **APIs.** `GET /api/discovery/summary` (optional `?sections=`), `POST /api/discovery/seen` (`{ sections: [...] }`; unknown sections -> 400, role-forbidden sections -> 403). Mobile parity via `/api/v1/discovery/summary` and `/api/v1/discovery/seen` proxies. Discovery **fails soft**: summary errors return an empty summary (200) and mark-seen never blocks navigation; auth failures still return 401.
+- **Store badge semantics.** The top-level `store` badge equals all unseen visible store items across categories (relative to the `store` last-seen). Opening `/store` marks `store` seen (the user saw the category list); opening a category options modal marks that specific `store:<category>` seen. The two clear independently.
+- **Web UI.** Shared `DiscoveryBadge` (`apps/web/src/components/discovery-badge.tsx`, red/white, `99+`, hidden at 0, a11y label) is reused on the dashboard Chores tab, header store chip, and the dashboard `What's New` card (`discovery-whats-new-card.tsx`). Client access goes through `apps/web/src/lib/hooks/use-discovery.ts` (`useDiscoverySummary`, `useMarkDiscoverySeen`, `markDiscoverySeen`) — do not scatter raw discovery fetches. Sections are marked seen on **actual view** only (page mount / active tab), never while a hidden-but-mounted dashboard panel is offscreen (`useMarkDiscoverySeen(["chores"], activeTab === "chores")`). Refresh is lightweight: on the `discovery:refresh` / `notifications:refresh` window events and on tab focus.
+- **Mobile.** API parity plus a compact `What's New` card and a Chores-tab count badge on the dashboard (`apps/mobile/src/screens/HomeScreen.tsx`, helpers in `apps/mobile/src/lib/api.ts`). Mobile marks `chores` seen when the Chores tab is active. **Mobile TODO:** numeric badges on the bottom `MainNavigation` tabs (store/achievements/quests) are not yet wired (would require threading counts through the app shell); the dashboard card + chores badge cover the primary surface for now.
+- **Support.** `GET /api/support/discovery` (support-admin only, admin Firestore credentials, collection-group over `discoveryState`) powers the `Discovery / What's New` panel on the `/support` Dashboard module (`support-discovery-panel.tsx`): state-record/profile/recent-update counts and per-section breakdown. English-only, no child detail beyond opaque uids.
+- **Forward-safe metadata.** New "added/published" detection relies on optional timestamps already wired through: `StoreOption.addedAt` (catalog) and `QuestDefinition.publishedAt` (quest JSON, passed through validation). Existing catalog/quests omit these so they are never counted as new; set them on genuinely new content. **TODO:** newly-*added* achievements (catalog `publishedAt`) and community-award counts are registered but return 0 until a published-timestamp source is wired.
+- **Localization.** All discovery copy lives under `discovery.*` in every supported locale file (`en-US`, `es-US`, `fr-FR`, in both `packages/locales/src` and `apps/web/packages/locales/src`).
+- **Firestore rules.** `users/{uid}/discoveryState/{sectionKey}` is readable/writable by the profile owner (`isSelf`) or a managing family admin (`canAdminManageUser`), with a validated shape; deletes are denied. Data classification: `FAMILY_PRIVATE` (derived seen-state; minimizes child data by storing only timestamps).
+
+## Privacy & Child Safety (read before adding any data-collecting or social feature)
+Family Chores is **privacy-first and child-safety-first**. These rules are non-negotiable:
+- **Classify data up front.** Apply the `Data Classification` section to every new collection, document, API, and field, and minimize child data within that classification.
+- **Minimize child data.** Prefer deriving from existing data over storing new child-identifiable fields.
+- **Apply AI governance without exception.** Follow `AI Feature Rules` for any AI-powered, child-facing, or family-data feature. The Privacy tab should only expose child controls when the underlying feature exists.
+- **Voting is parent-only and never available to child accounts** (see the voting model note above; `players` cannot vote).
+- **Public surfaces must follow SEO governance.** `PUBLIC` content must follow `Public Content & SEO Rules`; all other classifications stay off public/SEO pages.
+- **User data controls live under Family, not a standalone route.** The Family page has a `Privacy` tab (admin-only) for the privacy overview, data summary, export, deletion request/cancel, child controls, and consent. Public legal pages stay separate.
+- **Server-side authorization on every privacy endpoint.** All `/api/family/privacy/*` routes resolve the caller's family and require `admin` server-side (shared helpers in `apps/web/src/lib/family/access.ts`); never rely on client checks. Players/children get `403`.
+- **Feature gating must stay server-enforced.** Privacy-sensitive and premium functionality must use entitlement-driven access with server-side checks; do not rely on UI gating alone.
+- **Audit sensitive privacy/admin actions.** Export, deletion request/cancel, child-setting changes, and consent are written via `writeAuditLogBestEffort` to `families/{familyId}/auditLogs` (event types in `apps/web/src/lib/privacy/types.ts`, `PRIVACY_AUDIT_EVENTS`).
+- **Export must be intentionally sanitized, not just redacted.** The user-facing family export (`GET /api/family/privacy/export`) must never return raw database records. Every entity type passes through an explicit allowlist sanitizer (`sanitizeMemberForExport`, `sanitizeInviteForExport`, `sanitizeChoreForExport`, `sanitizeRewardForExport`, `sanitizeQuestForExport`, `sanitizeFeedItemForExport`, etc.) defined in `apps/web/src/lib/privacy/export-sanitizers.ts`. Specific rules: (1) external OAuth/provider avatar URLs (`avatarPhotoUrl`, `lh3.googleusercontent.com`) are never exported — replace with `hasExternalAvatar: true` where relevant; (2) child (`player`) login and session timestamps (`lastSignInAt`, `lastActiveAt`) are excluded; (3) internal auth/Firebase UIDs (`createdBy`, `inviterUid`, admin-only fields) are excluded from invite and chore records; (4) stale invite orphans (invited email that already has an active member doc) are excluded; (5) the export manifest must list its sanitization notes via `EXPORT_MANIFEST_NOTES`. Admin/support exports are separate and must never be mixed into the family-facing export.
+- **Deletion is scheduled, never an immediate hard delete.** `POST /api/family/privacy/deletion` sets `deletionRequestedAt` + `deletionScheduledFor` (now + 30 days, `DELETION_GRACE_PERIOD_DAYS`); `DELETE` cancels during the grace period. Irreversible purge is intentionally NOT implemented — see the SERVER-SIDE TODO in `deletion/route.ts`; the UI must continue to say deletion is *scheduled*.
+- **Legal documents are versioned source files of truth.** Privacy Policy and Terms of Service content live in `apps/web/src/legal/privacy-policy.json` and `apps/web/src/legal/terms-of-service.json`. Their `version` fields are canonical. Public legal pages render from those files through the shared loader, and consent validation must use that same loader rather than duplicate version sources. When legal content materially changes, bump the file `version` and `effectiveDate` and set `requiresReacceptance: true`.
+- **Legal loader is the single entry point.** `apps/web/src/lib/legal/loader.ts` exports `getPrivacyPolicy()`, `getTermsOfService()`, `getCurrentPrivacyPolicyVersion()`, and `getCurrentTermsVersion()`. `apps/web/src/lib/privacy/config.ts` re-exports `CURRENT_TERMS_VERSION` and `CURRENT_PRIVACY_VERSION` from the loader for compatibility. Avoid maintaining duplicate legal-version sources whenever practical.
+- **Consent + versions: current state.** Family-level consent fields live on the family doc: `acceptedTermsVersion`, `acceptedPrivacyVersion`, `parentalConsentAt`, `parentalConsentByUserId`, `dataRegion` (default `US`). Current versions resolve through the shared legal loader via `apps/web/src/lib/privacy/config.ts`. `consentUpToDate` is a derived signal: all three must be present and versions must match the current legal source of truth.
+- **Consent history: immutable append-only event log.** Every call to `POST /api/family/privacy/consent` appends three immutable records to `families/{familyId}/consentEvents` — one for `TERMS_ACCEPTED`, one for `PRIVACY_ACCEPTED`, and one for `PARENTAL_CONSENT_RECORDED` — via `appendConsentEventBestEffort` in `apps/web/src/lib/privacy/consent-events.ts`. These records are **never updated or deleted** in normal app flows. Service functions: `appendConsentEvent`, `appendConsentEventBestEffort`, `listConsentEvents`. Constants for event/document types: `CONSENT_EVENT_TYPES`, `CONSENT_DOCUMENT_TYPES` in `apps/web/src/lib/privacy/types.ts`.
+- **Consent authorization.** Only family `admin` users may record consent, re-accept terms/privacy, or view the consent history. Child `player` accounts receive `403` on all `/api/family/privacy/*` routes. Firestore rules enforce `isFamilyAdmin` for both read and create on `consentEvents`; update/delete are denied at the rules level.
+- **Version bump triggers re-acceptance.** When `CURRENT_TERMS_VERSION` or `CURRENT_PRIVACY_VERSION` changes, any family whose stored versions differ will show `consentUpToDate: false`. The Privacy tab surfaces a prominent warning callout and the "Record Consent" action re-accepts the current versions and appends new consent events.
+- **Support access must stay scoped.** Apply `Support Access Rules` to `/support`, support APIs, and manual operator workflows. `ADMIN_ONLY` data stays limited to the active support workflow.
+- **Support visibility.** `GET /api/support/privacy` surfaces families with missing or outdated consent in `consentHealthFamilies`, plus recent consent events via a collection-group query on `consentEvents`. The Privacy & Compliance panel on `/support` shows consent health stats and event history without exposing unnecessary private family data.
+- **No new top-level Firestore collections required.** `consentEvents` is a subcollection under `families/{familyId}`, consistent with `auditLogs`, `notifications`, and other family-scoped subcollections.
+- **Support visibility (web-only):** operators see deletion-requested families and recent privacy audit activity via `/api/support/privacy` + the Privacy & Compliance panel on `/support` (Families module). Never expose unnecessary child detail there.
+- Family data export and deletion workflows must remain supported as the schema evolves.

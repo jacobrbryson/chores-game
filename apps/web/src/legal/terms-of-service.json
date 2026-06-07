@@ -1,0 +1,178 @@
+{
+  "id": "terms-of-service",
+  "title": "Terms of Service",
+  "version": "2026-06-06",
+  "effectiveDate": "2026-06-06",
+  "lastUpdated": "2026-06-06",
+  "requiresReacceptance": true,
+  "sections": [
+    {
+      "heading": "Agreement to Terms",
+      "body": [
+        "By accessing or using Family Chores, you agree to be bound by these Terms of Service. If you do not agree to these terms, do not use the app.",
+        "Parents and guardians who create or manage family accounts accept these terms on behalf of themselves and any child accounts they create."
+      ]
+    },
+    {
+      "heading": "Service Description",
+      "body": [
+        "Family Chores is a household task-management game developed by Orcwood Games in which parents and guardians assign, review, and approve chores, and players earn virtual in-app currency and cosmetic rewards for completing them.",
+        "Features include chore management, approvals and rejections, a virtual economy, cosmetic customization, achievement tracking, quests, and family activity feeds."
+      ]
+    },
+    {
+      "heading": "Parent/Guardian Responsibility",
+      "body": [
+        "Parents and guardians are responsible for all activity within their family group, including the actions of child accounts they create and manage.",
+        "Parents and guardians must record parental consent in the app before child accounts can participate in family features.",
+        "Parents are responsible for reviewing AI-generated suggestions before acting on them. AI features do not replace parent or guardian judgment or approval."
+      ]
+    },
+    {
+      "heading": "Accounts and Roles",
+      "body": [
+        "Access to Family Chores requires a valid sign-in account. Google sign-in is currently the supported authentication method.",
+        "Two account roles exist: admin (parent or guardian) and player (child or household member). Role permissions are enforced server-side by the service.",
+        "Account holders are responsible for maintaining the security of their sign-in credentials."
+      ]
+    },
+    {
+      "heading": "Child Accounts",
+      "body": [
+        "Child accounts (player role) are created and managed by parent or guardian accounts.",
+        "Child accounts have limited access: they can view and complete assigned chores, earn virtual currency, and access cosmetic features.",
+        "Child accounts cannot vote, access privacy or family settings, manage entitlements, or use AI features.",
+        "Parents and guardians are responsible for all activity by child accounts in their family."
+      ]
+    },
+    {
+      "heading": "Acceptable Use",
+      "body": [
+        "Users may not:"
+      ],
+      "items": [
+        "Attempt unauthorized access to any account, family, or data.",
+        "Interfere with app operation, security features, or service availability.",
+        "Use the app for unlawful, abusive, or fraudulent activity.",
+        "Submit content that is harmful, illegal, harassing, or inappropriate.",
+        "Circumvent access controls, role restrictions, or consent requirements."
+      ]
+    },
+    {
+      "heading": "Family Content and Public Content",
+      "body": [
+        "Content created within a family group — chores, rewards, activity records — is private to that family and accessible only to authorized members.",
+        "Community and public-facing content, such as feature requests or changelog highlights, is reviewed and published by Orcwood Games. Families do not control what appears in public community content.",
+        "Orcwood Games will not display private family data, child names, or family identifiers in public content without explicit approval."
+      ]
+    },
+    {
+      "heading": "Parent-Only Voting",
+      "body": [
+        "Authenticated parent and administrator accounts may vote on feature requests and community feedback submissions.",
+        "Child accounts (player role) are excluded from all voting functionality and cannot vote under any circumstance.",
+        "Votes are recorded per account and associated with the user's identity."
+      ]
+    },
+    {
+      "heading": "Virtual Currency and Store Items",
+      "body": [
+        "In-app coins and cosmetic store items are virtual features with no cash value and are not redeemable for money, cash, or any external goods or services.",
+        "Coin earnings are governed by in-app chore approval workflows. Coins are awarded only upon parent or guardian approval.",
+        "Virtual currency balances cannot go negative. All balance changes are logged in an auditable wallet ledger.",
+        "Orcwood Games may adjust in-app catalogs, item pricing, coin values, and feature behavior to maintain service quality."
+      ]
+    },
+    {
+      "heading": "Beta, Early Adopter, Premium, and Entitlements",
+      "body": [
+        "Family Chores may offer tiered access levels, including beta, early adopter, and premium entitlements.",
+        "Beta testers and early adopters may receive access to premium features without payment for a defined period or indefinitely as a policy decision by Orcwood Games. Lifetime access entitlements granted during beta may include premium features unless changed by a policy update.",
+        "Feature access may be gated by entitlements, feature flags, or milestone gates. Orcwood Games may modify entitlement policies at its discretion.",
+        "No cash refund or cash equivalent is provided for virtual entitlements or in-app feature access."
+      ]
+    },
+    {
+      "heading": "Referrals",
+      "body": [
+        "Family Chores may offer a referral program that provides in-app benefits to users who refer new families to the service.",
+        "Referral rewards are virtual in-app features with no cash value.",
+        "Orcwood Games may modify, suspend, or terminate referral programs at any time."
+      ]
+    },
+    {
+      "heading": "AI Features",
+      "body": [
+        "Family Chores may include AI-powered features such as chore or reward suggestions.",
+        "AI features are parent-controlled and require explicit action by a parent or guardian to activate or use.",
+        "AI suggestions do not replace parent or guardian judgment. Parents are responsible for reviewing and approving any AI-generated content before it affects the family.",
+        "Child accounts do not have direct access to AI features."
+      ]
+    },
+    {
+      "heading": "Third-Party Services",
+      "body": [
+        "Family Chores integrates with third-party services including Google for sign-in, cloud infrastructure, and optional Google Tasks sync. Your use of those services may be subject to their own terms and privacy policies.",
+        "Orcwood Games is not responsible for the privacy practices, terms, or availability of third-party services."
+      ]
+    },
+    {
+      "heading": "Privacy and Data Controls",
+      "body": [
+        "Your privacy rights and data controls are described in the Family Chores Privacy Policy. Parents and guardians can export or request deletion of family data from Family → Privacy.",
+        "Family Chores does not sell personal information."
+      ]
+    },
+    {
+      "heading": "Intellectual Property",
+      "body": [
+        "Family Chores, including its design, branding, code, game mechanics, art, and content, is owned by Orcwood Games or its licensors and is protected by applicable intellectual property laws.",
+        "You may not copy, reproduce, distribute, or create derivative works from Family Chores content without written permission."
+      ]
+    },
+    {
+      "heading": "Service Changes",
+      "body": [
+        "Orcwood Games may add, modify, or remove features at any time. We will make reasonable efforts to communicate significant changes.",
+        "We may suspend or discontinue the service at any time. In the event of discontinuation, we will provide reasonable advance notice where possible."
+      ]
+    },
+    {
+      "heading": "Termination",
+      "body": [
+        "We may suspend or terminate your access to Family Chores if these terms are violated, if required by law, or when necessary to protect the service or other users.",
+        "You may stop using the service at any time. Account and family deletion requests are handled through Family → Privacy."
+      ]
+    },
+    {
+      "heading": "Disclaimers",
+      "body": [
+        "Family Chores is provided on an 'as is' and 'as available' basis. To the maximum extent permitted by applicable law, Orcwood Games disclaims all warranties, express or implied, including implied warranties of merchantability, fitness for a particular purpose, and non-infringement.",
+        "Orcwood Games does not warrant that the service will be uninterrupted, error-free, or completely secure."
+      ]
+    },
+    {
+      "heading": "Limitation of Liability",
+      "body": [
+        "To the maximum extent permitted by applicable law, Orcwood Games is not liable for indirect, incidental, special, consequential, exemplary, or punitive damages, or for loss of data, use, profits, or goodwill arising from use of, or inability to use, the app.",
+        "In jurisdictions that do not allow exclusion of certain damages, our liability is limited to the maximum extent permitted by law."
+      ]
+    },
+    {
+      "heading": "Changes to Terms",
+      "body": [
+        "We may update these Terms of Service from time to time. We will notify users of material changes by updating the effective date and, where appropriate, by providing in-app notice.",
+        "Continued use of the app after updated terms take effect constitutes acceptance of the revised terms."
+      ]
+    },
+    {
+      "heading": "Contact",
+      "body": [
+        "For questions about these Terms of Service, contact Orcwood Games."
+      ],
+      "links": [
+        { "text": "Contact Orcwood Games", "href": "https://orcwood.com" }
+      ]
+    }
+  ]
+}

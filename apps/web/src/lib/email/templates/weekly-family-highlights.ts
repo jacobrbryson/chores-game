@@ -2,16 +2,21 @@ import {
   createTranslator,
   type AppLocale,
 } from "@packages/locales";
+import { resolveInitial } from "@/lib/avatar/resolve";
+import { DEFAULT_MEMBER_PRIMARY_COLOR } from "@/lib/theme/member-primary-color";
+import { FEED_FALLBACK_EMOJI } from "@/lib/feed/feed-events";
 
 type WeeklyHighlightItem = {
   title: string;
   message: string;
   createdAt: string;
+  icon?: string;
 };
 
 type WeeklyMetricLine = {
   labelKey: string;
   value: number;
+  emoji: string;
 };
 
 export type WeeklyFamilyHighlightsTemplateProps = {
@@ -31,7 +36,10 @@ export type WeeklyFamilyHighlightsTemplateProps = {
   pendingApprovals: number;
   mostActiveHelperName: string;
   mostActiveHelperCount: number;
+  mostActiveHelperAvatarUrl?: string;
+  mostActiveHelperAvatarColor?: string;
   recentHighlights: WeeklyHighlightItem[];
+  recentEnhancements?: Array<{ title: string; description: string }>;
   proTip: string;
 };
 
@@ -44,19 +52,36 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
-function renderMetricRow(label: string, value: number) {
-  return `<tr><td style="padding:8px 0;color:#334155;">${escapeHtml(label)}</td><td style="padding:8px 0;color:#0f172a;font-weight:700;text-align:right;">${value}</td></tr>`;
+// Reproduce the in-app avatar's `color-mix(in srgb, <primary> 72%, white)` tint,
+// since email clients don't support color-mix or CSS variables. `primaryWeight` is
+// the primary's share (0–1); the remainder is mixed with white.
+function mixHexWithWhite(hex: string, primaryWeight: number) {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!match) {
+    return hex;
+  }
+  const int = Number.parseInt(match[1], 16);
+  const channels = [(int >> 16) & 0xff, (int >> 8) & 0xff, int & 0xff];
+  const toHex = (channel: number) =>
+    Math.round(channel * primaryWeight + 255 * (1 - primaryWeight))
+      .toString(16)
+      .padStart(2, "0");
+  return `#${channels.map(toHex).join("")}`;
+}
+
+function renderMetricRow(emoji: string, label: string, value: number) {
+  return `<tr><td style="padding:8px 0;color:#334155;"><span style="display:inline-block;width:22px;text-align:center;">${escapeHtml(emoji)}</span>&nbsp;${escapeHtml(label)}</td><td style="padding:8px 0;color:#0f172a;font-weight:700;text-align:right;">${value}</td></tr>`;
 }
 
 function buildMetrics(props: WeeklyFamilyHighlightsTemplateProps): WeeklyMetricLine[] {
   return [
-    { labelKey: "newsletter.weekly.metrics.choresCompleted", value: props.choresCompleted },
-    { labelKey: "newsletter.weekly.metrics.coinsEarned", value: props.coinsEarned },
-    { labelKey: "newsletter.weekly.metrics.rewardsRedeemed", value: props.rewardsRedeemed },
-    { labelKey: "newsletter.weekly.metrics.familyAwardsClaimed", value: props.familyAwardsClaimed },
-    { labelKey: "newsletter.weekly.metrics.questsCompleted", value: props.questsCompleted },
-    { labelKey: "newsletter.weekly.metrics.achievementsUnlocked", value: props.achievementsUnlocked },
-    { labelKey: "newsletter.weekly.metrics.pendingApprovals", value: props.pendingApprovals },
+    { labelKey: "newsletter.weekly.metrics.choresCompleted", value: props.choresCompleted, emoji: "🧹" },
+    { labelKey: "newsletter.weekly.metrics.coinsEarned", value: props.coinsEarned, emoji: "🪙" },
+    { labelKey: "newsletter.weekly.metrics.rewardsRedeemed", value: props.rewardsRedeemed, emoji: "🎁" },
+    { labelKey: "newsletter.weekly.metrics.familyAwardsClaimed", value: props.familyAwardsClaimed, emoji: "🏆" },
+    { labelKey: "newsletter.weekly.metrics.questsCompleted", value: props.questsCompleted, emoji: "🗺️" },
+    { labelKey: "newsletter.weekly.metrics.achievementsUnlocked", value: props.achievementsUnlocked, emoji: "🏅" },
+    { labelKey: "newsletter.weekly.metrics.pendingApprovals", value: props.pendingApprovals, emoji: "⏳" },
   ];
 }
 
@@ -82,7 +107,14 @@ export function renderWeeklyFamilyHighlightsTemplate(input: {
   const intro = t("newsletter.weekly.intro", { dateRange });
   const metrics = buildMetrics(props);
   const recentHighlights = props.recentHighlights
-    .map((item) => `<li style="margin-bottom:10px;"><strong>${escapeHtml(item.title)}</strong><br /><span style="color:#475569;">${escapeHtml(item.message)}</span></li>`)
+    .map((item) => {
+      const icon = item.icon?.trim() || FEED_FALLBACK_EMOJI;
+      return `<tr><td style="padding:0 10px 12px 0;vertical-align:top;font-size:18px;line-height:1.3;">${escapeHtml(icon)}</td><td style="padding:0 0 12px;vertical-align:top;"><strong>${escapeHtml(item.title)}</strong><br /><span style="color:#475569;">${escapeHtml(item.message)}</span></td></tr>`;
+    })
+    .join("");
+  const enhancements = props.recentEnhancements ?? [];
+  const recentEnhancements = enhancements
+    .map((item) => `<li style="margin-bottom:10px;"><strong>${escapeHtml(item.title)}</strong><br /><span style="color:#475569;">${escapeHtml(item.description)}</span></li>`)
     .join("");
   const helperLine = props.mostActiveHelperName
     ? t("newsletter.weekly.mostActiveHelperValue", {
@@ -90,6 +122,17 @@ export function renderWeeklyFamilyHighlightsTemplate(input: {
         count: props.mostActiveHelperCount,
       })
     : t("newsletter.weekly.noMostActiveHelper");
+  const helperAvatarUrl = props.mostActiveHelperAvatarUrl?.trim() ?? "";
+  const helperInitial = resolveInitial(props.mostActiveHelperName);
+  // Mirror <Avatar />: 2px solid primary ring, a lightened-primary fill behind the
+  // initial (white text), matching the member's selected dashboard color.
+  const avatarPrimary = props.mostActiveHelperAvatarColor?.trim() || DEFAULT_MEMBER_PRIMARY_COLOR;
+  const avatarSecondary = mixHexWithWhite(avatarPrimary, 0.72);
+  const helperAvatar = props.mostActiveHelperName
+    ? helperAvatarUrl
+      ? `<img src="${escapeHtml(helperAvatarUrl)}" width="40" height="40" alt="${escapeHtml(props.mostActiveHelperName)}" style="display:block;width:40px;height:40px;border-radius:999px;border:2px solid ${escapeHtml(avatarPrimary)};background:${escapeHtml(avatarSecondary)};object-fit:cover;" />`
+      : `<span style="display:inline-block;width:40px;height:40px;border-radius:999px;border:2px solid ${escapeHtml(avatarPrimary)};background:${escapeHtml(avatarSecondary)};color:#ffffff;font-size:18px;font-weight:700;line-height:40px;text-align:center;">${escapeHtml(helperInitial)}</span>`
+    : "";
 
   const html = `<!doctype html>
 <html lang="${escapeHtml(input.locale)}">
@@ -104,16 +147,23 @@ export function renderWeeklyFamilyHighlightsTemplate(input: {
         <div style="padding:24px;">
           <p style="margin-top:0;font-size:15px;line-height:1.6;">${escapeHtml(intro)}</p>
           <table style="width:100%;border-collapse:collapse;margin:18px 0 10px;">
-            ${metrics.map((metric) => renderMetricRow(t(metric.labelKey), metric.value)).join("")}
+            ${metrics.map((metric) => renderMetricRow(metric.emoji, t(metric.labelKey), metric.value)).join("")}
           </table>
           <div style="margin-top:22px;padding:16px;border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0;">
             <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#475569;">${escapeHtml(t("newsletter.weekly.mostActiveHelper"))}</div>
-            <div style="margin-top:6px;font-size:18px;font-weight:700;color:#0f172a;">${escapeHtml(helperLine)}</div>
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:8px;border-collapse:collapse;"><tr>
+              ${helperAvatar ? `<td style="padding-right:12px;vertical-align:middle;">${helperAvatar}</td>` : ""}
+              <td style="vertical-align:middle;font-size:18px;font-weight:700;color:#0f172a;">${escapeHtml(helperLine)}</td>
+            </tr></table>
           </div>
           <div style="margin-top:22px;">
             <h2 style="margin:0 0 10px;font-size:18px;">${escapeHtml(t("newsletter.weekly.recentHighlights"))}</h2>
-            ${recentHighlights ? `<ul style="padding-left:20px;margin:0;">${recentHighlights}</ul>` : `<p style="margin:0;color:#475569;">${escapeHtml(t("newsletter.weekly.noRecentHighlights"))}</p>`}
+            ${recentHighlights ? `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">${recentHighlights}</table>` : `<p style="margin:0;color:#475569;">${escapeHtml(t("newsletter.weekly.noRecentHighlights"))}</p>`}
           </div>
+          ${recentEnhancements ? `<div style="margin-top:22px;">
+            <h2 style="margin:0 0 10px;font-size:18px;">${escapeHtml(t("newsletter.weekly.recentEnhancements"))}</h2>
+            <ul style="padding-left:20px;margin:0;">${recentEnhancements}</ul>
+          </div>` : ""}
           <div style="margin-top:22px;padding:16px;border-radius:16px;background:#fff7ed;border:1px solid #fed7aa;">
             <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#9a3412;">${escapeHtml(t("newsletter.weekly.proTip"))}</div>
             <p style="margin:8px 0 0;line-height:1.6;color:#7c2d12;">${escapeHtml(props.proTip)}</p>
@@ -138,14 +188,18 @@ export function renderWeeklyFamilyHighlightsTemplate(input: {
     greeting,
     intro,
     "",
-    ...metrics.map((metric) => `${t(metric.labelKey)}: ${metric.value}`),
+    ...metrics.map((metric) => `${metric.emoji} ${t(metric.labelKey)}: ${metric.value}`),
     "",
     `${t("newsletter.weekly.mostActiveHelper")}: ${helperLine}`,
+    ...(enhancements.length > 0
+      ? ["", t("newsletter.weekly.recentEnhancements"), ...enhancements.map((item) => `- ${item.title}: ${item.description}`)]
+      : []),
+    "",
     `${t("newsletter.weekly.proTip")}: ${props.proTip}`,
     "",
     t("newsletter.weekly.recentHighlights"),
     ...(props.recentHighlights.length > 0
-      ? props.recentHighlights.map((item) => `- ${item.title}: ${item.message}`)
+      ? props.recentHighlights.map((item) => `${item.icon?.trim() || FEED_FALLBACK_EMOJI} ${item.title}: ${item.message}`)
       : [t("newsletter.weekly.noRecentHighlights")]),
     "",
     `${t("newsletter.weekly.openDashboard")}: ${props.dashboardUrl}`,

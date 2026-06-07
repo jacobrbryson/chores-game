@@ -12,5 +12,5 @@ export default async function SupportPage() {
     notFound();
   }
 
-  return <SupportPageClient />;
+  return <SupportPageClient module="dashboard" />;
 }

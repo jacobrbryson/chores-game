@@ -782,6 +782,21 @@ service cloud.firestore {
         allow create, update: if isSelf(uid) || canAdminManageUser(uid);
         allow delete: if false;
       }
+
+      // Discovery / What's New seen-state, scoped to the active profile. The
+      // user owns their own state; a family admin may write a managed child's
+      // state when switched into that child (admin token + child uid). State is
+      // append-only-ish: section last-seen timestamps, never deleted.
+      match /discoveryState/{sectionKey} {
+        allow read: if isSelf(uid) || canAdminManageUser(uid);
+        allow create, update: if (isSelf(uid) || canAdminManageUser(uid))
+          && request.resource.data.sectionKey is string
+          && request.resource.data.lastSeenAt is timestamp
+          && request.resource.data.seenByUid is string
+          && request.resource.data.seenByMemberId is string
+          && request.resource.data.updatedAt is timestamp;
+        allow delete: if false;
+      }
     }
 
     match /families/{familyId} {
@@ -1002,6 +1017,19 @@ service cloud.firestore {
           && request.resource.data.requestId is string
           && request.resource.data.previous is map
           && request.resource.data.next is map
+          && request.resource.data.createdAt is timestamp;
+        allow update, delete: if false;
+      }
+
+      match /consentEvents/{consentEventId} {
+        allow read: if isFamilyAdmin(familyId);
+        allow create: if isFamilyAdmin(familyId)
+          && request.resource.data.familyId == familyId
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.eventType is string
+          && request.resource.data.documentType is string
+          && request.resource.data.documentVersion is string
+          && request.resource.data.acceptedAt is timestamp
           && request.resource.data.createdAt is timestamp;
         allow update, delete: if false;
       }
@@ -1230,6 +1258,17 @@ service cloud.firestore {
 
     match /voteAggregates/{aggregateId} {
       allow read, write: if false;
+    }
+
+    // Public Content Publishing / SEO: support operators manage curated content
+    // through server-side admin APIs. Client reads use sanitized public APIs
+    // that return published fields only; direct client access is denied.
+    match /publicContent/{contentId} {
+      allow read, write: if false;
+
+      match /auditLogs/{auditLogId} {
+        allow read, write: if false;
+      }
     }
 
     match /communityAwards/{communityAwardId} {

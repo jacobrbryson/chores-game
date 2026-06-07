@@ -60,9 +60,10 @@ function sendJson(res: ServerResponse, status: number, body: Record<string, unkn
 
 httpServer.on("request", (req, res) => {
 	if (
-		req.method !== "POST" ||
-		(req.url !== "/events/family-activity" &&
-			req.url !== "/events/achievement-unlocked")
+		(req.method !== "POST" ||
+			(req.url !== "/events/family-activity" &&
+				req.url !== "/events/achievement-unlocked")) &&
+		(req.method !== "GET" || req.url !== "/metrics")
 	) {
 		return;
 	}
@@ -70,6 +71,25 @@ httpServer.on("request", (req, res) => {
 	const authHeader = req.headers.authorization ?? "";
 	if (authHeader !== `Bearer ${INTERNAL_SECRET}`) {
 		sendJson(res, 401, { error: "unauthorized" });
+		return;
+	}
+
+	if (req.method === "GET" && req.url === "/metrics") {
+		void io.fetchSockets().then((sockets) => {
+			const activeUserIds = new Set<string>();
+			for (const socket of sockets) {
+				const uid = socket.data.uid;
+				if (typeof uid === "string" && uid) {
+					activeUserIds.add(uid);
+				}
+			}
+			sendJson(res, 200, {
+				activeUsers: activeUserIds.size,
+				connectedClients: io.engine.clientsCount,
+			});
+		}).catch(() => {
+			sendJson(res, 500, { error: "metrics_unavailable" });
+		});
 		return;
 	}
 

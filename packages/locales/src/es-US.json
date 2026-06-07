@@ -114,6 +114,15 @@
       }
     }
   },
+  "publicContent": {
+    "lastReviewed": "Revisado el {date}",
+    "ageRange": "Rango de edad",
+    "difficulty": "Dificultad",
+    "estimatedMinutes": "Minutos estimados",
+    "ctaTitle": "Haz que las tareas sean mas faciles en casa",
+    "ctaBody": "Family Chores ayuda a los padres a asignar tareas, aprobar el trabajo y convertir las rutinas en recompensas.",
+    "ctaAction": "Comenzar con Family Chores"
+  },
   "achievements": {
     "audiences": "Audiencias de logros",
     "loading": "Cargando logros",
@@ -129,6 +138,28 @@
       "all": "Todos",
       "player": "Jugador",
       "admin": "Padre (admin)"
+    }
+  },
+  "discovery": {
+    "badgeLabel": "{count} nuevos",
+    "whatsNewTitle": "Novedades",
+    "whatsNewDescription": "Hay cosas nuevas esperandote",
+    "empty": "Estas al dia!",
+    "actions": {
+      "view": "Ver"
+    },
+    "sections": {
+      "chores": "Tareas",
+      "store": "Tienda",
+      "storeCustomizeColors": "Colores",
+      "storeCustomizeAvatar": "Avatares",
+      "storeVictoryConfetti": "Confeti",
+      "storeFamilyAwards": "Premios familiares",
+      "storeQuestItems": "Objetos de aventura",
+      "quests": "Aventuras",
+      "achievements": "Logros",
+      "changelog": "Novedades",
+      "communityAwards": "Premios de la comunidad"
     }
   },
   "dashboard": {
@@ -298,7 +329,7 @@
     "controls": {
       "ariaLabel": "Controles de tareas",
       "search": "Buscar tareas",
-      "searchPlaceholder": "Buscar tareas (3+ car.)",
+      "searchPlaceholder": "Buscar en todas las columnas (3+ car.)",
       "expand": "Expandir controles de tareas",
       "collapse": "Contraer controles de tareas",
       "filters": "Filtros",
@@ -307,7 +338,9 @@
     "filters": {
       "all": "Todas",
       "needsApproval": "Necesitan aprobacion",
-      "completed": "Completadas"
+      "completed": "Completadas",
+      "open": "Activas",
+      "recurring": "Recurrentes"
     },
     "sort": {
       "title": "Titulo",
@@ -320,7 +353,8 @@
     "pager": {
       "previous": "Anterior",
       "next": "Siguiente",
-      "pageOf": "Pagina {page} de {totalPages}"
+      "pageOf": "Pagina {page} de {totalPages}",
+      "rowsPerPage": "Filas por página"
     },
     "modals": {
       "close": "Cerrar dialogo",
@@ -340,6 +374,78 @@
       "noCategoriesBody": "Todavia no existen categorias. Aplica ahora para limpiar las categorias de las tareas seleccionadas.",
       "deleteSelectedTitle": "Eliminar tareas seleccionadas",
       "deleteSelectedPrompt": "Eliminar {count} tarea{suffix} seleccionada(s)?"
+    },
+    "selectChoreAriaLabel": "Seleccionar tarea {title}",
+    "columns": {
+      "label": "Columnas",
+      "title": "Título",
+      "categories": "Categorías",
+      "status": "Estado",
+      "assignee": "Asignado",
+      "type": "Tipo",
+      "due": "Vence",
+      "completed": "Completado",
+      "coins": "Monedas",
+      "recurrence": "Se repite",
+      "approval": "Aprobación",
+      "actions": "Acciones"
+    },
+    "density": {
+      "label": "Densidad de filas",
+      "comfortable": "Cómoda",
+      "compact": "Compacta"
+    },
+    "completionWindow": {
+      "today": "Hoy",
+      "week": "Esta semana",
+      "month": "Este mes",
+      "year": "Este año"
+    },
+    "filterPanel": {
+      "allAssignees": "Todos los asignados",
+      "familyAssignee": "Familia",
+      "selectedAssignees": "{count} asignados",
+      "anyCategory": "Cualquier categoría",
+      "anyType": "Cualquier tipo",
+      "anyApproval": "Cualquier aprobación",
+      "approvalRequired": "Requiere aprobación",
+      "approvalNotRequired": "Sin aprobación",
+      "coinRange": "Rango de monedas",
+      "coinMin": "Monedas mínimas",
+      "coinMax": "Monedas máximas",
+      "min": "Mín",
+      "max": "Máx",
+      "dueRange": "Rango de fecha de vencimiento",
+      "dueFrom": "Vence desde",
+      "dueTo": "Vence hasta",
+      "completedRange": "Rango de fecha de finalización",
+      "completedFrom": "Completado desde",
+      "completedTo": "Completado hasta",
+      "clearAll": "Borrar todos los filtros",
+      "saveAsView": "Guardar como vista",
+      "saveView": "Guardar",
+      "viewNamePlaceholder": "Nombra esta vista..."
+    },
+    "choreType": {
+      "normal": "Normal",
+      "group": "Grupo",
+      "seeAndDo": "Ver y hacer"
+    },
+    "approval": {
+      "required": "Requerida",
+      "no": "No"
+    },
+    "recurrence": {
+      "instant": "Instantáneo",
+      "daily": "Diario",
+      "weekly": "Semanal",
+      "monthly": "Mensual",
+      "customFilter": "Personalizado",
+      "custom": "Cada {interval} {unit}"
+    },
+    "results": {
+      "showing": "Mostrando {from}–{to} de {total}",
+      "filteredFrom": "filtrado de {totalUnfiltered}"
     }
   },
   "notificationsPage": {
@@ -523,8 +629,8 @@
     "weekly": {
       "subject": "Tus mejores momentos de Family Chores del {startDate} al {endDate}",
       "title": "Resumen semanal familiar",
-      "greeting": "Hola, familia {familyName}!",
-      "familyFallbackName": "tu",
+      "greeting": "Hola, {familyName}!",
+      "familyFallbackName": "tu familia",
       "intro": "Aqui tienes el resumen de tu familia para {dateRange}.",
       "metrics": {
         "choresCompleted": "Tareas completadas",
@@ -540,6 +646,7 @@
       "noMostActiveHelper": "Todavia no hay un ayudante destacado esta semana.",
       "recentHighlights": "Momentos recientes del feed",
       "noRecentHighlights": "Todavia no hay momentos recientes esta semana.",
+      "recentEnhancements": "Novedades de esta semana",
       "proTip": "Consejo de la semana",
       "openDashboard": "Abrir panel",
       "managePreferences": "Administrar preferencias de correo",
@@ -834,7 +941,65 @@
       "members": "Miembros",
       "awards": "Premios",
       "categories": "Categorias",
-      "quests": "Misiones"
+      "quests": "Misiones",
+      "privacy": "Privacidad"
+    },
+    "privacy": {
+      "overviewTitle": "Resumen de privacidad",
+      "acceptedPrivacyVersion": "Versión de política de privacidad aceptada",
+      "currentPrivacyVersion": "Versión de privacidad actual",
+      "acceptedTermsVersion": "Versión de términos aceptada",
+      "currentTermsVersion": "Versión de términos actual",
+      "viewPrivacyPolicy": "Ver política de privacidad",
+      "viewTermsOfService": "Ver términos de servicio",
+      "parentalConsentAt": "Consentimiento del padre registrado",
+      "parentalConsentBy": "Consentimiento registrado por",
+      "dataRegion": "Región de datos",
+      "familyCreatedAt": "Familia creada",
+      "lastActivityAt": "Última actividad de la familia",
+      "consentStatus": "Estado del consentimiento",
+      "consentStatusCurrent": "Al día",
+      "consentStatusOutdated": "Requiere nueva aceptación",
+      "recordConsent": "Registrar consentimiento",
+      "updateConsent": "Actualizar consentimiento",
+      "consentRecorded": "Consentimiento registrado.",
+      "consentNeeded": "El consentimiento de los términos o la política de privacidad falta o está desactualizado. Por favor revise y acepte las versiones actuales.",
+      "saving": "Guardando...",
+      "consentHistoryTitle": "Historial de consentimiento",
+      "consentHistoryHelp": "Registro inmutable de todas las aceptaciones de consentimiento para esta familia.",
+      "consentHistoryEmpty": "No se han registrado eventos de consentimiento todavía.",
+      "consentHistoryDate": "Fecha",
+      "consentHistoryEvent": "Evento",
+      "consentHistoryDocument": "Documento",
+      "consentHistoryVersion": "Versión",
+      "summaryTitle": "Resumen de datos de la familia",
+      "summaryHelp": "Lo que Family Chores almacena sobre tu familia.",
+      "summaryTracked": "Registrado",
+      "summary": {
+        "familyProfile": "Perfil de la familia",
+        "parentAccounts": "Cuentas de padres",
+        "childAccounts": "Cuentas de niños",
+        "chores": "Tareas",
+        "rewards": "Monedas y recompensas",
+        "achievements": "Logros",
+        "questProgress": "Progreso de misiones",
+        "inventory": "Inventario y desbloqueos",
+        "feed": "Registros de novedades y actividad",
+        "apiTokens": "Tokens de API"
+      },
+      "downloadTitle": "Descargar datos de la familia",
+      "downloadHelp": "Exporta los datos de tu familia como un archivo JSON. Nunca se incluyen secretos.",
+      "downloadAction": "Descargar datos de la familia",
+      "preparing": "Preparando...",
+      "deletionTitle": "Eliminar datos de la familia",
+      "deletionHelp": "Solicita la eliminación de los datos de tu familia. La eliminación se programa con un período de gracia de 30 días y se puede cancelar en cualquier momento antes.",
+      "requestDeletion": "Solicitar eliminación de la familia",
+      "deletionConfirm": "Esto programa la eliminación de los datos de tu familia en 30 días. Puedes cancelar en cualquier momento durante el período de gracia. ¿Continuar?",
+      "deletionScheduled": "La eliminación está programada para el {date}. Puedes cancelar en cualquier momento antes.",
+      "deletionScheduledNotice": "Eliminación de la familia programada.",
+      "cancelDeletion": "Cancelar solicitud de eliminación",
+      "deletionCanceledNotice": "Solicitud de eliminación cancelada.",
+      "loadError": "No se pudieron cargar los ajustes de privacidad: {error}"
     },
     "awards": {
       "submitToCommunity": "Enviar a Premios comunitarios",
@@ -899,6 +1064,7 @@
     "changeLogSubtitle": "Ultimas actualizaciones y correcciones de la app Family Chores.",
     "choresSubtitle": "Ordena, filtra y aprueba tareas",
     "profileSubtitle": "Los detalles de tu cuenta y la personalizacion.",
+    "supportSubtitle": "Estado operativo entre familias, actividad reciente y diagnosticos de soporte.",
     "dashboardSubtitle": "Ver, crear y administrar tareas activas"
   },
   "quests": {

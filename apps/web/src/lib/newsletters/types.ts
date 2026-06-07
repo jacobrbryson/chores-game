@@ -27,11 +27,15 @@ export type WeeklyFamilyHighlightMetrics = {
   pendingApprovals: number;
   mostActiveHelperName: string;
   mostActiveHelperCount: number;
+  mostActiveHelperAvatarId: string;
+  mostActiveHelperAvatarPhotoUrl: string;
+  mostActiveHelperPrimaryColor: string;
   recentHighlights: Array<{
     id: string;
     title: string;
     message: string;
     createdAt: string;
+    icon: string;
   }>;
   hasActivity: boolean;
 };

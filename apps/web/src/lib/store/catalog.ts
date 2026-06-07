@@ -45,6 +45,11 @@ export type StoreOption = {
 	confetti?: ConfettiPreset;
 	isDefault?: boolean;
 	price?: number;
+	// Optional publish timestamp (ISO) used by the Discovery / What's New system
+	// to detect "new store items" added after a viewer last looked. Existing
+	// options intentionally omit this so they are not treated as new; set it on
+	// genuinely new options going forward.
+	addedAt?: string;
 };
 
 export type StoreCategory = {

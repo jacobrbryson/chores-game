@@ -6,6 +6,7 @@ import {
   documentIdFromName,
   findFirstFamilyIdByMemberEmail,
   findFirstFamilyIdByMemberUid,
+  type FirestoreDocument,
   type FirestoreValue,
   getDocument,
   listDocuments,
@@ -19,6 +20,7 @@ import {
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
+import { adminGetDocument } from "@/lib/firestore/admin";
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
 import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
 import type { FamilySnapshotMember, FamilySummaryResponse } from "@/lib/family/types";
@@ -156,6 +158,50 @@ function createEmptyMemberStats() {
     lifetimeCoinsEarned: 0,
     currentCoins: 0,
   };
+}
+
+function isFirestoreNotFound(error: unknown) {
+  const reason = error instanceof Error ? error.message : "";
+  return reason.includes("FIRESTORE_HTTP_404") || reason.includes("FIRESTORE_ADMIN_HTTP_404");
+}
+
+function isFirestoreForbidden(error: unknown) {
+  const reason = error instanceof Error ? error.message : "";
+  return reason.includes("FIRESTORE_HTTP_403") || reason.includes("PERMISSION_DENIED");
+}
+
+async function getSummaryUserDoc(
+  uid: string,
+  idToken: string,
+  currentSessionUid: string,
+  currentUserDoc: FirestoreDocument | null,
+) {
+  if (uid === currentSessionUid) {
+    return currentUserDoc;
+  }
+  try {
+    return await getDocument(`users/${uid}`, idToken);
+  } catch (error) {
+    if (isFirestoreNotFound(error)) {
+      return null;
+    }
+    if (!isFirestoreForbidden(error)) {
+      throw error;
+    }
+  }
+
+  try {
+    return await adminGetDocument(`users/${uid}`);
+  } catch (error) {
+    if (isFirestoreNotFound(error)) {
+      return null;
+    }
+    const reason = error instanceof Error ? error.message : "";
+    if (reason.includes("ADMIN_CREDENTIALS_UNAVAILABLE")) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function resolveMemberStatsKey(member: {
@@ -392,7 +438,6 @@ export async function GET(request: NextRequest) {
           rawMembers.find(
             (member) => !member.uid && member.email.trim().toLowerCase() === normalizedSessionEmail,
           );
-        const viewerRole = viewerMember?.role ?? "player";
 
         const memberStatsByKey = new Map<
           string,
@@ -421,23 +466,13 @@ export async function GET(request: NextRequest) {
             if (!member.uid) {
               return;
             }
-            if (viewerRole !== "admin" && member.uid !== session.uid) {
-              return;
-            }
-            try {
-              const currentUserDoc =
-                member.uid === session.uid
-                  ? userDoc
-                  : await getDocument(`users/${member.uid}`, idToken);
-              memberUserDocByUid.set(member.uid, currentUserDoc);
-            } catch (error) {
-              const reason = error instanceof Error ? error.message : "";
-              if (reason.includes("FIRESTORE_HTTP_404")) {
-                memberUserDocByUid.set(member.uid, null);
-                return;
-              }
-              throw error;
-            }
+            const currentUserDoc = await getSummaryUserDoc(
+              member.uid,
+              idToken,
+              session.uid,
+              userDoc,
+            );
+            memberUserDocByUid.set(member.uid, currentUserDoc);
           }),
         );
 

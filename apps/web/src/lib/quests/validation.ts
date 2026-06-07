@@ -134,6 +134,7 @@ export function validateQuestDefinition(rawQuest: unknown): QuestDefinition {
     copyright: asString(source.copyright),
     version: asString(source.version),
     difficulty: asString(source.difficulty, "easy") as QuestDefinition["difficulty"],
+    publishedAt: typeof source.publishedAt === "string" ? source.publishedAt : undefined,
     coverImage: asString(source.coverImage),
     coverImageAlt: asString(source.coverImageAlt),
     summary: asString(source.summary),

@@ -89,6 +89,39 @@ export async function listDocuments(path: string, idToken: string, pageSize = 50
   return response.documents ?? [];
 }
 
+// Firestore REST caps documents.list pageSize at 300 and a single call never
+// returns more than one page, so listDocuments silently drops anything beyond
+// that. listAllDocuments follows nextPageToken until the collection is
+// exhausted (or the safety cap is hit) so callers can read an entire collection.
+export async function listAllDocuments(
+  path: string,
+  idToken: string,
+  options?: { cap?: number; pageSize?: number },
+) {
+  const cap = options?.cap ?? 5000;
+  const pageSize = Math.min(300, Math.max(1, options?.pageSize ?? 300));
+  const documents: FirestoreDocument[] = [];
+  let pageToken = "";
+  do {
+    const params = new URLSearchParams({ pageSize: String(pageSize) });
+    if (pageToken) {
+      params.set("pageToken", pageToken);
+    }
+    const response = await requestFirestore<{
+      documents?: FirestoreDocument[];
+      nextPageToken?: string;
+    }>(`${path}?${params.toString()}`, idToken);
+    for (const doc of response.documents ?? []) {
+      documents.push(doc);
+      if (documents.length >= cap) {
+        return documents;
+      }
+    }
+    pageToken = response.nextPageToken ?? "";
+  } while (pageToken);
+  return documents;
+}
+
 export async function patchDocument(
   path: string,
   fields: Record<string, FirestoreValue>,
@@ -350,6 +383,52 @@ export async function runQuery(
 export function documentIdFromName(name: string) {
   const parts = name.split("/");
   return parts[parts.length - 1] ?? "";
+}
+
+export type PlainFirestoreValue =
+  | string
+  | number
+  | boolean
+  | null
+  | PlainFirestoreValue[]
+  | { [key: string]: PlainFirestoreValue };
+
+// Converts a single Firestore REST value into a plain JSON value. Useful for
+// support tooling and data exports that need human/JSON-friendly records.
+export function firestoreValueToPlain(value: FirestoreValue): PlainFirestoreValue {
+  if ("stringValue" in value) {
+    return value.stringValue;
+  }
+  if ("integerValue" in value) {
+    const parsed = Number(value.integerValue);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if ("timestampValue" in value) {
+    return value.timestampValue;
+  }
+  if ("booleanValue" in value) {
+    return value.booleanValue;
+  }
+  if ("arrayValue" in value) {
+    return (value.arrayValue.values ?? []).map(firestoreValueToPlain);
+  }
+  if ("nullValue" in value) {
+    return null;
+  }
+  return Object.fromEntries(
+    Object.entries(value.mapValue.fields ?? {}).map(([key, entry]) => [
+      key,
+      firestoreValueToPlain(entry),
+    ]),
+  );
+}
+
+export function fieldsToPlainObject(
+  fields: Record<string, FirestoreValue> | undefined,
+): Record<string, PlainFirestoreValue> {
+  return Object.fromEntries(
+    Object.entries(fields ?? {}).map(([key, value]) => [key, firestoreValueToPlain(value)]),
+  );
 }
 
 export function readString(

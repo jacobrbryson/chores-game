@@ -5,6 +5,7 @@ const mockGetSessionFromRequest = vi.fn();
 const mockSetSessionUserCookie = vi.fn();
 const mockGetDocument = vi.fn();
 const mockListDocuments = vi.fn();
+const mockListAllDocuments = vi.fn();
 const mockListFamilyCategories = vi.fn();
 const mockSyncGoogleTasksForUser = vi.fn();
 
@@ -27,6 +28,7 @@ vi.mock("@/lib/firestore/rest", () => ({
   getDocument: mockGetDocument,
   integerField: (value: number) => value,
   listDocuments: mockListDocuments,
+  listAllDocuments: mockListAllDocuments,
   patchDocument: vi.fn(),
   readBoolean: (fields: Record<string, unknown> | undefined, key: string) =>
     Boolean(fields?.[key]),
@@ -164,6 +166,10 @@ describe("GET /api/chores", () => {
           },
         ];
       }
+      throw new Error(`Unexpected listDocuments path: ${path}`);
+    });
+
+    mockListAllDocuments.mockImplementation(async (path: string) => {
       if (path === "families/family-1/chores") {
         return [
           {
@@ -210,7 +216,7 @@ describe("GET /api/chores", () => {
           },
         ];
       }
-      throw new Error(`Unexpected listDocuments path: ${path}`);
+      throw new Error(`Unexpected listAllDocuments path: ${path}`);
     });
 
     mockListFamilyCategories.mockResolvedValue([]);
@@ -228,7 +234,7 @@ describe("GET /api/chores", () => {
     vi.useRealTimers();
   });
 
-  it("includes open chores up to 24 hours ahead but hides far-future open chores", async () => {
+  it("returns the full chore archive including far-future chores", async () => {
     const { GET } = await import("./route");
     const request = {
       nextUrl: new URL(
@@ -240,17 +246,45 @@ describe("GET /api/chores", () => {
 
     expect(response.status).toBe(200);
     const payload = await response.json();
-    expect(payload).toMatchObject({
-      chores: [
-        expect.objectContaining({
-          id: "tomorrow-open",
-          title: "Pack school bag",
-          status: "Open",
-          dueDate: "2026-06-01",
-        }),
-      ],
-    });
-    expect(payload.chores).toHaveLength(1);
-    expect(payload.chores[0]?.id).toBe("tomorrow-open");
+    expect(payload.chores).toHaveLength(2);
+    expect(payload.chores.map((chore: { id: string }) => chore.id)).toEqual([
+      "tomorrow-open",
+      "far-future-open",
+    ]);
+    expect(payload.totalUnfiltered).toBe(2);
+    expect(payload.pagination.total).toBe(2);
+    expect(Array.isArray(payload.familyCategories)).toBe(true);
+  });
+
+  it("applies the coin range filter", async () => {
+    const { GET } = await import("./route");
+    const request = {
+      nextUrl: new URL(
+        "http://localhost/api/chores?page=1&limit=50&sortBy=sortOrder&sortDir=asc&coinMin=6",
+      ),
+    } as Request & { nextUrl: URL };
+
+    const response = await GET(request as never);
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.chores).toHaveLength(0);
+    expect(payload.totalUnfiltered).toBe(2);
+  });
+
+  it("filters to recurring chores only", async () => {
+    const { GET } = await import("./route");
+    const request = {
+      nextUrl: new URL(
+        "http://localhost/api/chores?page=1&limit=50&sortBy=sortOrder&sortDir=asc&status=recurring",
+      ),
+    } as Request & { nextUrl: URL };
+
+    const response = await GET(request as never);
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    // Both fixtures use recurrenceType "none", so none match.
+    expect(payload.chores).toHaveLength(0);
   });
 });

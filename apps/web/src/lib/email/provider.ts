@@ -33,6 +33,22 @@ export function getEmailFromAddress() {
   return value;
 }
 
+export function getEmailFromName() {
+  return process.env.EMAIL_FROM_NAME?.trim() || "Family Chores";
+}
+
+// The SES "Source" combines a friendly display name with the from address so inboxes
+// show e.g. "Family Chores" instead of the bare local part ("reply"). If the configured
+// address already carries its own display name (`Name <a@b.com>`), it is used verbatim.
+export function getEmailSource() {
+  const address = getEmailFromAddress();
+  if (address.includes("<")) {
+    return address;
+  }
+  const name = getEmailFromName().replace(/["\\]/g, "").trim();
+  return name ? `"${name}" <${address}>` : address;
+}
+
 export function getEmailReplyToAddresses() {
   return parseEmailList(process.env.EMAIL_REPLY_TO_ADDRESS);
 }

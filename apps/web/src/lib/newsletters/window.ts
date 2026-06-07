@@ -7,16 +7,16 @@ function startOfUtcDay(date: Date) {
 }
 
 export function getPreviousWeeklyWindow(now = new Date()): WeeklyWindow {
-  const currentDay = startOfUtcDay(now);
-  const mondayOffset = (currentDay.getUTCDay() + 6) % 7;
-  const currentWeekStartMillis = currentDay.getTime() - mondayOffset * DAY_MILLIS;
-  const previousWeekStart = new Date(currentWeekStartMillis - 7 * DAY_MILLIS);
-  const previousWeekEnd = new Date(currentWeekStartMillis - 1);
+  // Rolling 7-day window ending today (inclusive). e.g. if today is June 6, the
+  // window spans May 30 through June 6 rather than the prior calendar week.
+  const todayStart = startOfUtcDay(now);
+  const weekStart = new Date(todayStart.getTime() - 7 * DAY_MILLIS);
+  const weekEnd = new Date(todayStart.getTime() + DAY_MILLIS - 1);
   return {
-    weekStart: previousWeekStart.toISOString(),
-    weekEnd: previousWeekEnd.toISOString(),
-    weekStartDateOnly: previousWeekStart.toISOString().slice(0, 10),
-    weekEndDateOnly: previousWeekEnd.toISOString().slice(0, 10),
+    weekStart: weekStart.toISOString(),
+    weekEnd: weekEnd.toISOString(),
+    weekStartDateOnly: weekStart.toISOString().slice(0, 10),
+    weekEndDateOnly: weekEnd.toISOString().slice(0, 10),
   };
 }
 

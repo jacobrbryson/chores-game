@@ -24,6 +24,7 @@ type TailwindMultiSelectProps<T extends string = string> = {
   disabled?: boolean;
   placeholder?: string;
   emptyState?: ReactNode;
+  selectedSummaryLabel?: (count: number) => string;
 };
 
 function joinClasses(...classes: Array<string | undefined | false>) {
@@ -45,6 +46,7 @@ export function TailwindMultiSelect<T extends string = string>({
   disabled = false,
   placeholder = "Select options",
   emptyState,
+  selectedSummaryLabel,
 }: TailwindMultiSelectProps<T>) {
   const MENU_GAP_PX = 6;
   const VIEWPORT_MARGIN_PX = 8;
@@ -150,8 +152,11 @@ export function TailwindMultiSelect<T extends string = string>({
     if (selectedOptions.length === 1) {
       return selectedOptions[0]?.label ?? placeholder;
     }
-    return `${selectedOptions.length} selected`;
-  }, [placeholder, selectedOptions]);
+    return selectedSummaryLabel
+      ? selectedSummaryLabel(selectedOptions.length)
+      : `${selectedOptions.length} selected`;
+  }, [placeholder, selectedOptions, selectedSummaryLabel]);
+  const selectedLeading = selectedOptions.length === 1 ? selectedOptions[0]?.leading ?? null : null;
 
   function findNextEnabledIndex(start: number, direction: 1 | -1) {
     if (options.length === 0) {
@@ -261,7 +266,14 @@ export function TailwindMultiSelect<T extends string = string>({
                   )}
                   onMouseEnter={() => setHighlightedIndex(index)}
                   onClick={() => toggleIndex(index)}>
-                  <span>{option.label}</span>
+                  {option.leading ? (
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="shrink-0">{option.leading}</span>
+                      <span className="truncate">{option.label}</span>
+                    </span>
+                  ) : (
+                    <span className="truncate">{option.label}</span>
+                  )}
                   <span aria-hidden="true">{selected ? "\u2713" : ""}</span>
                 </button>
               </li>
@@ -284,7 +296,10 @@ export function TailwindMultiSelect<T extends string = string>({
         className={joinClasses("theme-select-trigger", buttonClassName)}
         onKeyDown={onButtonKeyDown}
         onClick={() => setOpen((current) => !current)}>
-        <span className="truncate text-left">{selectedLabel}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          {selectedLeading ? <span className="shrink-0">{selectedLeading}</span> : null}
+          <span className="truncate text-left">{selectedLabel}</span>
+        </span>
         <svg
           aria-hidden="true"
           viewBox="0 0 20 20"

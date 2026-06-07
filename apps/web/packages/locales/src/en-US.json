@@ -114,6 +114,15 @@
       }
     }
   },
+  "publicContent": {
+    "lastReviewed": "Reviewed {date}",
+    "ageRange": "Age range",
+    "difficulty": "Difficulty",
+    "estimatedMinutes": "Estimated minutes",
+    "ctaTitle": "Make chores easier at home",
+    "ctaBody": "Family Chores helps parents assign chores, approve work, and turn routines into rewards.",
+    "ctaAction": "Start with Family Chores"
+  },
   "achievements": {
     "audiences": "Achievement audiences",
     "loading": "Loading achievements",
@@ -129,6 +138,28 @@
       "all": "All",
       "player": "Player",
       "admin": "Parent (Admin)"
+    }
+  },
+  "discovery": {
+    "badgeLabel": "{count} new",
+    "whatsNewTitle": "What's new",
+    "whatsNewDescription": "New things are waiting for you",
+    "empty": "You're all caught up!",
+    "actions": {
+      "view": "View"
+    },
+    "sections": {
+      "chores": "Chores",
+      "store": "Store",
+      "storeCustomizeColors": "Colors",
+      "storeCustomizeAvatar": "Avatars",
+      "storeVictoryConfetti": "Confetti",
+      "storeFamilyAwards": "Family Awards",
+      "storeQuestItems": "Quest Items",
+      "quests": "Quests",
+      "achievements": "Achievements",
+      "changelog": "Change Log",
+      "communityAwards": "Community Awards"
     }
   },
   "dashboard": {
@@ -298,7 +329,7 @@
     "controls": {
       "ariaLabel": "Chore controls",
       "search": "Search chores",
-      "searchPlaceholder": "Search chores (3+ chars)",
+      "searchPlaceholder": "Search all columns (3+ chars)",
       "expand": "Expand chore controls",
       "collapse": "Collapse chore controls",
       "filters": "Filters",
@@ -307,7 +338,9 @@
     "filters": {
       "all": "All",
       "needsApproval": "Needs Approval",
-      "completed": "Completed"
+      "completed": "Completed",
+      "open": "Active",
+      "recurring": "Recurring"
     },
     "sort": {
       "title": "Title",
@@ -320,7 +353,8 @@
     "pager": {
       "previous": "Previous",
       "next": "Next",
-      "pageOf": "Page {page} of {totalPages}"
+      "pageOf": "Page {page} of {totalPages}",
+      "rowsPerPage": "Rows per page"
     },
     "modals": {
       "close": "Close dialog",
@@ -340,6 +374,78 @@
       "noCategoriesBody": "No categories exist yet. Apply now to clear selected chores categories.",
       "deleteSelectedTitle": "Delete Selected Chores",
       "deleteSelectedPrompt": "Delete {count} selected chore{suffix}?"
+    },
+    "selectChoreAriaLabel": "Select chore {title}",
+    "columns": {
+      "label": "Columns",
+      "title": "Title",
+      "categories": "Categories",
+      "status": "Status",
+      "assignee": "Assignee",
+      "type": "Type",
+      "due": "Due",
+      "completed": "Completed",
+      "coins": "Coins",
+      "recurrence": "Repeats",
+      "approval": "Approval",
+      "actions": "Actions"
+    },
+    "density": {
+      "label": "Row density",
+      "comfortable": "Comfortable",
+      "compact": "Compact"
+    },
+    "completionWindow": {
+      "today": "Today",
+      "week": "This week",
+      "month": "This month",
+      "year": "This year"
+    },
+    "filterPanel": {
+      "allAssignees": "All assignees",
+      "familyAssignee": "Family",
+      "selectedAssignees": "{count} assignees",
+      "anyCategory": "Any category",
+      "anyType": "Any type",
+      "anyApproval": "Any approval",
+      "approvalRequired": "Approval required",
+      "approvalNotRequired": "No approval",
+      "coinRange": "Coin range",
+      "coinMin": "Minimum coins",
+      "coinMax": "Maximum coins",
+      "min": "Min",
+      "max": "Max",
+      "dueRange": "Due date range",
+      "dueFrom": "Due from",
+      "dueTo": "Due to",
+      "completedRange": "Completed date range",
+      "completedFrom": "Completed from",
+      "completedTo": "Completed to",
+      "clearAll": "Clear all filters",
+      "saveAsView": "Save as view",
+      "saveView": "Save",
+      "viewNamePlaceholder": "Name this view..."
+    },
+    "choreType": {
+      "normal": "Normal",
+      "group": "Group",
+      "seeAndDo": "See & Do"
+    },
+    "approval": {
+      "required": "Required",
+      "no": "No"
+    },
+    "recurrence": {
+      "instant": "Instant",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "customFilter": "Custom",
+      "custom": "Every {interval} {unit}"
+    },
+    "results": {
+      "showing": "Showing {from}–{to} of {total}",
+      "filteredFrom": "filtered from {totalUnfiltered}"
     }
   },
   "notificationsPage": {
@@ -523,8 +629,8 @@
     "weekly": {
       "subject": "Your Family Chores highlights for {startDate} to {endDate}",
       "title": "Weekly Family Highlights",
-      "greeting": "Hello, {familyName} family!",
-      "familyFallbackName": "your",
+      "greeting": "Hello, {familyName}!",
+      "familyFallbackName": "your family",
       "intro": "Here is your family's recap for {dateRange}.",
       "metrics": {
         "choresCompleted": "Chores completed",
@@ -540,6 +646,7 @@
       "noMostActiveHelper": "No standout helper this week yet.",
       "recentHighlights": "Recent feed highlights",
       "noRecentHighlights": "No recent highlights this week yet.",
+      "recentEnhancements": "New this week",
       "proTip": "Pro-tip of the week",
       "openDashboard": "Open dashboard",
       "managePreferences": "Manage email preferences",
@@ -834,7 +941,65 @@
       "members": "Members",
       "awards": "Awards",
       "categories": "Categories",
-      "quests": "Quests"
+      "quests": "Quests",
+      "privacy": "Privacy"
+    },
+    "privacy": {
+      "overviewTitle": "Privacy Overview",
+      "acceptedPrivacyVersion": "Privacy policy version accepted",
+      "currentPrivacyVersion": "Current privacy version",
+      "acceptedTermsVersion": "Terms version accepted",
+      "currentTermsVersion": "Current terms version",
+      "viewPrivacyPolicy": "View Privacy Policy",
+      "viewTermsOfService": "View Terms of Service",
+      "parentalConsentAt": "Parent consent recorded",
+      "parentalConsentBy": "Consent recorded by",
+      "dataRegion": "Data region",
+      "familyCreatedAt": "Family created",
+      "lastActivityAt": "Last family activity",
+      "consentStatus": "Consent status",
+      "consentStatusCurrent": "Up to date",
+      "consentStatusOutdated": "Needs re-acceptance",
+      "recordConsent": "Record Consent",
+      "updateConsent": "Update Consent",
+      "consentRecorded": "Consent recorded.",
+      "consentNeeded": "Terms or privacy consent is missing or out of date. Please review and accept the current versions below.",
+      "saving": "Saving...",
+      "consentHistoryTitle": "Consent History",
+      "consentHistoryHelp": "Immutable record of all consent acceptances for this family.",
+      "consentHistoryEmpty": "No consent events recorded yet.",
+      "consentHistoryDate": "Date",
+      "consentHistoryEvent": "Event",
+      "consentHistoryDocument": "Document",
+      "consentHistoryVersion": "Version",
+      "summaryTitle": "Family Data Summary",
+      "summaryHelp": "What Family Chores stores for your family.",
+      "summaryTracked": "Tracked",
+      "summary": {
+        "familyProfile": "Family profile",
+        "parentAccounts": "Parent accounts",
+        "childAccounts": "Child accounts",
+        "chores": "Chores",
+        "rewards": "Coins & rewards",
+        "achievements": "Achievements",
+        "questProgress": "Quest progress",
+        "inventory": "Inventory & unlocks",
+        "feed": "Feed & activity records",
+        "apiTokens": "API tokens"
+      },
+      "downloadTitle": "Download Family Data",
+      "downloadHelp": "Export your family's data as a JSON file. Secrets are never included.",
+      "downloadAction": "Download Family Data",
+      "preparing": "Preparing...",
+      "deletionTitle": "Delete Family Data",
+      "deletionHelp": "Request deletion of your family's data. Deletion is scheduled with a 30-day grace period and can be canceled any time before then.",
+      "requestDeletion": "Request Family Deletion",
+      "deletionConfirm": "This schedules deletion of your family's data in 30 days. You can cancel any time during the grace period. Continue?",
+      "deletionScheduled": "Deletion is scheduled for {date}. You can cancel any time before then.",
+      "deletionScheduledNotice": "Family deletion scheduled.",
+      "cancelDeletion": "Cancel Deletion Request",
+      "deletionCanceledNotice": "Deletion request canceled.",
+      "loadError": "Could not load privacy settings: {error}"
     },
     "awards": {
       "submitToCommunity": "Submit to Community Awards",
@@ -899,6 +1064,7 @@
     "changeLogSubtitle": "Latest updates and fixes from the Family Chores app.",
     "choresSubtitle": "Sort, filter, and approve chores",
     "profileSubtitle": "Your account details and personalization settings.",
+    "supportSubtitle": "Cross-family operational health, recent activity, and support diagnostics.",
     "dashboardSubtitle": "View, create, and manage active chores"
   },
   "quests": {

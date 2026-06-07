@@ -15,6 +15,11 @@ import type {
 } from "@/lib/newsletters/types";
 import { resolveWeeklyFamilyHighlightsEmailPreference } from "@/lib/newsletters/preferences";
 import { isIsoWithinWindow } from "@/lib/newsletters/window";
+import {
+  FEED_FALLBACK_EMOJI,
+  feedTypeEmoji,
+  mapNotificationKindToFeedType,
+} from "@/lib/feed/feed-events";
 
 type FamilyContext = {
   familyId: string;
@@ -150,14 +155,23 @@ export async function computeWeeklyFamilyHighlightMetrics(input: {
 
   let mostActiveHelperName = "";
   let mostActiveHelperCount = 0;
+  let mostActiveHelperAvatarId = "";
+  let mostActiveHelperAvatarPhotoUrl = "";
+  let mostActiveHelperPrimaryColor = "";
   for (const [assigneeId, count] of completedCounts) {
     if (count <= mostActiveHelperCount) {
       continue;
     }
     mostActiveHelperCount = count;
+    mostActiveHelperAvatarId = "";
+    mostActiveHelperAvatarPhotoUrl = "";
+    mostActiveHelperPrimaryColor = "";
     try {
       const memberDoc = await adminGetDocument(`families/${input.familyId}/members/${assigneeId}`);
       mostActiveHelperName = readString(memberDoc.fields, "name") || assigneeId;
+      mostActiveHelperAvatarId = readString(memberDoc.fields, "avatarId");
+      mostActiveHelperAvatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
+      mostActiveHelperPrimaryColor = readString(memberDoc.fields, "dashboardPrimaryColor");
     } catch {
       mostActiveHelperName = assigneeId;
     }
@@ -229,12 +243,16 @@ export async function computeWeeklyFamilyHighlightMetrics(input: {
       return rightMillis - leftMillis;
     })
     .slice(0, 5)
-    .map((doc) => ({
-      id: documentIdFromName(doc.name),
-      title: activityTitle(doc.fields),
-      message: readString(doc.fields, "message"),
-      createdAt: readTimestamp(doc.fields, "createdAt"),
-    }));
+    .map((doc) => {
+      const feedType = mapNotificationKindToFeedType(readString(doc.fields, "kind"));
+      return {
+        id: documentIdFromName(doc.name),
+        title: activityTitle(doc.fields),
+        message: readString(doc.fields, "message"),
+        createdAt: readTimestamp(doc.fields, "createdAt"),
+        icon: feedType ? feedTypeEmoji(feedType) : FEED_FALLBACK_EMOJI,
+      };
+    });
 
   const hasActivity =
     choresCompleted > 0 ||
@@ -256,6 +274,9 @@ export async function computeWeeklyFamilyHighlightMetrics(input: {
     pendingApprovals,
     mostActiveHelperName,
     mostActiveHelperCount,
+    mostActiveHelperAvatarId,
+    mostActiveHelperAvatarPhotoUrl,
+    mostActiveHelperPrimaryColor,
     recentHighlights,
     hasActivity,
   };

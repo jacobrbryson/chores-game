@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CoinIcon } from "@/components/coin-icon";
+import { DiscoveryBadge } from "@/components/discovery-badge";
+import { getSectionCount, useDiscoverySummary } from "@/lib/hooks/use-discovery";
 
 type HeaderStoreLinkProps = {
 	visible: boolean;
@@ -23,6 +25,9 @@ function formatCompactBalance(value: number) {
 
 export function HeaderStoreLink({ visible }: HeaderStoreLinkProps) {
 	const [balance, setBalance] = useState(0);
+	// Store discovery badge: total unseen visible store items across categories.
+	const { summary } = useDiscoverySummary(["store"], { enabled: visible });
+	const storeCount = visible ? getSectionCount(summary, "store") : 0;
 
 	async function loadBalance() {
 		if (!visible) {
@@ -65,9 +70,15 @@ export function HeaderStoreLink({ visible }: HeaderStoreLinkProps) {
 	}
 
 	return (
-		<Link href="/store" className="store-link-chip" aria-label="Open store" title="Store">
+		<Link
+			href="/store"
+			className="store-link-chip"
+			style={{ position: "relative" }}
+			aria-label="Open store"
+			title="Store">
 			<CoinIcon size={11} />
 			<span className="store-link-balance">{formatCompactBalance(balance)}</span>
+			<DiscoveryBadge count={storeCount} variant="absolute" />
 		</Link>
 	);
 }

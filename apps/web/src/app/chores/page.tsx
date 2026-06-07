@@ -2,23 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AddEditChoresDialog } from "@/components/add-edit-chores-dialog";
+import { AddEditChoresDialog, FAMILY_ASSIGNEE_OPTION_ID } from "@/components/add-edit-chores-dialog";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { ChipOverflowRow } from "@/components/chip-overflow-row";
-import { ChoreListCard } from "@/components/chore-list-card";
+import { ChoreCategoriesChip } from "@/components/chore-categories-chip";
 import { CoinIcon } from "@/components/coin-icon";
+import { EnumChip } from "@/components/enum-chip";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
-import type { TailwindSelectOption } from "@/components/tailwind-select";
+import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import type {
   ChoreRecurrenceType,
   ChoreRecurrenceUnit,
 } from "@/lib/chores/recurrence";
 import type { ChoreType } from "@/lib/chores/types";
 import { parseCompletionWindow } from "@/lib/preferences/completion-window";
+import { useMarkDiscoverySeen } from "@/lib/hooks/use-discovery";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
 
 type ChoreCategory = {
@@ -60,7 +62,10 @@ type ChoresResponse = {
     name: string;
     avatarId?: string;
     avatarPhotoUrl?: string;
+    primaryColor?: string;
   }>;
+  familyCategories?: ChoreCategory[];
+  totalUnfiltered?: number;
   viewerRole?: "admin" | "player";
   viewerUid?: string;
   viewerAssigneeAliases?: string[];
@@ -75,14 +80,79 @@ type ChoresResponse = {
   };
 };
 
-type FamilyCategoriesResponse = {
-  categories?: ChoreCategory[];
-};
-
 type ChoreResponse = {
   chore?: ChoreRow;
   viewerRole?: "admin" | "player";
 };
+
+type ColumnKey =
+  | "categories"
+  | "status"
+  | "assignee"
+  | "type"
+  | "due"
+  | "completed"
+  | "coins"
+  | "recurrence"
+  | "approval";
+
+// Title is always shown (it is the row's primary label); these are the columns
+// the viewer can toggle on/off from the column-visibility menu.
+const TOGGLEABLE_COLUMNS: ColumnKey[] = [
+  "categories",
+  "status",
+  "assignee",
+  "type",
+  "due",
+  "completed",
+  "coins",
+  "recurrence",
+  "approval",
+];
+
+type ColumnFilterState = {
+  categoryIds: string[];
+  choreTypes: ChoreType[];
+  recurrenceTypes: ChoreRecurrenceType[];
+  requireApproval: "" | "yes" | "no";
+  coinMin: string;
+  coinMax: string;
+  dueFrom: string;
+  dueTo: string;
+  completedFrom: string;
+  completedTo: string;
+};
+
+const EMPTY_COLUMN_FILTERS: ColumnFilterState = {
+  categoryIds: [],
+  choreTypes: [],
+  recurrenceTypes: [],
+  requireApproval: "",
+  coinMin: "",
+  coinMax: "",
+  dueFrom: "",
+  dueTo: "",
+  completedFrom: "",
+  completedTo: "",
+};
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
+const CHORES_PREFS_STORAGE_KEY = "chores.table.prefs.v1";
+const CHORES_SAVED_VIEWS_KEY = "chores.savedViews.v1";
+const CHORES_ACTIVE_FILTERS_KEY = "chores.activeFilters.v1";
+
+function countActiveColumnFilters(filters: ColumnFilterState) {
+  let count = 0;
+  if (filters.categoryIds.length > 0) count += 1;
+  if (filters.choreTypes.length > 0) count += 1;
+  if (filters.recurrenceTypes.length > 0) count += 1;
+  if (filters.requireApproval) count += 1;
+  if (filters.coinMin || filters.coinMax) count += 1;
+  if (filters.dueFrom || filters.dueTo) count += 1;
+  if (filters.completedFrom || filters.completedTo) count += 1;
+  return count;
+}
+
 type ChoreSortBy =
   | "title"
   | "status"
@@ -206,23 +276,57 @@ function parseTimezoneOffsetMinutes(value: string | null) {
   return rounded;
 }
 
+type ChoreStatusQuickFilter =
+  | ""
+  | "all"
+  | "completed"
+  | "needs_approval"
+  | "open";
+
+type SavedView = {
+  id: string;
+  name: string;
+  columnFilters: ColumnFilterState;
+  status: ChoreStatusQuickFilter;
+  assigneeIds: string[];
+};
+
 type RouteFilterState = {
-  assigneeId: string;
-  status: "" | "completed" | "needs_approval";
+  assigneeIds: string[];
+  status: ChoreStatusQuickFilter;
   completedWindow: ReturnType<typeof parseCompletionWindow>;
   tzOffsetMinutes: number | null;
 };
 
+function parseStatusQuickFilter(value: string | null): ChoreStatusQuickFilter {
+  if (value === null) {
+    return "open";
+  }
+  if (
+    value === "all" ||
+    value === "completed" ||
+    value === "needs_approval" ||
+    value === "open"
+  ) {
+    return value;
+  }
+  return "open";
+}
+
 function parseRouteFilters(search: string): RouteFilterState {
   const params = new URLSearchParams(search);
+  const assigneeIds = Array.from(
+    new Set(
+      params
+        .getAll("assigneeId")
+        .flatMap((value) => value.split(","))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
   return {
-    assigneeId: (params.get("assigneeId") ?? "").trim(),
-    status:
-      params.get("status") === "completed"
-        ? "completed"
-        : params.get("status") === "needs_approval"
-          ? "needs_approval"
-          : "",
+    assigneeIds,
+    status: parseStatusQuickFilter(params.get("status")),
     completedWindow: parseCompletionWindow(params.get("completedWindow")),
     tzOffsetMinutes: parseTimezoneOffsetMinutes(params.get("tzOffsetMinutes")),
   };
@@ -592,6 +696,8 @@ function BulkActionsMenu({
 }
 export default function ChoresPage() {
   const { locale, t } = useLocale();
+  // Visiting the full chores page counts as viewing the Chores discovery section.
+  useMarkDiscoverySeen(["chores"], true);
   const [chores, setChores] = useState<ChoreRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -610,20 +716,61 @@ export default function ChoresPage() {
   const [viewerUid, setViewerUid] = useState("");
   const [viewerAssigneeAliases, setViewerAssigneeAliases] = useState<string[]>([]);
   const [assigneeDirectoryByAlias, setAssigneeDirectoryByAlias] = useState<
-    Record<string, { name: string; avatarId?: string; avatarPhotoUrl?: string }>
+    Record<string, { name: string; avatarId?: string; avatarPhotoUrl?: string; primaryColor?: string }>
   >({});
   const [viewerRole, setViewerRole] = useState<"admin" | "player">("player");
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(50);
+  const [pageSize, setPageSize] = useState<number>(50);
   const [total, setTotal] = useState(0);
+  const [totalUnfiltered, setTotalUnfiltered] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [searchInput, setSearchInput] = useState("");
+  const [columnFilters, setColumnFilters] = useState<ColumnFilterState>(() => {
+    if (typeof window === "undefined") {
+      return EMPTY_COLUMN_FILTERS;
+    }
+    try {
+      const raw = window.localStorage.getItem(CHORES_ACTIVE_FILTERS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { columnFilters?: Partial<ColumnFilterState> };
+        if (parsed?.columnFilters && typeof parsed.columnFilters === "object") {
+          return { ...EMPTY_COLUMN_FILTERS, ...parsed.columnFilters };
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return EMPTY_COLUMN_FILTERS;
+  });
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnKey>>(() => new Set());
+  const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
+  const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+    try {
+      const raw = window.localStorage.getItem(CHORES_SAVED_VIEWS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parsed as SavedView[];
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
+  const [saveViewName, setSaveViewName] = useState("");
+  const saveViewInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedChoreStateById, setSelectedChoreStateById] = useState<Record<string, SelectedChoreState>>({});
   const [bulkActionState, setBulkActionState] = useState<BulkActionState | null>(null);
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState<ChoreSortBy>("completedAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [realtimeContext, setRealtimeContext] = useState<{ familyId: string; authToken: string } | null>(null);
   const canCreateChores = viewerRole === "admin" || viewerRole === "player";
   const playerSeeAndDoMode = viewerRole === "player";
@@ -633,15 +780,35 @@ export default function ChoresPage() {
   const [routeFilters, setRouteFilters] = useState<RouteFilterState>(() => {
     if (typeof window === "undefined") {
       return {
-        assigneeId: "",
-        status: "",
+        assigneeIds: [],
+        status: "open",
         completedWindow: null,
         tzOffsetMinutes: null,
       };
     }
-    return parseRouteFilters(window.location.search);
+    const urlParsed = parseRouteFilters(window.location.search);
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has("status") || urlParams.has("assigneeId")) {
+      return urlParsed;
+    }
+    try {
+      const raw = window.localStorage.getItem(CHORES_ACTIVE_FILTERS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { status?: ChoreStatusQuickFilter; assigneeIds?: string[] };
+        if (parsed?.status) {
+          return {
+            ...urlParsed,
+            status: parsed.status,
+            assigneeIds: Array.isArray(parsed.assigneeIds) ? parsed.assigneeIds : [],
+          };
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return urlParsed;
   });
-  const assigneeIdFilter = routeFilters.assigneeId;
+  const assigneeIdFilters = routeFilters.assigneeIds;
   const statusFilter = routeFilters.status;
   const completedWindowFilter = routeFilters.completedWindow;
   const completionFilterTimezoneOffset =
@@ -734,18 +901,49 @@ export default function ChoresPage() {
       if (shouldApplySearch) {
         params.set("q", query.trim());
       }
-      if (assigneeIdFilter) {
-        params.set("assigneeId", assigneeIdFilter);
+      for (const assigneeId of assigneeIdFilters) {
+        params.append("assigneeId", assigneeId);
       }
-      if (statusFilter === "completed") {
-        params.set("status", "completed");
-      }
-      if (statusFilter === "needs_approval") {
-        params.set("status", "needs_approval");
+      if (statusFilter && statusFilter !== "all") {
+        params.set("status", statusFilter);
       }
       params.set("tzOffsetMinutes", String(completionFilterTimezoneOffset));
       if (completedWindowFilter) {
         params.set("completedWindow", completedWindowFilter);
+      }
+      for (const categoryId of columnFilters.categoryIds) {
+        params.append("categoryId", categoryId);
+      }
+      for (const choreType of columnFilters.choreTypes) {
+        params.append("choreType", choreType);
+      }
+      for (const recurrenceType of columnFilters.recurrenceTypes) {
+        params.append("recurrenceType", recurrenceType);
+      }
+      if (columnFilters.requireApproval) {
+        params.set("requireApproval", columnFilters.requireApproval);
+      }
+      if (columnFilters.coinMin.trim()) {
+        params.set("coinMin", columnFilters.coinMin.trim());
+      }
+      if (columnFilters.coinMax.trim()) {
+        params.set("coinMax", columnFilters.coinMax.trim());
+      }
+      if (columnFilters.dueFrom) {
+        params.set("dueFrom", columnFilters.dueFrom);
+      }
+      if (columnFilters.dueTo) {
+        params.set("dueTo", columnFilters.dueTo);
+      } else if (statusFilter === "open") {
+        const now = new Date();
+        const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        params.set("dueTo", localToday);
+      }
+      if (columnFilters.completedFrom) {
+        params.set("completedFrom", columnFilters.completedFrom);
+      }
+      if (columnFilters.completedTo) {
+        params.set("completedTo", columnFilters.completedTo);
       }
       const response = await fetch(`/api/chores?${params.toString()}`, {
         cache: "no-store",
@@ -763,17 +961,20 @@ export default function ChoresPage() {
       setViewerRole(payload.viewerRole === "admin" ? "admin" : "player");
       setViewerUid(payload.viewerUid ?? "");
       setViewerAssigneeAliases(payload.viewerAssigneeAliases ?? []);
-      const nextDirectory: Record<string, { name: string; avatarId?: string; avatarPhotoUrl?: string }> = {};
+      const nextDirectory: Record<string, { name: string; avatarId?: string; avatarPhotoUrl?: string; primaryColor?: string }> = {};
       for (const entry of payload.assigneeDirectory ?? []) {
         nextDirectory[entry.id] = {
           name: entry.name,
           avatarId: entry.avatarId,
           avatarPhotoUrl: entry.avatarPhotoUrl,
+          primaryColor: entry.primaryColor,
         };
       }
       setAssigneeDirectoryByAlias(nextDirectory);
+      setAvailableCategories(payload.familyCategories ?? []);
       setPage(payload.pagination?.page ?? targetPage);
       setTotal(payload.pagination?.total ?? payload.chores.length ?? 0);
+      setTotalUnfiltered(payload.totalUnfiltered ?? payload.pagination?.total ?? payload.chores.length ?? 0);
       setTotalPages(payload.pagination?.totalPages ?? 1);
       const familyId = payload.familyId?.trim() ?? "";
       const authToken = payload.wsAuthToken?.trim() ?? "";
@@ -795,7 +996,8 @@ export default function ChoresPage() {
       }
     }
   }, [
-    assigneeIdFilter,
+    assigneeIdFilters,
+    columnFilters,
     completedWindowFilter,
     completionFilterTimezoneOffset,
     page,
@@ -806,27 +1008,6 @@ export default function ChoresPage() {
     sortDir,
     statusFilter,
   ]);
-
-  const loadFamilyCategories = useCallback(async () => {
-    if (viewerRole !== "admin") {
-      setAvailableCategories([]);
-      return;
-    }
-    try {
-      const response = await fetch("/api/family/categories", { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error("family_categories_unavailable");
-      }
-      const payload = (await response.json()) as FamilyCategoriesResponse;
-      setAvailableCategories(payload.categories ?? []);
-    } catch {
-      setAvailableCategories([]);
-    }
-  }, [viewerRole]);
-
-  useEffect(() => {
-    void loadFamilyCategories();
-  }, [loadFamilyCategories]);
 
   const applyChoreRow = useCallback((row: ChoreRow | null, choreId: string) => {
     setChores((current) => {
@@ -967,73 +1148,346 @@ export default function ChoresPage() {
     setSortBy(column);
   }
 
-  function updateStatusRouteFilter(nextStatus: RouteFilterState["status"]) {
-    if (typeof window === "undefined") {
+  // Status, assignee and the completed-date window are mirrored to the URL so
+  // dashboard deep-links keep working and quick filters survive a refresh.
+  const applyRouteFilters = useCallback(
+    (patch: Partial<Pick<RouteFilterState, "status" | "assigneeIds" | "completedWindow">>) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+      const current = parseRouteFilters(window.location.search);
+      const merged = {
+        status: patch.status !== undefined ? patch.status : current.status,
+        assigneeIds: patch.assigneeIds !== undefined ? patch.assigneeIds : current.assigneeIds,
+        completedWindow:
+          patch.completedWindow !== undefined ? patch.completedWindow : current.completedWindow,
+      };
+      if (merged.status !== "completed") {
+        merged.completedWindow = null;
+      }
+      const params = new URLSearchParams(window.location.search);
+      if (merged.status) {
+        params.set("status", merged.status);
+      } else {
+        params.delete("status");
+      }
+      params.delete("assigneeId");
+      for (const assigneeId of merged.assigneeIds) {
+        if (assigneeId) {
+          params.append("assigneeId", assigneeId);
+        }
+      }
+      if (merged.completedWindow) {
+        params.set("completedWindow", merged.completedWindow);
+      } else {
+        params.delete("completedWindow");
+        params.delete("tzOffsetMinutes");
+      }
+      const nextSearch = params.toString();
+      window.history.pushState({}, "", `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`);
+      setRouteFilters(parseRouteFilters(window.location.search));
+      setPage(1);
+    },
+    [],
+  );
+
+  const updateColumnFilters = useCallback((patch: Partial<ColumnFilterState>) => {
+    setColumnFilters((current) => ({ ...current, ...patch }));
+    setActiveViewId(null);
+    setPage(1);
+  }, []);
+
+  const toggleColumnFilterValue = useCallback(
+    <T extends string>(key: "categoryIds" | "choreTypes" | "recurrenceTypes", value: T) => {
+      setColumnFilters((current) => {
+        const values = current[key] as T[];
+        const nextValues = values.includes(value)
+          ? values.filter((entry) => entry !== value)
+          : [...values, value];
+        return { ...current, [key]: nextValues };
+      });
+      setActiveViewId(null);
+      setPage(1);
+    },
+    [],
+  );
+
+  const resetAllFilters = useCallback(() => {
+    setSearchInput("");
+    setColumnFilters(EMPTY_COLUMN_FILTERS);
+    setActiveViewId(null);
+    applyRouteFilters({ status: "", assigneeIds: [], completedWindow: null });
+  }, [applyRouteFilters]);
+
+  const applyView = useCallback(
+    (view: SavedView) => {
+      setColumnFilters(view.columnFilters);
+      applyRouteFilters({ status: view.status, assigneeIds: view.assigneeIds });
+      setActiveViewId(view.id);
+      setPage(1);
+    },
+    [applyRouteFilters],
+  );
+
+  const deleteView = useCallback((viewId: string) => {
+    setSavedViews((current) => current.filter((v) => v.id !== viewId));
+    setActiveViewId((current) => (current === viewId ? null : current));
+  }, []);
+
+  const handleSaveView = useCallback(() => {
+    const name = saveViewName.trim();
+    if (!name) {
       return;
     }
-    const params = new URLSearchParams(window.location.search);
-    if (nextStatus) {
-      params.set("status", nextStatus);
-    } else {
-      params.delete("status");
-    }
-    if (nextStatus !== "completed") {
-      params.delete("completedWindow");
-      params.delete("tzOffsetMinutes");
-    }
-    const nextSearch = params.toString();
-    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
-    window.history.pushState({}, "", nextUrl);
-    setRouteFilters(parseRouteFilters(window.location.search));
-    setPage(1);
-  }
+    const newView: SavedView = {
+      id: `view_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      name,
+      columnFilters,
+      status: statusFilter,
+      assigneeIds: assigneeIdFilters,
+    };
+    setSavedViews((current) => [...current, newView]);
+    setActiveViewId(newView.id);
+    setSaveViewOpen(false);
+    setSaveViewName("");
+  }, [assigneeIdFilters, columnFilters, saveViewName, statusFilter]);
 
-  const filterChipItems = useMemo(() => {
-    const items = [
+  const statusChipItems = useMemo(() => {
+    const items: Array<{ id: string; label: string; active: boolean; onSelect: () => void }> = [
+      {
+        id: "open",
+        label: t("choresPage.filters.open"),
+        active: statusFilter === "open",
+        onSelect: () => { setActiveViewId(null); applyRouteFilters({ status: "open" }); },
+      },
       {
         id: "all",
         label: t("choresPage.filters.all"),
-        active: statusFilter === "",
-        onSelect: () => updateStatusRouteFilter(""),
+        active: statusFilter === "all" || statusFilter === "",
+        onSelect: () => { setActiveViewId(null); applyRouteFilters({ status: "all" }); },
       },
     ];
-
     if (viewerRole === "admin") {
       items.push({
         id: "needs_approval",
         label: t("choresPage.filters.needsApproval"),
         active: statusFilter === "needs_approval",
-        onSelect: () => updateStatusRouteFilter("needs_approval"),
+        onSelect: () => { setActiveViewId(null); applyRouteFilters({ status: "needs_approval" }); },
       });
     }
-
     items.push({
       id: "completed",
       label: t("choresPage.filters.completed"),
       active: statusFilter === "completed",
-      onSelect: () => updateStatusRouteFilter("completed"),
+      onSelect: () => { setActiveViewId(null); applyRouteFilters({ status: "completed" }); },
     });
-
     return items;
-  }, [statusFilter, t, updateStatusRouteFilter, viewerRole]);
+  }, [applyRouteFilters, statusFilter, t, viewerRole]);
 
-  const sortChipItems = useMemo(
-    () =>
-      [
-        ["title", "Title"],
-        ["status", t("choresPage.sort.status")],
-        ["assigneeName", t("choresPage.sort.assignee")],
-        ["dueDate", t("choresPage.sort.due")],
-        ["completedAt", t("choresPage.sort.completed")],
-        ["coinValue", t("choresPage.sort.coins")],
-      ].map(([column, label]) => ({
-        id: column,
-        label: sortLabel(column as ChoreSortBy, String(column === "title" ? t("choresPage.sort.title") : label)),
-        active: sortBy === column,
-        onSelect: () => onSort(column as ChoreSortBy),
-      })),
-    [onSort, sortBy, sortLabel, t],
+  // Restore persisted column/density/page-size preferences on mount.
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(CHORES_PREFS_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
+      const parsed = JSON.parse(raw) as {
+        hiddenColumns?: unknown;
+        density?: unknown;
+        pageSize?: unknown;
+      };
+      if (Array.isArray(parsed.hiddenColumns)) {
+        setHiddenColumns(
+          new Set(
+            parsed.hiddenColumns.filter((key): key is ColumnKey =>
+              TOGGLEABLE_COLUMNS.includes(key as ColumnKey),
+            ),
+          ),
+        );
+      }
+      if (parsed.density === "compact" || parsed.density === "comfortable") {
+        setDensity(parsed.density);
+      }
+      if (typeof parsed.pageSize === "number" && PAGE_SIZE_OPTIONS.includes(parsed.pageSize)) {
+        setPageSize(parsed.pageSize);
+      }
+    } catch {
+      // Ignore malformed preferences.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        CHORES_PREFS_STORAGE_KEY,
+        JSON.stringify({
+          hiddenColumns: Array.from(hiddenColumns),
+          density,
+          pageSize,
+        }),
+      );
+    } catch {
+      // Storage may be unavailable (private mode); preferences are best-effort.
+    }
+  }, [hiddenColumns, density, pageSize]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        CHORES_ACTIVE_FILTERS_KEY,
+        JSON.stringify({
+          columnFilters,
+          status: statusFilter,
+          assigneeIds: assigneeIdFilters,
+          activeViewId,
+        }),
+      );
+    } catch {
+      // Storage may be unavailable.
+    }
+  }, [activeViewId, assigneeIdFilters, columnFilters, statusFilter]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.setItem(CHORES_SAVED_VIEWS_KEY, JSON.stringify(savedViews));
+    } catch {
+      // Storage may be unavailable.
+    }
+  }, [savedViews]);
+
+  useEffect(() => {
+    if (saveViewOpen && saveViewInputRef.current) {
+      saveViewInputRef.current.focus();
+    }
+  }, [saveViewOpen]);
+
+  const activeColumnFilterCount = countActiveColumnFilters(columnFilters);
+  const hasAnyActiveFilter =
+    activeColumnFilterCount > 0 ||
+    (statusFilter !== "" && statusFilter !== "open") ||
+    assigneeIdFilters.length > 0 ||
+    Boolean(completedWindowFilter) ||
+    shouldApplySearch;
+  const isColumnVisible = useCallback(
+    (key: ColumnKey) => !hiddenColumns.has(key),
+    [hiddenColumns],
   );
+  const toggleColumn = useCallback((key: ColumnKey) => {
+    setHiddenColumns((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  const assigneeSelectOptions = useMemo<TailwindSelectOption[]>(
+    () => [
+      {
+        value: FAMILY_ASSIGNEE_OPTION_ID,
+        label: t("choresPage.filterPanel.familyAssignee"),
+        leading: (
+          <FamilyMemberAvatar
+            className="today-chores-family-avatar"
+            name={t("choresPage.filterPanel.familyAssignee")}
+            size={26}
+            borderWidth={2}
+            isFamily
+            ariaHidden
+          />
+        ),
+      },
+      ...Object.entries(assigneeDirectoryByAlias)
+        .map(([id, entry]) => ({
+          value: id,
+          label: entry.name,
+          leading: (
+            <FamilyMemberAvatar
+              className="completion-chart-avatar today-chores-scope-avatar"
+              name={entry.name}
+              avatarId={entry.avatarId}
+              avatarPhotoUrl={entry.avatarPhotoUrl}
+              primaryColor={entry.primaryColor}
+              size={26}
+              borderWidth={2}
+              ariaHidden
+            />
+          ),
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    ],
+    [assigneeDirectoryByAlias, t],
+  );
+  const choreTypeCheckboxOptions = useMemo<Array<{ value: ChoreType; label: string }>>(
+    () => [
+      { value: "normal", label: t("choresPage.choreType.normal") },
+      { value: "group", label: t("choresPage.choreType.group") },
+      { value: "see_and_do", label: t("choresPage.choreType.seeAndDo") },
+    ],
+    [t],
+  );
+  const recurrenceCheckboxOptions = useMemo<Array<{ value: ChoreRecurrenceType; label: string }>>(
+    () => (["instant", "daily", "weekly", "monthly", "custom"] as const).map((value) => ({
+      value,
+      label: value === "custom" ? t("choresPage.recurrence.customFilter") : t(`choresPage.recurrence.${value}`),
+    })),
+    [t],
+  );
+  const approvalSelectOptions = useMemo<TailwindSelectOption[]>(
+    () => [
+      { value: "", label: t("choresPage.filterPanel.anyApproval") },
+      { value: "yes", label: t("choresPage.filterPanel.approvalRequired") },
+      { value: "no", label: t("choresPage.filterPanel.approvalNotRequired") },
+    ],
+    [t],
+  );
+
+  const choreTypeLabel = useCallback(
+    (choreType?: ChoreType) => {
+      if (choreType === "group") {
+        return t("choresPage.choreType.group");
+      }
+      if (choreType === "see_and_do") {
+        return t("choresPage.choreType.seeAndDo");
+      }
+      return t("choresPage.choreType.normal");
+    },
+    [t],
+  );
+
+  const recurrenceDisplay = useCallback(
+    (chore: ChoreRow) => {
+      const type = chore.recurrenceType ?? "none";
+      if (type === "none") {
+        return "-";
+      }
+      if (type === "custom") {
+        const interval = Math.max(1, chore.recurrenceInterval ?? 1);
+        const unit = chore.recurrenceUnit ?? "day";
+        return t("choresPage.recurrence.custom", { interval, unit });
+      }
+      return t(`choresPage.recurrence.${type}`);
+    },
+    [t],
+  );
+
+  const firstRowIndex = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastRowIndex = total === 0 ? 0 : firstRowIndex + chores.length - 1;
 
   async function onRemoveChore(choreId: string) {
     if (hasBusyAction) {
@@ -1486,24 +1940,272 @@ export default function ChoresPage() {
               />
               <Button
                 type="button"
-                className="btn btn-secondary chores-controls-toggle"
-                aria-label={filtersExpanded ? t("choresPage.controls.collapse") : t("choresPage.controls.expand")}
-                aria-expanded={filtersExpanded}
-                onClick={() => setFiltersExpanded((current) => !current)}>
-                {filtersExpanded ? "v" : ">"}
+                className={`btn btn-secondary chores-controls-toggle${filterPanelOpen ? " is-active" : ""}`}
+                aria-expanded={filterPanelOpen}
+                onClick={() => setFilterPanelOpen((current) => !current)}>
+                {t("choresPage.controls.filters")}
+                {activeColumnFilterCount > 0 ? (
+                  <span className="chores-filter-badge">{activeColumnFilterCount}</span>
+                ) : null}
               </Button>
+              <details className="chores-columns-menu">
+                <summary className="btn btn-secondary chores-controls-toggle">
+                  {t("choresPage.columns.label")}
+                </summary>
+                <div className="chores-columns-popover">
+                  {TOGGLEABLE_COLUMNS.map((key) => (
+                    <label key={key} className="chores-columns-option">
+                      <input
+                        type="checkbox"
+                        checked={isColumnVisible(key)}
+                        onChange={() => toggleColumn(key)}
+                      />
+                      {t(`choresPage.columns.${key}`)}
+                    </label>
+                  ))}
+                </div>
+              </details>
+              <div className="chores-density-toggle" role="group" aria-label={t("choresPage.density.label")}>
+                <Button
+                  type="button"
+                  className={`chores-density-btn${density === "comfortable" ? " is-active" : ""}`}
+                  aria-pressed={density === "comfortable"}
+                  onClick={() => setDensity("comfortable")}>
+                  {t("choresPage.density.comfortable")}
+                </Button>
+                <Button
+                  type="button"
+                  className={`chores-density-btn${density === "compact" ? " is-active" : ""}`}
+                  aria-pressed={density === "compact"}
+                  onClick={() => setDensity("compact")}>
+                  {t("choresPage.density.compact")}
+                </Button>
+              </div>
             </div>
-            {filtersExpanded ? (
-              <>
-                <div className="chores-controls-option-row">
-                  <p className="chores-controls-label">{t("choresPage.controls.filters")}</p>
-                  <ChipOverflowRow items={filterChipItems} />
+            <div className="chores-controls-option-row">
+              <p className="chores-controls-label">{t("choresPage.controls.filters")}</p>
+              <div className="chores-quick-filter-row">
+                <TailwindMultiSelect
+                  ariaLabel={t("choresPage.columns.assignee")}
+                  values={assigneeIdFilters}
+                  onChange={(values) => {
+                    setActiveViewId(null);
+                    const nextValues = values.includes(FAMILY_ASSIGNEE_OPTION_ID)
+                      ? values.filter((value) => value === FAMILY_ASSIGNEE_OPTION_ID)
+                      : values;
+                    applyRouteFilters({ assigneeIds: nextValues });
+                  }}
+                  options={assigneeSelectOptions}
+                  placeholder={t("choresPage.filterPanel.allAssignees")}
+                  selectedSummaryLabel={(count) =>
+                    t("choresPage.filterPanel.selectedAssignees", { count })
+                  }
+                  className="chores-assignee-filter-select"
+                />
+                <ChipOverflowRow items={statusChipItems} />
+                {savedViews.map((view) => (
+                  <div
+                    key={view.id}
+                    className={`chores-saved-view-chip${activeViewId === view.id ? " is-active" : ""}`}>
+                    <button
+                      type="button"
+                      className="chores-saved-view-chip-label"
+                      onClick={() => applyView(view)}>
+                      {view.name}
+                    </button>
+                    <button
+                      type="button"
+                      className="chores-saved-view-chip-remove"
+                      aria-label={`Remove ${view.name}`}
+                      onClick={() => deleteView(view.id)}>
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {filterPanelOpen ? (
+              <div className="chores-filter-panel">
+                <div className="chores-filter-sections">
+                  {categorySelectOptions.length > 0 ? (
+                    <div className="chores-filter-section">
+                      <span className="chores-filter-section-label">{t("choresPage.columns.categories")}</span>
+                      <div className="chores-filter-pills">
+                        {categorySelectOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className={`chores-filter-pill${columnFilters.categoryIds.includes(option.value) ? " is-active" : ""}`}
+                            onClick={() => toggleColumnFilterValue("categoryIds", option.value)}>
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="chores-filter-section">
+                    <span className="chores-filter-section-label">{t("choresPage.columns.type")}</span>
+                    <div className="chores-filter-pills">
+                      {choreTypeCheckboxOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={`chores-filter-pill${columnFilters.choreTypes.includes(option.value) ? " is-active" : ""}`}
+                          onClick={() => toggleColumnFilterValue("choreTypes", option.value)}>
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="chores-filter-section">
+                    <span className="chores-filter-section-label">{t("choresPage.filters.recurring")}</span>
+                    <div className="chores-filter-pills">
+                      {recurrenceCheckboxOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={`chores-filter-pill${columnFilters.recurrenceTypes.includes(option.value) ? " is-active" : ""}`}
+                          onClick={() => toggleColumnFilterValue("recurrenceTypes", option.value)}>
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="chores-filter-section">
+                    <span className="chores-filter-section-label">{t("choresPage.columns.approval")}</span>
+                    <div className="chores-filter-pills">
+                      {approvalSelectOptions.filter((o) => o.value !== "").map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={`chores-filter-pill${columnFilters.requireApproval === option.value ? " is-active" : ""}`}
+                          onClick={() =>
+                            updateColumnFilters({
+                              requireApproval: columnFilters.requireApproval === option.value
+                                ? ""
+                                : option.value as ColumnFilterState["requireApproval"],
+                            })
+                          }>
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="chores-filter-section chores-filter-section--range">
+                    <span className="chores-filter-section-label">{t("choresPage.filterPanel.coinRange")}</span>
+                    <div className="chores-filter-range">
+                      <input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        value={columnFilters.coinMin}
+                        onChange={(event) => updateColumnFilters({ coinMin: event.target.value })}
+                        placeholder={t("choresPage.filterPanel.min")}
+                        aria-label={t("choresPage.filterPanel.coinMin")}
+                        className="chores-filter-input"
+                      />
+                      <span className="chores-filter-range-sep">–</span>
+                      <input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        value={columnFilters.coinMax}
+                        onChange={(event) => updateColumnFilters({ coinMax: event.target.value })}
+                        placeholder={t("choresPage.filterPanel.max")}
+                        aria-label={t("choresPage.filterPanel.coinMax")}
+                        className="chores-filter-input"
+                      />
+                    </div>
+                  </div>
+                  <div className="chores-filter-section chores-filter-section--range">
+                    <span className="chores-filter-section-label">{t("choresPage.filterPanel.dueRange")}</span>
+                    <div className="chores-filter-range">
+                      <input
+                        type="date"
+                        value={columnFilters.dueFrom}
+                        onChange={(event) => updateColumnFilters({ dueFrom: event.target.value })}
+                        aria-label={t("choresPage.filterPanel.dueFrom")}
+                        className="chores-filter-input"
+                      />
+                      <span className="chores-filter-range-sep">–</span>
+                      <input
+                        type="date"
+                        value={columnFilters.dueTo}
+                        onChange={(event) => updateColumnFilters({ dueTo: event.target.value })}
+                        aria-label={t("choresPage.filterPanel.dueTo")}
+                        className="chores-filter-input"
+                      />
+                    </div>
+                  </div>
+                  <div className="chores-filter-section chores-filter-section--range">
+                    <span className="chores-filter-section-label">{t("choresPage.filterPanel.completedRange")}</span>
+                    <div className="chores-filter-range">
+                      <input
+                        type="date"
+                        value={columnFilters.completedFrom}
+                        onChange={(event) => updateColumnFilters({ completedFrom: event.target.value })}
+                        aria-label={t("choresPage.filterPanel.completedFrom")}
+                        className="chores-filter-input"
+                      />
+                      <span className="chores-filter-range-sep">–</span>
+                      <input
+                        type="date"
+                        value={columnFilters.completedTo}
+                        onChange={(event) => updateColumnFilters({ completedTo: event.target.value })}
+                        aria-label={t("choresPage.filterPanel.completedTo")}
+                        className="chores-filter-input"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="chores-controls-option-row">
-                  <p className="chores-controls-label">{t("choresPage.controls.sorting")}</p>
-                  <ChipOverflowRow items={sortChipItems} />
+                <div className="chores-filter-panel-footer">
+                  <div className="chores-filter-panel-footer-left">
+                    {saveViewOpen ? (
+                      <div className="chores-save-view-form">
+                        <input
+                          ref={saveViewInputRef}
+                          type="text"
+                          value={saveViewName}
+                          onChange={(e) => setSaveViewName(e.target.value)}
+                          placeholder={t("choresPage.filterPanel.viewNamePlaceholder")}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveView();
+                            if (e.key === "Escape") { setSaveViewOpen(false); setSaveViewName(""); }
+                          }}
+                          className="chores-save-view-input"
+                        />
+                        <Button
+                          type="button"
+                          className="btn btn-primary chores-save-view-confirm"
+                          disabled={!saveViewName.trim()}
+                          onClick={handleSaveView}>
+                          {t("choresPage.filterPanel.saveView")}
+                        </Button>
+                        <Button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => { setSaveViewOpen(false); setSaveViewName(""); }}>
+                          {t("common.actions.cancel")}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setSaveViewOpen(true)}>
+                        {t("choresPage.filterPanel.saveAsView")}
+                      </Button>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={!hasAnyActiveFilter}
+                    onClick={resetAllFilters}>
+                    {t("choresPage.filterPanel.clearAll")}
+                  </Button>
                 </div>
-              </>
+              </div>
             ) : null}
           </section>
           {isLoading ? (
@@ -1540,11 +2242,22 @@ export default function ChoresPage() {
                 </div>
               ) : (
                 <>
-                  <section className="family-page-card" aria-label={t("choresPage.listAriaLabel")}>
+                  <section className="family-page-card chores-table-card" aria-label={t("choresPage.listAriaLabel")}>
                     <div className="family-page-card-header chores-table-subhead">
-                      <p className="small chores-table-total">
-                        {t("choresPage.total", { count: total, suffix: total === 1 ? "" : "s" })}
-                      </p>
+                      <div className="chores-table-stats">
+                        <p className="small chores-table-total">
+                          {t("choresPage.results.showing", {
+                            from: firstRowIndex,
+                            to: lastRowIndex,
+                            total,
+                          })}
+                        </p>
+                        {total !== totalUnfiltered ? (
+                          <p className="small chores-table-filtered-note">
+                            {t("choresPage.results.filteredFrom", { totalUnfiltered })}
+                          </p>
+                        ) : null}
+                      </div>
                       {selectedCount > 0 ? (
                         <div className="chores-table-bulk-actions">
                           <span className="small chores-table-selected-count">
@@ -1582,85 +2295,187 @@ export default function ChoresPage() {
                         </div>
                       ) : null}
                     </div>
-                    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white/80 p-3">
-                      <label className="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
-                        <input
-                          ref={selectAllRef}
-                          type="checkbox"
-                          aria-label={t("choresPage.selectAllAriaLabel")}
-                          checked={allSelectableOnPageSelected}
-                          disabled={selectableChoreIdsOnPage.length === 0 || hasBusyAction}
-                          onChange={(event) => onToggleSelectAllCurrentPage(event.target.checked)}
-                          className="h-5 w-5 rounded border-slate-300 text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                        {t("choresPage.selectAll")}
-                      </label>
-                      {statusFilter === "needs_approval" ? (
-                        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-amber-800">
-                          {t("choresPage.approvalQueue")}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="space-y-3">
-                      {chores.map((chore) => (
-                        <ChoreListCard
-                          key={chore.id}
-                          chore={chore}
-                          checked={Boolean(selectedChoreStateById[chore.id])}
-                          selectable={canManageBulkActionsForChore(chore)}
-                          disabled={hasBusyAction}
-                          statusLabel={getStatusLabel(chore, t)}
-                          statusTone={statusTone(chore.status)}
-                          completedDate={formatCompletedDate(chore.completedAt, locale)}
-                          displayedCoinValue={getDisplayedCoinValue(chore)}
-                          coinTooltip={getCoinTooltip(chore, t)}
-                          onCheckedChange={(checked) => onToggleRowSelection(chore, checked)}
-                          approvalSlot={
-                            viewerRole === "admin" && canApproveChore(chore) ? (
-                              <div className="flex flex-wrap gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                                <Button
-                                  type="button"
-                                  className="btn btn-primary"
-                                  disabled={hasBusyAction}
-                                  onClick={() => void onApproveChore(chore)}>
-                                  {rowActionState?.choreId === chore.id &&
-                                  rowActionState.action === "approve"
-                                    ? "Approving..."
-                                    : t("choresPage.actions.approve")}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  className="btn btn-secondary"
-                                  disabled={hasBusyAction}
-                                  onClick={() => {
-                                    setRejectFeedback("");
-                                    setPendingRejectChore(chore);
-                                  }}>
-                                  {t("choresPage.actions.reject")}
-                                </Button>
-                              </div>
-                            ) : null
-                          }
-                          actionSlot={
-                            <ChoreActionsMenu
-                              chore={chore}
-                              canManageActions={viewerRole === "admin"}
-                              busyAction={
-                                rowActionState?.choreId === chore.id ? rowActionState.action : ""
-                              }
-                              disabled={hasBusyAction}
-                              onEdit={(selectedChore) => setEditingChore(selectedChore)}
-                              onDeleteRequested={(selectedChore) => setPendingDeleteChore(selectedChore)}
-                              onUndoCompletion={onUndoCompletion}
-                              onApprove={onApproveChore}
-                              onRejectRequested={(selectedChore) => {
-                                setRejectFeedback("");
-                                setPendingRejectChore(selectedChore);
-                              }}
-                            />
-                          }
-                        />
-                      ))}
+                    {statusFilter === "needs_approval" ? (
+                      <div className="chores-approval-banner">{t("choresPage.approvalQueue")}</div>
+                    ) : null}
+                    <div className="family-table-wrap">
+                      <table
+                        className={`family-table chores-table${density === "compact" ? " is-compact" : ""}`}>
+                        <thead>
+                          <tr>
+                            <th className="chores-col-select">
+                              <input
+                                ref={selectAllRef}
+                                type="checkbox"
+                                aria-label={t("choresPage.selectAllAriaLabel")}
+                                checked={allSelectableOnPageSelected}
+                                disabled={selectableChoreIdsOnPage.length === 0 || hasBusyAction}
+                                onChange={(event) => onToggleSelectAllCurrentPage(event.target.checked)}
+                              />
+                            </th>
+                            <th aria-sort={sortBy === "title" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                              <button type="button" className="table-sort-btn" onClick={() => onSort("title")}>
+                                {sortLabel("title", t("choresPage.columns.title"))}
+                              </button>
+                            </th>
+                            {isColumnVisible("categories") ? <th>{t("choresPage.columns.categories")}</th> : null}
+                            {isColumnVisible("status") ? (
+                              <th aria-sort={sortBy === "status" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                                <button type="button" className="table-sort-btn" onClick={() => onSort("status")}>
+                                  {sortLabel("status", t("choresPage.columns.status"))}
+                                </button>
+                              </th>
+                            ) : null}
+                            {isColumnVisible("assignee") ? (
+                              <th aria-sort={sortBy === "assigneeName" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                                <button type="button" className="table-sort-btn" onClick={() => onSort("assigneeName")}>
+                                  {sortLabel("assigneeName", t("choresPage.columns.assignee"))}
+                                </button>
+                              </th>
+                            ) : null}
+                            {isColumnVisible("type") ? <th>{t("choresPage.columns.type")}</th> : null}
+                            {isColumnVisible("due") ? (
+                              <th aria-sort={sortBy === "dueDate" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                                <button type="button" className="table-sort-btn" onClick={() => onSort("dueDate")}>
+                                  {sortLabel("dueDate", t("choresPage.columns.due"))}
+                                </button>
+                              </th>
+                            ) : null}
+                            {isColumnVisible("completed") ? (
+                              <th aria-sort={sortBy === "completedAt" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                                <button type="button" className="table-sort-btn" onClick={() => onSort("completedAt")}>
+                                  {sortLabel("completedAt", t("choresPage.columns.completed"))}
+                                </button>
+                              </th>
+                            ) : null}
+                            {isColumnVisible("coins") ? (
+                              <th aria-sort={sortBy === "coinValue" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                                <button type="button" className="table-sort-btn" onClick={() => onSort("coinValue")}>
+                                  {sortLabel("coinValue", t("choresPage.columns.coins"))}
+                                </button>
+                              </th>
+                            ) : null}
+                            {isColumnVisible("recurrence") ? <th>{t("choresPage.columns.recurrence")}</th> : null}
+                            {isColumnVisible("approval") ? <th>{t("choresPage.columns.approval")}</th> : null}
+                            <th className="chores-col-actions" aria-label={t("choresPage.columns.actions")} />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {chores.map((chore) => {
+                            const selected = Boolean(selectedChoreStateById[chore.id]);
+                            return (
+                              <tr key={chore.id} className={selected ? "is-selected" : undefined}>
+                                <td className="chores-col-select">
+                                  <input
+                                    type="checkbox"
+                                    aria-label={t("choresPage.selectChoreAriaLabel", { title: chore.title })}
+                                    checked={selected}
+                                    disabled={!canManageBulkActionsForChore(chore) || hasBusyAction}
+                                    onChange={(event) => onToggleRowSelection(chore, event.target.checked)}
+                                  />
+                                </td>
+                                <td>
+                                  <span className="table-chore-title-cell">
+                                    <span className="chores-title-text" title={chore.title}>{chore.title}</span>
+                                  </span>
+                                </td>
+                                {isColumnVisible("categories") ? (
+                                  <td>
+                                    <ChoreCategoriesChip categories={chore.categories ?? []} />
+                                  </td>
+                                ) : null}
+                                {isColumnVisible("status") ? (
+                                  <td>
+                                    <EnumChip label={getStatusLabel(chore, t)} tone={statusTone(chore.status)} />
+                                  </td>
+                                ) : null}
+                                {isColumnVisible("assignee") ? (
+                                  <td>
+                                    <span className="table-assignee-cell">
+                                      <FamilyMemberAvatar
+                                        className="table-assignee-avatar"
+                                        size={28}
+                                        borderWidth={1}
+                                        name={chore.assigneeName || t("choresPage.familyMemberFallback")}
+                                        avatarId={chore.assigneeAvatarId}
+                                        avatarPhotoUrl={chore.assigneeAvatarPhotoUrl}
+                                        isFamily={chore.assigneeScope === "family"}
+                                        ariaHidden
+                                      />
+                                      <span>{chore.assigneeName || "-"}</span>
+                                    </span>
+                                  </td>
+                                ) : null}
+                                {isColumnVisible("type") ? <td>{choreTypeLabel(chore.choreType)}</td> : null}
+                                {isColumnVisible("due") ? <td>{chore.dueDate || "-"}</td> : null}
+                                {isColumnVisible("completed") ? (
+                                  <td>{formatCompletedDate(chore.completedAt, locale)}</td>
+                                ) : null}
+                                {isColumnVisible("coins") ? (
+                                  <td>
+                                    <span className="chores-coin-cell" title={getCoinTooltip(chore, t)}>
+                                      <CoinIcon size={16} />
+                                      <span>{getDisplayedCoinValue(chore)}</span>
+                                    </span>
+                                  </td>
+                                ) : null}
+                                {isColumnVisible("recurrence") ? <td>{recurrenceDisplay(chore)}</td> : null}
+                                {isColumnVisible("approval") ? (
+                                  <td>
+                                    {chore.requireApproval
+                                      ? t("choresPage.approval.required")
+                                      : t("choresPage.approval.no")}
+                                  </td>
+                                ) : null}
+                                <td className="chores-col-actions">
+                                  <div className="chores-row-actions">
+                                    {viewerRole === "admin" && canApproveChore(chore) ? (
+                                      <>
+                                        <Button
+                                          type="button"
+                                          className="btn btn-primary chores-inline-approve"
+                                          disabled={hasBusyAction}
+                                          onClick={() => void onApproveChore(chore)}>
+                                          {rowActionState?.choreId === chore.id &&
+                                          rowActionState.action === "approve"
+                                            ? t("choresPage.actions.approving")
+                                            : t("choresPage.actions.approve")}
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          className="btn btn-secondary chores-inline-reject"
+                                          disabled={hasBusyAction}
+                                          onClick={() => {
+                                            setRejectFeedback("");
+                                            setPendingRejectChore(chore);
+                                          }}>
+                                          {t("choresPage.actions.reject")}
+                                        </Button>
+                                      </>
+                                    ) : null}
+                                    <ChoreActionsMenu
+                                      chore={chore}
+                                      canManageActions={viewerRole === "admin"}
+                                      busyAction={
+                                        rowActionState?.choreId === chore.id ? rowActionState.action : ""
+                                      }
+                                      disabled={hasBusyAction}
+                                      onEdit={(selectedChore) => setEditingChore(selectedChore)}
+                                      onDeleteRequested={(selectedChore) => setPendingDeleteChore(selectedChore)}
+                                      onUndoCompletion={onUndoCompletion}
+                                      onApprove={onApproveChore}
+                                      onRejectRequested={(selectedChore) => {
+                                        setRejectFeedback("");
+                                        setPendingRejectChore(selectedChore);
+                                      }}
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </section>
                   {canCreateChores ? (
@@ -1672,24 +2487,41 @@ export default function ChoresPage() {
                       />
                     </div>
                   ) : null}
-                  <div className="table-pager">
-                    <Button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={page <= 1}
-                      onClick={() => setPage((current) => Math.max(1, current - 1))}>
-                      {t("choresPage.pager.previous")}
-                    </Button>
-                    <span className="small">
-                      {t("choresPage.pager.pageOf", { page, totalPages })}
-                    </span>
-                    <Button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={page >= totalPages}
-                      onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
-                      {t("choresPage.pager.next")}
-                    </Button>
+                  <div className="table-pager chores-pager">
+                    <div className="chores-pager-size">
+                      <span className="small">{t("choresPage.pager.rowsPerPage")}</span>
+                      <TailwindSelect
+                        ariaLabel={t("choresPage.pager.rowsPerPage")}
+                        value={String(pageSize)}
+                        onChange={(value) => {
+                          setPageSize(Number(value));
+                          setPage(1);
+                        }}
+                        options={PAGE_SIZE_OPTIONS.map((size) => ({
+                          value: String(size),
+                          label: String(size),
+                        }))}
+                      />
+                    </div>
+                    <div className="chores-pager-nav">
+                      <Button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={page <= 1}
+                        onClick={() => setPage((current) => Math.max(1, current - 1))}>
+                        {t("choresPage.pager.previous")}
+                      </Button>
+                      <span className="small">
+                        {t("choresPage.pager.pageOf", { page, totalPages })}
+                      </span>
+                      <Button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={page >= totalPages}
+                        onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
+                        {t("choresPage.pager.next")}
+                      </Button>
+                    </div>
                   </div>
                 </>
               )}

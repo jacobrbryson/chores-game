@@ -213,14 +213,32 @@ export async function GET(request: NextRequest) {
   const selectedChoreId = (url.searchParams.get("choreId") ?? "").trim();
 
   try {
-    const [userDocs, familyDocs, choreDocs, auditDocs, notificationDocs, adminMemberDocs] = await Promise.all([
+    const [userDocs, familyDocs, choreDocs, auditDocs, notificationDocs, adminMemberDocs, newsletterSendDocs] = await Promise.all([
       adminListDocuments("users", MAX_SUPPORT_ROWS),
       adminListDocuments("families", MAX_SUPPORT_ROWS),
       listCollectionGroup("chores", MAX_SUPPORT_ROWS),
       listCollectionGroup("auditLogs", 300),
       listCollectionGroup("notifications", 300),
       listAdminMembers(),
+      listCollectionGroup("newsletterSends", 2000),
     ]);
+
+    // Latest successful weekly-highlights send per family, for the Families table column.
+    const lastWeeklyHighlightSentByFamilyId = new Map<string, string>();
+    for (const doc of newsletterSendDocs) {
+      if (readString(doc.fields, "status") !== "sent") {
+        continue;
+      }
+      const fid = familyIdFromDocumentName(doc.name);
+      const sentAt = readTimestamp(doc.fields, "sentAt");
+      if (!fid || !sentAt) {
+        continue;
+      }
+      const existing = lastWeeklyHighlightSentByFamilyId.get(fid);
+      if (!existing || (Date.parse(sentAt) || 0) > (Date.parse(existing) || 0)) {
+        lastWeeklyHighlightSentByFamilyId.set(fid, sentAt);
+      }
+    }
 
     const emailByUid = new Map<string, string>();
     for (const doc of userDocs) {
@@ -254,6 +272,7 @@ export async function GET(request: NextRequest) {
           ...base,
           createdByEmail: emailByUid.get(base.createdBy) ?? "",
           admins: adminsByFamilyId.get(base.id) ?? [],
+          lastWeeklyHighlightSentAt: lastWeeklyHighlightSentByFamilyId.get(base.id) ?? "",
         };
       })
       .filter((family) => containsQuery([family.id, family.name, family.createdBy, family.createdByEmail], query));

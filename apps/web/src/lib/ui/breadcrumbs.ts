@@ -185,5 +185,9 @@ export function getWebBreadcrumbSubtitle(pathname: string, t: Translate): string
     return t("breadcrumbs.changeLogSubtitle");
   }
 
+  if (segments[0] === "support") {
+    return t("breadcrumbs.supportSubtitle");
+  }
+
   return undefined;
 }

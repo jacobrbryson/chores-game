@@ -18,6 +18,7 @@ import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { useLocale } from "@/components/locale-provider";
+import { markDiscoverySeen } from "@/lib/hooks/use-discovery";
 import { ModalShell } from "@/components/modal-shell";
 import {
   dispatchConfettiSelectionChanged,
@@ -242,6 +243,15 @@ export function StorePageClient() {
     setActiveCategoryId(category.id);
     deepLinkHandledRef.current = true;
   }, [summary]);
+
+  // Opening a category options modal marks that specific store category's
+  // discovery section seen (clears the category badge), independent of the
+  // top-level store badge.
+  useEffect(() => {
+    if (activeCategoryId) {
+      void markDiscoverySeen([`store:${activeCategoryId}`]);
+    }
+  }, [activeCategoryId]);
 
   const clearPreview = useCallback((nextPreference?: ThemePreference) => {
     if (!previewActiveRef.current) {

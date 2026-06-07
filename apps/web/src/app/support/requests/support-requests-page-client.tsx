@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
@@ -8,6 +7,7 @@ import { EnumChip } from "@/components/enum-chip";
 import { ModalShell } from "@/components/modal-shell";
 import { useLocale } from "@/components/locale-provider";
 import { CategorySelector } from "@/components/category-selector";
+import { SupportConsoleShell } from "@/components/support-console-shell";
 import {
   BUG_CATEGORY_KEYS,
   FEATURE_CATEGORY_KEYS,
@@ -434,13 +434,12 @@ export default function SupportRequestsPageClient() {
     : [];
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-3 py-4 sm:px-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">{t("supportManagement.title")}</h1>
-          <p className="text-sm text-slate-500">{t("supportManagement.subtitle")}</p>
-        </div>
-        <div className="flex gap-2">
+    <SupportConsoleShell
+      activeModule="requests"
+      title={t("supportManagement.title")}
+      subtitle={t("supportManagement.subtitle")}
+      actions={
+        <>
           <Button
             type="button"
             className="btn btn-secondary"
@@ -451,11 +450,8 @@ export default function SupportRequestsPageClient() {
               ? t("supportManagement.actions.rebuilding")
               : t("supportManagement.actions.rebuildSnapshot")}
           </Button>
-          <Link href="/support" className="btn btn-secondary">
-            {t("supportManagement.back")}
-          </Link>
-        </div>
-      </div>
+        </>
+      }>
 
       {error ? <Alert>{t("supportManagement.errors.load", { error })}</Alert> : null}
       {notice ? (
@@ -787,6 +783,6 @@ export default function SupportRequestsPageClient() {
           ) : null}
         </div>
       </ModalShell>
-    </main>
+    </SupportConsoleShell>
   );
 }
