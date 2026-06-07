@@ -5,7 +5,7 @@ import { OnboardingWizard } from "@/components/onboarding-wizard";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Get Started | Family Chores",
+  title: "Get Started",
 };
 
 export default async function OnboardingPage() {

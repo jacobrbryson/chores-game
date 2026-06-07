@@ -20,14 +20,25 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const content = await loadChore(slug);
   if (!content) return {};
+  const title = content.seoTitle || content.title;
+  const description = content.seoDescription || content.shortDescription;
+  const image = content.ogImage || content.image;
   return {
-    title: content.seoTitle || content.title,
-    description: content.seoDescription || content.shortDescription,
+    title,
+    description,
     alternates: { canonical: content.canonicalPath },
     openGraph: {
-      title: content.seoTitle || content.title,
-      description: content.seoDescription || content.shortDescription,
-      images: content.ogImage || content.image ? [content.ogImage || content.image] : undefined,
+      type: "article",
+      title,
+      description,
+      url: content.canonicalPath,
+      images: image ? [image] : undefined,
+    },
+    twitter: {
+      card: image ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: image ? [image] : undefined,
     },
   };
 }

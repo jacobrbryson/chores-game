@@ -5,9 +5,18 @@ import { ChangeLogIndexContent } from "@/components/change-log-page";
 import { parseSessionToken } from "@/lib/auth/session";
 import { DEFAULT_LOCALE } from "@/lib/locale";
 
+const CHANGE_LOG_DESCRIPTION = "Read the latest Family Chores app updates and fixes.";
+
 export const metadata: Metadata = {
-  title: "Change Log | Family Chores",
-  description: "Read the latest Family Chores app updates and fixes.",
+  title: "Change Log",
+  description: CHANGE_LOG_DESCRIPTION,
+  alternates: { canonical: "/change-log" },
+  openGraph: {
+    type: "website",
+    title: "Change Log | Family Chores",
+    description: CHANGE_LOG_DESCRIPTION,
+    url: "/change-log",
+  },
 };
 
 export default async function ChangeLogRoute() {

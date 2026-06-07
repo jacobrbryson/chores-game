@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createTranslator, DEFAULT_LOCALE, type AppLocale } from "@packages/locales";
 import type { PublicContentPublicRecord } from "@/lib/public-content/types";
+import { absoluteUrl } from "@/lib/seo";
 
 function formatDate(value: string, locale: AppLocale) {
   if (!value) return "";
@@ -13,22 +14,28 @@ export function PublicContentPage({ content }: { content: PublicContentPublicRec
   const date = formatDate(content.lastReviewedAt || content.publishedAt, content.locale || DEFAULT_LOCALE);
   const paragraphs = content.body.split(/\n{2,}/).map((entry) => entry.trim()).filter(Boolean);
 
+  const sharedJsonLd = {
+    "@context": "https://schema.org",
+    name: content.title,
+    description: content.shortDescription,
+    url: absoluteUrl(content.canonicalPath),
+    ...(content.image ? { image: absoluteUrl(content.image) } : {}),
+    datePublished: content.publishedAt,
+  };
+
   const jsonLd =
     content.type === "reward"
       ? {
-          "@context": "https://schema.org",
+          ...sharedJsonLd,
           "@type": "CreativeWork",
-          name: content.title,
-          description: content.shortDescription,
-          datePublished: content.publishedAt,
         }
       : {
-          "@context": "https://schema.org",
+          ...sharedJsonLd,
           "@type": content.type === "chore" ? "HowTo" : "Article",
-          name: content.title,
-          description: content.shortDescription,
-          datePublished: content.publishedAt,
           dateModified: content.lastReviewedAt || content.publishedAt,
+          ...(content.type === "chore" && content.estimatedMinutes
+            ? { totalTime: `PT${content.estimatedMinutes}M` }
+            : {}),
         };
 
   return (

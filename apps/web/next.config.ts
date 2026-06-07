@@ -38,7 +38,7 @@ const nextConfig: NextConfig = {
       beforeFiles: [
         {
           source:
-            "/:path((?!api/|_next/|.*\\..*\\/).+\\.(?:png|jpg|jpeg|webp|gif|svg|ico|mp3|json|webmanifest|js))",
+            "/:path((?!api/|_next/|change-log/|.*\\..*\\/).+\\.(?:png|jpg|jpeg|webp|gif|svg|ico|mp3|json|webmanifest|js))",
           destination: `${gcsAssetBaseUrl}/:path`,
         },
       ],

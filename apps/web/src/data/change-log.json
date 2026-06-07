@@ -13,7 +13,8 @@
     "type": "Feature",
     "subject": "Guided onboarding for new families",
     "description": "New parents now experience a focused step-by-step setup: welcome, family naming, privacy & consent, adding a first child, and creating a first chore — all before reaching the dashboard. Existing families are not affected.",
-    "image": "/file.svg"
+    "image": "/change-log/onboarding.png",
+    "imageType": "hero"
   },
   {
     "id": "category-multi-member-assignment",
@@ -21,7 +22,8 @@
     "type": "Feature",
     "subject": "Shared category assignments",
     "description": "Categories can now be assigned to multiple family members, making shared chore labels easier to reuse.",
-    "image": "/file.svg"
+    "image": "/change-log/shared-categories.png",
+    "imageType": "hero"
   },
   {
     "id": "store-color-name-tooltips",
@@ -32,19 +34,20 @@
     "image": "/file.svg"
   },
   {
-    "id": "sticky-chore-categories-and-coins",
-    "date": "2026-06-07",
-    "type": "Feature",
-    "subject": "Sticky chore defaults",
-    "description": "New chore dialogs now remember your last coin value and category selections so repeated chore setup is faster.",
-    "image": "/file.svg"
-  },
-  {
     "id": "whats-new-discovery-badges",
     "date": "2026-06-07",
     "type": "Feature",
     "subject": "What's New badges",
     "description": "Red badges now show what's new since you last looked — new chores, store items, quests, achievements, and changelog updates — with a What's New card on your dashboard. Opening a section clears its badge, and counts respect each profile's role and access.",
+    "image": "/change-log/new-badges.png",
+    "imageType": "hero"
+  },
+  {
+    "id": "sticky-chore-categories-and-coins",
+    "date": "2026-06-07",
+    "type": "Feature",
+    "subject": "Sticky chore defaults",
+    "description": "New chore dialogs now remember your last coin value and category selections so repeated chore setup is faster.",
     "image": "/file.svg"
   },
   {

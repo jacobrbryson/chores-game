@@ -10,6 +10,7 @@ import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { getCanonicalAppOrigin } from "@/lib/app-origin";
 import { createFamilyForUser } from "@/lib/family/bootstrap";
+import { seedDiscoveryStateForNewUser } from "@/lib/discovery/service";
 import {
   boolField,
   findFirstFamilyIdByMemberEmail,
@@ -279,6 +280,7 @@ async function upsertFirebaseUser(
     role: effectiveRole,
     memberId: linkedFamilyMembership?.memberId ?? session.localId,
     locale: effectiveLocale,
+    isNewUser: !hasExistingUserDoc,
   };
 }
 
@@ -460,11 +462,24 @@ export async function POST(request: NextRequest) {
     let resolvedRole: SessionUser["role"] = "player";
     let resolvedMemberId = firebaseSession.localId;
     let resolvedLocale = DEFAULT_LOCALE;
+    let isNewUser = false;
     if (firebaseSession) {
       const result = await upsertFirebaseUser(firebaseSession, tokenInfo);
       resolvedRole = result.role;
       resolvedMemberId = result.memberId;
       resolvedLocale = result.locale;
+      isNewUser = result.isNewUser;
+    }
+    if (isNewUser) {
+      try {
+        await seedDiscoveryStateForNewUser(
+          firebaseSession.localId,
+          resolvedMemberId,
+          firebaseSession.idToken,
+        );
+      } catch (error) {
+        console.error("[DISCOVERY_SEED_ERROR]", error instanceof Error ? error.message : error);
+      }
     }
 
     const redirect = redirectToPath(request, "/");

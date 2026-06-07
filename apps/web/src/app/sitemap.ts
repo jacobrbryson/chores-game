@@ -1,8 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getChangeLogEntryGroups } from "@/lib/change-log";
 import { listPublishedPublicContent } from "@/lib/public-content/service";
-
-const BASE_URL = "https://family-chores.app";
+import { SITE_URL as BASE_URL } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const changeLogEntries = getChangeLogEntryGroups().map((group) => ({

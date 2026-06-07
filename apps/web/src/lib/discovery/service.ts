@@ -371,6 +371,30 @@ export async function getDiscoverySummaryForViewer(
   return { sections, totalCount };
 }
 
+// Seed all discovery sections as "already seen" for a brand-new user so they
+// don't land on a screen where every store item, quest, and achievement is
+// badged as new. Best-effort — failures are logged but do not block sign-in.
+export async function seedDiscoveryStateForNewUser(
+  uid: string,
+  memberId: string,
+  idToken: string,
+): Promise<void> {
+  const seenAt = new Date().toISOString();
+  for (const section of DISCOVERY_SECTIONS) {
+    await createOrReplaceDocument(
+      `${discoveryStatePath(uid)}/${sectionKeyToDocId(section.key)}`,
+      {
+        sectionKey: stringField(section.key),
+        lastSeenAt: timestampField(seenAt),
+        seenByUid: stringField(uid),
+        seenByMemberId: stringField(memberId),
+        updatedAt: timestampField(seenAt),
+      },
+      idToken,
+    );
+  }
+}
+
 export async function getDiscoveryCountForSection(
   context: DiscoveryViewerContext,
   sectionKey: DiscoverySectionKey,

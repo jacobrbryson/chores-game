@@ -1,11 +1,16 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { Alert } from "@/components/alert";
 import { BackLink } from "@/components/back-link";
 import { QuestReaderClient } from "@/app/features/quests/quest-reader-client";
 import { getQuestDefinitionById } from "@/lib/quests/service";
+import { parseSessionToken } from "@/lib/auth/session";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Quest Reader | Family Chores",
+  title: "Quest Reader",
   description: "Play interactive story quests.",
 };
 
@@ -14,6 +19,13 @@ export default async function QuestReaderPage({
 }: {
   params: Promise<{ questId: string }>;
 }) {
+  const cookieStore = await cookies();
+  const sessionUser = parseSessionToken(cookieStore.get("session_user")?.value);
+
+  if (!sessionUser) {
+    redirect("/");
+  }
+
   const { questId } = await params;
   const quest = await getQuestDefinitionById(questId);
   const questHeading = quest?.title?.trim() || "Quest Reader";

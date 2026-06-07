@@ -10,6 +10,7 @@ export type ChangeLogEntry = {
   subject: string;
   description: string;
   image: string;
+  imageType?: "hero";
 };
 
 export type ChangeLogEntryGroup = {
@@ -67,9 +68,10 @@ function validateChangeLogEntries(source: unknown): ChangeLogEntry[] {
         subject: assertNonEmptyString(item.subject, "subject", index),
         description: assertNonEmptyString(item.description, "description", index),
         image: assertNonEmptyString(item.image, "image", index),
+        ...(item.imageType === "hero" && { imageType: "hero" as const }),
       } satisfies ChangeLogEntry;
     })
-    .sort((left, right) => right.date.localeCompare(left.date) || left.id.localeCompare(right.id));
+    .sort((left, right) => right.date.localeCompare(left.date));
 }
 
 export function getChangeLogEntries(): ChangeLogEntry[] {

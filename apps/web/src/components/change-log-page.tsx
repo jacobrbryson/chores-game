@@ -188,6 +188,34 @@ export function ChangeLogDateContent({
         const badgeClass =
           entry.type === "Feature" ? "change-log-badge-feature" : "change-log-badge-bug-fix";
 
+        if (entry.imageType === "hero") {
+          return (
+            <article key={entry.id} className="family-page-card change-log-card change-log-card-hero">
+              <div className="change-log-hero-art">
+                <Image
+                  src={entry.image}
+                  alt={t("changeLog.imageAlt", { subject: entry.subject })}
+                  width={1280}
+                  height={800}
+                  className="change-log-hero-image"
+                />
+              </div>
+              <div className="change-log-copy change-log-hero-copy">
+                <div className="change-log-meta">
+                  <time dateTime={entry.date} className="change-log-date">
+                    {formatChangeLogDate(entry.date, locale)}
+                  </time>
+                  <span className={`change-log-badge ${badgeClass}`}>
+                    {t(changeTypeKey(entry.type))}
+                  </span>
+                </div>
+                <h2>{entry.subject}</h2>
+                <p className="change-log-description">{entry.description}</p>
+              </div>
+            </article>
+          );
+        }
+
         return (
           <article key={entry.id} className="family-page-card change-log-card">
             <div className="change-log-art">

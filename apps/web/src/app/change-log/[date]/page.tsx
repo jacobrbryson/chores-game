@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { createTranslator } from "@packages/locales";
-import { ChangeLogDateContent } from "@/components/change-log-page";
+import { ChangeLogDateContent, formatChangeLogDate } from "@/components/change-log-page";
 import { parseSessionToken } from "@/lib/auth/session";
 import { getChangeLogEntryGroup } from "@/lib/change-log";
 import { DEFAULT_LOCALE } from "@/lib/locale";
@@ -16,14 +16,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const group = getChangeLogEntryGroup(date);
   if (!group) {
     return {
-      title: "Change Log | Family Chores",
+      title: "Change Log",
       description: "Read the latest Family Chores app updates and fixes.",
     };
   }
 
+  const formattedDate = formatChangeLogDate(group.date, DEFAULT_LOCALE);
+  const description = `Family Chores app updates and fixes published on ${formattedDate}.`;
+
   return {
-    title: `${date} | Change Log | Family Chores`,
-    description: `Read the Family Chores updates and fixes published on ${date}.`,
+    title: `Change Log — ${formattedDate}`,
+    description,
+    alternates: { canonical: `/change-log/${group.date}` },
+    openGraph: {
+      type: "article",
+      title: `Change Log — ${formattedDate} | Family Chores`,
+      description,
+      url: `/change-log/${group.date}`,
+    },
   };
 }
 

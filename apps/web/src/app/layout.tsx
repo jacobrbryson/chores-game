@@ -14,11 +14,19 @@ import { ToastViewport } from "@/components/toast";
 import { parseSessionToken } from "@/lib/auth/session";
 import { DEFAULT_LOCALE } from "@/lib/locale";
 import { NotFoundProvider } from "@/lib/not-found-context";
+import { DEFAULT_OG_IMAGE, SITE_URL } from "@/lib/seo";
+
+const DEFAULT_DESCRIPTION =
+  "A family chore system with parent approval, rewards, Google integration, and live household activity.";
 
 export const metadata: Metadata = {
-  title: "Family Chores",
-  description:
-    "A family chore system with parent approval, rewards, Google integration, and live household activity.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Family Chores",
+    template: "%s | Family Chores",
+  },
+  description: DEFAULT_DESCRIPTION,
+  applicationName: "Family Chores",
   icons: {
     icon: [
       { url: "/icons/favicon-96x96.png", sizes: "96x96", type: "image/png" },
@@ -30,6 +38,20 @@ export const metadata: Metadata = {
   manifest: "/icons/site.webmanifest",
   appleWebApp: {
     title: "Family Chores",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Family Chores",
+    title: "Family Chores",
+    description: DEFAULT_DESCRIPTION,
+    url: SITE_URL,
+    images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: "Family Chores" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Family Chores",
+    description: DEFAULT_DESCRIPTION,
+    images: [DEFAULT_OG_IMAGE],
   },
 };
 

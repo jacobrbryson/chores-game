@@ -1,3 +1,20 @@
+import type { Metadata } from "next";
+
+const API_DOCS_DESCRIPTION =
+  "Interactive API reference for the Family Chores public API, with the full OpenAPI specification and endpoint documentation.";
+
+export const metadata: Metadata = {
+  title: "API Documentation",
+  description: API_DOCS_DESCRIPTION,
+  alternates: { canonical: "/docs/api" },
+  openGraph: {
+    type: "website",
+    title: "API Documentation | Family Chores",
+    description: API_DOCS_DESCRIPTION,
+    url: "/docs/api",
+  },
+};
+
 export default function PublicApiDocsPage() {
   return (
     <main className="space-y-3">

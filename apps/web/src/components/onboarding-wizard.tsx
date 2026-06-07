@@ -384,7 +384,7 @@ function FirstChoreStep({
       const response = await fetch("/api/chores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chores: [{ title, coinValue }] }),
+        body: JSON.stringify({ description: title, coinValue }),
       });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };

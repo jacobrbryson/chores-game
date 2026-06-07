@@ -1,17 +1,52 @@
+import type { Metadata } from "next";
 import { DashboardHome } from "@/components/dashboard-home";
 import { MarketingHomepage } from "@/components/marketing-homepage";
 import { cookies } from "next/headers";
 import { parseSessionToken } from "@/lib/auth/session";
+import { DEFAULT_OG_IMAGE, SITE_URL } from "@/lib/seo";
 
 type HomeProps = {
 	searchParams?: Promise<{ error?: string }>;
 };
 
+const HOME_TITLE =
+	"Family Chores | Organized chores, rewards, and live family visibility";
+const HOME_DESCRIPTION =
+	"Family Chores Game helps parents manage chores, rewards, managed child profiles, family awards, quests, Google Tasks sync, and live household activity.";
+
 export const dynamic = "force-dynamic";
-export const metadata = {
-	title: "Family Chores | Organized chores, rewards, and live family visibility",
-	description:
-		"Family Chores Game helps parents manage chores, rewards, managed child profiles, family awards, quests, Google Tasks sync, and live household activity.",
+export const metadata: Metadata = {
+	title: { absolute: HOME_TITLE },
+	description: HOME_DESCRIPTION,
+	alternates: { canonical: "/" },
+	openGraph: {
+		type: "website",
+		title: HOME_TITLE,
+		description: HOME_DESCRIPTION,
+		url: SITE_URL,
+		images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: "Family Chores" }],
+	},
+	twitter: {
+		card: "summary_large_image",
+		title: HOME_TITLE,
+		description: HOME_DESCRIPTION,
+		images: [DEFAULT_OG_IMAGE],
+	},
+};
+
+const homeStructuredData = {
+	"@context": "https://schema.org",
+	"@type": "WebApplication",
+	name: "Family Chores",
+	url: SITE_URL,
+	applicationCategory: "LifestyleApplication",
+	operatingSystem: "Web, iOS, Android",
+	description: HOME_DESCRIPTION,
+	offers: {
+		"@type": "Offer",
+		price: "0",
+		priceCurrency: "USD",
+	},
 };
 
 function getSignInErrorMessage(errorCode?: string) {
@@ -46,11 +81,17 @@ export default async function Home({ searchParams }: HomeProps) {
 					<DashboardHome viewerKey={sessionUser.uid} />
 				</main>
 			) : (
-				<MarketingHomepage
-					googleClientId={googleClientId}
-					gsiLoginUri={gsiLoginUri}
-					signInErrorMessage={signInErrorMessage}
-				/>
+				<>
+					<script
+						type="application/ld+json"
+						dangerouslySetInnerHTML={{ __html: JSON.stringify(homeStructuredData) }}
+					/>
+					<MarketingHomepage
+						googleClientId={googleClientId}
+						gsiLoginUri={gsiLoginUri}
+						signInErrorMessage={signInErrorMessage}
+					/>
+				</>
 			)}
 		</>
 	);
