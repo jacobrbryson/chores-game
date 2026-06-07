@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { parseSessionToken } from "@/lib/auth/session";
 import { isSupportAdmin } from "@/lib/support/access";
 import { isSupportModule } from "@/lib/support/modules";
@@ -15,7 +15,7 @@ export default async function SupportModulePage({
   const { module } = await params;
 
   if (!isSupportAdmin(session) || !isSupportModule(module) || module === "requests") {
-    notFound();
+    redirect("/");
   }
 
   return <SupportPageClient module={module} />;

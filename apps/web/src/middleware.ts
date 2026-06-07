@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// Pages that are accessible without signing in. Everything else redirects to /.
+const PUBLIC_PATHS: string[] = ["/", "/privacy-policy", "/terms-of-service", "/change-log"];
+
+function isPublicPath(pathname: string): boolean {
+  for (const pub of PUBLIC_PATHS) {
+    if (pathname === pub || pathname.startsWith(pub + "/")) return true;
+  }
+  return false;
+}
+
 function normalizeOrigin(value: string) {
   return value.trim().replace(/\/+$/, "");
 }
@@ -37,13 +47,31 @@ function applyCorsHeaders(response: NextResponse, request: NextRequest) {
 }
 
 export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
   if (request.method === "OPTIONS") {
     return applyCorsHeaders(new NextResponse(null, { status: 204 }), request);
+  }
+
+  // Auth guard: redirect unauthenticated users to home on all protected page routes.
+  // API routes handle their own auth; the cookie presence check here is a UX gate only —
+  // actual token validation happens in each server route via parseSessionToken.
+  if (!pathname.startsWith("/api/") && !isPublicPath(pathname)) {
+    if (!request.cookies.has("session_user")) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
   }
 
   return applyCorsHeaders(NextResponse.next(), request);
 }
 
 export const config = {
-  matcher: ["/api/v1/:path*", "/api/auth/google/mobile", "/api/auth/logout"],
+  matcher: [
+    // CORS routes
+    "/api/v1/:path*",
+    "/api/auth/google/mobile",
+    "/api/auth/logout",
+    // All page routes — excludes Next.js internals and static assets
+    "/((?!_next/static|_next/image|favicon|icons|avatars|.*\\..*).*)",
+  ],
 };

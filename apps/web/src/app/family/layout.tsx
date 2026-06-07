@@ -1,16 +1,15 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import type { ReactNode } from "react";
 import { parseSessionToken } from "@/lib/auth/session";
-import { isSupportAdmin } from "@/lib/support/access";
-import SupportRequestsPageClient from "./support-requests-page-client";
 
-export default async function SupportRequestsPage() {
+export default async function FamilyLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
   const session = parseSessionToken(cookieStore.get("session_user")?.value);
 
-  if (!isSupportAdmin(session)) {
+  if (!session) {
     redirect("/");
   }
 
-  return <SupportRequestsPageClient />;
+  return <>{children}</>;
 }

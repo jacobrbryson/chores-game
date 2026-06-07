@@ -1,33 +1,34 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const mocks = vi.hoisted(() => ({
-  listPublishedPublicContent: vi.fn(),
-}));
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/change-log", () => ({
-  getChangeLogEntryGroups: () => [],
-}));
-
-vi.mock("@/lib/public-content/service", () => ({
-  listPublishedPublicContent: mocks.listPublishedPublicContent,
+  getChangeLogEntryGroups: () => [
+    { date: "2026-06-01" },
+    { date: "2026-05-01" },
+  ],
 }));
 
 import sitemap from "./sitemap";
 
-beforeEach(() => {
-  vi.clearAllMocks();
-});
-
 describe("sitemap", () => {
-  it("includes only published routable public content", async () => {
-  mocks.listPublishedPublicContent.mockResolvedValue({
-      content: [
-        { type: "guide", canonicalPath: "/resources/guide", publishedAt: "2026-06-01T00:00:00.000Z", lastReviewedAt: "" },
-        { type: "quest", canonicalPath: "/resources/quest", publishedAt: "2026-06-01T00:00:00.000Z", lastReviewedAt: "" },
-      ],
-    });
+  it("includes only the four public routes and change-log entries", async () => {
     const entries = await sitemap();
-    expect(entries.map((entry) => entry.url)).toContain("https://family-chores.app/resources/guide");
-    expect(entries.map((entry) => entry.url)).not.toContain("https://family-chores.app/resources/quest");
+    const urls = entries.map((entry) => entry.url);
+
+    expect(urls).toContain("https://family-chores.app/");
+    expect(urls).toContain("https://family-chores.app/privacy-policy");
+    expect(urls).toContain("https://family-chores.app/terms-of-service");
+    expect(urls).toContain("https://family-chores.app/change-log");
+    expect(urls).toContain("https://family-chores.app/change-log/2026-06-01");
+    expect(urls).toContain("https://family-chores.app/change-log/2026-05-01");
+  });
+
+  it("does not include auth-gated routes", async () => {
+    const entries = await sitemap();
+    const urls = entries.map((entry) => entry.url);
+
+    for (const url of urls) {
+      const { pathname } = new URL(url);
+      expect(pathname).not.toMatch(/^\/(chores|rewards|resources|docs|family|support|quests|achievements|community|store|notifications|profile|my-requests|onboarding)(\/|$)/);
+    }
   });
 });
