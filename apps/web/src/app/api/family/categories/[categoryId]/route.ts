@@ -22,6 +22,7 @@ import {
   MAX_CATEGORY_NAME_LENGTH,
   normalizeCategoryColor,
   normalizeCategoryIds,
+  normalizeCategoryMemberIds,
   normalizeCategoryName,
   readChoreCategoryIds,
 } from "@/lib/family/categories";
@@ -29,6 +30,7 @@ import {
 type UpdateCategoryBody = {
   name?: unknown;
   color?: unknown;
+  memberIds?: unknown;
   memberId?: unknown;
 };
 
@@ -158,14 +160,19 @@ export async function PATCH(
 
   const hasName = typeof body.name === "string";
   const hasColor = typeof body.color === "string";
+  const hasMemberIds = Array.isArray(body.memberIds);
   const hasMemberId = typeof body.memberId === "string";
-  if (!hasName && !hasColor && !hasMemberId) {
+  if (!hasName && !hasColor && !hasMemberIds && !hasMemberId) {
     return NextResponse.json({ error: "update_values_required" }, { status: 400 });
   }
 
   const name = hasName ? normalizeCategoryName(String(body.name)) : "";
   const color = hasColor ? normalizeCategoryColor(String(body.color)) : "";
-  const memberId = hasMemberId ? String(body.memberId).trim() : "";
+  const memberIds = hasMemberIds
+    ? normalizeCategoryMemberIds(body.memberIds)
+    : hasMemberId && String(body.memberId).trim()
+      ? [String(body.memberId).trim()]
+      : [];
   if (hasName && !name) {
     return NextResponse.json({ error: "name_required" }, { status: 400 });
   }
@@ -220,28 +227,37 @@ export async function PATCH(
           }
         }
 
-        if (hasMemberId && memberId) {
-          const memberIds = await listActiveMemberIds(familyId, idToken);
-          if (!memberIds.has(memberId)) {
+        if ((hasMemberIds || hasMemberId) && memberIds.length > 0) {
+          const activeMemberIds = await listActiveMemberIds(familyId, idToken);
+          if (memberIds.some((memberId: string) => !activeMemberIds.has(memberId))) {
             return { kind: "member_not_found" as const };
           }
         }
 
         const existingColor = normalizeCategoryColor(readString(categoryDoc.fields, "color"));
         const nextColor = hasColor ? color : existingColor;
-        const existingMemberId = readString(categoryDoc.fields, "memberId").trim();
-        const nextMemberId = hasMemberId ? memberId : existingMemberId;
+        const existingMemberIds = normalizeCategoryMemberIds(readStringArray(categoryDoc.fields, "memberIds"));
+        const legacyMemberId = readString(categoryDoc.fields, "memberId").trim();
+        const nextMemberIds =
+          hasMemberIds || hasMemberId
+            ? memberIds
+            : existingMemberIds.length > 0
+              ? existingMemberIds
+              : legacyMemberId
+                ? [legacyMemberId]
+                : [];
         const now = new Date().toISOString();
         await patchDocument(
           `families/${familyId}/categories/${categoryId}`,
           {
             name: stringField(nextName),
             color: stringField(nextColor),
-            memberId: stringField(nextMemberId),
+            memberIds: stringArrayField(nextMemberIds),
+            memberId: stringField(nextMemberIds[0] ?? ""),
             updatedAt: timestampField(now),
           },
           idToken,
-          ["name", "color", "memberId", "updatedAt"],
+          ["name", "color", "memberIds", "memberId", "updatedAt"],
         );
 
         return {
@@ -250,7 +266,8 @@ export async function PATCH(
             id: categoryId,
             name: nextName,
             color: nextColor,
-            memberId: nextMemberId,
+            memberIds: nextMemberIds,
+            memberId: nextMemberIds[0],
           },
         };
       });

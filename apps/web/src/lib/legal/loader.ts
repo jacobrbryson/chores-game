@@ -30,6 +30,8 @@ export type LegalDocument = {
   sections: LegalDocumentSection[];
 };
 
+export type LegalDocumentType = "privacy-policy" | "terms-of-service";
+
 const privacyPolicy = privacyPolicyData as LegalDocument;
 const termsOfService = termsData as LegalDocument;
 
@@ -41,6 +43,10 @@ export function getTermsOfService(): LegalDocument {
   return termsOfService;
 }
 
+export function getLegalDocument(documentType: LegalDocumentType): LegalDocument {
+  return documentType === "privacy-policy" ? getPrivacyPolicy() : getTermsOfService();
+}
+
 // Env vars can override the version string for operational bumps without a
 // code deploy. The JSON file version is the fallback and canonical default.
 export function getCurrentPrivacyPolicyVersion(): string {
@@ -49,4 +55,24 @@ export function getCurrentPrivacyPolicyVersion(): string {
 
 export function getCurrentTermsVersion(): string {
   return process.env.CURRENT_TERMS_VERSION?.trim() || termsOfService.version;
+}
+
+export function getLegalDocumentByVersion(
+  documentType: LegalDocumentType,
+  version: string,
+): LegalDocument | null {
+  const requestedVersion = version.trim();
+  if (!requestedVersion) {
+    return null;
+  }
+
+  if (documentType === "privacy-policy") {
+    const doc = getPrivacyPolicy();
+    const currentVersion = getCurrentPrivacyPolicyVersion();
+    return requestedVersion === doc.version || requestedVersion === currentVersion ? doc : null;
+  }
+
+  const doc = getTermsOfService();
+  const currentVersion = getCurrentTermsVersion();
+  return requestedVersion === doc.version || requestedVersion === currentVersion ? doc : null;
 }

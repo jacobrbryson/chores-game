@@ -9,8 +9,10 @@ export type FamilyCategory = {
   id: string;
   name: string;
   color: string;
-  // Family member this category belongs to. Empty/absent means the category
+  // Family members this category belongs to. Empty/absent means the category
   // applies to the whole family (shown to everyone).
+  memberIds?: string[];
+  // Legacy single-member field preserved for compatibility with older callers.
   memberId?: string;
 };
 

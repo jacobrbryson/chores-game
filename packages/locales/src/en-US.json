@@ -947,10 +947,16 @@
     },
     "privacy": {
       "overviewTitle": "Privacy Overview",
+      "acceptedAt": "Accepted on",
+      "acceptedVersion": "Accepted version",
       "acceptedPrivacyVersion": "Privacy policy version accepted",
       "currentPrivacyVersion": "Current privacy version",
       "acceptedTermsVersion": "Terms version accepted",
+      "currentVersion": "Current version",
       "currentTermsVersion": "Current terms version",
+      "privacyPolicy": "Privacy Policy",
+      "termsOfService": "Terms of Service",
+      "legalDocumentUnavailable": "The accepted legal document for version {version} is not available in this build.",
       "viewPrivacyPolicy": "View Privacy Policy",
       "viewTermsOfService": "View Terms of Service",
       "parentalConsentAt": "Parent consent recorded",
@@ -962,7 +968,7 @@
       "consentStatusCurrent": "Up to date",
       "consentStatusOutdated": "Needs re-acceptance",
       "recordConsent": "Record Consent",
-      "updateConsent": "Update Consent",
+      "updateConsent": "Update Consent...",
       "consentRecorded": "Consent recorded.",
       "consentNeeded": "Terms or privacy consent is missing or out of date. Please review and accept the current versions below.",
       "saving": "Saving...",
@@ -1000,7 +1006,11 @@
       "deletionScheduledNotice": "Family deletion scheduled.",
       "cancelDeletion": "Cancel Deletion Request",
       "deletionCanceledNotice": "Deletion request canceled.",
-      "loadError": "Could not load privacy settings: {error}"
+      "loadError": "Could not load privacy settings: {error}",
+      "viewConsentHistory": "View Consent History",
+      "backToPrivacy": "Back to Privacy",
+      "requestDeletionAction": "Request Family Deletion...",
+      "exportStarted": "Family data export started."
     },
     "awards": {
       "submitToCommunity": "Submit to Community Awards",
@@ -1107,5 +1117,96 @@
   "mobile": {
     "checkingSessionTitle": "Checking session...",
     "checkingSessionBody": "Please wait while we verify your Family Chores login."
+  },
+  "onboarding": {
+    "saving": "Saving...",
+    "welcome": {
+      "title": "Welcome to Family Chores",
+      "subtitle": "Here's what we help your family do:",
+      "feature1": "Assign and track chores",
+      "feature2": "Reward progress with coins",
+      "feature3": "Build responsibility at home",
+      "feature4": "Make helping at home more fun",
+      "cta": "Get Started",
+      "signOut": "Sign Out"
+    },
+    "family": {
+      "title": "Name Your Family",
+      "subtitle": "This is how your family will appear in the app.",
+      "label": "Family Name",
+      "placeholder": "The Smith Family",
+      "cta": "Continue"
+    },
+    "privacy": {
+      "title": "Your Family's Privacy",
+      "subtitle": "Here's how we protect your family's data:",
+      "point1": "Parents control family accounts",
+      "point2": "Child profiles stay private",
+      "point3": "Children cannot vote on community content",
+      "point4": "Family data is never sold",
+      "point5": "Data can be exported at any time",
+      "point6": "Families may request deletion at any time",
+      "viewPrivacyPolicy": "View Privacy Policy",
+      "viewTermsOfService": "View Terms of Service",
+      "terms": "I agree to the Terms of Service",
+      "privacy": "I agree to the Privacy Policy",
+      "parental": "I confirm I am the parent or guardian creating this family",
+      "cta": "Continue"
+    },
+    "addChild": {
+      "title": "Add Your First Child",
+      "subtitle": "Add a child profile so they can start earning coins for chores.",
+      "label": "Child's Name",
+      "placeholder": "Alex",
+      "cta": "Add Child",
+      "skip": "Skip For Now",
+      "done": "Continue"
+    },
+    "firstChore": {
+      "title": "Create Your First Chore",
+      "subtitle": "Get the ball rolling with a chore for your family.",
+      "label": "Chore Title",
+      "placeholder": "Make Bed",
+      "coinsLabel": "Coins",
+      "cta": "Create Chore",
+      "skip": "Skip For Now",
+      "createdTitle": "Chore Created!",
+      "createdSubtitle": "Great start. You can add more chores any time from the dashboard.",
+      "continue": "Continue"
+    },
+    "done": {
+      "title": "You're all set!",
+      "subtitle": "Your family is ready. Here are some things to explore next:",
+      "next1": "Create more chores from the dashboard",
+      "next2": "Visit the store with earned coins",
+      "next3": "Try a quest together",
+      "next4": "Customize a child's profile",
+      "cta": "Go to Dashboard"
+    },
+    "steps": {
+      "welcome": "Welcome",
+      "family": "Family",
+      "privacy": "Privacy",
+      "addChild": "Children",
+      "firstChore": "First Chore",
+      "done": "Done"
+    },
+    "reacceptance": {
+      "title": "Policy Update",
+      "subtitle": "Our Terms of Service and/or Privacy Policy have been updated. Please review and re-accept to continue using Family Chores.",
+      "firstTitle": "Review Our Policies",
+      "firstSubtitle": "Please review and accept our Terms of Service and Privacy Policy to continue using Family Chores.",
+      "termsVersion": "Terms version",
+      "privacyVersion": "Privacy version",
+      "viewPrivacyPolicy": "View Privacy Policy",
+      "viewTermsOfService": "View Terms of Service",
+      "terms": "I agree to the updated Terms of Service",
+      "privacy": "I agree to the updated Privacy Policy",
+      "firstTerms": "I agree to the Terms of Service",
+      "firstPrivacy": "I agree to the Privacy Policy",
+      "parental": "I confirm I am the parent or guardian of this family",
+      "cta": "Re-accept and Continue",
+      "firstCta": "Accept and Continue"
+    }
   }
 }

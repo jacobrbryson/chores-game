@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
-import { PUBLIC_CONTENT_STATUSES, PUBLIC_CONTENT_TYPES, type PublicContentStatus, type PublicContentType } from "@/lib/public-content/types";
+import { EDITABLE_PUBLIC_CONTENT_TYPES, PUBLIC_CONTENT_STATUSES, PUBLIC_CONTENT_TYPES, type PublicContentStatus, type PublicContentType } from "@/lib/public-content/types";
 
 type ContentRecord = {
   id: string;
@@ -343,31 +343,48 @@ function EditorModal({ open, form, setForm, editing, onClose, onSave }: { open: 
 
   return (
     <ModalShell open={open} onRequestClose={onClose}>
-      <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-900">{editing ? "Edit content" : "Create content"}</h3>
+      <div className="family-modal-card w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="modal-dialog-title-row family-modal-title-row mb-3">
+          <h3 className="family-modal-title">{editing ? "Edit content" : "Create content"}</h3>
           <Button className="modal-close-button" aria-label="Close" onClick={onClose}>X</Button>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Type"><select value={form.type} disabled={Boolean(editing)} onChange={(event) => update("type", event.target.value)} className="field-input"><option value="chore">chore</option><option value="reward">reward</option><option value="guide">guide</option></select></Field>
+          <Field label="Type">
+            <select
+              value={form.type}
+              disabled={Boolean(editing)}
+              onChange={(event) => update("type", event.target.value)}
+              className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500">
+              {EDITABLE_PUBLIC_CONTENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </Field>
           <Input label="Locale" value={form.locale} onChange={(value) => update("locale", value)} />
           <Input label="Title" value={form.title} onChange={(value) => update("title", value)} />
           <Input label="Slug" value={form.slug} onChange={(value) => update("slug", value)} />
           <Input label="Short description" value={form.shortDescription} onChange={(value) => update("shortDescription", value)} />
           <Input label="Category" value={form.category} onChange={(value) => update("category", value)} />
-          <Input label="Tags" value={form.tags} onChange={(value) => update("tags", value)} />
+          <Input label="Tags (comma-separated)" value={form.tags} onChange={(value) => update("tags", value)} />
           <Input label="Age range" value={form.ageRange} onChange={(value) => update("ageRange", value)} />
           <Input label="Difficulty" value={form.difficulty} onChange={(value) => update("difficulty", value)} />
           <Input label="Estimated minutes" value={form.estimatedMinutes} onChange={(value) => update("estimatedMinutes", value)} />
           <Input label="Image" value={form.image} onChange={(value) => update("image", value)} />
           <Input label="SEO title" value={form.seoTitle} onChange={(value) => update("seoTitle", value)} />
           <Input label="SEO description" value={form.seoDescription} onChange={(value) => update("seoDescription", value)} />
-          <Input label="SEO keywords" value={form.seoKeywords} onChange={(value) => update("seoKeywords", value)} />
+          <Input label="SEO keywords (comma-separated)" value={form.seoKeywords} onChange={(value) => update("seoKeywords", value)} />
           <Input label="Open Graph image" value={form.ogImage} onChange={(value) => update("ogImage", value)} />
-          <div className="sm:col-span-2 text-sm text-slate-600">Preview path: /{form.type === "chore" ? "chores" : form.type === "reward" ? "rewards" : "resources"}/{form.slug || "slug"}</div>
-          <Field label="Body"><textarea value={form.body} onChange={(event) => update("body", event.target.value)} rows={8} className="field-input" /></Field>
+          <p className="sm:col-span-2 text-sm text-slate-500 m-0">
+            Preview path: /{form.type === "chore" ? "chores" : form.type === "reward" ? "rewards" : "resources"}/{form.slug || "slug"}
+          </p>
+          <Field label="Body" className="sm:col-span-2">
+            <textarea
+              value={form.body}
+              onChange={(event) => update("body", event.target.value)}
+              rows={8}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400"
+            />
+          </Field>
         </div>
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="family-modal-actions mt-5">
           <Button className="btn btn-secondary" onClick={onClose}>Cancel</Button>
           <Button className="btn btn-primary" onClick={onSave}>Save</Button>
         </div>
@@ -376,10 +393,23 @@ function EditorModal({ open, form, setForm, editing, onClose, onSave }: { open: 
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">{label}{children}</label>;
+function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <label className={`flex flex-col gap-1.5${className ? ` ${className}` : ""}`}>
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+      {children}
+    </label>
+  );
 }
 
 function Input({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <Field label={label}><input value={value} onChange={(event) => onChange(event.target.value)} className="field-input" /></Field>;
+  return (
+    <Field label={label}>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400"
+      />
+    </Field>
+  );
 }

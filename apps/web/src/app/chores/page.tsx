@@ -14,6 +14,12 @@ import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
+import {
+  canApproveChore,
+  canUndoCompletion,
+  getRowMenuDisabledReasons,
+  getStatusLabel,
+} from "./chore-status-permissions";
 import type {
   ChoreRecurrenceType,
   ChoreRecurrenceUnit,
@@ -218,25 +224,6 @@ function sortChoreRows(rows: ChoreRow[], sortBy: ChoreSortBy, sortDir: "asc" | "
   });
 }
 
-function getStatusLabel(
-  chore: Pick<ChoreRow, "status" | "requireApproval">,
-  t: (key: string, params?: Record<string, string | number>) => string,
-) {
-  if (chore.status === "Submitted" && chore.requireApproval) {
-    return t("choresPage.status.awaitingApproval");
-  }
-  if (chore.status === "Submitted" || chore.status === "Approved") {
-    return t("choresPage.status.completed");
-  }
-  if (chore.status === "Open") {
-    return t("choresPage.status.open");
-  }
-  if (chore.status === "Rejected") {
-    return t("choresPage.status.rejected");
-  }
-  return chore.status;
-}
-
 function statusTone(status: string): "blue" | "green" | "rose" | "slate" {
   if (status === "Open") {
     return "blue";
@@ -351,14 +338,6 @@ function normalizeAssigneeAlias(value?: string) {
   return (value ?? "").trim().toLowerCase();
 }
 
-function canUndoCompletion(status: string) {
-  return status === "Submitted" || status === "Approved" || status === "Rejected";
-}
-
-function canApproveChore(chore: Pick<ChoreRow, "status" | "requireApproval">) {
-  return chore.status === "Submitted" && Boolean(chore.requireApproval);
-}
-
 function isMultiAssigneeChore(chore: Pick<ChoreRow, "assigneeScope" | "assigneeIds">) {
   return chore.assigneeScope === "family" || (chore.assigneeIds?.length ?? 0) > 1;
 }
@@ -392,6 +371,34 @@ type ChoreActionsMenuProps = {
   onRejectRequested: (chore: ChoreRow) => void;
 };
 
+type ChoreMenuItemButtonProps = {
+  label: string;
+  disabled: boolean;
+  disabledReason?: string;
+  busy: boolean;
+  busyLabel?: string;
+  className: string;
+  onClick: () => void;
+};
+
+function ChoreMenuItemButton({
+  label,
+  disabled,
+  disabledReason,
+  busy,
+  busyLabel,
+  className,
+  onClick,
+}: ChoreMenuItemButtonProps) {
+  return (
+    <span className="block" title={disabled ? disabledReason || undefined : undefined}>
+      <Button type="button" className={className} disabled={disabled} onClick={onClick}>
+        {busy ? busyLabel : label}
+      </Button>
+    </span>
+  );
+}
+
 function ChoreActionsMenu({
   chore,
   canManageActions,
@@ -415,9 +422,10 @@ function ChoreActionsMenu({
     top: number;
     left: number;
   } | null>(null);
-  const canUndoCompletion = chore.status === "Submitted" || chore.status === "Approved";
-  const canApprove = chore.status === "Submitted" && Boolean(chore.requireApproval);
-  const canReject = chore.status === "Submitted" && Boolean(chore.requireApproval);
+  const canUndo = canUndoCompletion(chore.status);
+  const canApprove = canApproveChore(chore);
+  const canReject = canApproveChore(chore);
+  const disabledReasons = getRowMenuDisabledReasons(chore, t, { busy: disabled });
 
   const updateMenuPosition = useCallback(() => {
     if (!triggerRef.current || typeof window === "undefined") {
@@ -471,74 +479,86 @@ function ChoreActionsMenu({
 
   return (
     <div className="relative" ref={triggerRef}>
-      <Button
-        type="button"
-        aria-label={t("choresPage.menu.choreOptions")}
-        aria-expanded={menuOpen}
-        className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-        disabled={disabled}
-        onClick={() => setMenuOpen((current) => !current)}>
-        <span className="text-lg leading-none">...</span>
-      </Button>
+      <span title={disabled ? disabledReasons.trigger || undefined : undefined}>
+        <Button
+          type="button"
+          aria-label={t("choresPage.menu.choreOptions")}
+          aria-expanded={menuOpen}
+          className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={disabled}
+          onClick={() => setMenuOpen((current) => !current)}>
+          <span className="text-lg leading-none">...</span>
+        </Button>
+      </span>
       {menuOpen && menuPosition && typeof document !== "undefined"
         ? createPortal(
             <div
               ref={dropdownRef}
               className="fixed z-[90] mt-1 w-40 rounded-md border border-slate-200 bg-white p-1 shadow-lg"
               style={{ top: menuPosition.top, left: menuPosition.left }}>
-              <Button
-                type="button"
+              <ChoreMenuItemButton
+                label={t("common.actions.edit")}
+                busy={false}
                 className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                disabled={disabled}
+                disabledReason={disabledReasons.edit}
                 onClick={() => {
                   setMenuOpen(false);
                   onEdit(chore);
-                }}>
-                {t("common.actions.edit")}
-              </Button>
-              <Button
-                type="button"
+                }}
+              />
+              <ChoreMenuItemButton
+                label={
+                  isMultiAssigneeChore(chore) || chore.choreType === "see_and_do"
+                    ? t("choresPage.actions.approveWithEllipsis")
+                    : t("choresPage.actions.approve")
+                }
+                busy={busyAction === "approve"}
+                busyLabel={t("choresPage.actions.approving")}
                 className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!canApprove || disabled}
+                disabledReason={disabledReasons.approve}
                 onClick={() => {
                   setMenuOpen(false);
                   void onApprove(chore);
-                }}>
-                {busyAction === "approve"
-                  ? t("choresPage.actions.approving")
-                  : isMultiAssigneeChore(chore) || chore.choreType === "see_and_do"
-                    ? t("choresPage.actions.approveWithEllipsis")
-                    : t("choresPage.actions.approve")}
-              </Button>
-              <Button
-                type="button"
+                }}
+              />
+              <ChoreMenuItemButton
+                label={t("choresPage.actions.reject")}
+                busy={busyAction === "reject"}
+                busyLabel={t("choresPage.actions.rejecting")}
                 className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!canReject || disabled}
+                disabledReason={disabledReasons.reject}
                 onClick={() => {
                   setMenuOpen(false);
                   onRejectRequested(chore);
-                }}>
-                {busyAction === "reject" ? t("choresPage.actions.rejecting") : t("choresPage.actions.reject")}
-              </Button>
-              <Button
-                type="button"
+                }}
+              />
+              <ChoreMenuItemButton
+                label={t("choresPage.actions.undoCompletion")}
+                busy={busyAction === "undo_complete"}
+                busyLabel={t("choresPage.actions.undoing")}
                 className="block w-full rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!canUndoCompletion || disabled}
+                disabled={!canUndo || disabled}
+                disabledReason={disabledReasons.undo}
                 onClick={() => {
                   setMenuOpen(false);
                   void onUndoCompletion(chore.id);
-                }}>
-                {busyAction === "undo_complete" ? t("choresPage.actions.undoing") : t("choresPage.actions.undoCompletion")}
-              </Button>
-              <Button
-                type="button"
+                }}
+              />
+              <ChoreMenuItemButton
+                label={t("common.actions.delete")}
+                busy={busyAction === "delete"}
+                busyLabel={t("choresPage.actions.deleting")}
                 className="block w-full rounded px-2 py-2 text-left text-sm text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={disabled}
+                disabledReason={disabledReasons.delete}
                 onClick={() => {
                   setMenuOpen(false);
                   onDeleteRequested(chore);
-                }}>
-                {busyAction === "delete" ? t("choresPage.actions.deleting") : t("common.actions.delete")}
-              </Button>
+                }}
+              />
             </div>,
             document.body,
           )

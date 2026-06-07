@@ -12,6 +12,7 @@ import {
   readBoolean,
   readString,
   readStringArray,
+  stringArrayField,
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
@@ -20,6 +21,7 @@ import {
   listFamilyCategories,
   MAX_CATEGORY_NAME_LENGTH,
   normalizeCategoryColor,
+  normalizeCategoryMemberIds,
   normalizeCategoryName,
 } from "@/lib/family/categories";
 import { trackAchievementEvent } from "@/lib/achievements/service";
@@ -27,6 +29,7 @@ import { trackAchievementEvent } from "@/lib/achievements/service";
 type CategoryBody = {
   name?: unknown;
   color?: unknown;
+  memberIds?: unknown;
   memberId?: unknown;
 };
 
@@ -193,7 +196,12 @@ export async function POST(request: NextRequest) {
   const name = typeof body.name === "string" ? normalizeCategoryName(body.name) : "";
   const color =
     typeof body.color === "string" ? normalizeCategoryColor(body.color) : "";
-  const memberId = typeof body.memberId === "string" ? body.memberId.trim() : "";
+  const memberIds =
+    Array.isArray(body.memberIds)
+      ? normalizeCategoryMemberIds(body.memberIds)
+      : typeof body.memberId === "string" && body.memberId.trim()
+        ? [body.memberId.trim()]
+        : [];
 
   if (!name) {
     return NextResponse.json({ error: "name_required" }, { status: 400 });
@@ -217,9 +225,9 @@ export async function POST(request: NextRequest) {
           return { kind: "forbidden_action" as const };
         }
 
-        if (memberId) {
-          const memberIds = await listActiveMemberIds(familyId, idToken);
-          if (!memberIds.has(memberId)) {
+        if (memberIds.length > 0) {
+          const activeMemberIds = await listActiveMemberIds(familyId, idToken);
+          if (memberIds.some((memberId) => !activeMemberIds.has(memberId))) {
             return { kind: "member_not_found" as const };
           }
         }
@@ -239,7 +247,8 @@ export async function POST(request: NextRequest) {
           {
             name: stringField(name),
             color: stringField(color),
-            memberId: stringField(memberId),
+            memberIds: stringArrayField(memberIds),
+            memberId: stringField(memberIds[0] ?? ""),
             deleted: boolField(false),
             createdBy: stringField(session.uid),
             createdAt: timestampField(now),
@@ -264,7 +273,8 @@ export async function POST(request: NextRequest) {
             id: categoryId,
             name,
             color,
-            memberId,
+            memberIds,
+            memberId: memberIds[0],
           },
         };
       });

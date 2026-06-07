@@ -1,66 +1,50 @@
 [
   {
-    "id": "store-new-user-loading",
+    "id": "family-privacy-controls-expanded",
     "date": "2026-06-07",
-    "type": "Bug Fix",
-    "subject": "Store for new users",
-    "description": "Brand-new signed-in users can now open the Store right away, even if their profile is still being initialized.",
-    "image": "/store3/theme.png"
+    "type": "Feature",
+    "subject": "Richer family privacy controls",
+    "description": "Family Privacy now groups legal and consent actions together, opens your accepted Terms and Privacy documents in dialogs, includes a dedicated consent history page, and streamlines consent and family data actions.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "guided-onboarding-flow",
+    "date": "2026-06-07",
+    "type": "Feature",
+    "subject": "Guided onboarding for new families",
+    "description": "New parents now experience a focused step-by-step setup: welcome, family naming, privacy & consent, adding a first child, and creating a first chore — all before reaching the dashboard. Existing families are not affected.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "category-multi-member-assignment",
+    "date": "2026-06-07",
+    "type": "Feature",
+    "subject": "Shared category assignments",
+    "description": "Categories can now be assigned to multiple family members, making shared chore labels easier to reuse.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "store-color-name-tooltips",
+    "date": "2026-06-07",
+    "type": "Feature",
+    "subject": "Friendly color names",
+    "description": "Store theme swatches and family category color pickers now use playful color names instead of raw hex codes.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "sticky-chore-categories-and-coins",
+    "date": "2026-06-07",
+    "type": "Feature",
+    "subject": "Sticky chore defaults",
+    "description": "New chore dialogs now remember your last coin value and category selections so repeated chore setup is faster.",
+    "image": "/file.svg"
   },
   {
     "id": "whats-new-discovery-badges",
-    "date": "2026-06-06",
+    "date": "2026-06-07",
     "type": "Feature",
     "subject": "What's New badges",
     "description": "Red badges now show what's new since you last looked — new chores, store items, quests, achievements, and changelog updates — with a What's New card on your dashboard. Opening a section clears its badge, and counts respect each profile's role and access.",
-    "image": "/file.svg"
-  },
-  {
-    "id": "support-content-seo-publishing",
-    "date": "2026-06-06",
-    "type": "Feature",
-    "subject": "Support content publishing",
-    "description": "Support operators can now manage curated public content and SEO readiness for chore, reward, and guide pages.",
-    "image": "/file.svg"
-  },
-  {
-    "id": "child-profile-family-coin-balances",
-    "date": "2026-06-06",
-    "type": "Bug Fix",
-    "subject": "Family coin balances",
-    "description": "Switching into a child profile now keeps other family members' coin balances accurate in the dashboard and Family views.",
-    "image": "/file.svg"
-  },
-  {
-    "id": "family-privacy-controls",
-    "date": "2026-06-06",
-    "type": "Feature",
-    "subject": "Family privacy & data controls",
-    "description": "Parents get a new Privacy tab under Family to review consent and data region, see a summary of stored family data, download a full data export, and request or cancel family deletion with a 30-day grace period.",
-    "image": "/file.svg"
-  },
-  {
-    "id": "chores-table-all-column-search",
-    "date": "2026-06-06",
-    "type": "Bug Fix",
-    "subject": "Chore table filtering",
-    "description": "The chores table search now covers all columns, assignee filtering supports avatar multi-select choices, and category, type, recurrence, date, and coin filters are easier to refine.",
-    "image": "/file.svg"
-  },
-  {
-    "id": "support-dashboard-live-metrics",
-    "date": "2026-06-06",
-    "type": "Feature",
-    "subject": "Support dashboard live metrics",
-    "description": "Support dashboard tabs now use compact color-coded metric rows for active users, requests, families, users, communication, awards, and quest diagnostics.",
-    "image": "/file.svg"
-  },
-  {
-    "id": "support-dashboard-module-layout",
-    "date": "2026-06-06",
-    "type": "Feature",
-    "subject": "Support dashboard navigation",
-    "description": "Support operators now have a tabbed dashboard layout with dedicated sections for families, users, communication, requests, awards, and quests.",
     "image": "/file.svg"
   },
   {

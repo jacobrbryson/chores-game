@@ -1,8 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { AppTabs, type AppTabItem } from "@/components/app-tabs";
 import { FamilyCard } from "@/components/family-card";
 import { FamilyFeedPanel } from "@/components/family-feed-panel";
+import { ReacceptanceModal } from "@/components/reacceptance-modal";
 import { useLocale } from "@/components/locale-provider";
 import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
 import { useMarkDiscoverySeen } from "@/lib/hooks/use-discovery";
@@ -10,6 +13,15 @@ import { useMarkDiscoverySeen } from "@/lib/hooks/use-discovery";
 type DashboardHomeTabId = "chores" | "feed";
 
 const DASHBOARD_HOME_TAB_IDS: readonly DashboardHomeTabId[] = ["chores", "feed"];
+
+type OnboardingStatus = {
+  viewerRole: "admin" | "player";
+  needsOnboarding: boolean;
+  needsReacceptance: boolean;
+  hasPreviousVersionedConsent: boolean;
+  currentTermsVersion: string;
+  currentPrivacyVersion: string;
+};
 
 type DashboardHomeProps = {
   // Identifies the signed-in viewer so the selected tab sticks per viewer (e.g. switched
@@ -23,25 +35,64 @@ type DashboardHomeProps = {
 // app/page.tsx).
 export function DashboardHome({ viewerKey }: DashboardHomeProps) {
   const { t } = useLocale();
+  const router = useRouter();
   const [activeTab, setActiveTab] = usePersistedTab<DashboardHomeTabId>({
     storageKey: `dashboard-home-active-tab:${viewerKey || "default"}`,
     defaultTab: "chores",
     validTabs: DASHBOARD_HOME_TAB_IDS,
     urlParamKey: "tab",
   });
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
+  const [reacceptanceDone, setReacceptanceDone] = useState(false);
 
   // Mark chores discovery seen only while the Chores tab is actually active —
   // the hidden-but-mounted chores panel must not clear the badge. The visible
   // count lives on the top-nav Dashboard item (see MainNavigation).
   useMarkDiscoverySeen(["chores"], activeTab === "chores");
 
+  // Gate check: redirect to onboarding if needed, or surface the re-acceptance
+  // modal when the family's consent is outdated. Fails open so the dashboard is
+  // never permanently blocked by a transient API error.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await fetch("/api/family/onboarding-status", { cache: "no-store" });
+        if (!response.ok) {
+          return;
+        }
+        const payload = (await response.json()) as OnboardingStatus;
+        if (payload.needsOnboarding && payload.viewerRole === "admin") {
+          router.push("/onboarding");
+          return;
+        }
+        setOnboardingStatus(payload);
+      } catch {
+        // Fail open — don't block the dashboard on network errors.
+      }
+    })();
+  }, [router]);
+
   const tabs: AppTabItem<DashboardHomeTabId>[] = [
     { id: "chores", label: t("dashboard.tabs.chores") },
     { id: "feed", label: t("dashboard.tabs.feed") },
   ];
 
+  const showReacceptance =
+    !reacceptanceDone &&
+    onboardingStatus?.viewerRole === "admin" &&
+    onboardingStatus?.needsReacceptance === true;
+
   return (
     <div className="dashboard-home">
+      {showReacceptance && onboardingStatus ? (
+        <ReacceptanceModal
+          open
+          isFirstAcceptance={!onboardingStatus.hasPreviousVersionedConsent}
+          currentTermsVersion={onboardingStatus.currentTermsVersion}
+          currentPrivacyVersion={onboardingStatus.currentPrivacyVersion}
+          onAccepted={() => setReacceptanceDone(true)}
+        />
+      ) : null}
       <div className="dashboard-home-tabs">
         <AppTabs
           ariaLabel={t("dashboard.tabs.ariaLabel")}

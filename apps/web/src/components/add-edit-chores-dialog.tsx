@@ -93,6 +93,8 @@ type AddEditChoresDialogProps = {
 const LAST_ASSIGNEE_STORAGE_KEY = "chores_last_assignee_id";
 export const FAMILY_ASSIGNEE_OPTION_ID = "__family__";
 const ADDITIONAL_OPTIONS_STORAGE_KEY = "chores_additional_options_open_v2";
+const LAST_COIN_VALUE_STORAGE_KEY = "chores_last_coin_value";
+const LAST_CATEGORY_IDS_STORAGE_KEY = "chores_last_category_ids";
 
 // ---------------------------------------------------------------------------
 // Module-level family-summary cache (stale-while-revalidate).
@@ -171,6 +173,54 @@ function writeAdditionalOptionsPreferenceToStorage(value: boolean) {
     // Ignore storage errors.
   }
 }
+
+function readLastCoinValueFromStorage() {
+  try {
+    return window.localStorage.getItem(LAST_COIN_VALUE_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeLastCoinValueToStorage(value: string) {
+  try {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      window.localStorage.removeItem(LAST_COIN_VALUE_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(LAST_COIN_VALUE_STORAGE_KEY, trimmed);
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+function readLastCategoryIdsFromStorage() {
+  try {
+    const raw = window.localStorage.getItem(LAST_CATEGORY_IDS_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLastCategoryIdsToStorage(value: string[]) {
+  try {
+    const next = value.filter(Boolean);
+    if (next.length === 0) {
+      window.localStorage.removeItem(LAST_CATEGORY_IDS_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(LAST_CATEGORY_IDS_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
 export function AddEditChoresDialog({
   onSaved,
   triggerLabel = "Let's add some!",
@@ -277,11 +327,18 @@ export function AddEditChoresDialog({
     );
     const selectedCategoryIds = new Set(categoryIds);
     return categories.filter((category) => {
-      const memberId = category.memberId ?? "";
-      const isFamilyWide = !memberId || !memberIds.has(memberId);
+      const categoryMemberIds =
+        category.memberIds && category.memberIds.length > 0
+          ? category.memberIds
+          : category.memberId
+            ? [category.memberId]
+            : [];
+      const isFamilyWide =
+        categoryMemberIds.length === 0 ||
+        categoryMemberIds.every((memberId) => !memberIds.has(memberId));
       return (
         isFamilyWide ||
-        selectedMemberIds.has(memberId) ||
+        categoryMemberIds.some((memberId) => selectedMemberIds.has(memberId)) ||
         selectedCategoryIds.has(category.id)
       );
     });
@@ -380,6 +437,9 @@ export function AddEditChoresDialog({
     const viewer = allMembers.find(
       (member) => member.id === viewerUid || member.uid === viewerUid,
     );
+    const storedCategoryIds = readLastCategoryIdsFromStorage().filter((categoryId) =>
+      allCategories.some((category) => category.id === categoryId),
+    );
     setAssigneeIds((current) =>
       current.length > 0
         ? current
@@ -393,6 +453,7 @@ export function AddEditChoresDialog({
                 ? [viewer.id]
                 : [],
     );
+    setCategoryIds((current) => (current.length > 0 ? current : storedCategoryIds));
     setAssigneeHydrated(true);
   }
 
@@ -482,8 +543,12 @@ export function AddEditChoresDialog({
     );
     setDueDate(chore?.dueDate || todayIsoDate());
     setDetails(chore?.details ?? "");
-    setCategoryIds(chore?.categoryIds ?? []);
-    setCoinValue(String(chore?.coinValue ?? DEFAULT_CHORE_COIN_VALUE));
+    setCategoryIds(chore?.categoryIds ?? readLastCategoryIdsFromStorage());
+    setCoinValue(
+      chore?.coinValue !== undefined
+        ? String(chore.coinValue)
+        : readLastCoinValueFromStorage() || String(DEFAULT_CHORE_COIN_VALUE),
+    );
     setRequireApproval(Boolean(chore?.requireApproval));
     setRecurrenceType(chore?.recurrenceType ?? "none");
     setRecurrenceInterval(String(chore?.recurrenceInterval ?? DEFAULT_RECURRENCE_INTERVAL));
@@ -582,6 +647,20 @@ export function AddEditChoresDialog({
     }
     writeLastAssigneeId(onlyAssigneeId);
   }, [assigneeHydrated, assigneeIds, isEditMode, open]);
+
+  useEffect(() => {
+    if (!open || isEditMode || isSeeAndDoMode) {
+      return;
+    }
+    writeLastCoinValueToStorage(coinValue);
+  }, [coinValue, isEditMode, isSeeAndDoMode, open]);
+
+  useEffect(() => {
+    if (!open || isEditMode || isSeeAndDoMode) {
+      return;
+    }
+    writeLastCategoryIdsToStorage(categoryIds);
+  }, [categoryIds, isEditMode, isSeeAndDoMode, open]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

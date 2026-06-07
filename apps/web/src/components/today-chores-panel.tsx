@@ -43,6 +43,7 @@ import {
   type CompletionWindow,
 } from "@/lib/preferences/completion-window";
 import { triggerPartyConfetti } from "@/lib/confetti/party";
+import { markDiscoverySeen } from "@/lib/hooks/use-discovery";
 
 type TodayChoresPanelProps = {
   chores: FamilySnapshotChore[];
@@ -1026,6 +1027,7 @@ export function TodayChoresPanel({
         return;
       }
       await onReload();
+      await markDiscoverySeen(["chores"]);
       return;
     }
 
@@ -1035,6 +1037,7 @@ export function TodayChoresPanel({
     }
     if (result.phase === "success") {
       await onReload();
+      await markDiscoverySeen(["chores"]);
     }
   }
 
@@ -1853,7 +1856,6 @@ export function TodayChoresPanel({
     </article>
   );
 }
-
 
 
 

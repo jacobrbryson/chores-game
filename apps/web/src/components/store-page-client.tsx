@@ -26,6 +26,7 @@ import {
   triggerPartyConfetti,
 } from "@/lib/confetti/party";
 import {
+  getStoreColorName,
   isAllowedDashboardColor,
   normalizeColor,
   type StoreCategory,
@@ -636,9 +637,9 @@ export function StorePageClient() {
                     const tertiaryColor = option.theme?.tertiary ?? primaryColor;
                     const confettiColors = option.confetti?.colors ?? ["#94a3b8", "#64748b", "#cbd5e1"];
                     const confettiShapes = option.confetti?.shapes ?? ["rect", "circle", "streamer"];
-                    const primaryTooltip = `Primary: ${primaryColor.toUpperCase()}`;
-                    const secondaryTooltip = `Secondary: ${secondaryColor.toUpperCase()}`;
-                    const tertiaryTooltip = `Tertiary (Tiernary): ${tertiaryColor.toUpperCase()}`;
+                    const primaryTooltip = getStoreColorName(primaryColor);
+                    const secondaryTooltip = getStoreColorName(secondaryColor);
+                    const tertiaryTooltip = getStoreColorName(tertiaryColor);
                     return (
                       <article
                         key={option.id}

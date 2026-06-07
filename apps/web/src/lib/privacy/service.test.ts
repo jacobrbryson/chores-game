@@ -7,6 +7,7 @@ import {
   normalizeDataRegion,
 } from "@/lib/privacy/config";
 import {
+  getLegalDocumentByVersion,
   getCurrentPrivacyPolicyVersion,
   getCurrentTermsVersion,
   getPrivacyPolicy,
@@ -99,6 +100,8 @@ describe("privacy overview", () => {
     };
     const overview = buildPrivacyOverview(fields);
     expect(overview.consentUpToDate).toBe(true);
+    expect(overview.acceptedLegalVersion).toBe(CURRENT_TERMS_VERSION);
+    expect(overview.currentLegalVersion).toBe(CURRENT_TERMS_VERSION);
     expect(overview.dataRegion).toBe("US");
   });
 
@@ -106,6 +109,7 @@ describe("privacy overview", () => {
     const overview = buildPrivacyOverview({});
     expect(overview.consentUpToDate).toBe(false);
     expect(overview.acceptedTermsVersion).toBe("");
+    expect(overview.acceptedLegalVersion).toBe("");
     expect(overview.dataRegion).toBe("US");
   });
 
@@ -268,6 +272,18 @@ describe("legal document loader", () => {
     const doc = getTermsOfService();
     expect(doc.version).toBe("2026-06-06");
     expect(CURRENT_TERMS_VERSION).toBe(doc.version);
+  });
+
+  it("returns the bundled legal document when the requested version matches", () => {
+    const privacy = getLegalDocumentByVersion("privacy-policy", CURRENT_PRIVACY_VERSION);
+    const terms = getLegalDocumentByVersion("terms-of-service", CURRENT_TERMS_VERSION);
+    expect(privacy?.id).toBe("privacy-policy");
+    expect(terms?.id).toBe("terms-of-service");
+  });
+
+  it("returns null when a requested legal version is unavailable", () => {
+    expect(getLegalDocumentByVersion("privacy-policy", "1900-01-01")).toBeNull();
+    expect(getLegalDocumentByVersion("terms-of-service", "1900-01-01")).toBeNull();
   });
 });
 

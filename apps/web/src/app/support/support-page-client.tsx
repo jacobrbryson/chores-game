@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
+import { AppMenu } from "@/components/app-menu";
+import { MenuActionButton } from "@/components/menu-action-button";
 import { SupportCommunityAwardsPanel } from "@/components/support-community-awards-panel";
 import { SupportContentPanel, SupportSeoPanel } from "@/components/support-content-panel";
 import { SupportConsoleShell, type SupportModuleId } from "@/components/support-console-shell";
@@ -380,6 +382,11 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
     label: string;
     familyId?: string;
   } | null>(null);
+  const [pendingConsentReset, setPendingConsentReset] = useState<{
+    familyId: string;
+    label: string;
+  } | null>(null);
+  const [consentResetting, setConsentResetting] = useState(false);
   const [notice, setNotice] = useState("");
 
   const loadSupportData = useCallback(async () => {
@@ -550,6 +557,33 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
     await deleteEntity(entity, id, familyId);
   }
 
+  async function resetConsent(familyId: string, mode: "reacceptance" | "full") {
+    setConsentResetting(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/support/privacy/reset-consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ familyId, mode }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error || "Reset failed");
+      }
+      setNotice(
+        mode === "full"
+          ? "Consent fully reset — family will see the onboarding wizard on next sign-in."
+          : "Version strings cleared — family will see the re-acceptance modal on next dashboard load.",
+      );
+      setPendingConsentReset(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reset consent failed");
+    } finally {
+      setConsentResetting(false);
+    }
+  }
+
   const copy = MODULE_COPY[module];
   const actions =
     module === "dashboard" ? (
@@ -623,7 +657,14 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
             <UsersTable
               users={paginate(filteredUsers, page).rows}
               deleting={deleting}
+              consentResetting={consentResetting}
               onDelete={(user) => requestDelete("user", user.uid, user.name || user.email || user.uid)}
+              onResetConsent={(user) =>
+                setPendingConsentReset({
+                  familyId: user.familyIds[0] ?? "",
+                  label: user.name || user.email || user.uid,
+                })
+              }
             />
             <Pager
               page={paginate(filteredUsers, page).page}
@@ -677,6 +718,62 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
       {!loading && payload && module === "content" ? <SupportContentPanel /> : null}
 
       {!loading && payload && module === "seo" ? <SupportSeoPanel /> : null}
+      <ModalShell open={Boolean(pendingConsentReset)} onRequestClose={() => setPendingConsentReset(null)}>
+        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+          {pendingConsentReset ? (
+            <>
+              <div className="modal-dialog-title-row mb-2">
+                <h3 className="text-lg font-bold text-slate-800">Reset consent</h3>
+                <Button
+                  type="button"
+                  className="modal-close-button"
+                  onClick={() => setPendingConsentReset(null)}
+                  aria-label="Close">
+                  X
+                </Button>
+              </div>
+              <p className="mb-4 text-sm text-slate-600">
+                Resetting consent for{" "}
+                <strong className="text-slate-900">{pendingConsentReset.label}</strong>.
+                Choose how far back to reset.
+              </p>
+              <div className="mb-5 flex flex-col gap-3">
+                <button
+                  type="button"
+                  className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm hover:bg-amber-100 disabled:opacity-50"
+                  disabled={consentResetting}
+                  onClick={() => void resetConsent(pendingConsentReset.familyId, "reacceptance")}>
+                  <div className="font-semibold text-amber-900">Re-acceptance only</div>
+                  <div className="mt-0.5 text-amber-700">
+                    Clears accepted policy versions. The family keeps their onboarding state
+                    but will see the blocking re-acceptance modal on their next dashboard visit.
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-left text-sm hover:bg-rose-100 disabled:opacity-50"
+                  disabled={consentResetting}
+                  onClick={() => void resetConsent(pendingConsentReset.familyId, "full")}>
+                  <div className="font-semibold text-rose-900">Full reset</div>
+                  <div className="mt-0.5 text-rose-700">
+                    Clears all consent fields including parental consent date and onboarding
+                    completion. The family will go through the full onboarding wizard on next sign-in.
+                  </div>
+                </button>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setPendingConsentReset(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </ModalShell>
+
       <ModalShell open={Boolean(pendingDelete)} onRequestClose={() => setPendingDelete(null)}>
         <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
           {pendingDelete ? (
@@ -768,14 +865,65 @@ function FamiliesTable({
   );
 }
 
+function UserActionsMenu({
+  user,
+  deleting,
+  consentResetting,
+  onDelete,
+  onResetConsent,
+}: {
+  user: SupportUser;
+  deleting: string | null;
+  consentResetting: boolean;
+  onDelete: (user: SupportUser) => void;
+  onResetConsent: (user: SupportUser) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const busy = deleting === user.uid || consentResetting;
+
+  return (
+    <AppMenu
+      open={open}
+      onOpenChange={setOpen}
+      triggerClassName="btn btn-secondary"
+      triggerAriaLabel="User actions"
+      triggerDisabled={busy}
+      panelClassName="app-menu-panel"
+      trigger={busy ? "..." : "Actions ▾"}>
+      <MenuActionButton
+        fullWidth
+        disabled={!user.familyIds[0]}
+        onClick={() => {
+          setOpen(false);
+          onResetConsent(user);
+        }}>
+        Reset Consent…
+      </MenuActionButton>
+      <MenuActionButton
+        fullWidth
+        className="menu-action-link-danger"
+        onClick={() => {
+          setOpen(false);
+          onDelete(user);
+        }}>
+        Delete…
+      </MenuActionButton>
+    </AppMenu>
+  );
+}
+
 function UsersTable({
   users,
   deleting,
+  consentResetting,
   onDelete,
+  onResetConsent,
 }: {
   users: SupportUser[];
   deleting: string | null;
+  consentResetting: boolean;
   onDelete: (user: SupportUser) => void;
+  onResetConsent: (user: SupportUser) => void;
 }) {
   return (
     <div className="overflow-auto">
@@ -804,9 +952,13 @@ function UsersTable({
               <td className="px-3 py-2">{user.googleTasksLinked ? user.googleTasksLastSyncStatus || "Linked" : "-"}</td>
               <td className="px-3 py-2">{formatDate(user.lastSignInAt)}</td>
               <td className="px-3 py-2">
-                <Button className="btn btn-danger" disabled={deleting === user.uid} onClick={() => onDelete(user)}>
-                  {deleting === user.uid ? "Deleting..." : "Delete"}
-                </Button>
+                <UserActionsMenu
+                  user={user}
+                  deleting={deleting}
+                  consentResetting={consentResetting}
+                  onDelete={onDelete}
+                  onResetConsent={onResetConsent}
+                />
               </td>
             </tr>
           ))}

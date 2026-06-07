@@ -690,6 +690,37 @@ Support actions should be auditable whenever practical.
 - Shop module: catalog, purchasing, inventory, equip/unequip.
 - Avatar module: cosmetic slot config + active loadout.
 
+## Onboarding & Consent
+
+Onboarding applies **only to family admins (parents)**. Child `player` accounts never see onboarding.
+
+### First-run detection
+A family is considered onboarding-complete when **either**:
+- `families/{familyId}.onboardingCompletedAt` is set (new-style wizard), **or**
+- `families/{familyId}.parentalConsentAt` is set (existing families that pre-date the wizard).
+
+`GET /api/family/onboarding-status` evaluates both fields and returns `needsOnboarding` (show wizard) and `needsReacceptance` (show blocking re-accept modal). `DashboardHome` calls this on mount and acts accordingly.
+
+### Onboarding wizard (`/onboarding`)
+- Steps: Welcome → Family Name → Privacy & Consent → Add First Child (optional) → Create First Chore (optional) → Done.
+- The Family Name step calls `POST /api/onboarding/complete` (sets `onboardingCompletedAt`, optionally renames the family).
+- The Privacy & Consent step calls the existing `POST /api/family/privacy/consent` and records `TERMS_ACCEPTED`, `PRIVACY_ACCEPTED`, and `PARENTAL_CONSENT_RECORDED` events.
+- Add Child and Create First Chore use the existing `/api/family/members` and `/api/chores` endpoints.
+- Players who somehow navigate to `/onboarding` are redirected to `/` by the wizard's status check.
+
+### Re-acceptance
+When `consentUpToDate: false` for a completed family admin, `DashboardHome` shows a `ReacceptanceModal` that cannot be dismissed without accepting. It calls `POST /api/family/privacy/consent` and records new consent events. Use a blocking modal only — never a toast, banner, or notification.
+
+### Privacy tab (Family → Privacy)
+The Privacy tab at `/family?tab=privacy` is the ongoing privacy dashboard. It must remain accessible after onboarding for consent history, version info, data export, deletion requests, and child privacy settings. Do not move privacy controls away from the Family page.
+
+### Rules
+- Consent must be collected during onboarding for new users.
+- Existing users with prior `parentalConsentAt` skip onboarding entirely.
+- Version bumps to `CURRENT_TERMS_VERSION` or `CURRENT_PRIVACY_VERSION` trigger re-acceptance on next dashboard load.
+- Child accounts (`player` role) receive 403 on all `/api/family/privacy/*` routes and never provide parental consent.
+- Every consent action writes immutable records to `families/{familyId}/consentEvents` via `appendConsentEventBestEffort`.
+
 ## Definition of Done (Feature-Level)
 - Role-safe end-to-end flow works in UI and backend.
 - Error states are handled (unauthorized, invalid transition, insufficient funds).

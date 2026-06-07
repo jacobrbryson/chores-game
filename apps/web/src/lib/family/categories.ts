@@ -11,6 +11,7 @@ import type { FamilyCategory } from "@/lib/family/types";
 export const CATEGORY_COLOR_FALLBACK = "#64748b";
 export const MAX_CATEGORY_NAME_LENGTH = 40;
 export const MAX_CATEGORIES_PER_CHORE = 20;
+export const MAX_CATEGORY_MEMBER_IDS = 100;
 
 export function normalizeCategoryName(value: string) {
   return value.trim().replace(/\s+/g, " ");
@@ -25,6 +26,29 @@ export function isValidCategoryColor(value: string) {
 }
 
 export function normalizeCategoryIds(value: unknown, maxCount = MAX_CATEGORIES_PER_CHORE) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") {
+      continue;
+    }
+    const id = entry.trim();
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    normalized.push(id);
+    if (normalized.length >= maxCount) {
+      break;
+    }
+  }
+  return normalized;
+}
+
+export function normalizeCategoryMemberIds(value: unknown, maxCount = MAX_CATEGORY_MEMBER_IDS) {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -64,8 +88,15 @@ export function parseFamilyCategories(
       );
       const rawColor = normalizeCategoryColor(readString(doc.fields, "color"));
       const color = isValidCategoryColor(rawColor) ? rawColor : CATEGORY_COLOR_FALLBACK;
-      const memberId = readString(doc.fields, "memberId").trim();
-      return { id, deleted, name, color, memberId };
+      const memberIds = normalizeCategoryMemberIds(readStringArray(doc.fields, "memberIds"));
+      const legacyMemberId = readString(doc.fields, "memberId").trim();
+      const resolvedMemberIds =
+        memberIds.length > 0
+          ? memberIds
+          : legacyMemberId
+            ? [legacyMemberId]
+            : [];
+      return { id, deleted, name, color, memberIds: resolvedMemberIds };
     })
     .filter((category) => !category.deleted && Boolean(category.id) && Boolean(category.name))
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -73,7 +104,8 @@ export function parseFamilyCategories(
       id: category.id,
       name: category.name,
       color: category.color,
-      memberId: category.memberId,
+      memberIds: category.memberIds,
+      memberId: category.memberIds[0],
     }));
 }
 

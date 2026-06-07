@@ -306,7 +306,14 @@
     },
     "menu": {
       "choreOptions": "Options de la tache",
-      "bulkActions": "Actions groupees"
+      "bulkActions": "Actions groupees",
+      "disabledReasons": {
+        "actionInProgress": "Une autre action sur une tache est encore en cours.",
+        "approvalNotRequired": "Cette tache n'a pas besoin d'approbation.",
+        "approveStatus": "Seules les taches en attente d'approbation peuvent etre approuvees. Statut actuel : {status}.",
+        "rejectStatus": "Seules les taches en attente d'approbation peuvent etre rejetees. Statut actuel : {status}.",
+        "undoStatus": "Seules les taches terminees ou deja examinees peuvent etre annulees. Statut actuel : {status}."
+      }
     },
     "actions": {
       "approve": "Approuver",
@@ -962,7 +969,7 @@
       "consentStatusCurrent": "À jour",
       "consentStatusOutdated": "Nécessite une nouvelle acceptation",
       "recordConsent": "Enregistrer le consentement",
-      "updateConsent": "Mettre à jour le consentement",
+      "updateConsent": "Mettre à jour le consentement...",
       "consentRecorded": "Consentement enregistré.",
       "consentNeeded": "Le consentement des conditions ou de la politique de confidentialité est manquant ou obsolète. Veuillez consulter et accepter les versions actuelles ci-dessous.",
       "saving": "Enregistrement...",
@@ -1000,7 +1007,17 @@
       "deletionScheduledNotice": "Suppression de la famille planifiée.",
       "cancelDeletion": "Annuler la demande de suppression",
       "deletionCanceledNotice": "Demande de suppression annulée.",
-      "loadError": "Impossible de charger les paramètres de confidentialité : {error}"
+      "loadError": "Impossible de charger les paramètres de confidentialité : {error}",
+      "acceptedAt": "Accept? le",
+      "acceptedVersion": "Version accept?e",
+      "currentVersion": "Version actuelle",
+      "privacyPolicy": "Politique de confidentialite",
+      "termsOfService": "Conditions d'utilisation",
+      "legalDocumentUnavailable": "Le document legal accepte pour la version {version} n'est pas disponible dans cette build.",
+      "viewConsentHistory": "Voir l'historique du consentement",
+      "backToPrivacy": "Retour a Confidentialite",
+      "requestDeletionAction": "Demander la suppression de la famille...",
+      "exportStarted": "L'exportation des donnees familiales a commence."
     },
     "awards": {
       "submitToCommunity": "Soumettre aux prix communautaires",
@@ -1107,5 +1124,96 @@
   "mobile": {
     "checkingSessionTitle": "Vérification de la session...",
     "checkingSessionBody": "Veuillez patienter pendant que nous vérifions votre connexion Family Chores."
+  },
+  "onboarding": {
+    "saving": "Enregistrement...",
+    "welcome": {
+      "title": "Bienvenue dans Family Chores",
+      "subtitle": "Voici ce que nous aidons votre famille à faire :",
+      "feature1": "Attribuer et suivre les tâches",
+      "feature2": "Récompenser les progrès avec des pièces",
+      "feature3": "Développer la responsabilité à la maison",
+      "feature4": "Rendre l'aide à la maison plus amusante",
+      "cta": "Commencer",
+      "signOut": "Se déconnecter"
+    },
+    "family": {
+      "title": "Nommez votre famille",
+      "subtitle": "C'est ainsi que votre famille apparaîtra dans l'application.",
+      "label": "Nom de la famille",
+      "placeholder": "La famille Dupont",
+      "cta": "Continuer"
+    },
+    "privacy": {
+      "title": "La confidentialité de votre famille",
+      "subtitle": "Voici comment nous protégeons les données de votre famille :",
+      "point1": "Les parents contrôlent les comptes familiaux",
+      "point2": "Les profils des enfants restent privés",
+      "point3": "Les enfants ne peuvent pas voter sur le contenu communautaire",
+      "point4": "Les données familiales ne sont jamais vendues",
+      "point5": "Les données peuvent être exportées à tout moment",
+      "point6": "Les familles peuvent demander la suppression à tout moment",
+      "viewPrivacyPolicy": "Voir la Politique de Confidentialité",
+      "viewTermsOfService": "Voir les Conditions d'Utilisation",
+      "terms": "J'accepte les Conditions d'Utilisation",
+      "privacy": "J'accepte la Politique de Confidentialité",
+      "parental": "Je confirme être le parent ou tuteur créant cette famille",
+      "cta": "Continuer"
+    },
+    "addChild": {
+      "title": "Ajouter votre premier enfant",
+      "subtitle": "Créez un profil enfant pour qu'il puisse gagner des pièces pour ses tâches.",
+      "label": "Prénom de l'enfant",
+      "placeholder": "Alex",
+      "cta": "Ajouter un enfant",
+      "skip": "Passer pour l'instant",
+      "done": "Continuer"
+    },
+    "firstChore": {
+      "title": "Créer votre première tâche",
+      "subtitle": "Lancez-vous avec une tâche pour votre famille.",
+      "label": "Titre de la tâche",
+      "placeholder": "Faire son lit",
+      "coinsLabel": "Pièces",
+      "cta": "Créer la tâche",
+      "skip": "Passer pour l'instant",
+      "createdTitle": "Tâche créée !",
+      "createdSubtitle": "Bon début. Vous pouvez ajouter d'autres tâches depuis le tableau de bord.",
+      "continue": "Continuer"
+    },
+    "done": {
+      "title": "Tout est prêt !",
+      "subtitle": "Votre famille est prête. Voici quelques choses à explorer :",
+      "next1": "Créer plus de tâches depuis le tableau de bord",
+      "next2": "Visiter la boutique avec les pièces gagnées",
+      "next3": "Essayer une quête ensemble",
+      "next4": "Personnaliser le profil d'un enfant",
+      "cta": "Aller au tableau de bord"
+    },
+    "steps": {
+      "welcome": "Bienvenue",
+      "family": "Famille",
+      "privacy": "Confidentialité",
+      "addChild": "Enfants",
+      "firstChore": "Première tâche",
+      "done": "Terminé"
+    },
+    "reacceptance": {
+      "title": "Mise à jour des politiques",
+      "subtitle": "Nos Conditions d'Utilisation et/ou Politique de Confidentialité ont été mises à jour. Veuillez les revoir et les accepter pour continuer.",
+      "firstTitle": "Consultez nos politiques",
+      "firstSubtitle": "Veuillez consulter et accepter nos Conditions d'Utilisation et notre Politique de Confidentialité pour continuer à utiliser Family Chores.",
+      "termsVersion": "Version des conditions",
+      "privacyVersion": "Version de confidentialité",
+      "viewPrivacyPolicy": "Voir la Politique de Confidentialité",
+      "viewTermsOfService": "Voir les Conditions d'Utilisation",
+      "terms": "J'accepte les Conditions d'Utilisation mises à jour",
+      "privacy": "J'accepte la Politique de Confidentialité mise à jour",
+      "firstTerms": "J'accepte les Conditions d'Utilisation",
+      "firstPrivacy": "J'accepte la Politique de Confidentialité",
+      "parental": "Je confirme être le parent ou tuteur de cette famille",
+      "cta": "Accepter et continuer",
+      "firstCta": "Accepter et continuer"
+    }
   }
 }

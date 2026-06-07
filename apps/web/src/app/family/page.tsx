@@ -1,6 +1,5 @@
 "use client";
 
-import { LOCALE_LABELS, SUPPORTED_LOCALES, type AppLocale } from "@packages/locales";
 import Image from "next/image";
 import Link from "next/link";
 import { CSSProperties, Dispatch, FormEvent, ReactNode, SetStateAction, useEffect, useMemo, useState } from "react";
@@ -17,7 +16,9 @@ import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { FamilyQuestsSection } from "@/components/family-quests-section";
 import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
-import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
+import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
+import type { TailwindSelectOption } from "@/components/tailwind-select";
+import { CategoryColorSelect } from "@/components/category-color-select";
 import type { FamilySummaryResponse } from "@/lib/family/types";
 import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
 import {
@@ -40,7 +41,7 @@ type FamilyCategory = FamilySummaryResponse["categories"][number];
 type CategoryFormState = {
   name: string;
   color: string;
-  memberId: string;
+  memberIds: string[];
 };
 
 type PendingRemoveCategory = {
@@ -213,7 +214,7 @@ const CATEGORY_COLOR_PALETTE: string[] = [
 const initialCategoryFormState: CategoryFormState = {
   name: "",
   color: "#3b82f6",
-  memberId: "",
+  memberIds: [],
 };
 
 const initialRewardFormState: RewardFormState = {
@@ -371,10 +372,6 @@ function normalizeCategoryColor(value: string) {
 
 export default function FamilyPage() {
   const { t } = useLocale();
-  const localeOptions: TailwindSelectOption<AppLocale>[] = SUPPORTED_LOCALES.map((option) => ({
-    value: option,
-    label: LOCALE_LABELS[option],
-  }));
   const [summary, setSummary] = useState<FamilySummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -416,8 +413,6 @@ export default function FamilyPage() {
     useState<PendingDisableReward | null>(null);
   const [pendingRemoveReward, setPendingRemoveReward] =
     useState<PendingRemoveReward | null>(null);
-  const [memberLocalePendingId, setMemberLocalePendingId] = useState("");
-  const [memberLocaleError, setMemberLocaleError] = useState("");
 
   async function loadSummary() {
     setIsLoading(true);
@@ -460,45 +455,6 @@ export default function FamilyPage() {
     void loadSummary();
   }, []);
 
-  async function onChangeMemberLocale(memberId: string, nextLocale: AppLocale) {
-    if (memberLocalePendingId) {
-      return;
-    }
-    setMemberLocalePendingId(memberId);
-    setMemberLocaleError("");
-    try {
-      const response = await fetch(`/api/family/members/${encodeURIComponent(memberId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ locale: nextLocale }),
-      });
-      const payload = (await response.json()) as { error?: string; locale?: string };
-      if (!response.ok) {
-        throw new Error(payload.error ?? `FAMILY_MEMBER_LOCALE_HTTP_${response.status}`);
-      }
-      setSummary((current) =>
-        current
-          ? {
-              ...current,
-              members: current.members.map((member) =>
-                member.id === memberId
-                  ? { ...member, locale: nextLocale, resolvedLocale: nextLocale }
-                  : member,
-              ),
-            }
-          : current,
-      );
-    } catch (errorValue) {
-      setMemberLocaleError(
-        t("family.languageUpdateError", {
-          error: errorValue instanceof Error ? errorValue.message : "unknown",
-        }),
-      );
-    } finally {
-      setMemberLocalePendingId("");
-    }
-  }
-
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) {
@@ -539,7 +495,12 @@ export default function FamilyPage() {
     setCategoryForm({
       name: category.name,
       color: category.color,
-      memberId: category.memberId ?? "",
+      memberIds:
+        category.memberIds && category.memberIds.length > 0
+          ? category.memberIds
+          : category.memberId
+            ? [category.memberId]
+            : [],
     });
     setCategoryError("");
   }
@@ -576,7 +537,7 @@ export default function FamilyPage() {
           body: JSON.stringify({
             name: normalizedName,
             color: normalizedColor,
-            memberId: categoryForm.memberId,
+            memberIds: categoryForm.memberIds,
           }),
         },
       );
@@ -841,12 +802,20 @@ export default function FamilyPage() {
   const members = useMemo(() => summary?.members ?? [], [summary]);
   const categories = useMemo(() => summary?.categories ?? [], [summary]);
   // Group categories for the Categories tab: the whole-family bucket first,
-  // then each member with their own categories. Categories whose memberId no
-  // longer matches an active member fall back into the whole-family bucket.
+  // then each member with categories that include them. Categories whose
+  // memberIds no longer match any active member fall back into the family bucket.
   const categoryGroups = useMemo(() => {
     const memberIds = new Set(members.map((member) => member.id));
     const familyCategories = categories.filter(
-      (category) => !category.memberId || !memberIds.has(category.memberId ?? ""),
+      (category) => {
+        const categoryMemberIds =
+          category.memberIds && category.memberIds.length > 0
+            ? category.memberIds
+            : category.memberId
+              ? [category.memberId]
+              : [];
+        return categoryMemberIds.length === 0 || categoryMemberIds.every((memberId) => !memberIds.has(memberId));
+      },
     );
     const groups: Array<{
       key: string;
@@ -862,7 +831,15 @@ export default function FamilyPage() {
       },
     ];
     for (const member of members) {
-      const memberCategories = categories.filter((category) => category.memberId === member.id);
+      const memberCategories = categories.filter((category) => {
+        const categoryMemberIds =
+          category.memberIds && category.memberIds.length > 0
+            ? category.memberIds
+            : category.memberId
+              ? [category.memberId]
+              : [];
+        return categoryMemberIds.includes(member.id);
+      });
       if (memberCategories.length > 0) {
         groups.push({
           key: member.id,
@@ -887,16 +864,7 @@ export default function FamilyPage() {
   // Options for the "Assign to" select in the category editor, with avatars so
   // it reads like the dashboard chore-scope picker.
   const categoryAssignOptions = useMemo<TailwindSelectOption[]>(() => {
-    const familyOption: TailwindSelectOption = {
-      value: "",
-      label: "Whole Family",
-      leading: (
-        <FamilyMemberAvatar name="Family" size={24} borderWidth={2} isFamily ariaHidden />
-      ),
-    };
-    return [
-      familyOption,
-      ...members.map((member) => ({
+    return members.map((member) => ({
         value: member.id,
         label: member.name,
         leading: (
@@ -910,8 +878,7 @@ export default function FamilyPage() {
             ariaHidden
           />
         ),
-      })),
-    ];
+      }));
   }, [members]);
   const familyRewards = useMemo(() => rewards, [rewards]);
   const orderedFamilyRewards = useMemo(
@@ -976,21 +943,19 @@ export default function FamilyPage() {
                   <div className="family-page-grid">
                     {activeFamilyTab === "members" ? (
                     <section aria-label={t("family.membersTitle")}>
-                      {memberLocaleError ? <Alert>{memberLocaleError}</Alert> : null}
                       <div className="family-table-wrap family-table-desktop">
                         <table className="family-table">
                           <thead>
                             <tr>
                               <th>{t("family.memberColumn")}</th>
                               <th>{t("family.statusColumn")}</th>
-                              <th>{t("common.labels.language")}</th>
                               <th>{t("family.statsColumn")}</th>
                             </tr>
                           </thead>
                           <tbody>
                             {members.length === 0 ? (
                               <tr>
-                                <td colSpan={4}>{t("family.memberEmpty")}</td>
+                                <td colSpan={3}>{t("family.memberEmpty")}</td>
                               </tr>
                             ) : (
                               members.map((member) => {
@@ -1048,26 +1013,6 @@ export default function FamilyPage() {
                                     <span className="family-member-table-secondary">
                                       {memberLastSignInLabel(member)}
                                     </span>
-                                  </td>
-                                  <td>
-                                    <div className="flex flex-col items-start gap-1.5 pb-1">
-                                      <div onClick={(event) => event.stopPropagation()}>
-                                        <TailwindSelect
-                                          ariaLabel={t("common.labels.language")}
-                                          className="min-w-[180px]"
-                                          buttonClassName="h-10 min-w-[180px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
-                                          value={member.resolvedLocale || "en-US"}
-                                          disabled={!canManageMembers || memberLocalePendingId === member.id}
-                                          onChange={(value) => {
-                                            void onChangeMemberLocale(member.id, value);
-                                          }}
-                                          options={localeOptions}
-                                        />
-                                      </div>
-                                      {memberLocalePendingId === member.id ? (
-                                        <span className="small">{t("family.memberLanguageSaving")}</span>
-                                      ) : null}
-                                    </div>
                                   </td>
                                   <td className="family-member-stats-cell">
                                     <FamilyMemberStats member={member} compact />
@@ -1128,10 +1073,6 @@ export default function FamilyPage() {
                                 <div className="family-member-meta-item">
                                   <span>Last Sign In</span>
                                     <strong>{memberLastSignInLabel(member)}</strong>
-                                </div>
-                                <div className="family-member-meta-item">
-                                  <span>{t("common.labels.language")}</span>
-                                  <strong>{LOCALE_LABELS[member.resolvedLocale || "en-US"]}</strong>
                                 </div>
                               </div>
                               <FamilyMemberStats member={member} />
@@ -1444,13 +1385,15 @@ export default function FamilyPage() {
             </label>
             <label className="flex w-full flex-col gap-1.5">
               <span className="text-sm font-medium text-slate-700">Assign to</span>
-              <TailwindSelect
+              <TailwindMultiSelect
                 ariaLabel="Assign category to"
-                value={categoryForm.memberId}
-                onChange={(value) =>
-                  setCategoryForm((current) => ({ ...current, memberId: value }))
+                values={categoryForm.memberIds}
+                onChange={(values) =>
+                  setCategoryForm((current) => ({ ...current, memberIds: values }))
                 }
                 options={categoryAssignOptions}
+                placeholder="Whole Family"
+                selectedSummaryLabel={(count) => `${count} family members`}
                 className="w-full"
               />
               <span className="text-xs text-slate-500">
@@ -1458,33 +1401,25 @@ export default function FamilyPage() {
                 that person is assigned a chore.
               </span>
             </label>
-            <div className="flex w-full flex-col gap-1.5">
+            <label className="flex w-full flex-col gap-1.5">
               <span className="text-sm font-medium text-slate-700">Chip Color</span>
-              <div className="family-category-color-grid">
-                {CATEGORY_COLOR_PALETTE.map((hex) => (
-                  <button
-                    key={hex}
-                    type="button"
-                    aria-label={hex}
-                    aria-pressed={normalizeCategoryColor(categoryForm.color) === hex}
-                    className={`family-category-color-swatch${normalizeCategoryColor(categoryForm.color) === hex ? " is-selected" : ""}`}
-                    style={{ backgroundColor: hex }}
-                    onClick={() => setCategoryForm((current) => ({ ...current, color: hex }))}
-                  />
-                ))}
-              </div>
-            </div>
+              <CategoryColorSelect
+                ariaLabel="Chip color"
+                value={normalizeCategoryColor(categoryForm.color)}
+                onChange={(hex) => setCategoryForm((current) => ({ ...current, color: hex }))}
+                options={CATEGORY_COLOR_PALETTE}
+                className="w-full"
+              />
+            </label>
             {categoryError ? <Alert>Category update failed: {categoryError}</Alert> : null}
             <div className="family-modal-actions">
-              {editingCategoryId ? (
-                <Button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={categorySaving}
-                  onClick={resetCategoryEditor}>
-                  Cancel Edit
-                </Button>
-              ) : null}
+              <Button
+                type="button"
+                className="btn btn-secondary"
+                disabled={categorySaving}
+                onClick={() => setShowCategoryManager(false)}>
+                Cancel
+              </Button>
               <Button
                 type="submit"
                 className="btn btn-primary"

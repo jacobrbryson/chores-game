@@ -10,11 +10,13 @@ import {
   mapCommonFirestoreErrors,
 } from "@/lib/family/access";
 import {
+  documentIdFromName,
   getDocument,
   listAllDocuments,
   listDocuments,
   readBoolean,
   readString,
+  type FirestoreValue,
 } from "@/lib/firestore/rest";
 import { listConsentEvents } from "@/lib/privacy/consent-events";
 import { buildDataSummary, buildPrivacyOverview } from "@/lib/privacy/service";
@@ -33,6 +35,34 @@ async function countCollection(path: string, idToken: string): Promise<number | 
     }
     return null;
   }
+}
+
+function resolveConsentRecorderLabel(
+  memberDocs: Array<{ name: string; fields?: Record<string, FirestoreValue> }>,
+  parentalConsentByUserId: string,
+) {
+  if (!parentalConsentByUserId) {
+    return "";
+  }
+
+  const matchingMember = memberDocs.find((doc) => {
+    if (readBoolean(doc.fields, "deleted")) {
+      return false;
+    }
+    const memberId = documentIdFromName(doc.name);
+    const memberUid = readString(doc.fields, "uid");
+    return memberId === parentalConsentByUserId || memberUid === parentalConsentByUserId;
+  });
+
+  if (!matchingMember) {
+    return parentalConsentByUserId;
+  }
+
+  return (
+    readString(matchingMember.fields, "name") ||
+    readString(matchingMember.fields, "email") ||
+    parentalConsentByUserId
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -82,6 +112,10 @@ export async function GET(request: NextRequest) {
         ]);
 
         const overview = buildPrivacyOverview(familyDoc.fields);
+        overview.parentalConsentByDisplayName = resolveConsentRecorderLabel(
+          activeMembers,
+          overview.parentalConsentByUserId,
+        );
         const dataSummary = buildDataSummary({
           familyProfile: 1,
           parentAccounts: parentCount,

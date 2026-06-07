@@ -30,6 +30,10 @@ export function buildPrivacyOverview(
   const acceptedPrivacyVersion = readString(familyFields, "acceptedPrivacyVersion");
   const parentalConsentAt = readTimestamp(familyFields, "parentalConsentAt");
   const parentalConsentByUserId = readString(familyFields, "parentalConsentByUserId");
+  const acceptedLegalVersion =
+    acceptedTermsVersion || acceptedPrivacyVersion;
+  const currentLegalVersion =
+    currentTermsVersion || currentPrivacyVersion;
 
   const consentUpToDate =
     Boolean(parentalConsentAt) &&
@@ -39,8 +43,10 @@ export function buildPrivacyOverview(
   return {
     acceptedTermsVersion,
     acceptedPrivacyVersion,
+    acceptedLegalVersion,
     parentalConsentAt,
     parentalConsentByUserId,
+    parentalConsentByDisplayName: parentalConsentByUserId,
     dataRegion: normalizeDataRegion(readString(familyFields, "dataRegion")),
     familyCreatedAt: readTimestamp(familyFields, "createdAt"),
     // The family doc's updatedAt is the closest already-tracked "last activity"
@@ -50,6 +56,7 @@ export function buildPrivacyOverview(
     deletionScheduledFor: readTimestamp(familyFields, "deletionScheduledFor"),
     currentTermsVersion,
     currentPrivacyVersion,
+    currentLegalVersion,
     consentUpToDate,
   };
 }

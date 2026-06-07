@@ -962,7 +962,7 @@
       "consentStatusCurrent": "Al día",
       "consentStatusOutdated": "Requiere nueva aceptación",
       "recordConsent": "Registrar consentimiento",
-      "updateConsent": "Actualizar consentimiento",
+      "updateConsent": "Actualizar consentimiento...",
       "consentRecorded": "Consentimiento registrado.",
       "consentNeeded": "El consentimiento de los términos o la política de privacidad falta o está desactualizado. Por favor revise y acepte las versiones actuales.",
       "saving": "Guardando...",
@@ -1000,7 +1000,17 @@
       "deletionScheduledNotice": "Eliminación de la familia programada.",
       "cancelDeletion": "Cancelar solicitud de eliminación",
       "deletionCanceledNotice": "Solicitud de eliminación cancelada.",
-      "loadError": "No se pudieron cargar los ajustes de privacidad: {error}"
+      "loadError": "No se pudieron cargar los ajustes de privacidad: {error}",
+      "acceptedAt": "Aceptado el",
+      "acceptedVersion": "Versi?n aceptada",
+      "currentVersion": "Versi?n actual",
+      "privacyPolicy": "Politica de privacidad",
+      "termsOfService": "Terminos del servicio",
+      "legalDocumentUnavailable": "El documento legal aceptado para la version {version} no esta disponible en esta compilacion.",
+      "viewConsentHistory": "Ver historial de consentimiento",
+      "backToPrivacy": "Volver a Privacidad",
+      "requestDeletionAction": "Solicitar eliminaci?n de la familia...",
+      "exportStarted": "La exportacion de datos familiares ha comenzado."
     },
     "awards": {
       "submitToCommunity": "Enviar a Premios comunitarios",
@@ -1107,5 +1117,96 @@
   "mobile": {
     "checkingSessionTitle": "Verificando sesion...",
     "checkingSessionBody": "Espera mientras verificamos tu inicio de sesion de Family Chores."
+  },
+  "onboarding": {
+    "saving": "Guardando...",
+    "welcome": {
+      "title": "Bienvenido a Family Chores",
+      "subtitle": "Esto es lo que ayudamos a hacer a tu familia:",
+      "feature1": "Asignar y rastrear tareas",
+      "feature2": "Recompensar el progreso con monedas",
+      "feature3": "Desarrollar responsabilidad en casa",
+      "feature4": "Hacer que ayudar en casa sea más divertido",
+      "cta": "Comenzar",
+      "signOut": "Cerrar sesión"
+    },
+    "family": {
+      "title": "Nombra a tu familia",
+      "subtitle": "Así aparecerá tu familia en la aplicación.",
+      "label": "Nombre de familia",
+      "placeholder": "La familia Smith",
+      "cta": "Continuar"
+    },
+    "privacy": {
+      "title": "La privacidad de tu familia",
+      "subtitle": "Así protegemos los datos de tu familia:",
+      "point1": "Los padres controlan las cuentas familiares",
+      "point2": "Los perfiles de los niños son privados",
+      "point3": "Los niños no pueden votar en contenido comunitario",
+      "point4": "Los datos de la familia nunca se venden",
+      "point5": "Los datos se pueden exportar en cualquier momento",
+      "point6": "Las familias pueden solicitar eliminación en cualquier momento",
+      "viewPrivacyPolicy": "Ver Política de Privacidad",
+      "viewTermsOfService": "Ver Términos de Servicio",
+      "terms": "Acepto los Términos de Servicio",
+      "privacy": "Acepto la Política de Privacidad",
+      "parental": "Confirmo que soy el padre o tutor que crea esta familia",
+      "cta": "Continuar"
+    },
+    "addChild": {
+      "title": "Agrega a tu primer hijo",
+      "subtitle": "Agrega un perfil de niño para que pueda ganar monedas por las tareas.",
+      "label": "Nombre del niño",
+      "placeholder": "Alex",
+      "cta": "Agregar niño",
+      "skip": "Omitir por ahora",
+      "done": "Continuar"
+    },
+    "firstChore": {
+      "title": "Crea tu primera tarea",
+      "subtitle": "Empieza con una tarea para tu familia.",
+      "label": "Título de la tarea",
+      "placeholder": "Hacer la cama",
+      "coinsLabel": "Monedas",
+      "cta": "Crear tarea",
+      "skip": "Omitir por ahora",
+      "createdTitle": "¡Tarea creada!",
+      "createdSubtitle": "Buen comienzo. Puedes agregar más tareas desde el panel.",
+      "continue": "Continuar"
+    },
+    "done": {
+      "title": "¡Todo listo!",
+      "subtitle": "Tu familia está lista. Aquí hay algunas cosas para explorar:",
+      "next1": "Crear más tareas desde el panel",
+      "next2": "Visitar la tienda con las monedas ganadas",
+      "next3": "Intentar una misión juntos",
+      "next4": "Personalizar el perfil de un niño",
+      "cta": "Ir al panel"
+    },
+    "steps": {
+      "welcome": "Bienvenido",
+      "family": "Familia",
+      "privacy": "Privacidad",
+      "addChild": "Niños",
+      "firstChore": "Primera tarea",
+      "done": "Listo"
+    },
+    "reacceptance": {
+      "title": "Actualización de políticas",
+      "subtitle": "Nuestros Términos de Servicio y/o Política de Privacidad han sido actualizados. Por favor revisa y acepta para continuar.",
+      "firstTitle": "Revisa nuestras políticas",
+      "firstSubtitle": "Por favor revisa y acepta nuestros Términos de Servicio y Política de Privacidad para continuar usando Family Chores.",
+      "termsVersion": "Versión de términos",
+      "privacyVersion": "Versión de privacidad",
+      "viewPrivacyPolicy": "Ver Política de Privacidad",
+      "viewTermsOfService": "Ver Términos de Servicio",
+      "terms": "Acepto los Términos de Servicio actualizados",
+      "privacy": "Acepto la Política de Privacidad actualizada",
+      "firstTerms": "Acepto los Términos de Servicio",
+      "firstPrivacy": "Acepto la Política de Privacidad",
+      "parental": "Confirmo que soy el padre o tutor de esta familia",
+      "cta": "Aceptar y continuar",
+      "firstCta": "Aceptar y continuar"
+    }
   }
 }

@@ -1,13 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
+import { LegalDocumentContent } from "@/components/legal-document-content";
 import { ModalShell } from "@/components/modal-shell";
-import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
+import { ReacceptanceModal } from "@/components/reacceptance-modal";
+import { showToast } from "@/components/toast";
 import { useLocale } from "@/components/locale-provider";
-import { SUPPORTED_DATA_REGIONS } from "@/lib/privacy/config";
-import type { ConsentEvent, PrivacyResponse } from "@/lib/privacy/types";
+import type { LegalDocument, LegalDocumentType } from "@/lib/legal/loader";
+import type { PrivacyResponse } from "@/lib/privacy/types";
 
 function formatDateTime(value: string) {
   if (!value) {
@@ -32,8 +35,15 @@ export function FamilyPrivacyTab() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
-  const [region, setRegion] = useState<string>("US");
   const [pendingDeletion, setPendingDeletion] = useState(false);
+  const [consentDialogOpen, setConsentDialogOpen] = useState(false);
+  const [legalViewer, setLegalViewer] = useState<{
+    documentType: LegalDocumentType;
+    requestedVersion: string;
+    document: LegalDocument | null;
+    loading: boolean;
+    error: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,7 +55,6 @@ export function FamilyPrivacyTab() {
         throw new Error(payload.error ?? `PRIVACY_HTTP_${response.status}`);
       }
       setData(payload);
-      setRegion(payload.overview.dataRegion || "US");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "privacy_unavailable");
     } finally {
@@ -56,29 +65,6 @@ export function FamilyPrivacyTab() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  async function recordConsent() {
-    setBusy("consent");
-    setError("");
-    setNotice("");
-    try {
-      const response = await fetch("/api/family/privacy/consent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataRegion: region }),
-      });
-      const payload = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error ?? `CONSENT_HTTP_${response.status}`);
-      }
-      setNotice(t("family.privacy.consentRecorded"));
-      await load();
-    } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : "record_consent_failed");
-    } finally {
-      setBusy("");
-    }
-  }
 
   async function downloadExport() {
     setBusy("export");
@@ -148,6 +134,52 @@ export function FamilyPrivacyTab() {
     }
   }
 
+  async function openAcceptedLegalDocument(documentType: LegalDocumentType, version: string) {
+    setLegalViewer({
+      documentType,
+      requestedVersion: version,
+      document: null,
+      loading: true,
+      error: "",
+    });
+
+    try {
+      const params = new URLSearchParams();
+      if (version) {
+        params.set("version", version);
+      }
+
+      const response = await fetch(`/api/legal/${documentType}?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as LegalDocument & {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? `LEGAL_HTTP_${response.status}`);
+      }
+
+      setLegalViewer({
+        documentType,
+        requestedVersion: version,
+        document: payload,
+        loading: false,
+        error: "",
+      });
+    } catch (actionError) {
+      setLegalViewer({
+        documentType,
+        requestedVersion: version,
+        document: null,
+        loading: false,
+        error:
+          actionError instanceof Error
+            ? actionError.message
+            : "legal_document_version_unavailable",
+      });
+    }
+  }
+
   if (loading) {
     return (
       <div className="family-page-grid" aria-hidden="true">
@@ -158,24 +190,33 @@ export function FamilyPrivacyTab() {
   }
 
   if (error && !data) {
-    return <Alert>{t("family.privacy.loadError", { error })}</Alert>;
+    return <Alert className="w-full">{t("family.privacy.loadError", { error })}</Alert>;
   }
 
   if (!data) {
     return null;
   }
 
-  const { overview, dataSummary, consentHistory } = data;
-  const regionOptions: TailwindSelectOption[] = SUPPORTED_DATA_REGIONS.map((value) => ({
-    value,
-    label: value,
-  }));
+  const { overview, dataSummary } = data;
   const deletionRequested = Boolean(overview.deletionRequestedAt);
+  const acceptedPrivacyVersion =
+    overview.acceptedPrivacyVersion || overview.currentPrivacyVersion;
+  const acceptedTermsVersion =
+    overview.acceptedTermsVersion || overview.currentTermsVersion;
+  const hasPreviousVersionedConsent = Boolean(
+    overview.parentalConsentAt ||
+    overview.acceptedTermsVersion ||
+    overview.acceptedPrivacyVersion,
+  );
+  const showConsentAction = !overview.consentUpToDate;
+  const consentActionLabel = hasPreviousVersionedConsent
+    ? t("family.privacy.updateConsent")
+    : t("family.privacy.recordConsent");
 
   return (
     <section aria-label={t("family.tabs.privacy")} className="grid gap-5">
-      {error ? <Alert>{error}</Alert> : null}
-      {notice ? <Alert tone="success" role="status">{notice}</Alert> : null}
+      {error ? <Alert className="w-full">{error}</Alert> : null}
+      {notice ? <Alert tone="success" role="status" className="w-full">{notice}</Alert> : null}
 
       {/* 1. Privacy Overview */}
       <div className="family-page-card">
@@ -186,13 +227,17 @@ export function FamilyPrivacyTab() {
           </Alert>
         ) : null}
         <dl className="grid gap-3 sm:grid-cols-2">
-          <Field label={t("family.privacy.acceptedPrivacyVersion")} value={overview.acceptedPrivacyVersion || "-"} />
-          <Field label={t("family.privacy.currentPrivacyVersion")} value={overview.currentPrivacyVersion || "-"} />
-          <Field label={t("family.privacy.acceptedTermsVersion")} value={overview.acceptedTermsVersion || "-"} />
-          <Field label={t("family.privacy.currentTermsVersion")} value={overview.currentTermsVersion || "-"} />
-          <Field label={t("family.privacy.parentalConsentAt")} value={formatDateTime(overview.parentalConsentAt)} />
-          <Field label={t("family.privacy.parentalConsentBy")} value={overview.parentalConsentByUserId || "-"} />
-          <Field label={t("family.privacy.dataRegion")} value={overview.dataRegion} />
+          <Field label={t("family.privacy.acceptedVersion")} value={overview.acceptedLegalVersion || "-"} />
+          <Field label={t("family.privacy.currentVersion")} value={overview.currentLegalVersion || "-"} />
+          <Field label={t("family.privacy.acceptedAt")} value={formatDateTime(overview.parentalConsentAt)} />
+          <Field
+            label={t("family.privacy.parentalConsentBy")}
+            value={
+              overview.parentalConsentByDisplayName ||
+              overview.parentalConsentByUserId ||
+              "-"
+            }
+          />
           <Field label={t("family.privacy.familyCreatedAt")} value={formatDate(overview.familyCreatedAt)} />
           <Field label={t("family.privacy.lastActivityAt")} value={formatDateTime(overview.lastActivityAt)} />
           <Field
@@ -201,44 +246,38 @@ export function FamilyPrivacyTab() {
           />
         </dl>
         <div className="mt-3 flex flex-wrap gap-3 text-sm">
-          <a
-            href="/privacy-policy"
-            target="_blank"
-            rel="noreferrer"
-            className="text-blue-600 underline underline-offset-2">
-            {t("family.privacy.viewPrivacyPolicy")}
-          </a>
-          <a
-            href="/terms-of-service"
-            target="_blank"
-            rel="noreferrer"
-            className="text-blue-600 underline underline-offset-2">
-            {t("family.privacy.viewTermsOfService")}
-          </a>
-        </div>
-        <div className="mt-4 flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-slate-700">{t("family.privacy.dataRegion")}</span>
-            <TailwindSelect
-              ariaLabel={t("family.privacy.dataRegion")}
-              className="min-w-[160px]"
-              value={region}
-              onChange={(value) => setRegion(value)}
-              options={regionOptions}
-            />
-          </label>
-          <Button
+          <button
             type="button"
-            className="btn btn-primary"
-            disabled={busy === "consent"}
-            onClick={() => void recordConsent()}>
-            {busy === "consent"
-              ? t("family.privacy.saving")
-              : overview.consentUpToDate
-                ? t("family.privacy.updateConsent")
-                : t("family.privacy.recordConsent")}
-          </Button>
+            className="text-blue-600 underline underline-offset-2"
+            onClick={() =>
+              void openAcceptedLegalDocument("privacy-policy", acceptedPrivacyVersion)
+            }>
+            {t("family.privacy.viewPrivacyPolicy")}
+          </button>
+          <button
+            type="button"
+            className="text-blue-600 underline underline-offset-2"
+            onClick={() =>
+              void openAcceptedLegalDocument("terms-of-service", acceptedTermsVersion)
+            }>
+            {t("family.privacy.viewTermsOfService")}
+          </button>
+          <Link
+            href="/family/privacy/consent-history"
+            className="text-blue-600 underline underline-offset-2">
+            {t("family.privacy.viewConsentHistory")}
+          </Link>
         </div>
+        {showConsentAction ? (
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <Button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setConsentDialogOpen(true)}>
+              {consentActionLabel}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {/* 2. Family Data Summary */}
@@ -262,27 +301,20 @@ export function FamilyPrivacyTab() {
       </div>
 
       {/* 3. Download Family Data */}
-      <div className="family-page-card">
+      <div className="family-page-card family-privacy-action-card">
         <h3 className="family-modal-title mb-1">{t("family.privacy.downloadTitle")}</h3>
         <p className="small mb-3 text-slate-600">{t("family.privacy.downloadHelp")}</p>
         <Button
           type="button"
-          className="btn btn-primary"
+          className="btn btn-secondary mt-auto self-start"
           disabled={busy === "export"}
           onClick={() => void downloadExport()}>
           {busy === "export" ? t("family.privacy.preparing") : t("family.privacy.downloadAction")}
         </Button>
       </div>
 
-      {/* 4. Consent History */}
-      <div className="family-page-card">
-        <h3 className="family-modal-title mb-3">{t("family.privacy.consentHistoryTitle")}</h3>
-        <p className="small mb-3 text-slate-600">{t("family.privacy.consentHistoryHelp")}</p>
-        <ConsentHistoryTable events={consentHistory ?? []} t={t} />
-      </div>
-
-      {/* 5. Delete Family Data Request */}
-      <div className="family-page-card">
+      {/* 4. Delete Family Data Request */}
+      <div className="family-page-card family-privacy-action-card">
         <h3 className="family-modal-title mb-1">{t("family.privacy.deletionTitle")}</h3>
         {deletionRequested ? (
           <>
@@ -306,10 +338,10 @@ export function FamilyPrivacyTab() {
             <p className="small mb-3 text-slate-600">{t("family.privacy.deletionHelp")}</p>
             <Button
               type="button"
-              className="btn member-action-remove"
+              className="btn btn-secondary mt-auto self-start"
               disabled={busy === "deletion"}
               onClick={() => setPendingDeletion(true)}>
-              {t("family.privacy.requestDeletion")}
+              {t("family.privacy.requestDeletionAction")}
             </Button>
           </>
         )}
@@ -338,62 +370,69 @@ export function FamilyPrivacyTab() {
           </div>
         </div>
       </ModalShell>
+
+      <ReacceptanceModal
+        open={consentDialogOpen}
+        isFirstAcceptance={!hasPreviousVersionedConsent}
+        currentTermsVersion={overview.currentTermsVersion}
+        currentPrivacyVersion={overview.currentPrivacyVersion}
+        onRequestClose={() => setConsentDialogOpen(false)}
+        onAccepted={async () => {
+          setConsentDialogOpen(false);
+          await load();
+          showToast(t("family.privacy.consentRecorded"), "success");
+        }}
+      />
+
+      <ModalShell open={Boolean(legalViewer)} onRequestClose={() => setLegalViewer(null)}>
+        <div className="flex w-[min(960px,92vw)] max-h-[85vh] flex-col gap-4 overflow-hidden rounded-[28px] bg-white p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="family-modal-title">
+                {legalViewer?.document?.title ??
+                  (legalViewer?.documentType === "privacy-policy"
+                    ? t("family.privacy.privacyPolicy")
+                    : t("family.privacy.termsOfService"))}
+              </h3>
+              <p className="small mt-1 text-slate-600">
+                {t("family.privacy.acceptedVersion")}:{" "}
+                {legalViewer?.requestedVersion || "-"}
+              </p>
+            </div>
+            <Button
+              type="button"
+              className="modal-close-button"
+              onClick={() => setLegalViewer(null)}
+              aria-label={t("common.actions.close")}>
+              X
+            </Button>
+          </div>
+
+          {legalViewer?.loading ? (
+            <div aria-hidden="true" className="grid gap-3 overflow-y-auto pr-1">
+              <div className="family-skeleton h-5 w-48" />
+              <div className="family-skeleton h-24 w-full" />
+              <div className="family-skeleton h-24 w-full" />
+              <div className="family-skeleton h-24 w-full" />
+            </div>
+          ) : null}
+
+          {!legalViewer?.loading && legalViewer?.error ? (
+            <Alert>
+              {t("family.privacy.legalDocumentUnavailable", {
+                version: legalViewer.requestedVersion || "-",
+              })}
+            </Alert>
+          ) : null}
+
+          {!legalViewer?.loading && legalViewer?.document ? (
+            <div className="overflow-y-auto pr-1">
+              <LegalDocumentContent document={legalViewer.document} className="legal-page" />
+            </div>
+          ) : null}
+        </div>
+      </ModalShell>
     </section>
-  );
-}
-
-const CONSENT_EVENT_LABELS: Record<string, string> = {
-  TERMS_ACCEPTED: "Terms accepted",
-  PRIVACY_ACCEPTED: "Privacy policy accepted",
-  PARENTAL_CONSENT_RECORDED: "Parental consent recorded",
-  CONSENT_WITHDRAWN: "Consent withdrawn",
-};
-
-const CONSENT_DOCUMENT_LABELS: Record<string, string> = {
-  TERMS: "Terms of Service",
-  PRIVACY_POLICY: "Privacy Policy",
-  PARENTAL_CONSENT: "Parental Consent",
-};
-
-function ConsentHistoryTable({
-  events,
-  t,
-}: {
-  events: ConsentEvent[];
-  t: (key: string) => string;
-}) {
-  if (events.length === 0) {
-    return (
-      <p className="text-sm text-slate-500">{t("family.privacy.consentHistoryEmpty")}</p>
-    );
-  }
-  return (
-    <div className="overflow-auto">
-      <table className="w-full min-w-[540px] text-left text-sm">
-        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-          <tr>
-            <th className="px-3 py-2">{t("family.privacy.consentHistoryDate")}</th>
-            <th className="px-3 py-2">{t("family.privacy.consentHistoryEvent")}</th>
-            <th className="px-3 py-2">{t("family.privacy.consentHistoryDocument")}</th>
-            <th className="px-3 py-2">{t("family.privacy.consentHistoryVersion")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {events.map((event) => (
-            <tr key={event.id} className="border-t border-slate-100">
-              <td className="px-3 py-2">{formatDateTime(event.acceptedAt)}</td>
-              <td className="px-3 py-2 font-medium text-slate-800">
-                {CONSENT_EVENT_LABELS[event.eventType] ?? event.eventType}
-              </td>
-              <td className="px-3 py-2">
-                {CONSENT_DOCUMENT_LABELS[event.documentType] ?? event.documentType}
-              </td>
-              <td className="px-3 py-2 font-mono text-xs">{event.documentVersion || "-"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   );
 }
 

@@ -3,8 +3,10 @@ import type { DataRegion } from "@/lib/privacy/config";
 export type PrivacyOverview = {
   acceptedTermsVersion: string;
   acceptedPrivacyVersion: string;
+  acceptedLegalVersion: string;
   parentalConsentAt: string;
   parentalConsentByUserId: string;
+  parentalConsentByDisplayName: string;
   dataRegion: DataRegion;
   familyCreatedAt: string;
   lastActivityAt: string;
@@ -13,6 +15,7 @@ export type PrivacyOverview = {
   // Current authoritative versions so the UI can flag stale/missing consent.
   currentTermsVersion: string;
   currentPrivacyVersion: string;
+  currentLegalVersion: string;
   consentUpToDate: boolean;
 };
 
