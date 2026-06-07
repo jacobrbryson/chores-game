@@ -50,6 +50,17 @@ function mapCommonErrors(reason: string, fallbackError: string) {
   return NextResponse.json({ error: fallbackError }, { status: 500 });
 }
 
+function defaultGoogleTasksProfileState() {
+  return {
+    accountLinked: false,
+    linked: false,
+    lastSyncStatus: "idle" as const,
+    selectedTaskListIds: [],
+    selectedTaskListTitles: [],
+    taskLists: [],
+  };
+}
+
 export async function GET(request: NextRequest) {
   const session = getSessionFromRequest(request);
   if (!session?.uid) {
@@ -62,7 +73,17 @@ export async function GET(request: NextRequest) {
   try {
     const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
-      async (idToken) => getGoogleTasksProfileState(session.uid, idToken),
+      async (idToken) => {
+        try {
+          return await getGoogleTasksProfileState(session.uid, idToken);
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "";
+          if (reason.includes("FIRESTORE_HTTP_404")) {
+            return defaultGoogleTasksProfileState();
+          }
+          throw error;
+        }
+      },
     );
 
     const response = NextResponse.json(data);

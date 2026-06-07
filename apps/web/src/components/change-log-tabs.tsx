@@ -4,8 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { AppTabs } from "@/components/app-tabs";
 import { Button } from "@/components/button";
+import { DiscoveryBadge } from "@/components/discovery-badge";
 import { EnumChip } from "@/components/enum-chip";
 import { useLocale } from "@/components/locale-provider";
+import {
+  getSectionCount,
+  markDiscoverySeen,
+  useDiscoverySummary,
+} from "@/lib/hooks/use-discovery";
 
 type TabId = "recent" | "requested";
 
@@ -181,13 +187,39 @@ export function ChangeLogTabs({ recentContent }: { recentContent: ReactNode }) {
   const [error, setError] = useState("");
   const [votePendingId, setVotePendingId] = useState("");
 
+  const { summary: discoverySummary } = useDiscoverySummary(["changelog", "requested_changes"]);
+  const recentCount = getSectionCount(discoverySummary, "changelog");
+  const requestedCount = getSectionCount(discoverySummary, "requested_changes");
+
   const tabs = useMemo(
     () => [
-      { id: "recent" as const, label: t("changeLog.tabs.recent") },
-      { id: "requested" as const, label: t("changeLog.tabs.requested") },
+      {
+        id: "recent" as const,
+        label: (
+          <span className="change-log-tab-label">
+            {t("changeLog.tabs.recent")}
+            <DiscoveryBadge count={recentCount} />
+          </span>
+        ),
+      },
+      {
+        id: "requested" as const,
+        label: (
+          <span className="change-log-tab-label">
+            {t("changeLog.tabs.requested")}
+            <DiscoveryBadge count={requestedCount} />
+          </span>
+        ),
+      },
     ],
-    [t],
+    [t, recentCount, requestedCount],
   );
+
+  // Mark the active tab's discovery section seen on view (recent -> changelog,
+  // requested -> requested_changes), clearing that tab's badge.
+  useEffect(() => {
+    void markDiscoverySeen([activeTab === "requested" ? "requested_changes" : "changelog"]);
+  }, [activeTab]);
 
   const loadRequested = useCallback(async () => {
     setHasRequestedFetchAttempted(true);

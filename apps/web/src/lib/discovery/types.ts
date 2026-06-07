@@ -20,6 +20,7 @@ export type DiscoverySectionKey =
   | "quests"
   | "achievements"
   | "changelog"
+  | "requested_changes"
   | "community_awards";
 
 // Who is allowed to see a section's badge. Counts are always computed with the

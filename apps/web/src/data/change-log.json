@@ -1,5 +1,13 @@
 [
   {
+    "id": "store-new-user-loading",
+    "date": "2026-06-07",
+    "type": "Bug Fix",
+    "subject": "Store for new users",
+    "description": "Brand-new signed-in users can now open the Store right away, even if their profile is still being initialized.",
+    "image": "/store3/theme.png"
+  },
+  {
     "id": "whats-new-discovery-badges",
     "date": "2026-06-06",
     "type": "Feature",

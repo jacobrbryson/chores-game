@@ -1213,7 +1213,9 @@ body {
   box-shadow: 0 6px 12px rgba(185, 28, 28, 0.38);
 }
 
-.dashboard-tab-label {
+.dashboard-tab-label,
+.store-tab-label,
+.change-log-tab-label {
   display: inline-flex;
   align-items: center;
 }

@@ -69,7 +69,7 @@ export default async function RootLayout({
                 <AppBreadcrumbs hideGuestHomepage={!sessionUser} />
                 {children}
               </div>
-              <AppFooter locale={locale} />
+              <AppFooter locale={locale} authed={Boolean(sessionUser)} />
             </div>
           </div>
         </LocaleProvider>

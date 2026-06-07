@@ -95,7 +95,16 @@ function toUnixMillis(value: string) {
 }
 
 async function getPrimaryFamilyId(uid: string, idToken: string) {
-  const userDoc = await getDocument(`users/${uid}`, idToken);
+  let userDoc: Awaited<ReturnType<typeof getDocument>>;
+  try {
+    userDoc = await getDocument(`users/${uid}`, idToken);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (reason.includes("FIRESTORE_HTTP_404")) {
+      return "";
+    }
+    throw error;
+  }
   return readStringArray(userDoc.fields, "familyIds")[0] ?? "";
 }
 

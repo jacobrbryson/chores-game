@@ -29,6 +29,16 @@ vi.mock("@/lib/change-log", () => ({
   getChangeLogEntries: vi.fn(() => [{ date: "2026-06-06" }, { date: "2026-06-05" }]),
 }));
 
+vi.mock("@/lib/support/public-requests", () => ({
+  loadPublicRequestedChanges: vi.fn(async () => ({
+    requests: [
+      { publicPublishedAt: "2026-06-02T00:00:00.000Z", publicUpdatedAt: "" },
+      { publicPublishedAt: "2026-06-03T00:00:00.000Z", publicUpdatedAt: "" },
+    ],
+    pagination: { page: 1, pageSize: 50, total: 2, totalPages: 1 },
+  })),
+}));
+
 import {
   getDiscoverySummaryForViewer,
   markDiscoverySectionSeen,
@@ -135,6 +145,8 @@ describe("getDiscoverySummaryForViewer", () => {
     // Store top-level equals the sum of visible store items (2 family rewards).
     expect(summary.sections.store.count).toBe(2);
     expect(summary.sections.store.children?.["store:family_awards"].count).toBe(2);
+    // Requested changes counts published public requests after lastSeen (2).
+    expect(summary.sections.requested_changes.count).toBe(2);
   });
 
   it("never exposes community awards to players", async () => {

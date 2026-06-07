@@ -3,7 +3,13 @@ import { StyleSheet, Text, View } from "react-native";
 import { DEFAULT_LOCALE, type AppLocale } from "@packages/locales";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import type { MainNavigationItemId } from "@packages/core/src/main-navigation";
-import { apiClient } from "@/lib/api";
+import {
+  apiClient,
+  fetchDiscoverySummary,
+  getDiscoverySectionCount,
+  markDiscoverySeen,
+  type MobileDiscoverySummary,
+} from "@/lib/api";
 import { MobileLocaleProvider, useMobileLocale } from "@/lib/locale";
 import { colors, spacing, typography } from "@/theme";
 import { AchievementsScreen } from "@/screens/AchievementsScreen";
@@ -16,6 +22,17 @@ import { RewardsScreen } from "@/screens/RewardsScreen";
 import { MainNavigation } from "@/components/ui";
 
 type TabKey = MainNavigationItemId | "profile" | "login" | "all-chores";
+
+const EMPTY_DISCOVERY: MobileDiscoverySummary = { sections: {}, totalCount: 0 };
+
+// Nav item -> discovery section. The Dashboard item carries the Chores count;
+// tapping Store/Achievements/Quests marks that section seen on view.
+const NAV_DISCOVERY_SECTION: Partial<Record<MainNavigationItemId, string>> = {
+  dashboard: "chores",
+  store: "store",
+  achievements: "achievements",
+  quests: "quests",
+};
 
 type SessionMe = {
   uid: string;
@@ -51,6 +68,13 @@ function AppContent({
   const [sessionMe, setSessionMe] = useState<SessionMe | null>(null);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [coinBalance, setCoinBalance] = useState(0);
+  const [discovery, setDiscovery] = useState<MobileDiscoverySummary>(EMPTY_DISCOVERY);
+
+  const loadDiscovery = React.useCallback(() => {
+    void fetchDiscoverySummary()
+      .then((summary) => setDiscovery(summary))
+      .catch(() => setDiscovery((current) => current));
+  }, []);
 
   function refreshSession() {
     let cancelled = false;
@@ -88,6 +112,24 @@ function AppContent({
     };
   }, []);
 
+  useEffect(() => {
+    if (authState === "authenticated") {
+      loadDiscovery();
+    } else {
+      setDiscovery(EMPTY_DISCOVERY);
+    }
+  }, [authState, loadDiscovery]);
+
+  const discoveryCounts = useMemo<Partial<Record<MainNavigationItemId, number>>>(
+    () => ({
+      dashboard: getDiscoverySectionCount(discovery, "chores"),
+      store: getDiscoverySectionCount(discovery, "store"),
+      achievements: getDiscoverySectionCount(discovery, "achievements"),
+      quests: getDiscoverySectionCount(discovery, "quests"),
+    }),
+    [discovery],
+  );
+
   const screen = useMemo(() => {
     if (authState !== "authenticated") {
       return (
@@ -116,10 +158,24 @@ function AppContent({
           viewerKey={sessionMe?.uid}
           onOpenAllChores={() => setTab("all-chores")}
           onOpenStore={() => setTab("store")}
+          onDiscoveryRefresh={loadDiscovery}
         />
       );
     }
-  }, [authState, tab, sessionMe?.uid]);
+  }, [authState, tab, sessionMe?.uid, loadDiscovery]);
+
+  // Tapping a nav destination counts as viewing it: mark that section seen and
+  // refresh the badges. Chores is handled on the Home dashboard itself.
+  const handleNavigate = React.useCallback(
+    (nextTab: MainNavigationItemId) => {
+      setTab(nextTab);
+      const section = NAV_DISCOVERY_SECTION[nextTab];
+      if (section && section !== "chores") {
+        void markDiscoverySeen([section]).then(loadDiscovery);
+      }
+    },
+    [loadDiscovery],
+  );
 
   if (authState === "checking") {
     return (
@@ -144,7 +200,8 @@ function AppContent({
             email={sessionMe?.email}
             avatarUrl={avatarUrl}
             coinBalance={coinBalance}
-            onNavigate={(nextTab) => setTab(nextTab)}
+            discoveryCounts={discoveryCounts}
+            onNavigate={handleNavigate}
             onOpenProfile={() => setTab("profile")}
             onLoggedOut={() => {
               setSessionMe(null);

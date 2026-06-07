@@ -2,6 +2,7 @@
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { randomUUID } from "node:crypto";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
+import type { SessionUser } from "@/lib/auth/session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { applyWalletDelta, getPrimaryFamilyId, getWalletBalance } from "@/lib/economy/wallet";
 import {
@@ -242,6 +243,45 @@ async function getPrimaryFamilyIdWithFallback(uid: string, idToken: string) {
   return findFirstFamilyIdByMemberUid(uid, idToken);
 }
 
+function buildStoreUserDocFromSession(
+  session: SessionUser,
+): Awaited<ReturnType<typeof getDocument>> {
+  return {
+    name: `users/${session.uid}`,
+    fields: {
+      uid: stringField(session.uid),
+      role: stringField(session.role || "player"),
+      email: stringField(session.email || ""),
+      displayName: stringField(session.name || session.email || "Family member"),
+      photoUrl: stringField(session.picture || ""),
+      locale: stringField(session.locale || "en-US"),
+      familyIds: stringArrayField([]),
+      walletBalance: integerField(0),
+      ownedStoreOptionIds: stringArrayField([
+        DEFAULT_COLOR_THEME_OPTION_ID,
+        DEFAULT_CONFETTI_OPTION_ID,
+      ]),
+      selectedConfettiOptionId: stringField(DEFAULT_CONFETTI_OPTION_ID),
+    },
+  };
+}
+
+async function getStoreUserDoc(
+  session: SessionUser,
+  idToken: string,
+): Promise<Awaited<ReturnType<typeof getDocument>>> {
+  try {
+    return await getDocument(`users/${session.uid}`, idToken);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_404")) {
+      throw error;
+    }
+  }
+
+  return buildStoreUserDocFromSession(session);
+}
+
 async function getViewerRoleForFamily(familyId: string, uid: string, idToken: string) {
   try {
     const memberDoc = await getDocument(`families/${familyId}/members/${uid}`, idToken);
@@ -269,8 +309,9 @@ async function getViewerRoleForFamily(familyId: string, uid: string, idToken: st
   return readString(memberByUid.fields, "role") === "admin" ? ("admin" as const) : ("player" as const);
 }
 
-async function getStoreSummary(uid: string, memberId: string, idToken: string) {
-  const userDoc = await getDocument(`users/${uid}`, idToken);
+async function getStoreSummary(session: SessionUser, memberId: string, idToken: string) {
+  const uid = session.uid;
+  const userDoc = await getStoreUserDoc(session, idToken);
   const fallbackFamilyId = await getPrimaryFamilyIdWithFallback(uid, idToken);
   const familyId = readStringArray(userDoc.fields, "familyIds")[0] ?? fallbackFamilyId;
   const balance = Math.max(0, readInteger(userDoc.fields, "walletBalance"));
@@ -445,7 +486,7 @@ export async function GET(request: NextRequest) {
     const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
-        const summary = await getStoreSummary(uid, session.memberId || uid, idToken);
+        const summary = await getStoreSummary(session, session.memberId || uid, idToken);
         if (brief) {
           return {
             balance: summary.balance,

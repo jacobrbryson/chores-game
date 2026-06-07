@@ -21,6 +21,7 @@ import {
   type DiscoveryChoreRecord,
 } from "@/lib/discovery/counts";
 import { getChangeLogEntries } from "@/lib/change-log";
+import { loadPublicRequestedChanges } from "@/lib/support/public-requests";
 import {
   DISCOVERY_SECTIONS,
   getDiscoverySection,
@@ -207,6 +208,7 @@ type SectionNeeds = {
   quests: boolean;
   achievements: boolean;
   changelog: boolean;
+  requestedChanges: boolean;
   communityAwards: boolean;
 };
 
@@ -221,8 +223,22 @@ function resolveNeeds(sectionKeys: DiscoverySectionKey[]): SectionNeeds {
     quests: set.has("quests"),
     achievements: set.has("achievements"),
     changelog: set.has("changelog"),
+    requestedChanges: set.has("requested_changes"),
     communityAwards: set.has("community_awards"),
   };
+}
+
+// Public requested-changes published timestamps (curated bucket JSON). Best
+// effort — returns [] if the source is unavailable so discovery fails soft.
+async function loadRequestedChangeTimestamps(): Promise<string[]> {
+  try {
+    const result = await loadPublicRequestedChanges({ limit: 50 });
+    return result.requests
+      .map((request) => request.publicPublishedAt || request.publicUpdatedAt)
+      .filter((value) => Boolean(value));
+  } catch {
+    return [];
+  }
 }
 
 export async function getDiscoverySummaryForViewer(
@@ -253,12 +269,14 @@ export async function getDiscoverySummaryForViewer(
   const lastSeen = await getLastSeenMapForViewer(context);
   const needs = resolveNeeds(requested);
 
-  const [chores, rewardTimestamps, achievements, questTimestamps] = await Promise.all([
-    needs.chores ? loadChores(context) : Promise.resolve([] as DiscoveryChoreRecord[]),
-    needs.store ? loadRewardTimestamps(context) : Promise.resolve([] as string[]),
-    needs.achievements ? loadAchievements(context) : Promise.resolve([] as DiscoveryAchievementRecord[]),
-    needs.quests ? loadQuestPublishTimestamps(context) : Promise.resolve([] as string[]),
-  ]);
+  const [chores, rewardTimestamps, achievements, questTimestamps, requestedChangeTimestamps] =
+    await Promise.all([
+      needs.chores ? loadChores(context) : Promise.resolve([] as DiscoveryChoreRecord[]),
+      needs.store ? loadRewardTimestamps(context) : Promise.resolve([] as string[]),
+      needs.achievements ? loadAchievements(context) : Promise.resolve([] as DiscoveryAchievementRecord[]),
+      needs.quests ? loadQuestPublishTimestamps(context) : Promise.resolve([] as string[]),
+      needs.requestedChanges ? loadRequestedChangeTimestamps() : Promise.resolve([] as string[]),
+    ]);
 
   const storeTimestamps = needs.store ? storeCatalogTimestampsByCategory() : new Map<string, string[]>();
   storeTimestamps.set("family_awards", rewardTimestamps);
@@ -287,6 +305,8 @@ export async function getDiscoverySummaryForViewer(
         });
       case "changelog":
         return countNewChangelog({ entryDates: changelogDates, lastSeenAt });
+      case "requested_changes":
+        return countNewByTimestamp(requestedChangeTimestamps, lastSeenAt);
       case "community_awards":
         // TODO: approved public community awards expose only curated fields via
         // server-side admin credentials / curated bucket JSON. Counting needs a

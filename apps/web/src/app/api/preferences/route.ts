@@ -70,6 +70,18 @@ function mapCommonFirestoreErrors(reason: string, fallbackError: string) {
   return NextResponse.json({ error: fallbackError }, { status: 500 });
 }
 
+function defaultPreferences() {
+  return {
+    myChoresOnly: false,
+    completionWindow: parseCompletionWindow(""),
+    themeOptionId: "",
+    themePrimaryColor: "",
+    themeSecondaryColor: "",
+    themeTertiaryColor: "",
+    choreAdvancedOptionsOpenV2: false,
+  };
+}
+
 function parseThemePreference(body: UpdatePreferencesBody) {
   const hasThemeField =
     body.themeOptionId !== undefined ||
@@ -127,7 +139,16 @@ export async function GET(request: NextRequest) {
   try {
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
-        const userDoc = await getDocument(`users/${session.uid}`, idToken);
+        let userDoc: Awaited<ReturnType<typeof getDocument>>;
+        try {
+          userDoc = await getDocument(`users/${session.uid}`, idToken);
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "";
+          if (reason.includes("FIRESTORE_HTTP_404")) {
+            return defaultPreferences();
+          }
+          throw error;
+        }
         return {
           myChoresOnly: readBoolean(userDoc.fields, "preferencesMyChoresOnly"),
           completionWindow: parseCompletionWindow(

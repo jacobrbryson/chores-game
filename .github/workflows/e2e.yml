@@ -1,0 +1,61 @@
+name: Playwright E2E
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright
+        run: npm run test:e2e
+        env:
+          CI: true
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET || 'playwright-local-session-secret-32-chars-minimum' }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+          E2E_FAMILY_ID: ${{ secrets.E2E_FAMILY_ID }}
+          E2E_PARENT_UID: ${{ secrets.E2E_PARENT_UID }}
+          E2E_PARENT_FIREBASE_ID_TOKEN: ${{ secrets.E2E_PARENT_FIREBASE_ID_TOKEN }}
+          E2E_CHILD_UID: ${{ secrets.E2E_CHILD_UID }}
+          E2E_CHILD_FIREBASE_ID_TOKEN: ${{ secrets.E2E_CHILD_FIREBASE_ID_TOKEN }}
+          E2E_SUPPORT_UID: ${{ secrets.E2E_SUPPORT_UID }}
+          E2E_SUPPORT_FIREBASE_ID_TOKEN: ${{ secrets.E2E_SUPPORT_FIREBASE_ID_TOKEN }}
+          SUPPORT_ADMIN_EMAILS: ${{ secrets.SUPPORT_ADMIN_EMAILS }}
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failures
+          path: test-results/
+          retention-days: 14

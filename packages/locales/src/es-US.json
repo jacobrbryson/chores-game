@@ -159,6 +159,7 @@
       "quests": "Aventuras",
       "achievements": "Logros",
       "changelog": "Novedades",
+      "requestedChanges": "Cambios solicitados",
       "communityAwards": "Premios de la comunidad"
     }
   },

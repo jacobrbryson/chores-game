@@ -18,7 +18,8 @@ import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { useLocale } from "@/components/locale-provider";
-import { markDiscoverySeen } from "@/lib/hooks/use-discovery";
+import { DiscoveryBadge } from "@/components/discovery-badge";
+import { getSectionCount, markDiscoverySeen, useDiscoverySummary } from "@/lib/hooks/use-discovery";
 import { ModalShell } from "@/components/modal-shell";
 import {
   dispatchConfettiSelectionChanged,
@@ -160,20 +161,31 @@ export function StorePageClient() {
     );
   }, [summary]);
   const selectedCategory = activeCategory ?? orderedCategories[0] ?? null;
+  // Discovery (What's New) per-category counts so each store tab shows how many
+  // new items it has.
+  const { summary: discoverySummary } = useDiscoverySummary();
   const storeTabs = useMemo<AppTabItem<string>[]>(
     () =>
-      orderedCategories.map((category) => ({
-        id: category.id,
-        label:
+      orderedCategories.map((category) => {
+        const labelText =
           {
             family_awards: t("store.tabs.family"),
             customize_colors: t("store.tabs.colors"),
             customize_avatar: t("store.tabs.avatar"),
             victory_confetti: t("store.tabs.confetti"),
             quest_items: t("store.tabs.quest"),
-          }[category.id] ?? category.name,
-      })),
-    [orderedCategories, t],
+          }[category.id] ?? category.name;
+        return {
+          id: category.id,
+          label: (
+            <span className="store-tab-label">
+              {labelText}
+              <DiscoveryBadge count={getSectionCount(discoverySummary, `store:${category.id}`)} />
+            </span>
+          ),
+        };
+      }),
+    [orderedCategories, t, discoverySummary],
   );
   const normalizedModalSearchQuery = modalSearchQuery.trim().toLowerCase();
   const filteredOptions = useMemo(() => {
@@ -244,14 +256,17 @@ export function StorePageClient() {
     deepLinkHandledRef.current = true;
   }, [summary]);
 
-  // Opening a category options modal marks that specific store category's
-  // discovery section seen (clears the category badge), independent of the
-  // top-level store badge.
+  // Viewing a store category (the visible tab — which on first load is the
+  // fallback-selected first category, before activeCategoryId is set) marks that
+  // category's discovery section seen, clearing its tab badge. Keyed off the
+  // effectively-selected category so the already-shown tab clears on load, not
+  // only after an explicit click.
+  const selectedCategoryId = selectedCategory?.id;
   useEffect(() => {
-    if (activeCategoryId) {
-      void markDiscoverySeen([`store:${activeCategoryId}`]);
+    if (selectedCategoryId) {
+      void markDiscoverySeen([`store:${selectedCategoryId}`]);
     }
-  }, [activeCategoryId]);
+  }, [selectedCategoryId]);
 
   const clearPreview = useCallback((nextPreference?: ThemePreference) => {
     if (!previewActiveRef.current) {

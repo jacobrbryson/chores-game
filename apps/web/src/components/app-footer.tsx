@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createTranslator, type AppLocale } from "@packages/locales";
 import { AppBrand } from "@/components/app-brand";
+import { FooterDiscoveryBadge } from "@/components/footer-discovery-badge";
 
 type FooterIconName = "copyright" | "privacy" | "terms" | "changeLog" | "orcwood";
 
@@ -127,7 +128,7 @@ function FooterItemIcon({ name }: { name: FooterIconName }) {
   );
 }
 
-export function AppFooter({ locale }: { locale: AppLocale }) {
+export function AppFooter({ locale, authed = false }: { locale: AppLocale; authed?: boolean }) {
   const t = createTranslator({ locale });
   const currentYear = new Date().getFullYear();
 
@@ -152,6 +153,7 @@ export function AppFooter({ locale }: { locale: AppLocale }) {
         <Link href="/change-log" className="app-footer-link app-footer-item">
           <FooterItemIcon name="changeLog" />
           <span>{t("footer.changeLog")}</span>
+          <FooterDiscoveryBadge sections={["changelog", "requested_changes"]} enabled={authed} />
         </Link>
         <a
           href="https://orcwood.com"

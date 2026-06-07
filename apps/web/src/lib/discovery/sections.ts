@@ -49,6 +49,7 @@ export const DISCOVERY_SECTIONS: DiscoverySectionDefinition[] = [
   { key: "quests", audience: "all", labelKey: "discovery.sections.quests" },
   { key: "achievements", audience: "all", labelKey: "discovery.sections.achievements" },
   { key: "changelog", audience: "all", labelKey: "discovery.sections.changelog" },
+  { key: "requested_changes", audience: "all", labelKey: "discovery.sections.requestedChanges" },
   // Community awards browsing/copying is parent-managed; children never get
   // community discovery counts.
   { key: "community_awards", audience: "admin", labelKey: "discovery.sections.communityAwards" },
@@ -71,6 +72,7 @@ const FALLBACK_LABELS: Record<DiscoverySectionKey, string> = {
   quests: "Quests",
   achievements: "Achievements",
   changelog: "Change Log",
+  requested_changes: "Requested Changes",
   community_awards: "Community Awards",
 };
 
