@@ -1,5 +1,21 @@
 [
   {
+    "id": "dashboard-future-chores-visible",
+    "date": "2026-06-08",
+    "type": "Bug Fix",
+    "subject": "Dashboard chore visibility",
+    "description": "Dashboard chores now load consistently for families with longer chore histories while keeping future-dated chores out of the current list.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "dashboard-chore-filter-menu",
+    "date": "2026-06-08",
+    "type": "Feature",
+    "subject": "Dashboard chore filters",
+    "description": "The Chores dashboard now has a quick filter menu for category, chore type, and due date, with active filters shown above the list and saved after refreshing the page.",
+    "image": "/file.svg"
+  },
+  {
     "id": "family-privacy-controls-expanded",
     "date": "2026-06-07",
     "type": "Feature",

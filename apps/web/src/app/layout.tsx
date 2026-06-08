@@ -67,6 +67,15 @@ export default async function RootLayout({
   return (
     <html lang={locale}>
       <head>
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-GM3MZZ6NXK"></script>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-GM3MZZ6NXK');`,
+          }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link

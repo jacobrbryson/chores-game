@@ -9,6 +9,7 @@ import {
   type FirestoreDocument,
   type FirestoreValue,
   getDocument,
+  listAllDocuments,
   listDocuments,
   patchDocument,
   readBoolean,
@@ -40,7 +41,7 @@ import { DEFAULT_LOCALE, resolveAppLocale } from "@/lib/locale";
 
 export const dynamic = "force-dynamic";
 const MAX_FAMILY_MEMBERS = 100;
-const MAX_SUMMARY_CHORES = 1000;
+const MAX_SUMMARY_CHORES = 5000;
 const MINUTE_MILLIS = 60 * 1000;
 
 function toUnixMillis(value: string | undefined) {
@@ -396,7 +397,7 @@ export async function GET(request: NextRequest) {
         const [familyDoc, memberDocs, choreDocs, categories] = await Promise.all([
           getDocument(`families/${familyId}`, idToken),
           listDocuments(`families/${familyId}/members`, idToken, 100),
-          listDocuments(`families/${familyId}/chores`, idToken, MAX_SUMMARY_CHORES),
+          listAllDocuments(`families/${familyId}/chores`, idToken, { cap: MAX_SUMMARY_CHORES }),
           listFamilyCategories(familyId, idToken),
         ]);
         const viewerAssigneeAliases = buildViewerAssigneeAliases(

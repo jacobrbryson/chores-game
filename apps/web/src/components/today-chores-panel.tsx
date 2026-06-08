@@ -44,6 +44,7 @@ import {
 } from "@/lib/preferences/completion-window";
 import { triggerPartyConfetti } from "@/lib/confetti/party";
 import { markDiscoverySeen } from "@/lib/hooks/use-discovery";
+import type { ChoreType } from "@/lib/chores/types";
 
 type TodayChoresPanelProps = {
   chores: FamilySnapshotChore[];
@@ -89,6 +90,13 @@ type QuickSortState = {
 
 type ChoreScopeSelection = "family" | `member:${string}`;
 type ToolbarMenuView = "root" | "sort";
+type ChoreFilterSection = "category" | "type" | "dueDate";
+type DashboardChoreFilterState = {
+  categoryIds: string[];
+  choreTypes: ChoreType[];
+  dueFrom: string;
+  dueTo: string;
+};
 
 type CompletionStatsResponse = {
   window: CompletionWindow;
@@ -161,6 +169,7 @@ function formatCompactBalance(value: number) {
 const CHORE_SCOPE_STORAGE_KEY = "today_chores_scope";
 const COMPLETION_WINDOW_STORAGE_KEY = "today_chores_completion_window";
 const QUICK_SORT_STORAGE_KEY = "today_chores_quick_sort";
+const CHORE_FILTERS_STORAGE_KEY = "today_chores_filters";
 const FAMILY_CHORE_SCOPE_SELECTION: ChoreScopeSelection = "family";
 const EMPTY_COMPLETION_SERIES: CompletionSeries = {
   interval: "day",
@@ -188,6 +197,46 @@ const QUICK_SORT_DEFAULT_DIRECTION: Record<QuickSortKey, QuickSortDirection> = {
 const QUICK_SORT_KEYS: QuickSortKey[] = ["coin_value", "frequency", "alphabetical"];
 const QUICK_SORT_DIRECTIONS: QuickSortDirection[] = ["asc", "desc"];
 const CHORE_PAGE_SIZE = 100;
+const DASHBOARD_CHORE_TYPES: ChoreType[] = ["see_and_do", "group", "normal"];
+const EMPTY_DASHBOARD_CHORE_FILTERS: DashboardChoreFilterState = {
+  categoryIds: [],
+  choreTypes: [],
+  dueFrom: "",
+  dueTo: "",
+};
+
+function isIsoDateInput(value: unknown): value is string {
+  return typeof value === "string" && (/^\d{4}-\d{2}-\d{2}$/.test(value) || value === "");
+}
+
+function normalizeStoredStringArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") {
+      continue;
+    }
+    const trimmed = entry.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+  return normalized;
+}
+
+function dashboardChoreFiltersAreEmpty(filters: DashboardChoreFilterState) {
+  return (
+    filters.categoryIds.length === 0 &&
+    filters.choreTypes.length === 0 &&
+    !filters.dueFrom &&
+    !filters.dueTo
+  );
+}
 
 
 ChartJS.register(
@@ -249,6 +298,34 @@ function SortMenuIcon() {
       <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-b" />
       <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-c" />
     </span>
+  );
+}
+
+function FilterMenuIcon() {
+  return (
+    <span className="today-chores-filter-icon" aria-hidden="true">
+      <span className="today-chores-filter-icon-line today-chores-filter-icon-line-a" />
+      <span className="today-chores-filter-icon-line today-chores-filter-icon-line-b" />
+      <span className="today-chores-filter-icon-line today-chores-filter-icon-line-c" />
+    </span>
+  );
+}
+
+function FilterSectionCaret({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      className={`today-chores-filter-section-caret${open ? " is-open" : ""}`}>
+      <path
+        d="M5 7.5L10 12.5L15 7.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -330,6 +407,48 @@ function writeQuickSortState(next: QuickSortState | null) {
   }
 }
 
+function readDashboardChoreFilters(): DashboardChoreFilterState {
+  try {
+    const raw = window.localStorage.getItem(CHORE_FILTERS_STORAGE_KEY);
+    if (!raw) {
+      return EMPTY_DASHBOARD_CHORE_FILTERS;
+    }
+    const parsed = JSON.parse(raw) as {
+      categoryIds?: unknown;
+      choreTypes?: unknown;
+      dueFrom?: unknown;
+      dueTo?: unknown;
+    };
+    const categoryIds = normalizeStoredStringArray(parsed.categoryIds);
+    const choreTypes = normalizeStoredStringArray(parsed.choreTypes).filter((entry) =>
+      DASHBOARD_CHORE_TYPES.includes(entry as ChoreType),
+    ) as ChoreType[];
+    const dueFrom = isIsoDateInput(parsed.dueFrom) ? parsed.dueFrom : "";
+    const dueTo = isIsoDateInput(parsed.dueTo) ? parsed.dueTo : "";
+    return {
+      categoryIds,
+      choreTypes,
+      dueFrom,
+      dueTo,
+    };
+  } catch {
+    // Ignore storage/parse errors.
+  }
+  return EMPTY_DASHBOARD_CHORE_FILTERS;
+}
+
+function writeDashboardChoreFilters(next: DashboardChoreFilterState) {
+  try {
+    if (dashboardChoreFiltersAreEmpty(next)) {
+      window.localStorage.removeItem(CHORE_FILTERS_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(CHORE_FILTERS_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
 function formatCompletionBucketLabel(value: string, window: CompletionWindow) {
   const parsed = Date.parse(value);
   if (Number.isNaN(parsed)) {
@@ -359,6 +478,22 @@ function toUnixMillis(value?: string) {
   }
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function isIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function formatFilterDate(value: string) {
+  if (!isIsoDate(value)) {
+    return value;
+  }
+  const parsed = new Date(`${value}T00:00:00`);
+  return parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function compareChoresBySortOrderOrOldest(a: FamilySnapshotChore, b: FamilySnapshotChore) {
@@ -427,9 +562,14 @@ export function TodayChoresPanel({
     [t],
   );
   const [choreScopeMenuOpen, setChoreScopeMenuOpen] = useState(false);
+  const [choreFilterMenuOpen, setChoreFilterMenuOpen] = useState(false);
+  const [expandedChoreFilterSection, setExpandedChoreFilterSection] =
+    useState<ChoreFilterSection | null>(null);
   const [toolbarOptionsMenuOpen, setToolbarOptionsMenuOpen] = useState(false);
   const [toolbarMenuView, setToolbarMenuView] = useState<ToolbarMenuView>("root");
   const [quickSortState, setQuickSortState] = useState<QuickSortState | null>(readQuickSortState);
+  const [choreFilters, setChoreFilters] =
+    useState<DashboardChoreFilterState>(readDashboardChoreFilters);
   const [toolbarAddDialogOpen, setToolbarAddDialogOpen] = useState(false);
   const [busyActionsById, setBusyActionsById] = useState<Record<string, "delete" | "complete">>({});
   const [exitingChoreIds, setExitingChoreIds] = useState<Record<string, true>>({});
@@ -740,16 +880,137 @@ export function TodayChoresPanel({
       return (indexById.get(a.id) ?? 0) - (indexById.get(b.id) ?? 0);
     });
   }, [openChores, quickSortCountsByTitle, quickSortState]);
-  const pendingCreateChoreIdSet = useMemo(
-    () => new Set(Object.values(pendingCreateChoresByRequestId).map((chore) => chore.id)),
-    [pendingCreateChoresByRequestId],
-  );
-  const visibleChores = useMemo(() => {
+  const scopedOpenChores = useMemo(() => {
     if (selectedChoreScope === FAMILY_CHORE_SCOPE_SELECTION || !selectedChoreMember) {
       return sortedOpenChores;
     }
     return sortedOpenChores.filter((chore) => choreMatchesMember(chore, selectedChoreMember));
   }, [selectedChoreMember, selectedChoreScope, sortedOpenChores]);
+  const filterCategoryOptions = useMemo(() => {
+    const categoryById = new Map<string, NonNullable<FamilySnapshotChore["categories"]>[number]>();
+    for (const chore of scopedOpenChores) {
+      for (const category of chore.categories ?? []) {
+        if (category.id && !categoryById.has(category.id)) {
+          categoryById.set(category.id, category);
+        }
+      }
+    }
+    return Array.from(categoryById.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [scopedOpenChores]);
+  const filterCategoryIdSet = useMemo(
+    () => new Set(filterCategoryOptions.map((category) => category.id)),
+    [filterCategoryOptions],
+  );
+  useEffect(() => {
+    setChoreFilters((current) => {
+      const nextCategoryIds = current.categoryIds.filter((categoryId) =>
+        filterCategoryIdSet.has(categoryId),
+      );
+      return nextCategoryIds.length === current.categoryIds.length
+        ? current
+        : { ...current, categoryIds: nextCategoryIds };
+    });
+  }, [filterCategoryIdSet]);
+  useEffect(() => {
+    writeDashboardChoreFilters(choreFilters);
+  }, [choreFilters]);
+  const activeChoreFilterCount =
+    choreFilters.categoryIds.length +
+    choreFilters.choreTypes.length +
+    (choreFilters.dueFrom || choreFilters.dueTo ? 1 : 0);
+  const dueDateFilterCount = choreFilters.dueFrom || choreFilters.dueTo ? 1 : 0;
+  const hasActiveChoreFilters = activeChoreFilterCount > 0;
+  const filteredOpenChores = useMemo(() => {
+    if (!hasActiveChoreFilters) {
+      return scopedOpenChores;
+    }
+    return scopedOpenChores.filter((chore) => {
+      if (
+        choreFilters.categoryIds.length > 0 &&
+        !choreFilters.categoryIds.some((categoryId) => (chore.categoryIds ?? []).includes(categoryId))
+      ) {
+        return false;
+      }
+      if (choreFilters.choreTypes.length > 0) {
+        const choreType = chore.choreType ?? "normal";
+        if (!choreFilters.choreTypes.includes(choreType)) {
+          return false;
+        }
+      }
+      if (choreFilters.dueFrom && (!chore.dueDate || chore.dueDate < choreFilters.dueFrom)) {
+        return false;
+      }
+      if (choreFilters.dueTo && (!chore.dueDate || chore.dueDate > choreFilters.dueTo)) {
+        return false;
+      }
+      return true;
+    });
+  }, [choreFilters, hasActiveChoreFilters, scopedOpenChores]);
+  const categoryLabelById = useMemo(
+    () => new Map(filterCategoryOptions.map((category) => [category.id, category.name] as const)),
+    [filterCategoryOptions],
+  );
+  const choreTypeLabels = useMemo<Record<ChoreType, string>>(
+    () => ({
+      see_and_do: t("dashboard.filterTypeSeeAndDo"),
+      group: t("dashboard.filterTypeGroup"),
+      normal: t("dashboard.filterTypeNormal"),
+    }),
+    [t],
+  );
+  const activeChoreFilterChips = useMemo(() => {
+    const chips: Array<{ id: string; label: string; onRemove: () => void }> = [];
+    for (const categoryId of choreFilters.categoryIds) {
+      chips.push({
+        id: `category:${categoryId}`,
+        label: t("dashboard.activeCategoryFilter", {
+          value: categoryLabelById.get(categoryId) ?? t("dashboard.unknownCategory"),
+        }),
+        onRemove: () =>
+          setChoreFilters((current) => ({
+            ...current,
+            categoryIds: current.categoryIds.filter((id) => id !== categoryId),
+          })),
+      });
+    }
+    for (const choreType of choreFilters.choreTypes) {
+      chips.push({
+        id: `type:${choreType}`,
+        label: t("dashboard.activeTypeFilter", { value: choreTypeLabels[choreType] }),
+        onRemove: () =>
+          setChoreFilters((current) => ({
+            ...current,
+            choreTypes: current.choreTypes.filter((type) => type !== choreType),
+          })),
+      });
+    }
+    if (choreFilters.dueFrom || choreFilters.dueTo) {
+      const value =
+        choreFilters.dueFrom && choreFilters.dueTo
+          ? t("dashboard.filterDueDateRangeValue", {
+              from: formatFilterDate(choreFilters.dueFrom),
+              to: formatFilterDate(choreFilters.dueTo),
+            })
+          : choreFilters.dueFrom
+            ? t("dashboard.filterDueDateFromValue", {
+                from: formatFilterDate(choreFilters.dueFrom),
+              })
+            : t("dashboard.filterDueDateToValue", {
+                to: formatFilterDate(choreFilters.dueTo),
+              });
+      chips.push({
+        id: "due-date",
+        label: t("dashboard.activeDueDateFilter", { value }),
+        onRemove: () => setChoreFilters((current) => ({ ...current, dueFrom: "", dueTo: "" })),
+      });
+    }
+    return chips;
+  }, [categoryLabelById, choreFilters, choreTypeLabels, t]);
+  const pendingCreateChoreIdSet = useMemo(
+    () => new Set(Object.values(pendingCreateChoresByRequestId).map((chore) => chore.id)),
+    [pendingCreateChoresByRequestId],
+  );
+  const visibleChores = filteredOpenChores;
   const visibleChorePage = useMemo(
     () => getDashboardChorePage(visibleChores, visibleChoreCount),
     [visibleChoreCount, visibleChores],
@@ -760,13 +1021,14 @@ export function TodayChoresPanel({
   );
   useEffect(() => {
     setVisibleChoreCount(CHORE_PAGE_SIZE);
-  }, [selectedChoreScope, quickSortState, chores]);
+  }, [selectedChoreScope, quickSortState, chores, choreFilters]);
   const hasBusyChoreAction = Object.keys(busyActionsById).length > 0;
   const hasPendingCreates = Object.keys(pendingCreateChoresByRequestId).length > 0;
   const canReorderChores =
     viewerRole === "admin" &&
     !hasBusyChoreAction &&
     !hasPendingCreates &&
+    !hasActiveChoreFilters &&
     quickSortState === null;
   useEffect(() => {
     if (canReorderChores) {
@@ -937,6 +1199,27 @@ export function TodayChoresPanel({
     setChoreScopeMenuOpen(false);
   }
 
+  function toggleChoreFilterValue<Key extends "categoryIds" | "choreTypes">(
+    key: Key,
+    value: DashboardChoreFilterState[Key][number],
+  ) {
+    setChoreFilters((current) => {
+      const values = current[key] as string[];
+      const nextValues = values.includes(value)
+        ? values.filter((entry) => entry !== value)
+        : [...values, value];
+      return { ...current, [key]: nextValues };
+    });
+  }
+
+  function resetChoreFilters() {
+    setChoreFilters(EMPTY_DASHBOARD_CHORE_FILTERS);
+  }
+
+  function toggleChoreFilterSection(section: ChoreFilterSection) {
+    setExpandedChoreFilterSection((current) => (current === section ? null : section));
+  }
+
   function updateCompletionWindow(next: CompletionWindow) {
     setCompletionWindow(next);
     writeCompletionWindow(next);
@@ -969,6 +1252,10 @@ export function TodayChoresPanel({
     if (!next) {
       setToolbarMenuView("root");
     }
+  }
+
+  function onChoreFilterMenuOpenChange(next: boolean) {
+    setChoreFilterMenuOpen(next);
   }
 
   function openToolbarSortMenu() {
@@ -1400,6 +1687,154 @@ export function TodayChoresPanel({
                 })}
               </AppMenu>
               <AppMenu
+                open={choreFilterMenuOpen}
+                onOpenChange={onChoreFilterMenuOpenChange}
+                wrapperClassName="today-chores-filter-wrap"
+                triggerClassName={`btn btn-secondary today-chores-filter-trigger${
+                  hasActiveChoreFilters ? " today-chores-action-filter-trigger-active" : ""
+                }`}
+                triggerTitle={t("dashboard.filter")}
+                triggerAriaLabel={t("dashboard.filter")}
+                panelClassName="app-menu-panel family-action-dropdown today-chores-filter-menu"
+                trigger={
+                  <>
+                    <FilterMenuIcon />
+                    {activeChoreFilterCount > 0 ? (
+                      <span className="today-chores-filter-count" aria-hidden="true">
+                        {activeChoreFilterCount}
+                      </span>
+                    ) : null}
+                  </>
+                }>
+                <div className="today-chores-filter-menu-section">
+                  <button
+                    type="button"
+                    className="today-chores-filter-section-trigger"
+                    aria-expanded={expandedChoreFilterSection === "category"}
+                    onClick={() => toggleChoreFilterSection("category")}>
+                    <span className="today-chores-filter-menu-label">{t("dashboard.filterCategory")}</span>
+                    <span className="today-chores-filter-section-meta">
+                      {choreFilters.categoryIds.length > 0 ? (
+                        <span className="today-chores-filter-section-count">{choreFilters.categoryIds.length}</span>
+                      ) : null}
+                      <FilterSectionCaret open={expandedChoreFilterSection === "category"} />
+                    </span>
+                  </button>
+                  {expandedChoreFilterSection === "category" ? (
+                    <div className="today-chores-filter-menu-options">
+                      {filterCategoryOptions.length > 0 ? (
+                        filterCategoryOptions.map((category) => (
+                          <button
+                            key={category.id}
+                            type="button"
+                            role="menuitemcheckbox"
+                            aria-checked={choreFilters.categoryIds.includes(category.id)}
+                            className={`today-chores-filter-option${
+                              choreFilters.categoryIds.includes(category.id) ? " is-active" : ""
+                            }`}
+                            onClick={() => toggleChoreFilterValue("categoryIds", category.id)}>
+                            <span
+                              className="today-chores-filter-option-swatch"
+                              style={{ backgroundColor: getSafeHexColor(category.color) || "#94a3b8" }}
+                              aria-hidden="true"
+                            />
+                            <span>{category.name}</span>
+                            <span className="today-chores-filter-option-check" aria-hidden="true">
+                              {choreFilters.categoryIds.includes(category.id) ? "\u2713" : ""}
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <span className="today-chores-filter-empty">{t("dashboard.noCategoryFilters")}</span>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="today-chores-filter-menu-section">
+                  <button
+                    type="button"
+                    className="today-chores-filter-section-trigger"
+                    aria-expanded={expandedChoreFilterSection === "type"}
+                    onClick={() => toggleChoreFilterSection("type")}>
+                    <span className="today-chores-filter-menu-label">{t("dashboard.filterType")}</span>
+                    <span className="today-chores-filter-section-meta">
+                      {choreFilters.choreTypes.length > 0 ? (
+                        <span className="today-chores-filter-section-count">{choreFilters.choreTypes.length}</span>
+                      ) : null}
+                      <FilterSectionCaret open={expandedChoreFilterSection === "type"} />
+                    </span>
+                  </button>
+                  {expandedChoreFilterSection === "type" ? (
+                    <div className="today-chores-filter-menu-options">
+                      {DASHBOARD_CHORE_TYPES.map((choreType) => (
+                        <button
+                          key={choreType}
+                          type="button"
+                          role="menuitemcheckbox"
+                          aria-checked={choreFilters.choreTypes.includes(choreType)}
+                          className={`today-chores-filter-option${
+                            choreFilters.choreTypes.includes(choreType) ? " is-active" : ""
+                          }`}
+                          onClick={() => toggleChoreFilterValue("choreTypes", choreType)}>
+                          <span>{choreTypeLabels[choreType]}</span>
+                          <span className="today-chores-filter-option-check" aria-hidden="true">
+                            {choreFilters.choreTypes.includes(choreType) ? "\u2713" : ""}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="today-chores-filter-menu-section">
+                  <button
+                    type="button"
+                    className="today-chores-filter-section-trigger"
+                    aria-expanded={expandedChoreFilterSection === "dueDate"}
+                    onClick={() => toggleChoreFilterSection("dueDate")}>
+                    <span className="today-chores-filter-menu-label">{t("dashboard.filterDueDate")}</span>
+                    <span className="today-chores-filter-section-meta">
+                      {dueDateFilterCount > 0 ? (
+                        <span className="today-chores-filter-section-count">{dueDateFilterCount}</span>
+                      ) : null}
+                      <FilterSectionCaret open={expandedChoreFilterSection === "dueDate"} />
+                    </span>
+                  </button>
+                  {expandedChoreFilterSection === "dueDate" ? (
+                    <div className="today-chores-filter-date-range">
+                      <label>
+                        <span>{t("dashboard.filterDueFrom")}</span>
+                        <input
+                          type="date"
+                          value={choreFilters.dueFrom}
+                          onChange={(event) =>
+                            setChoreFilters((current) => ({ ...current, dueFrom: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>{t("dashboard.filterDueTo")}</span>
+                        <input
+                          type="date"
+                          value={choreFilters.dueTo}
+                          onChange={(event) =>
+                            setChoreFilters((current) => ({ ...current, dueTo: event.target.value }))
+                          }
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="today-chores-filter-menu-footer">
+                  <Button
+                    type="button"
+                    className="btn btn-secondary today-chores-filter-reset"
+                    disabled={!hasActiveChoreFilters}
+                    onClick={resetChoreFilters}>
+                    {t("dashboard.clearFilters")}
+                  </Button>
+                </div>
+              </AppMenu>
+              <AppMenu
                 open={toolbarOptionsMenuOpen}
                 onOpenChange={onToolbarOptionsMenuOpenChange}
                 wrapperClassName="today-chores-options-wrap"
@@ -1494,6 +1929,27 @@ export function TodayChoresPanel({
               />
             ) : null}
           </div>
+          {activeChoreFilterChips.length > 0 ? (
+            <div className="today-chores-active-filters" aria-label={t("dashboard.activeFilters")}>
+              {activeChoreFilterChips.map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  className="today-chores-active-filter-chip"
+                  onClick={chip.onRemove}
+                  title={t("dashboard.removeFilter", { value: chip.label })}>
+                  <span>{chip.label}</span>
+                  <span aria-hidden="true">x</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                className="today-chores-active-filter-clear"
+                onClick={resetChoreFilters}>
+                {t("dashboard.clearFilters")}
+              </button>
+            </div>
+          ) : null}
           {choreActionError ? <Alert className="mb-3">{t("dashboard.choreUpdateError", { error: choreActionError })}</Alert> : null}
           {visibleChores.length === 0 ? (
             <div className="dashboard-empty-state">
