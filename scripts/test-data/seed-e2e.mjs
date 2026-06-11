@@ -20,6 +20,15 @@ const TEST_DATA = {
     name: process.env.E2E_CHILD_NAME ?? "Playwright Child",
     role: "player",
   },
+  // Second managed player used by the Kiosk Mode roster/switch tests. No Firebase
+  // auth user is required because tests never sign in directly as this child —
+  // they switch into it from the parent's kiosk session.
+  childTwo: {
+    uid: process.env.E2E_CHILD2_UID ?? "e2e-child-2",
+    email: process.env.E2E_CHILD2_EMAIL ?? "child2.test@family-chores.test",
+    name: process.env.E2E_CHILD2_NAME ?? "Playwright Child Two",
+    role: "player",
+  },
   support: {
     uid: process.env.E2E_SUPPORT_UID ?? "e2e-support",
     email: process.env.E2E_SUPPORT_EMAIL ?? "support.test@family-chores.test",
@@ -155,10 +164,11 @@ function memberFields(user) {
 async function main() {
   const token = await getAdminToken();
   const now = new Date().toISOString();
-  const { familyId, parent, child, support } = TEST_DATA;
+  const { familyId, parent, child, childTwo, support } = TEST_DATA;
 
   await patchDocument(token, `users/${parent.uid}`, userFields(parent, [familyId]));
   await patchDocument(token, `users/${child.uid}`, userFields(child, [familyId]));
+  await patchDocument(token, `users/${childTwo.uid}`, userFields(childTwo, [familyId]));
   await patchDocument(token, `users/${support.uid}`, userFields(support, []));
 
   await patchDocument(token, `families/${familyId}`, {
@@ -173,9 +183,11 @@ async function main() {
 
   await patchDocument(token, `families/${familyId}/members/${parent.uid}`, memberFields(parent));
   await patchDocument(token, `families/${familyId}/members/${child.uid}`, memberFields(child));
+  await patchDocument(token, `families/${familyId}/members/${childTwo.uid}`, memberFields(childTwo));
 
-  console.log(`Seeded E2E family ${familyId}.`);
-  console.log("Create matching Firebase Auth users separately and export their E2E_*_FIREBASE_ID_TOKEN values before running Playwright.");
+  console.log(`Seeded E2E family ${familyId} (parent, ${child.name}, ${childTwo.name}).`);
+  console.log("Create matching Firebase Auth users for parent/child (and support) separately and export their E2E_*_FIREBASE_ID_TOKEN values before running Playwright.");
+  console.log(`${childTwo.name} is a managed kiosk player and needs no Firebase Auth user.`);
 }
 
 main().catch((error) => {

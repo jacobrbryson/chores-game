@@ -66,10 +66,21 @@ function userFor(role: E2ERole): E2EUser {
   };
 }
 
+// Second managed player for the Kiosk Mode roster/switch tests. Tests never sign
+// in directly as this child (no Firebase token needed) — they switch into it
+// from the parent's kiosk session. Must match the seed (scripts/test-data).
+export const E2E_SECOND_CHILD = {
+  uid: process.env.E2E_CHILD2_UID ?? "e2e-child-2",
+  memberId: process.env.E2E_CHILD2_MEMBER_ID ?? process.env.E2E_CHILD2_UID ?? "e2e-child-2",
+  name: process.env.E2E_CHILD2_NAME ?? "Playwright Child Two",
+  email: process.env.E2E_CHILD2_EMAIL ?? "child2.test@family-chores.test",
+};
+
 export const E2E_TEST_DATA = {
   familyId: process.env.E2E_FAMILY_ID ?? DEFAULTS.familyId,
   parent: userFor("parent"),
   child: userFor("child"),
+  childTwo: E2E_SECOND_CHILD,
   support: userFor("support"),
 };
 

@@ -1,5 +1,13 @@
 [
   {
+    "id": "family-kiosk-mode",
+    "date": "2026-06-11",
+    "type": "Feature",
+    "subject": "Family Kiosk Mode for shared tablets",
+    "description": "Open Kiosk Mode from the profile menu to turn any family tablet into a simple, focused chore checklist. Pick a player, complete their chores, and switch players or exit with your PIN. Kiosk Mode always stays player-level, so parent, admin, and support controls are never exposed on the shared device.",
+    "image": "/file.svg"
+  },
+  {
     "id": "dashboard-manual-sort-reorder",
     "date": "2026-06-10",
     "type": "Bug Fix",

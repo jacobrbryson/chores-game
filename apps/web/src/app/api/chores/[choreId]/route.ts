@@ -23,6 +23,7 @@ import {
   timestampField,
 } from "@/lib/firestore/rest";
 import { emitFamilyActivity } from "@/lib/notifications/events";
+import { buildKioskActivityMetadata } from "@/lib/auth/kiosk";
 import { applyWalletDelta } from "@/lib/economy/wallet";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
@@ -1243,6 +1244,11 @@ export async function PATCH(
             payoutApplied = payoutResult.kind === "ok" && payoutResult.anyApplied;
           }
           const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
+          // Kiosk Mode attribution: in kiosk the current identity is the player,
+          // so the player is recorded as the actor (parents are still notified)
+          // while the originally signed-in account is preserved as
+          // authenticated_user_id and the event is tagged source=kiosk.
+          const kioskActivity = buildKioskActivityMetadata(session, choreAssigneeId || assigneeUid);
           await emitFamilyActivityBestEffort({
             familyId,
             idToken,
@@ -1258,12 +1264,18 @@ export async function PATCH(
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
             pushType: completionNeedsApproval ? "chore_approval_required" : "chore_completed",
+            source: kioskActivity.source,
+            authenticatedUid: kioskActivity.authenticatedUid,
+            completedForPlayerId: kioskActivity.completedForPlayerId,
           });
           await publishFamilyActivity({
             type: "chore_completed",
             familyId,
             choreId,
             occurredAt: now,
+            source: kioskActivity.source,
+            authenticatedUid: kioskActivity.authenticatedUid,
+            completedForPlayerId: kioskActivity.completedForPlayerId,
           });
           if (assigneeUid) {
             const completionHour = new Date(now).getUTCHours();

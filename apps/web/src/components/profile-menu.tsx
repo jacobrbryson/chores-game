@@ -9,6 +9,7 @@ import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { GoogleTaskSyncIndicator } from "@/components/google-task-sync-indicator";
 import { useLocale } from "@/components/locale-provider";
+import { KioskPinModal } from "@/components/kiosk-pin-modal";
 import { MenuActionButton } from "@/components/menu-action-button";
 import { MenuActionLink } from "@/components/menu-action-link";
 import { ModalShell } from "@/components/modal-shell";
@@ -197,6 +198,16 @@ export function ProfileMenu({
   const [themePrimaryColor, setThemePrimaryColor] = useState("");
   const [themeSecondaryColor, setThemeSecondaryColor] = useState("");
   const [googleTasksLinked, setGoogleTasksLinked] = useState(false);
+  const [inFamily, setInFamily] = useState(false);
+  const [kioskPinRequired, setKioskPinRequired] = useState(false);
+  // "switch" = become one child (account-switch); "kiosk" = launch shared-tablet
+  // Kiosk Mode for a multi-selected roster of players.
+  const [pickerMode, setPickerMode] = useState<"switch" | "kiosk">("switch");
+  const [kioskSelectedIds, setKioskSelectedIds] = useState<string[]>([]);
+  const [kioskPinModalOpen, setKioskPinModalOpen] = useState(false);
+  const [kioskPin, setKioskPin] = useState("");
+  const [kioskPending, setKioskPending] = useState(false);
+  const [kioskError, setKioskError] = useState("");
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [restorePin, setRestorePin] = useState("");
   const [restorePending, setRestorePending] = useState(false);
@@ -276,6 +287,20 @@ export function ProfileMenu({
     }
   }
 
+  async function loadKioskAvailability() {
+    try {
+      const response = await fetch("/api/kiosk", { cache: "no-store" });
+      if (!response.ok) {
+        return;
+      }
+      const payload = (await response.json()) as { inFamily?: boolean; pinRequired?: boolean };
+      setInFamily(payload.inFamily === true);
+      setKioskPinRequired(payload.pinRequired === true);
+    } catch {
+      // Ignore kiosk availability errors in menu UI.
+    }
+  }
+
   async function loadGoogleTasksLinkState() {
     try {
       const response = await fetch("/api/google-tasks", { cache: "no-store" });
@@ -336,6 +361,7 @@ export function ProfileMenu({
     void loadHeaderCoinBalance();
     void loadProfileAvatar();
     void loadGoogleTasksLinkState();
+    void loadKioskAvailability();
   }, []);
 
   useEffect(() => {
@@ -495,12 +521,63 @@ export function ProfileMenu({
 
   function openSwitchPicker() {
     setSwitchPickerOpen(true);
+    setPickerMode("switch");
+    setKioskSelectedIds([]);
+    setKioskError("");
     void loadSwitchableMembers();
   }
 
   function closeSwitchPicker() {
     setSwitchPickerOpen(false);
     setSwitchMembersError("");
+    setKioskError("");
+  }
+
+  function toggleKioskSelection(memberId: string) {
+    setKioskSelectedIds((current) =>
+      current.includes(memberId)
+        ? current.filter((id) => id !== memberId)
+        : [...current, memberId],
+    );
+  }
+
+  async function launchKiosk(pin: string) {
+    if (kioskSelectedIds.length === 0 || kioskPending) {
+      return;
+    }
+    setKioskPending(true);
+    setKioskError("");
+    try {
+      const response = await fetch("/api/kiosk/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerIds: kioskSelectedIds, pin }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `KIOSK_START_HTTP_${response.status}`);
+      }
+      if (typeof window !== "undefined") {
+        window.location.assign("/kiosk");
+      }
+    } catch (errorValue) {
+      setKioskError(errorValue instanceof Error ? errorValue.message : "kiosk_start_failed");
+    } finally {
+      setKioskPending(false);
+    }
+  }
+
+  function onStartKioskClick() {
+    if (kioskSelectedIds.length === 0) {
+      return;
+    }
+    setKioskPin("");
+    setKioskError("");
+    if (kioskPinRequired) {
+      setKioskPinModalOpen(true);
+    } else {
+      void launchKiosk("");
+    }
   }
 
   function openSwitchMemberModal(member: SwitchableMember) {
@@ -631,38 +708,68 @@ export function ProfileMenu({
             </Button>
           </div>
           <div className="flex w-full flex-col gap-3">
+            {inFamily ? (
+              <div className="switch-mode-tabs" role="tablist" aria-label={t("profileMenu.switchChildTitle")}>
+                <Button
+                  type="button"
+                  role="tab"
+                  aria-selected={pickerMode === "switch"}
+                  className={`switch-mode-tab${pickerMode === "switch" ? " switch-mode-tab-active" : ""}`}
+                  onClick={() => setPickerMode("switch")}>
+                  {t("nav.switchTo")}
+                </Button>
+                <Button
+                  type="button"
+                  role="tab"
+                  aria-selected={pickerMode === "kiosk"}
+                  className={`switch-mode-tab${pickerMode === "kiosk" ? " switch-mode-tab-active" : ""}`}
+                  onClick={() => setPickerMode("kiosk")}>
+                  {t("nav.kioskMode")}
+                </Button>
+              </div>
+            ) : null}
             <p className="small">
-              {t("profileMenu.switchChildBody")}
+              {pickerMode === "kiosk" ? t("kiosk.selectPlayerBody") : t("profileMenu.switchChildBody")}
             </p>
             {switchMembersError ? (
               <Alert>{t("profileMenu.switchLoadError", { error: switchMembersError })}</Alert>
+            ) : null}
+            {pickerMode === "kiosk" && kioskError ? (
+              <Alert tone="warning">{t("kiosk.startError", { error: kioskError })}</Alert>
             ) : null}
             {switchMembersLoading ? <p className="small">{t("profileMenu.loadingChildProfiles")}</p> : null}
             {!switchMembersLoading && !switchMembersError ? (
               switchableMembers.length > 0 ? (
                 <div className="switch-member-list">
-                  {switchableMembers.map((member) => (
-                    <Button
-                      key={member.id}
-                      type="button"
-                      className="switch-member-option"
-                      onClick={() => {
-                        closeSwitchPicker();
-                        openSwitchMemberModal(member);
-                      }}>
-                      <span className="switch-member-option-main">
-                        <Avatar
-                          className="completion-chart-avatar"
-                          size={32}
-                          borderWidth={1}
-                          name={member.name}
-                          avatarId={member.avatarId}
-                          photoUrl={member.avatarPhotoUrl}
-                          primaryColor={member.dashboardPrimaryColor}
-                          secondaryColor={member.dashboardPrimaryColor}
-                          fallbackColor={member.dashboardPrimaryColor ? "#ffffff" : undefined}
-                          referrerPolicy="no-referrer"
-                        />
+                  {switchableMembers.map((member) => {
+                    const selected = kioskSelectedIds.includes(member.id);
+                    return (
+                      <Button
+                        key={member.id}
+                        type="button"
+                        className={`switch-member-option${pickerMode === "kiosk" && selected ? " switch-member-option-selected" : ""}`}
+                        aria-pressed={pickerMode === "kiosk" ? selected : undefined}
+                        onClick={() => {
+                          if (pickerMode === "kiosk") {
+                            toggleKioskSelection(member.id);
+                          } else {
+                            closeSwitchPicker();
+                            openSwitchMemberModal(member);
+                          }
+                        }}>
+                        <span className="switch-member-option-main">
+                          <Avatar
+                            className="completion-chart-avatar"
+                            size={32}
+                            borderWidth={1}
+                            name={member.name}
+                            avatarId={member.avatarId}
+                            photoUrl={member.avatarPhotoUrl}
+                            primaryColor={member.dashboardPrimaryColor}
+                            secondaryColor={member.dashboardPrimaryColor}
+                            fallbackColor={member.dashboardPrimaryColor ? "#ffffff" : undefined}
+                            referrerPolicy="no-referrer"
+                          />
                           <span className="switch-member-option-copy">
                             <span className="switch-member-option-name">{member.name}</span>
                             <span className="switch-member-option-meta">
@@ -671,9 +778,15 @@ export function ProfileMenu({
                                 : t("profileMenu.invitePending")}
                             </span>
                           </span>
-                      </span>
-                    </Button>
-                  ))}
+                          {pickerMode === "kiosk" ? (
+                            <span className={`switch-member-check${selected ? " switch-member-check-on" : ""}`} aria-hidden="true">
+                              {selected ? "✓" : ""}
+                            </span>
+                          ) : null}
+                        </span>
+                      </Button>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="small">{t("profileMenu.noChildProfiles")}</p>
@@ -683,6 +796,15 @@ export function ProfileMenu({
               <Button type="button" className="btn btn-secondary" onClick={closeSwitchPicker}>
                 {t("common.actions.close")}
               </Button>
+              {pickerMode === "kiosk" ? (
+                <Button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={kioskSelectedIds.length === 0 || kioskPending}
+                  onClick={onStartKioskClick}>
+                  {kioskPending ? t("kiosk.checking") : t("kiosk.enterAction")}
+                </Button>
+              ) : null}
             </div>
           </div>
         </div>
@@ -699,6 +821,19 @@ export function ProfileMenu({
         error={switchError}
         requiresPinSetup={switchRequiresPinSetup}
         onConfirm={switchRequiresPinSetup ? onSetupPinAndSwitch : onSwitchAccount}
+      />
+      <KioskPinModal
+        open={kioskPinModalOpen}
+        title={t("kiosk.enterAction")}
+        body={t("kiosk.enterBody")}
+        pin={kioskPin}
+        onPinChange={setKioskPin}
+        pending={kioskPending}
+        error={kioskError ? t("kiosk.startError", { error: kioskError }) : ""}
+        confirmLabel={t("kiosk.enterAction")}
+        pinRequired={kioskPinRequired}
+        onRequestClose={() => setKioskPinModalOpen(false)}
+        onConfirm={() => void launchKiosk(kioskPin)}
       />
       <ModalShell open={restoreModalOpen} onRequestClose={() => setRestoreModalOpen(false)}>
         <form

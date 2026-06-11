@@ -10,6 +10,38 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
+// Edge-safe decode of the signed session cookie payload. We do NOT verify the
+// HMAC here (that needs node:crypto, unavailable on the edge runtime) — this is
+// only a UX redirect gate. The cookie is HttpOnly/signed and server routes
+// remain the real authority, so reading the kiosk flag here is safe: a tampered
+// flag can at most lock the user to /kiosk or drop them onto the player
+// dashboard (already player-only).
+export function readKioskActiveFromCookie(token: string | undefined): boolean {
+  if (!token) {
+    return false;
+  }
+  const segment = token.split(".")[0];
+  if (!segment) {
+    return false;
+  }
+  try {
+    const base64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const payload = JSON.parse(new TextDecoder().decode(bytes)) as {
+      exp?: number;
+      kioskActive?: boolean;
+    };
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      return false;
+    }
+    return payload.kioskActive === true;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeOrigin(value: string) {
   return value.trim().replace(/\/+$/, "");
 }
@@ -51,6 +83,20 @@ export function middleware(request: NextRequest) {
 
   if (request.method === "OPTIONS") {
     return applyCorsHeaders(new NextResponse(null, { status: 204 }), request);
+  }
+
+  // Kiosk lock: while a session is in Kiosk Mode, the shared tablet is pinned to
+  // /kiosk. Every other page route redirects there so the dashboard and the rest
+  // of the app are never reachable until the PIN-gated exit clears the flag.
+  // API routes are skipped (the kiosk page needs them); /kiosk itself is allowed.
+  if (
+    request.method === "GET" &&
+    !pathname.startsWith("/api/") &&
+    pathname !== "/kiosk" &&
+    !pathname.startsWith("/kiosk/") &&
+    readKioskActiveFromCookie(request.cookies.get("session_user")?.value)
+  ) {
+    return applyCorsHeaders(NextResponse.redirect(new URL("/kiosk", request.url)), request);
   }
 
   // Auth guard: redirect unauthenticated users to home on all protected page routes.

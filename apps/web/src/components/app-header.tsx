@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { AppHeaderShell } from "@/components/app-header-shell";
 import {
   getAuthenticatedSessionIdentity,
+  isKioskActive,
   isSessionSwitched,
   parseSessionToken,
 } from "@/lib/auth/session";
@@ -39,6 +40,7 @@ export async function AppHeader() {
       authenticatedName={authenticatedIdentity?.name || authenticatedIdentity?.email || ""}
       isSwitched={sessionUser ? isSessionSwitched(sessionUser) : false}
       showSupportLink={sessionUser ? hasSupportAdminEmail(sessionUser) : false}
+      kioskActive={sessionUser ? isKioskActive(sessionUser) : false}
     />
   );
 }

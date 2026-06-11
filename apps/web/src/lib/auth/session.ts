@@ -30,6 +30,15 @@ export type SessionUser = {
   authName?: string;
   authPicture?: string;
   authLocale?: AppLocale;
+  // Family Kiosk Mode: when true the session is operating as a shared-tablet
+  // kiosk. The current identity is always a player profile while the original
+  // signed-in account is preserved in the auth* fields. Kiosk sessions are
+  // always player-level regardless of the authenticated account's real role.
+  kioskActive?: boolean;
+  // The pre-authorized roster of player member ids selected when Kiosk Mode was
+  // started. The active player may be switched freely among this roster without
+  // a PIN (they were all approved up front); exiting still requires the PIN.
+  kioskPlayerIds?: string[];
 };
 
 type SessionPayload = SessionUser & {
@@ -126,6 +135,57 @@ export function restoreAuthenticatedSession(session: SessionUser): SessionUser {
   };
 }
 
+export function isKioskActive(session: SessionUser) {
+  return Boolean(session.kioskActive);
+}
+
+export function getKioskPlayerIds(session: SessionUser): string[] {
+  return Array.isArray(session.kioskPlayerIds) ? session.kioskPlayerIds : [];
+}
+
+export function normalizeKioskRoster(playerIds: Array<string | undefined>): string[] {
+  const seen = new Set<string>();
+  const roster: string[] = [];
+  for (const value of playerIds) {
+    const trimmed = (value ?? "").trim();
+    if (trimmed && !seen.has(trimmed)) {
+      seen.add(trimmed);
+      roster.push(trimmed);
+    }
+  }
+  return roster;
+}
+
+// Enter (or switch player within) Kiosk Mode. The current identity becomes the
+// selected player while the original signed-in account is preserved in the
+// auth* fields (switchSessionIdentity is idempotent: when already switched it
+// keeps the existing authenticated identity). Kiosk sessions are always marked
+// active so the UI can render kiosk chrome and server code can tag events. The
+// roster (the multi-selected players approved for this tablet) is preserved so
+// the active player can be switched among them without re-entering the PIN.
+export function enterKioskSession(
+  session: SessionUser,
+  playerIdentity: SessionIdentity,
+  playerIds: Array<string | undefined> = [],
+): SessionUser {
+  // Use the explicitly approved roster (the active player is always already a
+  // member of it). Fall back to just the active player when no roster is given.
+  const normalized = normalizeKioskRoster(playerIds);
+  const roster = normalized.length > 0 ? normalized : normalizeKioskRoster([playerIdentity.memberId]);
+  return {
+    ...switchSessionIdentity(session, { ...playerIdentity, role: "player" }),
+    kioskActive: true,
+    kioskPlayerIds: roster,
+  };
+}
+
+// Exit Kiosk Mode and return to the original authenticated account with its
+// normal permissions. Clears the kiosk flag and all auth* shadow fields.
+export function exitKioskSession(session: SessionUser): SessionUser {
+  const restored = restoreAuthenticatedSession(session);
+  return { ...restored, kioskActive: false };
+}
+
 export function createSessionToken(user: SessionUser) {
   const secret = getSecret();
   if (!secret) {
@@ -187,6 +247,10 @@ export function parseSessionToken(token: string | undefined): SessionUser | null
       authName: parsed.authName,
       authPicture: parsed.authPicture,
       authLocale: parsed.authLocale,
+      kioskActive: parsed.kioskActive === true,
+      kioskPlayerIds: Array.isArray(parsed.kioskPlayerIds)
+        ? parsed.kioskPlayerIds.filter((entry): entry is string => typeof entry === "string")
+        : undefined,
     };
   } catch {
     return null;

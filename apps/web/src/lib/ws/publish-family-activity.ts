@@ -5,6 +5,11 @@ type FamilyActivityPublishEvent = {
   familyId: string;
   choreId?: string;
   occurredAt?: string;
+  // Kiosk Mode attribution so realtime consumers can distinguish a shared
+  // tablet completion and tell who completed it for whom.
+  source?: string;
+  authenticatedUid?: string;
+  completedForPlayerId?: string;
 };
 
 export async function publishFamilyActivity(event: FamilyActivityPublishEvent) {

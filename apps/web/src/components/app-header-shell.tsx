@@ -18,6 +18,7 @@ type AppHeaderShellProps = {
   authenticatedName: string;
   isSwitched: boolean;
   showSupportLink: boolean;
+  kioskActive?: boolean;
 };
 
 export function AppHeaderShell({
@@ -28,7 +29,22 @@ export function AppHeaderShell({
   authenticatedName,
   isSwitched,
   showSupportLink,
+  kioskActive = false,
 }: AppHeaderShellProps) {
+  // Kiosk Mode is a focused shared-tablet experience: never expose the primary
+  // navigation or profile menu (which would surface family settings, support,
+  // switching and logout). The kiosk page renders its own minimal header with
+  // PIN-gated Switch Player / Exit controls.
+  if (sessionUser && kioskActive) {
+    return (
+      <header className="app-header app-header-auth app-header-kiosk">
+        <div className="top-nav panel top-nav-auth top-nav-kiosk">
+          <AppBrand />
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className={`app-header ${sessionUser ? "app-header-auth" : "app-header-guest"}`}>
       <div className={`top-nav panel ${sessionUser ? "top-nav-auth" : "top-nav-guest"}`}>

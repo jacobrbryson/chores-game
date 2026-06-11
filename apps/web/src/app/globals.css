@@ -10088,3 +10088,466 @@ a.family-award-claim-card:focus-visible {
     font-size: 1.25rem;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Family Kiosk Mode — focused shared-tablet experience. Touch-friendly, large
+   tap targets, no app navigation. See app/kiosk and components/kiosk-*.
+   --------------------------------------------------------------------------- */
+.top-nav-kiosk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kiosk-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem 0 2rem;
+}
+
+.kiosk-badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.4rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: #1b2a41;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.kiosk-entry,
+.kiosk-active {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.kiosk-entry-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.kiosk-entry-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #1b2a41;
+}
+
+.kiosk-entry-subtitle {
+  color: #5977a1;
+}
+
+.kiosk-player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.kiosk-player-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.25rem 0.75rem;
+  border-radius: 1rem;
+  border: 2px solid #dce9fa;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+
+.kiosk-player-option:hover {
+  border-color: #0072b2;
+  transform: translateY(-2px);
+}
+
+.kiosk-player-option-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1b2a41;
+  text-align: center;
+}
+
+.kiosk-active-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 1rem;
+  background: #f3f8ff;
+  border: 1px solid #dce9fa;
+}
+
+.kiosk-active-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.kiosk-active-identity-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.kiosk-active-name {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1b2a41;
+}
+
+.kiosk-active-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 700;
+  color: #b8860b;
+}
+
+.kiosk-active-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.kiosk-chore-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.kiosk-chore-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: 1rem;
+  background: #fff;
+  border: 1px solid #dce9fa;
+  transform-origin: center;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.kiosk-chore-card.is-exiting {
+  opacity: 0;
+  transform: translateX(28px) scale(0.96);
+  pointer-events: none;
+}
+
+@keyframes kioskChoreIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kiosk-chore-card:not(.is-exiting):not(.kiosk-skeleton-row) {
+  animation: kioskChoreIn 0.22s ease both;
+}
+
+.kiosk-chore-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.kiosk-chore-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1b2a41;
+}
+
+.kiosk-chore-details {
+  color: #5977a1;
+}
+
+.kiosk-chore-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 700;
+  color: #b8860b;
+}
+
+.kiosk-chore-complete {
+  min-width: 7rem;
+  min-height: 3rem;
+  font-size: 1.05rem;
+}
+
+.kiosk-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 3rem 1rem;
+  text-align: center;
+}
+
+.kiosk-empty-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #1b2a41;
+}
+
+.kiosk-switch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.kiosk-switch-card {
+  max-width: 28rem;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .kiosk-active-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .kiosk-active-actions {
+    justify-content: stretch;
+  }
+
+  .kiosk-active-actions .btn {
+    flex: 1;
+  }
+}
+
+/* Kiosk multi-select + Switch-To dialog integration */
+.switch-mode-tabs {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.25rem;
+  border-radius: 0.75rem;
+  background: #eef4fc;
+}
+
+.switch-mode-tab {
+  flex: 1;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.55rem;
+  border: none;
+  background: transparent;
+  font-weight: 700;
+  color: #5977a1;
+  cursor: pointer;
+}
+
+.switch-mode-tab-active {
+  background: #fff;
+  color: #1b2a41;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.switch-member-option-selected {
+  border-color: #0072b2 !important;
+  background: #eef6ff !important;
+}
+
+.switch-member-check {
+  margin-left: auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 2px solid #c3d6ef;
+  color: #0072b2;
+  font-weight: 800;
+}
+
+.switch-member-check-on {
+  background: #0072b2;
+  border-color: #0072b2;
+  color: #fff;
+}
+
+.kiosk-player-option {
+  position: relative;
+}
+
+.kiosk-player-option-selected {
+  border-color: #0072b2 !important;
+  background: #eef6ff !important;
+}
+
+.kiosk-player-option-check {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #0072b2;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.kiosk-entry-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.kiosk-roster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+/* Unified identity + switcher. The active player's card expands (avatar + name
+   + coins); inactive players are grayed out and tap to select in place — the
+   active card never changes position. */
+.kiosk-roster-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  border: 2px solid #dce9fa;
+  background: #fff;
+  cursor: pointer;
+  text-align: center;
+  transition: filter 0.22s ease, opacity 0.22s ease, transform 0.22s ease,
+    border-color 0.22s ease, background 0.22s ease, padding 0.22s ease;
+}
+
+.kiosk-roster-card.is-dim {
+  filter: grayscale(0.85);
+  opacity: 0.55;
+  transform: scale(0.94);
+}
+
+.kiosk-roster-card.is-dim:hover:not(:disabled) {
+  filter: grayscale(0.3);
+  opacity: 0.85;
+  transform: scale(0.97);
+}
+
+.kiosk-roster-card.is-active {
+  border-color: #0072b2;
+  background: #eef6ff;
+  padding: 1rem 1.5rem;
+  cursor: default;
+  box-shadow: 0 6px 18px rgba(0, 114, 178, 0.15);
+}
+
+.kiosk-roster-card:disabled {
+  cursor: default;
+}
+
+.kiosk-roster-card-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1b2a41;
+}
+
+.kiosk-roster-card.is-active .kiosk-roster-card-name {
+  font-size: 1.15rem;
+}
+
+.kiosk-roster-card-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 800;
+  color: #b8860b;
+}
+
+/* Shimmer skeletons shown while the first family snapshot loads. */
+@keyframes kioskShimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.kiosk-skeleton {
+  background: linear-gradient(90deg, #e9eff7 25%, #f4f8ff 37%, #e9eff7 63%);
+  background-size: 800px 100%;
+  animation: kioskShimmer 1.3s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+.kiosk-skeleton-card {
+  border-color: #e9eff7;
+  background: #fff;
+  cursor: default;
+}
+
+.kiosk-skeleton-avatar {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 999px;
+}
+
+.kiosk-roster-card.is-active .kiosk-skeleton-avatar {
+  width: 4.75rem;
+  height: 4.75rem;
+}
+
+.kiosk-skeleton-line {
+  height: 0.85rem;
+  width: 4rem;
+}
+
+.kiosk-skeleton-pill {
+  height: 2.5rem;
+  width: 6rem;
+  border-radius: 0.75rem;
+}
+
+.kiosk-skeleton-row {
+  animation: none;
+}
+
+.kiosk-active-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.kiosk-exit-button {
+  min-height: 2.75rem;
+}
+
+.kiosk-active {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}

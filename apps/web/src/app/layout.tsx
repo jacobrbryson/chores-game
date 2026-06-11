@@ -12,7 +12,7 @@ import { NavigationHistoryTracker } from "@/components/navigation-history-tracke
 import { PartyConfettiOverlay } from "@/components/party-confetti-overlay";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
 import { ToastViewport } from "@/components/toast";
-import { parseSessionToken } from "@/lib/auth/session";
+import { isKioskActive, parseSessionToken } from "@/lib/auth/session";
 import { DEFAULT_LOCALE } from "@/lib/locale";
 import { NotFoundProvider } from "@/lib/not-found-context";
 import { DEFAULT_OG_IMAGE, SITE_URL } from "@/lib/seo";
@@ -64,6 +64,9 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const sessionUser = parseSessionToken(cookieStore.get("session_user")?.value);
   const locale = sessionUser?.locale || DEFAULT_LOCALE;
+  // In Kiosk Mode the shared-tablet experience hides app navigation, breadcrumbs
+  // and footer to stay focused and avoid exposing full app navigation.
+  const kioskActive = sessionUser ? isKioskActive(sessionUser) : false;
 
   return (
     <html lang={locale}>
@@ -99,10 +102,10 @@ gtag('config', 'G-GM3MZZ6NXK');`,
             <div className="container app-layout">
               <div className="app-main">
                 <AppHeader />
-                <AppBreadcrumbs hideGuestHomepage={!sessionUser} />
+                {!kioskActive ? <AppBreadcrumbs hideGuestHomepage={!sessionUser} /> : null}
                 {children}
               </div>
-              <AppFooter locale={locale} authed={Boolean(sessionUser)} />
+              {!kioskActive ? <AppFooter locale={locale} authed={Boolean(sessionUser)} /> : null}
             </div>
           </div>
         </LocaleProvider>

@@ -31,6 +31,13 @@ type EmitFamilyActivityInput = {
   choreTitle?: string;
   relatedIds?: string[];
   pushType?: PushNotificationType;
+  // Kiosk Mode attribution. `source` distinguishes a shared-tablet completion
+  // ("kiosk") from a normal in-app one ("app"). When the completion happened in
+  // Kiosk Mode, `authenticatedUid` is the originally signed-in account while
+  // `actorUid`/`completedForPlayerId` are the selected player.
+  source?: string;
+  authenticatedUid?: string;
+  completedForPlayerId?: string;
 };
 
 function normalizeId(value: string) {
@@ -65,6 +72,9 @@ export async function emitFamilyActivity(input: EmitFamilyActivityInput) {
       choreId: stringField(input.choreId ?? ""),
       choreTitle: stringField(input.choreTitle ?? ""),
       relatedIds: stringArrayField(relatedIds),
+      source: stringField(input.source ?? "app"),
+      authenticatedUid: stringField(input.authenticatedUid ?? input.actorUid),
+      completedForPlayerId: stringField(input.completedForPlayerId ?? ""),
       createdAt: timestampField(now),
     },
     input.idToken,
