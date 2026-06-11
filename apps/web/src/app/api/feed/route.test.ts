@@ -5,6 +5,7 @@ const mockGetSessionFromRequest = vi.fn();
 const mockSetSessionUserCookie = vi.fn();
 const mockGetDocument = vi.fn();
 const mockListDocuments = vi.fn();
+const mockRunQuery = vi.fn();
 
 vi.mock("@/lib/auth/firebase-refresh", () => ({
   runWithRefreshedFirebaseToken: mockRunWithRefreshedFirebaseToken,
@@ -22,6 +23,7 @@ vi.mock("@/lib/firestore/rest", () => ({
   documentIdFromName: (name: string) => name.split("/").pop() ?? "",
   getDocument: mockGetDocument,
   listDocuments: mockListDocuments,
+  runQuery: mockRunQuery,
   readBoolean: (fields: Record<string, unknown> | undefined, key: string) => Boolean(fields?.[key]),
   readString: (fields: Record<string, unknown> | undefined, key: string) => {
     const value = fields?.[key];
@@ -148,11 +150,20 @@ describe("GET /api/feed", () => {
       if (path.endsWith("/members")) {
         return MEMBERS;
       }
-      if (path.endsWith("/notifications")) {
-        return NOTIFICATIONS;
-      }
       return [];
     });
+    // Notifications are now read via an ordered runQuery (newest-first window).
+    mockRunQuery.mockImplementation(
+      async (structuredQuery: { from?: Array<{ collectionId?: string }> }) => {
+        if (structuredQuery.from?.[0]?.collectionId === "notifications") {
+          return [...NOTIFICATIONS].sort(
+            (a, b) =>
+              Date.parse(String(b.fields.createdAt)) - Date.parse(String(a.fields.createdAt)),
+          );
+        }
+        return [];
+      },
+    );
   });
 
   it("rejects unauthenticated requests", async () => {

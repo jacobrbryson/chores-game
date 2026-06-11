@@ -13,6 +13,7 @@ import {
   listDocuments,
   patchDocument,
   readBoolean,
+  readString,
   readStringArray,
   stringArrayField,
   stringField,
@@ -25,11 +26,19 @@ import {
 } from "@/lib/store/catalog";
 import { DEFAULT_LOCALE } from "@/lib/locale";
 import { trackAchievementEvent } from "@/lib/achievements/service";
+import { shouldBlockOnboardingFirstChild } from "@/lib/family/onboarding";
 
 type AddMemberBody = {
   name?: string;
   email?: string;
   role?: string;
+  // Where the create request originated. "onboarding" = the first-run wizard;
+  // anything else (or omitted) = regular family-management UI.
+  source?: string;
+  // True when this is the very first child the onboarding wizard is adding in
+  // this session. Used with `source` to block duplicate-child creation when a
+  // family that already has children was wrongly routed into onboarding.
+  onboardingFirstChild?: boolean;
 };
 const MAX_FAMILY_MEMBERS = 100;
 
@@ -115,6 +124,8 @@ export async function POST(request: NextRequest) {
   const name = (body.name ?? "").trim();
   const email = (body.email ?? "").trim().toLowerCase();
   const role = body.role === "admin" ? "admin" : "player";
+  const source = typeof body.source === "string" ? body.source : "family_management";
+  const onboardingFirstChild = body.onboardingFirstChild === true;
 
   if (name.length < 2 || name.length > 80) {
     return NextResponse.json(
@@ -165,10 +176,53 @@ export async function POST(request: NextRequest) {
         const activeMemberCount = existingMembers.filter(
           (doc) => !readBoolean(doc.fields, "deleted"),
         ).length;
+        const activeChildCount = existingMembers.filter(
+          (doc) =>
+            !readBoolean(doc.fields, "deleted") &&
+            readString(doc.fields, "role") === "player",
+        ).length;
+
+        // Server-side guard against the duplicate-child P0: if the request is the
+        // onboarding wizard's "first child" but the family already has children,
+        // the caller was wrongly routed into onboarding. Refuse, and tell the
+        // client setup is already complete so it can bounce to the dashboard.
+        // Regular family-management adds (a different source) are never blocked.
+        if (
+          shouldBlockOnboardingFirstChild({
+            source,
+            onboardingFirstChild,
+            existingChildCount: activeChildCount,
+          })
+        ) {
+          console.warn(
+            "[ONBOARDING_DUPLICATE_CHILD_PREVENTED]",
+            JSON.stringify({
+              user_id: session.uid,
+              family_id: familyId,
+              child_count: activeChildCount,
+              child_creation_source: source,
+              onboarding_first_child: onboardingFirstChild,
+            }),
+          );
+          return { kind: "setup_already_complete" as const };
+        }
+
         const targetExists = existingMembers.some((doc) => doc.name.endsWith(`/${memberId}`));
         if (!targetExists && activeMemberCount >= MAX_FAMILY_MEMBERS) {
           return { kind: "family_member_limit_reached" as const };
         }
+
+        console.info(
+          "[FAMILY_MEMBER_CREATE]",
+          JSON.stringify({
+            user_id: session.uid,
+            family_id: familyId,
+            child_count: activeChildCount,
+            role,
+            child_creation_source: source,
+            onboarding_first_child: onboardingFirstChild,
+          }),
+        );
 
         const now = new Date().toISOString();
         await createOrReplaceDocument(
@@ -254,6 +308,17 @@ export async function POST(request: NextRequest) {
           },
         };
       });
+
+    if (data.kind === "setup_already_complete") {
+      return NextResponse.json(
+        {
+          error: "setup_already_complete",
+          message: "This family already has children. Onboarding is complete.",
+          redirectTarget: "dashboard",
+        },
+        { status: 409 },
+      );
+    }
 
     if (data.kind === "family_member_limit_reached") {
       return NextResponse.json(

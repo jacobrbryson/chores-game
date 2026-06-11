@@ -9,10 +9,26 @@ import {
   jsonUnauthorized,
   mapCommonFirestoreErrors,
 } from "@/lib/family/access";
-import { getDocument, readBoolean, readString, readTimestamp } from "@/lib/firestore/rest";
+import {
+  getDocument,
+  listDocuments,
+  readBoolean,
+  readString,
+  readTimestamp,
+} from "@/lib/firestore/rest";
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from "@/lib/privacy/config";
+import { computeOnboardingDecision } from "@/lib/family/onboarding";
 
 export const dynamic = "force-dynamic";
+
+// Count active (non-deleted) child/player members. "Children" for onboarding
+// purposes are player-role members; admins (parents) don't count.
+async function countActiveChildren(familyId: string, idToken: string): Promise<number> {
+  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 300);
+  return memberDocs.filter(
+    (doc) => !readBoolean(doc.fields, "deleted") && readString(doc.fields, "role") === "player",
+  ).length;
+}
 
 export async function GET(request: NextRequest) {
   const session = getSessionFromRequest(request);
@@ -40,6 +56,7 @@ export async function GET(request: NextRequest) {
             viewerRole: "player" as const,
             needsOnboarding: false,
             needsReacceptance: false,
+            redirectTarget: "dashboard" as const,
             currentTermsVersion: CURRENT_TERMS_VERSION,
             currentPrivacyVersion: CURRENT_PRIVACY_VERSION,
           };
@@ -54,44 +71,49 @@ export async function GET(request: NextRequest) {
         const deletionRequested = Boolean(readTimestamp(familyDoc.fields, "deletionRequestedAt"));
         const isDeleted = readBoolean(familyDoc.fields, "deleted");
 
-        if (deletionRequested || isDeleted) {
-          return {
-            kind: "ok" as const,
-            viewerRole: "admin" as const,
-            needsOnboarding: false,
-            needsReacceptance: false,
-            currentTermsVersion: CURRENT_TERMS_VERSION,
-            currentPrivacyVersion: CURRENT_PRIVACY_VERSION,
-          };
-        }
+        // Count existing children so an already-set-up family is never sent back
+        // through onboarding (the duplicate-child P0). See computeOnboardingDecision.
+        const childCount = await countActiveChildren(familyId, idToken);
 
-        // A family is "onboarding complete" if they have either:
-        //   1. The new onboardingCompletedAt timestamp (set by the wizard), OR
-        //   2. Existing parentalConsentAt (existing users who pre-date the wizard).
-        // This preserves "Existing users should not repeat onboarding."
-        const hasCompletedOnboarding = Boolean(onboardingCompletedAt || parentalConsentAt);
-        const needsOnboarding = !hasCompletedOnboarding;
+        const decision = computeOnboardingDecision({
+          hasFamily: true,
+          viewerRole: "admin",
+          childCount,
+          onboardingCompletedAt: onboardingCompletedAt || null,
+          parentalConsentAt: parentalConsentAt || null,
+          acceptedTermsVersion,
+          acceptedPrivacyVersion,
+          currentTermsVersion: CURRENT_TERMS_VERSION,
+          currentPrivacyVersion: CURRENT_PRIVACY_VERSION,
+          deletedOrDeletionRequested: deletionRequested || isDeleted,
+        });
 
-        const consentUpToDate =
-          Boolean(parentalConsentAt) &&
-          acceptedTermsVersion === CURRENT_TERMS_VERSION &&
-          acceptedPrivacyVersion === CURRENT_PRIVACY_VERSION;
-
-        // Re-acceptance is only needed when onboarding is already done but consent is stale.
-        const needsReacceptance = !needsOnboarding && !consentUpToDate;
-
-        // True only when the family has previously accepted a *versioned* policy.
-        // False for families whose consent pre-dates version tracking
-        // (parentalConsentAt set but acceptedTermsVersion empty). The UI uses
-        // this to show "Accept" vs "Re-accept" copy.
-        const hasPreviousVersionedConsent = Boolean(acceptedTermsVersion);
+        // Structured log so support can trace the redirect decision per family.
+        console.info(
+          "[ONBOARDING_REDIRECT_DECISION]",
+          JSON.stringify({
+            user_id: session.uid,
+            family_id: familyId,
+            child_count: childCount,
+            tos_acceptance_timestamp: parentalConsentAt || null,
+            onboarding_state: {
+              onboardingCompletedAt: onboardingCompletedAt || null,
+              acceptedTermsVersion: acceptedTermsVersion || null,
+              acceptedPrivacyVersion: acceptedPrivacyVersion || null,
+            },
+            redirect_target: decision.redirectTarget,
+            needs_onboarding: decision.needsOnboarding,
+            needs_reacceptance: decision.needsReacceptance,
+          }),
+        );
 
         return {
           kind: "ok" as const,
           viewerRole: "admin" as const,
-          needsOnboarding,
-          needsReacceptance,
-          hasPreviousVersionedConsent,
+          needsOnboarding: decision.needsOnboarding,
+          needsReacceptance: decision.needsReacceptance,
+          redirectTarget: decision.redirectTarget,
+          hasPreviousVersionedConsent: decision.hasPreviousVersionedConsent,
           currentTermsVersion: CURRENT_TERMS_VERSION,
           currentPrivacyVersion: CURRENT_PRIVACY_VERSION,
         };
@@ -100,8 +122,9 @@ export async function GET(request: NextRequest) {
     if (data.kind === "no_family") {
       return NextResponse.json({
         viewerRole: "admin",
-        needsOnboarding: false,
+        needsOnboarding: true,
         needsReacceptance: false,
+        redirectTarget: "family_setup",
         currentTermsVersion: CURRENT_TERMS_VERSION,
         currentPrivacyVersion: CURRENT_PRIVACY_VERSION,
       });

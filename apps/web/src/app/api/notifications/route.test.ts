@@ -6,6 +6,7 @@ const mockSetSessionUserCookie = vi.fn();
 const mockCreateOrReplaceDocument = vi.fn();
 const mockGetDocument = vi.fn();
 const mockListDocuments = vi.fn();
+const mockRunQuery = vi.fn();
 
 vi.mock("@/lib/auth/firebase-refresh", () => ({
   runWithRefreshedFirebaseToken: mockRunWithRefreshedFirebaseToken,
@@ -24,6 +25,7 @@ vi.mock("@/lib/firestore/rest", () => ({
   documentIdFromName: (name: string) => name.split("/").pop() ?? "",
   getDocument: mockGetDocument,
   listDocuments: mockListDocuments,
+  runQuery: mockRunQuery,
   readBoolean: (fields: Record<string, unknown> | undefined, key: string) =>
     Boolean(fields?.[key]),
   readString: (fields: Record<string, unknown> | undefined, key: string) => {
@@ -142,5 +144,191 @@ describe("PATCH /api/notifications", () => {
       }),
       "id-token",
     );
+  });
+});
+
+function notificationDoc(id: string, fields: Record<string, unknown>) {
+  return { name: `families/family-1/notifications/${id}`, fields };
+}
+
+function seenMarkerDoc(uid: string, notificationId: string) {
+  return {
+    name: `families/family-1/notificationSeen/${uid}_${notificationId}`,
+    fields: { uid, notificationId },
+  };
+}
+
+// n1: triggered by the child (own action), n2: visible only to a sibling,
+// n3: addressed to the child by a parent. Provided oldest-first so the route's
+// newest-first ordering is actually exercised.
+const GET_NOTIFICATIONS = [
+  notificationDoc("n1", {
+    kind: "chore_completed",
+    actorUid: "child-uid",
+    actorEmail: "child@example.com",
+    relatedIds: ["child-uid"],
+    title: "Chore completed",
+    message: "Child completed Dishes",
+    createdAt: "2026-06-01T10:00:00.000Z",
+  }),
+  notificationDoc("n2", {
+    kind: "reward_claimed",
+    actorUid: "sibling-uid",
+    actorEmail: "sibling@example.com",
+    relatedIds: ["sibling-uid"],
+    title: "Reward redeemed",
+    message: "Sibling redeemed Ice cream",
+    createdAt: "2026-06-02T10:00:00.000Z",
+  }),
+  notificationDoc("n3", {
+    kind: "chore_approved",
+    actorUid: "parent-uid",
+    actorEmail: "parent@example.com",
+    relatedIds: ["parent-uid", "child-uid"],
+    title: "Chore approved",
+    message: "Parent approved Dishes",
+    createdAt: "2026-06-03T10:00:00.000Z",
+  }),
+];
+
+describe("GET /api/notifications", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    mockRunWithRefreshedFirebaseToken.mockImplementation(async (session, callback) => {
+      const data = await callback("id-token");
+      return { data, session, refreshed: false };
+    });
+
+    mockGetDocument.mockImplementation(async (path: string) => {
+      if (path === "users/parent-uid") {
+        return { fields: { familyIds: ["family-1"] } };
+      }
+      if (path === "users/child-uid") {
+        return { fields: { familyIds: ["family-1"] } };
+      }
+      if (path === "families/family-1/members/parent-uid") {
+        return { fields: { uid: "parent-uid", email: "parent@example.com", role: "admin" } };
+      }
+      if (path === "families/family-1/members/child-uid") {
+        return { fields: { uid: "child-uid", email: "child@example.com", role: "player" } };
+      }
+      // Email-keyed member lookups are expected to miss for accepted members.
+      throw new Error("FIRESTORE_HTTP_404");
+    });
+
+    mockListDocuments.mockResolvedValue([]);
+  });
+
+  function setSession(role: "admin" | "player") {
+    const isAdmin = role === "admin";
+    mockGetSessionFromRequest.mockReturnValue({
+      uid: isAdmin ? "parent-uid" : "child-uid",
+      email: isAdmin ? "parent@example.com" : "child@example.com",
+      firebaseIdToken: "id-token",
+      firebaseRefreshToken: "refresh-token",
+    });
+  }
+
+  // Returns the most-recent-first notifications and the viewer's seen markers,
+  // dispatching on the queried collection like the real ordered runQuery.
+  function mockQueries(seenMarkers: Array<ReturnType<typeof seenMarkerDoc>>) {
+    mockRunQuery.mockImplementation(
+      async (structuredQuery: { from?: Array<{ collectionId?: string }> }) => {
+        const collectionId = structuredQuery.from?.[0]?.collectionId;
+        if (collectionId === "notifications") {
+          return [...GET_NOTIFICATIONS].sort(
+            (a, b) =>
+              Date.parse(String(b.fields.createdAt)) - Date.parse(String(a.fields.createdAt)),
+          );
+        }
+        if (collectionId === "notificationSeen") {
+          return seenMarkers;
+        }
+        return [];
+      },
+    );
+  }
+
+  function getRequest(query = "") {
+    // The route reads request.nextUrl.searchParams, so provide a NextRequest-like
+    // shape rather than a plain Request.
+    return { nextUrl: new URL(`http://localhost/api/notifications${query}`) } as never;
+  }
+
+  it("rejects unauthenticated requests", async () => {
+    mockGetSessionFromRequest.mockReturnValue(null);
+    const { GET } = await import("./route");
+    const response = await GET(getRequest());
+    expect(response.status).toBe(401);
+  });
+
+  it("returns all notifications newest-first for an admin, applying seen markers", async () => {
+    setSession("admin");
+    // The admin has only seen n1; the parent triggered n3 themselves (auto-seen).
+    mockQueries([seenMarkerDoc("parent-uid", "n1")]);
+    const { GET } = await import("./route");
+
+    const response = await GET(getRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.notifications.map((item: { id: string }) => item.id)).toEqual(["n3", "n2", "n1"]);
+    const seenById = Object.fromEntries(
+      body.notifications.map((item: { id: string; seen: boolean }) => [item.id, item.seen]),
+    );
+    expect(seenById).toEqual({ n1: true, n2: false, n3: true });
+    // Only n2 is unseen (n1 has a marker, n3 was triggered by the viewer).
+    expect(body.unseenCount).toBe(1);
+  });
+
+  it("hides notifications not addressed to a player and auto-sees their own actions", async () => {
+    setSession("player");
+    mockQueries([]);
+    const { GET } = await import("./route");
+
+    const response = await GET(getRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    // n2 (sibling-only) is hidden; n3 and n1 (own action) are visible, newest first.
+    expect(body.notifications.map((item: { id: string }) => item.id)).toEqual(["n3", "n1"]);
+    const seenById = Object.fromEntries(
+      body.notifications.map((item: { id: string; seen: boolean }) => [item.id, item.seen]),
+    );
+    // n1 was triggered by the child, so it is auto-seen; n3 is unseen.
+    expect(seenById).toEqual({ n1: true, n3: false });
+    expect(body.unseenCount).toBe(1);
+  });
+
+  it("filters to unseen notifications when unseen=true is requested", async () => {
+    setSession("player");
+    mockQueries([]);
+    const { GET } = await import("./route");
+
+    const response = await GET(getRequest("?unseen=true"));
+    const body = await response.json();
+
+    expect(body.notifications.map((item: { id: string }) => item.id)).toEqual(["n3"]);
+    // unseenCount still reflects the full visible window, not just the filtered page.
+    expect(body.unseenCount).toBe(1);
+  });
+
+  it("scopes the seen-marker query to the requesting viewer", async () => {
+    setSession("player");
+    mockQueries([]);
+    const { GET } = await import("./route");
+
+    await GET(getRequest());
+
+    const seenQueryCall = mockRunQuery.mock.calls.find(
+      ([structuredQuery]) => structuredQuery?.from?.[0]?.collectionId === "notificationSeen",
+    );
+    expect(seenQueryCall).toBeDefined();
+    expect(seenQueryCall?.[0].where.fieldFilter).toMatchObject({
+      field: { fieldPath: "uid" },
+      op: "EQUAL",
+      value: { stringValue: "child-uid" },
+    });
   });
 });

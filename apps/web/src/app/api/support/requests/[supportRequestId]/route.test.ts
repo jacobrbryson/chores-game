@@ -171,7 +171,7 @@ describe("PATCH /api/support/requests/[id]", () => {
     expect(fields.subject).toEqual({ stringValue: "New subject" });
     expect(fields.description).toEqual({ stringValue: "New desc" });
     expect(fields.severity).toEqual({ stringValue: "high" });
-    expect(mask).toEqual(["subject", "description", "updatedAt", "severity"]);
+    expect(mask).toEqual(["subject", "description", "category", "updatedAt", "severity"]);
   });
 
   it("treats a legacy 'submitted' status as editable", async () => {
@@ -190,7 +190,7 @@ describe("PATCH /api/support/requests/[id]", () => {
     expect(res.status).toBe(200);
     const [, fields, , mask] = mockPatchDocument.mock.calls[0];
     expect("severity" in fields).toBe(false);
-    expect(mask).toEqual(["subject", "description", "updatedAt"]);
+    expect(mask).toEqual(["subject", "description", "category", "updatedAt"]);
   });
 
   it("lets support admins update status with history and audit", async () => {
@@ -208,8 +208,17 @@ describe("DELETE /api/support/requests/[id] (user cancel)", () => {
     const [path, fields, , mask] = mockPatchDocument.mock.calls[0];
     expect(path).toBe("families/fam-1/supportRequests/req-1");
     expect(fields.cancelledByUser).toEqual({ booleanValue: true });
+    // Cancelling moves the request to the terminal "cancelled" status so the
+    // support console no longer shows it as a new/actionable request.
+    expect(fields.status).toEqual({ stringValue: "cancelled" });
     expect(fields.deleted).toBeUndefined();
-    expect(mask).toEqual(["cancelledByUser", "cancelledAt", "updatedAt"]);
+    expect(mask).toEqual([
+      "status",
+      "cancelledByUser",
+      "cancelledAt",
+      "closedAt",
+      "updatedAt",
+    ]);
   });
 
   it("allows cancelling a request in any status (e.g. done)", async () => {
@@ -218,7 +227,14 @@ describe("DELETE /api/support/requests/[id] (user cancel)", () => {
     expect(res.status).toBe(200);
     const [, fields, , mask] = mockPatchDocument.mock.calls[0];
     expect(fields.cancelledByUser).toEqual({ booleanValue: true });
-    expect(mask).toEqual(["cancelledByUser", "cancelledAt", "updatedAt"]);
+    expect(fields.status).toEqual({ stringValue: "cancelled" });
+    expect(mask).toEqual([
+      "status",
+      "cancelledByUser",
+      "cancelledAt",
+      "closedAt",
+      "updatedAt",
+    ]);
   });
 
   it("404s when the request is not owned by the caller", async () => {

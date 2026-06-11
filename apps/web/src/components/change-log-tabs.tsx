@@ -15,6 +15,29 @@ import {
 
 type TabId = "recent" | "requested";
 
+type RequestedFilterId = "open" | "features" | "bugs" | "closed";
+
+const REQUESTED_FILTERS: RequestedFilterId[] = ["open", "features", "bugs", "closed"];
+
+const CLOSED_STATUSES: ReadonlySet<PublicRequestedChange["publicStatus"]> = new Set([
+  "completed",
+  "declined",
+]);
+
+function matchesRequestedFilter(rc: PublicRequestedChange, filter: RequestedFilterId) {
+  switch (filter) {
+    case "features":
+      return rc.type === "feature";
+    case "bugs":
+      return rc.type === "bug";
+    case "closed":
+      return CLOSED_STATUSES.has(rc.publicStatus);
+    case "open":
+    default:
+      return !CLOSED_STATUSES.has(rc.publicStatus);
+  }
+}
+
 type PublicRequestedChange = {
   id: string;
   targetType: "public_support_request";
@@ -167,14 +190,25 @@ function RequestedChangesGrouped({
 
 function RequestedChangesSkeleton() {
   return (
-    <section className="change-log-list" aria-hidden="true">
-      <article className="family-page-card change-log-card">
-        <div className="family-skeleton family-skeleton-row" />
-      </article>
-      <article className="family-page-card change-log-card">
-        <div className="family-skeleton family-skeleton-row" />
-      </article>
-    </section>
+    <div className="space-y-4" aria-hidden="true">
+      <div className="chores-filter-pills">
+        {[58, 82, 60, 70].map((width, index) => (
+          <span
+            key={index}
+            className="family-skeleton change-log-filter-pill-skeleton"
+            style={{ width }}
+          />
+        ))}
+      </div>
+      <section className="change-log-list">
+        <article className="family-page-card change-log-card">
+          <div className="family-skeleton family-skeleton-row" />
+        </article>
+        <article className="family-page-card change-log-card">
+          <div className="family-skeleton family-skeleton-row" />
+        </article>
+      </section>
+    </div>
   );
 }
 
@@ -186,6 +220,23 @@ export function ChangeLogTabs({ recentContent }: { recentContent: ReactNode }) {
   const [hasRequestedFetchAttempted, setHasRequestedFetchAttempted] = useState(false);
   const [error, setError] = useState("");
   const [votePendingId, setVotePendingId] = useState("");
+  const [requestedFilter, setRequestedFilter] = useState<RequestedFilterId>("open");
+
+  const filteredRequests = useMemo(
+    () => (data?.requests ?? []).filter((rc) => matchesRequestedFilter(rc, requestedFilter)),
+    [data, requestedFilter],
+  );
+
+  const filterCounts = useMemo(() => {
+    const requests = data?.requests ?? [];
+    return REQUESTED_FILTERS.reduce(
+      (counts, filter) => {
+        counts[filter] = requests.filter((rc) => matchesRequestedFilter(rc, filter)).length;
+        return counts;
+      },
+      {} as Record<RequestedFilterId, number>,
+    );
+  }, [data]);
 
   const { summary: discoverySummary } = useDiscoverySummary(["changelog", "requested_changes"]);
   const recentCount = getSectionCount(discoverySummary, "changelog");
@@ -303,6 +354,21 @@ export function ChangeLogTabs({ recentContent }: { recentContent: ReactNode }) {
       {activeTab === "recent" ? <div className="mt-4">{recentContent}</div> : null}
       {activeTab === "requested" ? (
         <section className="mt-4 space-y-4" aria-label={t("changeLog.tabs.requested")}>
+          {!isLoading && !error && data ? (
+            <div className="chores-filter-pills" role="group" aria-label={t("changeLog.tabs.requested")}>
+              {REQUESTED_FILTERS.map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  className={`chores-filter-pill${requestedFilter === filter ? " is-active" : ""}`}
+                  aria-pressed={requestedFilter === filter}
+                  onClick={() => setRequestedFilter(filter)}>
+                  {t(`changeLog.requested.filters.${filter}`)}
+                  <DiscoveryBadge count={filterCounts[filter]} />
+                </button>
+              ))}
+            </div>
+          ) : null}
           {isLoading ? <RequestedChangesSkeleton /> : null}
           {error ? (
             <section className="family-page-card change-log-empty-card">
@@ -325,9 +391,14 @@ export function ChangeLogTabs({ recentContent }: { recentContent: ReactNode }) {
               <p className="small">{t("changeLog.requested.empty")}</p>
             </section>
           ) : null}
-          {!isLoading && data?.requests.length ? (
+          {!isLoading && data && data.requests.length > 0 && filteredRequests.length === 0 ? (
+            <section className="family-page-card change-log-empty-card">
+              <p className="small">{t("changeLog.requested.filters.empty")}</p>
+            </section>
+          ) : null}
+          {!isLoading && filteredRequests.length ? (
             <RequestedChangesGrouped
-              requests={data.requests}
+              requests={filteredRequests}
               votePendingId={votePendingId}
               onVote={(rc) => void toggleVote(rc)}
               t={t}

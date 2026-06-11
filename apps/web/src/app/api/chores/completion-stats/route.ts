@@ -4,7 +4,9 @@ import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import {
   documentIdFromName,
+  type FirestoreValue,
   getDocument,
+  listAllDocuments,
   listDocuments,
   readBoolean,
   readString,
@@ -303,7 +305,11 @@ export async function GET(request: NextRequest) {
 
         const [memberDocs, choreDocs] = await Promise.all([
           listDocuments(`families/${familyId}/members`, idToken, 100),
-          listDocuments(`families/${familyId}/chores`, idToken, 500),
+          // Page through the full chores collection — Firestore REST caps a
+          // single listDocuments page at ~300, so a family with more chore docs
+          // (recurring chores spawn a new doc each cycle) would silently drop
+          // completions and under-count the leaderboard.
+          listAllDocuments(`families/${familyId}/chores`, idToken),
         ]);
 
         const rawMembers = memberDocs
@@ -391,6 +397,10 @@ export async function GET(request: NextRequest) {
           if (member.uid) {
             assigneeAliasToMemberId.set(member.uid, member.id);
           }
+          const normalizedEmail = normalizeEmail(member.email);
+          if (normalizedEmail) {
+            assigneeAliasToMemberId.set(normalizedEmail, member.id);
+          }
         }
         for (const member of rawMembers) {
           const normalizedEmail = normalizeEmail(member.email);
@@ -403,6 +413,43 @@ export async function GET(request: NextRequest) {
           }
         }
 
+        const allCountedMemberIds = members.map((member) => member.id);
+
+        // Resolve every member credited for a completed chore. A chore can be
+        // assigned to a single member (`assigneeId`), several members
+        // (`assigneeIds`), or the whole family (`assigneeScope === "family"`).
+        // This mirrors how payouts are split in the chore PATCH route — counting
+        // only `assigneeId` would drop group/family completions for everyone but
+        // the lone single-assignee member.
+        function resolveCountedMemberIds(
+          fields: Record<string, FirestoreValue> | undefined,
+        ) {
+          if (readString(fields, "assigneeScope") === "family") {
+            return allCountedMemberIds;
+          }
+          const assigneeIdsRaw = readStringArray(fields, "assigneeIds");
+          const singleAssigneeId = readString(fields, "assigneeId");
+          const aliases =
+            assigneeIdsRaw.length > 0
+              ? assigneeIdsRaw
+              : singleAssigneeId
+                ? [singleAssigneeId]
+                : [];
+          const resolved: string[] = [];
+          const seen = new Set<string>();
+          for (const alias of aliases) {
+            const memberId =
+              assigneeAliasToMemberId.get(alias) ??
+              assigneeAliasToMemberId.get(normalizeEmail(alias)) ??
+              alias;
+            if (countsMap.has(memberId) && !seen.has(memberId)) {
+              seen.add(memberId);
+              resolved.push(memberId);
+            }
+          }
+          return resolved;
+        }
+
         for (const doc of choreDocs) {
           if (readBoolean(doc.fields, "deleted")) {
             continue;
@@ -411,11 +458,8 @@ export async function GET(request: NextRequest) {
           if (status !== "Submitted" && status !== "Approved") {
             continue;
           }
-          const assigneeId = readString(doc.fields, "assigneeId");
-          const countedMemberId = assigneeId
-            ? assigneeAliasToMemberId.get(assigneeId) ?? assigneeId
-            : "";
-          if (!countedMemberId || !countsMap.has(countedMemberId)) {
+          const countedMemberIds = resolveCountedMemberIds(doc.fields);
+          if (countedMemberIds.length === 0) {
             continue;
           }
 
@@ -431,13 +475,15 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
-          countsMap.set(countedMemberId, (countsMap.get(countedMemberId) ?? 0) + 1);
           const bucketIndex = Math.floor((completionMillis - startMillis) / bucketStepMillis);
-          const points = trendPointsByMember.get(countedMemberId);
-          if (!points || bucketIndex < 0 || bucketIndex >= points.length) {
-            continue;
+          for (const countedMemberId of countedMemberIds) {
+            countsMap.set(countedMemberId, (countsMap.get(countedMemberId) ?? 0) + 1);
+            const points = trendPointsByMember.get(countedMemberId);
+            if (!points || bucketIndex < 0 || bucketIndex >= points.length) {
+              continue;
+            }
+            points[bucketIndex] += 1;
           }
-          points[bucketIndex] += 1;
         }
 
         const counts = members

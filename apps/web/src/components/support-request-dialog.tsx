@@ -11,11 +11,16 @@ import { CategorySelector } from "@/components/category-selector";
 import {
   MAX_SUPPORT_DESCRIPTION_LENGTH,
   MAX_SUPPORT_SUBJECT_LENGTH,
+  SUPPORT_REQUEST_IMPORTANCES,
   SUPPORT_REQUEST_SEVERITIES,
+  typeUsesImportance,
+  typeUsesSeverity,
   validateSupportRequest,
+  type SupportRequestImportance,
   type SupportRequestSeverity,
   type SupportRequestType,
 } from "@/lib/support/requests";
+import { collectDiagnostics } from "@/lib/support/diagnostics";
 
 type SupportRequestDialogProps = {
   open: boolean;
@@ -30,9 +35,16 @@ type SupportRequestDialogProps = {
     subject: string;
     description: string;
     severity: SupportRequestSeverity | null;
+    importance: SupportRequestImportance | null;
     category: string;
   };
 };
+
+// Categories only exist for bug and feature requests; questions and feedback
+// are free-form and skip the category picker.
+function typeUsesCategory(type: SupportRequestType) {
+  return type === "bug" || type === "feature";
+}
 
 function currentRoute() {
   if (typeof window === "undefined") {
@@ -53,11 +65,17 @@ export function SupportRequestDialog({
   const { t } = useLocale();
   const isBug = type === "bug";
   const isEdit = mode === "edit";
+  const showSeverity = typeUsesSeverity(type);
+  const showImportance = typeUsesImportance(type);
+  const showCategory = typeUsesCategory(type);
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [severity, setSeverity] = useState<SupportRequestSeverity>("medium");
+  const [importance, setImportance] = useState<SupportRequestImportance>("useful");
   const [category, setCategory] = useState("");
   const [pageUrl, setPageUrl] = useState("");
+  const [allowContact, setAllowContact] = useState(true);
+  const [notifyOnStatusChange, setNotifyOnStatusChange] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -70,11 +88,23 @@ export function SupportRequestDialog({
     [t],
   );
 
+  const importanceOptions = useMemo<TailwindSelectOption<SupportRequestImportance>[]>(
+    () =>
+      SUPPORT_REQUEST_IMPORTANCES.map((value) => ({
+        value,
+        label: t(`support.importance.${value}`),
+      })),
+    [t],
+  );
+
   function resetForm() {
     setSubject("");
     setDescription("");
     setSeverity("medium");
+    setImportance("useful");
     setCategory("");
+    setAllowContact(true);
+    setNotifyOnStatusChange(true);
     setError("");
   }
 
@@ -87,6 +117,7 @@ export function SupportRequestDialog({
       setSubject(initialValues.subject);
       setDescription(initialValues.description);
       setSeverity(initialValues.severity ?? "medium");
+      setImportance(initialValues.importance ?? "useful");
       setCategory(initialValues.category ?? "");
     } else {
       resetForm();
@@ -113,8 +144,9 @@ export function SupportRequestDialog({
       type,
       subject,
       description,
-      severity: isBug ? severity : undefined,
-      category,
+      severity: showSeverity ? severity : undefined,
+      importance: showImportance ? importance : undefined,
+      category: showCategory ? category : "",
     });
     if (!validation.ok) {
       setError(localizedError(validation.error));
@@ -135,6 +167,7 @@ export function SupportRequestDialog({
                   subject: validation.value.subject,
                   description: validation.value.description,
                   severity: validation.value.severity ?? undefined,
+                  importance: validation.value.importance ?? undefined,
                   category: validation.value.category || undefined,
                 }
               : {
@@ -142,8 +175,14 @@ export function SupportRequestDialog({
                   subject: validation.value.subject,
                   description: validation.value.description,
                   severity: validation.value.severity ?? undefined,
+                  importance: validation.value.importance ?? undefined,
                   category: validation.value.category || undefined,
                   pageUrl,
+                  allowContact,
+                  notifyOnStatusChange,
+                  // Best-effort diagnostics; bug reports also attach recent
+                  // console/API failure buffers.
+                  diagnostics: collectDiagnostics(isBug),
                 },
           ),
         },
@@ -164,14 +203,8 @@ export function SupportRequestDialog({
     }
   }
 
-  const title = isEdit
-    ? isBug
-      ? t("support.bug.editTitle")
-      : t("support.feature.editTitle")
-    : isBug
-      ? t("support.bug.title")
-      : t("support.feature.title");
-  const intro = isBug ? t("support.bug.intro") : t("support.feature.intro");
+  const title = isEdit ? t(`support.${type}.editTitle`) : t(`support.${type}.title`);
+  const intro = t(`support.${type}.intro`);
 
   return (
     <ModalShell open={open} onRequestClose={onRequestClose}>
@@ -204,7 +237,7 @@ export function SupportRequestDialog({
             />
           </label>
 
-          {isBug ? (
+          {showSeverity ? (
             <label className="flex w-full flex-col gap-1.5">
               <span className="text-sm font-medium text-slate-700">{t("support.severityLabel")}</span>
               <TailwindSelect
@@ -219,20 +252,37 @@ export function SupportRequestDialog({
             </label>
           ) : null}
 
-          <label className="flex w-full flex-col gap-1.5">
-            <span className="text-sm font-medium text-slate-700">{t("support.categoryLabel")}</span>
-            <CategorySelector
-              type={type}
-              value={category}
-              onChange={setCategory}
-              labelFor={(key) => t(`support.categories.${key}`)}
-              selectClassName="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
-              inputClassName="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
-              placeholder={t("support.categoryPlaceholder")}
-              customPlaceholder={t("support.categoryCustomPlaceholder")}
-              customLabel={t("support.categoryLabel")}
-            />
-          </label>
+          {showImportance ? (
+            <label className="flex w-full flex-col gap-1.5">
+              <span className="text-sm font-medium text-slate-700">{t("support.importanceLabel")}</span>
+              <TailwindSelect
+                ariaLabel={t("support.importanceLabel")}
+                value={importance}
+                onChange={(value) => setImportance(value as SupportRequestImportance)}
+                options={importanceOptions}
+                className="w-full"
+                buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                menuClassName="border-slate-300"
+              />
+            </label>
+          ) : null}
+
+          {showCategory ? (
+            <label className="flex w-full flex-col gap-1.5">
+              <span className="text-sm font-medium text-slate-700">{t("support.categoryLabel")}</span>
+              <CategorySelector
+                type={type}
+                value={category}
+                onChange={setCategory}
+                labelFor={(key) => t(`support.categories.${key}`)}
+                selectClassName="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+                inputClassName="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
+                placeholder={t("support.categoryPlaceholder")}
+                customPlaceholder={t("support.categoryCustomPlaceholder")}
+                customLabel={t("support.categoryLabel")}
+              />
+            </label>
+          ) : null}
 
           <label className="flex w-full flex-col gap-1.5">
             <span className="text-sm font-medium text-slate-700">{t("support.descriptionLabel")}</span>
@@ -246,6 +296,29 @@ export function SupportRequestDialog({
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
             />
           </label>
+
+          {!isEdit ? (
+            <div className="flex flex-col gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={allowContact}
+                  onChange={(event) => setAllowContact(event.target.checked)}
+                />
+                <span>{t("support.allowContactLabel")}</span>
+              </label>
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={notifyOnStatusChange}
+                  onChange={(event) => setNotifyOnStatusChange(event.target.checked)}
+                />
+                <span>{t("support.notifyOnStatusChangeLabel")}</span>
+              </label>
+            </div>
+          ) : null}
 
           {error ? <Alert>{error}</Alert> : null}
 

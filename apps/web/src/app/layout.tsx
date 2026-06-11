@@ -6,6 +6,7 @@ import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { AppFooter } from "@/components/app-footer";
 import { AppHeader } from "@/components/app-header";
 import { AchievementUnlockListener } from "@/components/achievements/achievement-unlock-listener";
+import { DiagnosticsBootstrap } from "@/components/diagnostics-bootstrap";
 import { LocaleProvider } from "@/components/locale-provider";
 import { NavigationHistoryTracker } from "@/components/navigation-history-tracker";
 import { PartyConfettiOverlay } from "@/components/party-confetti-overlay";
@@ -90,6 +91,7 @@ gtag('config', 'G-GM3MZZ6NXK');`,
             <NavigationHistoryTracker />
           </Suspense>
           <ThemePreferenceSync />
+          <DiagnosticsBootstrap />
           <PartyConfettiOverlay />
           <AchievementUnlockListener />
           <ToastViewport />

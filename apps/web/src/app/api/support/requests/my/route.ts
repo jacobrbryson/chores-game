@@ -7,12 +7,18 @@ import {
   findFirstFamilyIdByMemberUid,
   getDocument,
   readBoolean,
+  readInteger,
   readString,
   readStringArray,
   readTimestamp,
   runQuery,
 } from "@/lib/firestore/rest";
-import { normalizeSupportRequestStatus, type SupportRequest } from "@/lib/support/requests";
+import {
+  EMPTY_DIAGNOSTICS,
+  isSupportRequestImportance,
+  normalizeSupportRequestStatus,
+  type SupportRequest,
+} from "@/lib/support/requests";
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 20;
@@ -128,6 +134,8 @@ export async function GET(request: NextRequest) {
           )
           .map((doc): SupportRequest => {
             const severity = readString(doc.fields, "severity");
+            const importance = readString(doc.fields, "importance");
+            const rawType = readString(doc.fields, "type");
             return {
               id: documentIdFromName(doc.name),
               familyId,
@@ -135,20 +143,35 @@ export async function GET(request: NextRequest) {
               createdByMemberId: readString(doc.fields, "createdByMemberId"),
               createdByDisplayName: readString(doc.fields, "createdByDisplayName"),
               createdByEmail: readString(doc.fields, "createdByEmail"),
-              type: readString(doc.fields, "type") === "feature" ? "feature" : "bug",
+              type:
+                rawType === "feature" || rawType === "question" || rawType === "feedback"
+                  ? rawType
+                  : "bug",
               subject: readString(doc.fields, "subject"),
               description: readString(doc.fields, "description"),
               severity:
                 severity === "low" || severity === "medium" || severity === "high"
                   ? severity
                   : null,
+              importance: isSupportRequestImportance(importance) ? importance : null,
               category: readString(doc.fields, "category"),
               status: normalizeSupportRequestStatus(readString(doc.fields, "status")),
               appliedChangeLogDate: readString(doc.fields, "appliedChangeLogDate"),
+              allowContact: readBoolean(doc.fields, "allowContact"),
+              notifyOnStatusChange: readBoolean(doc.fields, "notifyOnStatusChange"),
+              assignedToUid: readString(doc.fields, "assignedToUid"),
+              assignedToEmail: readString(doc.fields, "assignedToEmail"),
+              allowVoting: readBoolean(doc.fields, "allowVoting"),
+              votesCount: readInteger(doc.fields, "votesCount"),
+              relatedChangelogEntryId: readString(doc.fields, "relatedChangelogEntryId"),
+              duplicateOfId: readString(doc.fields, "duplicateOfId"),
+              relatedTicketIds: readStringArray(doc.fields, "relatedTicketIds"),
               pageUrl: readString(doc.fields, "pageUrl"),
               userAgent: readString(doc.fields, "userAgent"),
+              diagnostics: EMPTY_DIAGNOSTICS,
               createdAt: readTimestamp(doc.fields, "createdAt"),
               updatedAt: readTimestamp(doc.fields, "updatedAt"),
+              closedAt: readTimestamp(doc.fields, "closedAt"),
               deleted: false,
               isPublic: readBoolean(doc.fields, "isPublic"),
               publicTitle: readString(doc.fields, "publicTitle"),

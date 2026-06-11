@@ -13,9 +13,11 @@ import { SupportConsoleShell, type SupportModuleId } from "@/components/support-
 import { SupportDiscoveryPanel } from "@/components/support-discovery-panel";
 import { SupportFeedPanel } from "@/components/support-feed-panel";
 import { SupportGhostChoresPanel } from "@/components/support-ghost-chores-panel";
+import { SupportMetricsStrip, type SupportMetric } from "@/components/support-metrics-strip";
 import { SupportNewslettersPanel } from "@/components/support-newsletters-panel";
 import { SupportPrivacyPanel } from "@/components/support-privacy-panel";
 import { SupportStaleInvitesPanel } from "@/components/support-stale-invites-panel";
+import { SupportDuplicateChildrenPanel } from "@/components/support-duplicate-children-panel";
 
 type SupportUser = {
   uid: string;
@@ -111,8 +113,6 @@ type SupportPayload = {
   };
 };
 
-type MetricTone = "emerald" | "amber" | "sky" | "violet" | "rose" | "slate";
-type Metric = { label: string; value: string | number; detail?: string; tone?: MetricTone };
 type SupportRequestsSummary = {
   total: number;
   byStatus: Record<string, number>;
@@ -205,49 +205,6 @@ function paginate<T>(rows: T[], page: number) {
     page: safePage,
     totalPages,
   };
-}
-
-const METRIC_TONE_CLASSES: Record<MetricTone, string> = {
-  emerald: "border-emerald-200 bg-emerald-50 text-emerald-950",
-  amber: "border-amber-200 bg-amber-50 text-amber-950",
-  sky: "border-sky-200 bg-sky-50 text-sky-950",
-  violet: "border-violet-200 bg-violet-50 text-violet-950",
-  rose: "border-rose-200 bg-rose-50 text-rose-950",
-  slate: "border-slate-200 bg-slate-50 text-slate-950",
-};
-
-const METRIC_LABEL_TONE_CLASSES: Record<MetricTone, string> = {
-  emerald: "text-emerald-700",
-  amber: "text-amber-700",
-  sky: "text-sky-700",
-  violet: "text-violet-700",
-  rose: "text-rose-700",
-  slate: "text-slate-500",
-};
-
-function MetricsStrip({ metrics, forceSingleRow = false }: { metrics: Metric[]; forceSingleRow?: boolean }) {
-  return (
-    <div>
-      <section
-        className={forceSingleRow ? "grid gap-2 sm:gap-3" : "grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6"}
-        style={forceSingleRow ? { gridTemplateColumns: "repeat(4, minmax(0, 1fr))" } : undefined}>
-        {metrics.map((metric) => {
-          const tone = metric.tone ?? "slate";
-          return (
-            <article
-              key={metric.label}
-              className={`min-w-0 rounded-2xl border p-2 shadow-sm sm:p-4 ${METRIC_TONE_CLASSES[tone]}`}>
-              <div className={`truncate text-[0.62rem] font-semibold uppercase tracking-wide sm:text-xs ${METRIC_LABEL_TONE_CLASSES[tone]}`}>
-                {metric.label}
-              </div>
-              <div className="mt-2 text-lg font-bold sm:text-2xl">{metric.value}</div>
-              {metric.detail ? <div className="mt-1 truncate text-[0.62rem] opacity-75 sm:text-xs">{metric.detail}</div> : null}
-            </article>
-          );
-        })}
-      </section>
-    </div>
-  );
 }
 
 function SearchBar({
@@ -425,7 +382,7 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
     setQuery("");
   }, [module]);
 
-  const dashboardMetrics = useMemo<Metric[]>(() => {
+  const dashboardMetrics = useMemo<SupportMetric[]>(() => {
     if (!payload) return [];
     return [
       {
@@ -445,7 +402,7 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
     ];
   }, [payload, requestsSummary, wsMetrics]);
 
-  const familyMetrics = useMemo<Metric[]>(() => {
+  const familyMetrics = useMemo<SupportMetric[]>(() => {
     const families = payload?.families ?? [];
     return [
       { label: "Families", value: payload?.counts.families ?? 0, detail: "Total family records", tone: "sky" },
@@ -460,7 +417,7 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
     ];
   }, [payload]);
 
-  const userMetrics = useMemo<Metric[]>(() => {
+  const userMetrics = useMemo<SupportMetric[]>(() => {
     const users = payload?.users ?? [];
     return [
       { label: "Users", value: payload?.counts.users ?? 0, detail: "Total user records", tone: "violet" },
@@ -470,7 +427,7 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
     ];
   }, [payload]);
 
-  const choreMetrics = useMemo<Metric[]>(() => {
+  const choreMetrics = useMemo<SupportMetric[]>(() => {
     const chores = payload?.chores ?? [];
     return [
       { label: "Loaded Chores", value: chores.length, detail: "Quest-adjacent objects", tone: "violet" },
@@ -480,7 +437,7 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
     ];
   }, [payload]);
 
-  const eventMetrics = useMemo<Metric[]>(() => {
+  const eventMetrics = useMemo<SupportMetric[]>(() => {
     const events = payload?.events ?? [];
     return [
       { label: "Events", value: events.length, detail: "Loaded activity rows", tone: "violet" },
@@ -609,7 +566,7 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
 
       {!loading && payload && module === "dashboard" ? (
         <>
-          <MetricsStrip metrics={dashboardMetrics} forceSingleRow />
+          <SupportMetricsStrip metrics={dashboardMetrics} forceSingleRow />
           {payload.suspicious.length ? (
             <Alert tone="warning">
               {payload.suspicious.length} submitted chore(s) have approval or payout evidence.
@@ -625,7 +582,7 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
 
       {!loading && payload && module === "families" ? (
         <>
-          <MetricsStrip metrics={familyMetrics} forceSingleRow />
+          <SupportMetricsStrip metrics={familyMetrics} forceSingleRow />
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-wrap gap-3 border-b border-slate-200 bg-slate-50/70 p-4">
               <SearchBar label="Search families" value={query} onChange={setQuery} placeholder="Family name, ID, creator" />
@@ -642,6 +599,7 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
               onPageChange={setPage}
             />
           </section>
+          <SupportDuplicateChildrenPanel />
           <SupportStaleInvitesPanel />
           <SupportPrivacyPanel />
         </>
@@ -649,7 +607,7 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
 
       {!loading && payload && module === "users" ? (
         <>
-          <MetricsStrip metrics={userMetrics} forceSingleRow />
+          <SupportMetricsStrip metrics={userMetrics} forceSingleRow />
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-wrap gap-3 border-b border-slate-200 bg-slate-50/70 p-4">
               <SearchBar label="Search users" value={query} onChange={setQuery} placeholder="Email, name, UID, role" />
@@ -678,7 +636,7 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
 
       {!loading && payload && module === "communication" ? (
         <>
-          <MetricsStrip metrics={eventMetrics} forceSingleRow />
+          <SupportMetricsStrip metrics={eventMetrics} forceSingleRow />
           <SupportNewslettersPanel />
           <SupportFeedPanel events={payload.events} />
           <EventsTable events={filteredEvents} title="Communication Objects" />
@@ -687,14 +645,14 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
 
       {!loading && payload && module === "awards" ? (
         <>
-          <MetricsStrip metrics={eventMetrics} forceSingleRow />
+          <SupportMetricsStrip metrics={eventMetrics} forceSingleRow />
           <SupportCommunityAwardsPanel />
         </>
       ) : null}
 
       {!loading && payload && module === "quests" ? (
         <>
-          <MetricsStrip metrics={choreMetrics} forceSingleRow />
+          <SupportMetricsStrip metrics={choreMetrics} forceSingleRow />
           <SupportGhostChoresPanel />
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-wrap gap-3 border-b border-slate-200 bg-slate-50/70 p-4">

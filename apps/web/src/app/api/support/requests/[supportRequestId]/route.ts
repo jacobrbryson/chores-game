@@ -17,12 +17,14 @@ import {
   readBoolean,
   readString,
   readStringArray,
+  stringArrayField,
   stringField,
   timestampField,
   type FirestoreValue,
 } from "@/lib/firestore/rest";
 import { loadSupportRequestDetail } from "@/lib/support/management";
 import {
+  isClosedSupportRequestStatus,
   normalizeSupportRequestStatus,
   SUPPORT_REQUEST_STATUSES,
   validateSupportRequest,
@@ -30,9 +32,24 @@ import {
   type SupportRequestStatus,
   type SupportRequestType,
 } from "@/lib/support/requests";
+import { notifyReporterOfStatusChange } from "@/lib/support/status-notify";
 
 type RouteContext = { params: Promise<{ supportRequestId: string }> };
-type OperatorPatchBody = { familyId?: unknown; status?: unknown; note?: unknown; category?: unknown };
+type OperatorPatchBody = {
+  familyId?: unknown;
+  status?: unknown;
+  note?: unknown;
+  category?: unknown;
+  assignedToUid?: unknown;
+  assignedToEmail?: unknown;
+  allowVoting?: unknown;
+  relatedChangelogEntryId?: unknown;
+  duplicateOfId?: unknown;
+  relatedTicketIds?: unknown;
+  // Optional operator-authored public message shown to the reporter on a
+  // status change (Phase 7).
+  publicMessage?: unknown;
+};
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -118,12 +135,28 @@ function isSupportRequestStatus(value: unknown): value is SupportRequestStatus {
   );
 }
 
+// Operator updates always carry the cross-family `familyId` (resolved from the
+// support console); user self-edits never do. That single discriminator keeps
+// the two PATCH paths unambiguous.
 function isOperatorPatchBody(body: unknown): body is OperatorPatchBody {
   if (!body || typeof body !== "object") {
     return false;
   }
-  const candidate = body as Record<string, unknown>;
-  return "status" in candidate || "familyId" in candidate || "note" in candidate;
+  return "familyId" in (body as Record<string, unknown>);
+}
+
+function coerceStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return Array.from(
+    new Set(
+      value
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 50);
 }
 
 export const runtime = "nodejs";
@@ -170,13 +203,17 @@ async function patchOperatorRequest(
   }
 
   const familyId = typeof body.familyId === "string" ? body.familyId.trim() : "";
-  const status = body.status;
   const note = typeof body.note === "string" ? body.note.trim().slice(0, 2000) : "";
+  const publicMessage =
+    typeof body.publicMessage === "string" ? body.publicMessage.trim().slice(0, 1000) : "";
   const category = typeof body.category === "string" ? body.category.trim().slice(0, 100) : undefined;
   if (!familyId) {
     return NextResponse.json({ error: "family_id_required" }, { status: 400 });
   }
-  if (!isSupportRequestStatus(status)) {
+  // Status is optional now: operators can update assignment/links without a
+  // status transition. When present it must be valid.
+  const statusProvided = body.status !== undefined && body.status !== null && body.status !== "";
+  if (statusProvided && !isSupportRequestStatus(body.status)) {
     return NextResponse.json({ error: "invalid_status" }, { status: 400 });
   }
 
@@ -196,6 +233,10 @@ async function patchOperatorRequest(
   }
 
   const previousStatus = normalizeSupportRequestStatus(readString(existingDoc.fields, "status"));
+  const status: SupportRequestStatus = statusProvided
+    ? (body.status as SupportRequestStatus)
+    : previousStatus;
+  const statusChanged = status !== previousStatus;
   const now = new Date().toISOString();
   const historyId = `${now.replace(/[^0-9]/g, "")}_${randomUUID()}`;
   const auditId = `${now.replace(/[^0-9]/g, "")}_${randomUUID()}`;
@@ -208,6 +249,42 @@ async function patchOperatorRequest(
   if (category !== undefined) {
     updateFields.category = stringField(category);
     updateMask.push("category");
+  }
+  if (typeof body.assignedToUid === "string") {
+    updateFields.assignedToUid = stringField(body.assignedToUid.trim());
+    updateMask.push("assignedToUid");
+  }
+  if (typeof body.assignedToEmail === "string") {
+    updateFields.assignedToEmail = stringField(body.assignedToEmail.trim());
+    updateMask.push("assignedToEmail");
+  }
+  if (typeof body.allowVoting === "boolean") {
+    updateFields.allowVoting = boolField(body.allowVoting);
+    updateMask.push("allowVoting");
+  }
+  if (typeof body.relatedChangelogEntryId === "string") {
+    updateFields.relatedChangelogEntryId = stringField(body.relatedChangelogEntryId.trim().slice(0, 200));
+    updateMask.push("relatedChangelogEntryId");
+  }
+  if (typeof body.duplicateOfId === "string") {
+    updateFields.duplicateOfId = stringField(body.duplicateOfId.trim().slice(0, 200));
+    updateMask.push("duplicateOfId");
+  }
+  if (body.relatedTicketIds !== undefined) {
+    updateFields.relatedTicketIds = stringArrayField(
+      coerceStringArray(body.relatedTicketIds).filter((id) => id !== supportRequestId),
+    );
+    updateMask.push("relatedTicketIds");
+  }
+  // closedAt is set when entering a terminal status and cleared when leaving one.
+  if (statusChanged) {
+    if (isClosedSupportRequestStatus(status) && !isClosedSupportRequestStatus(previousStatus)) {
+      updateFields.closedAt = timestampField(now);
+      updateMask.push("closedAt");
+    } else if (!isClosedSupportRequestStatus(status) && isClosedSupportRequestStatus(previousStatus)) {
+      updateFields.closedAt = stringField("");
+      updateMask.push("closedAt");
+    }
   }
 
   await adminCommitWrites([
@@ -223,7 +300,7 @@ async function patchOperatorRequest(
         path: `families/${familyId}/supportRequests/${supportRequestId}/history/${historyId}`,
         fields: {
           id: stringField(historyId),
-          action: stringField("status_changed"),
+          action: stringField(statusChanged ? "status_changed" : "request_updated"),
           previousStatus: stringField(previousStatus),
           nextStatus: stringField(status),
           note: stringField(note),
@@ -258,6 +335,27 @@ async function patchOperatorRequest(
       },
     },
   ]);
+
+  // Phase 7: notify the reporter when the status actually changed and they
+  // opted in. Best-effort and after the write so it never blocks the update.
+  if (statusChanged && readBoolean(existingDoc.fields, "notifyOnStatusChange")) {
+    await notifyReporterOfStatusChange({
+      familyId,
+      requestId: supportRequestId,
+      type:
+        readString(existingDoc.fields, "type") === "feature" ||
+        readString(existingDoc.fields, "type") === "question" ||
+        readString(existingDoc.fields, "type") === "feedback"
+          ? (readString(existingDoc.fields, "type") as SupportRequestType)
+          : "bug",
+      subject: readString(existingDoc.fields, "subject"),
+      reporterUid: readString(existingDoc.fields, "createdByUid"),
+      reporterEmail: readString(existingDoc.fields, "createdByEmail"),
+      previousStatus,
+      nextStatus: status,
+      publicMessage,
+    });
+  }
 
   const detail = await loadSupportRequestDetail(familyId, supportRequestId);
   return NextResponse.json({
@@ -389,16 +487,21 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         const now = new Date().toISOString();
         // End users cancel (hide from their list) — they never hard-delete.
         // The document stays intact for support/record-keeping; only a support
-        // operator can actually delete it.
+        // operator can actually delete it. We move the request to the terminal
+        // "cancelled" status (and keep the `cancelledByUser` flag, which the
+        // reporter's own list filters on) so the support console reflects the
+        // cancellation instead of leaving it as an actionable "new" request.
         await patchDocument(
           loaded.path,
           {
+            status: stringField("cancelled"),
             cancelledByUser: boolField(true),
             cancelledAt: timestampField(now),
+            closedAt: timestampField(now),
             updatedAt: timestampField(now),
           },
           idToken,
-          ["cancelledByUser", "cancelledAt", "updatedAt"],
+          ["status", "cancelledByUser", "cancelledAt", "closedAt", "updatedAt"],
         );
         return { kind: "ok" as const };
       },

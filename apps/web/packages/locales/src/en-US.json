@@ -111,6 +111,13 @@
         "in_progress": "In Progress",
         "completed": "Completed",
         "declined": "Declined"
+      },
+      "filters": {
+        "open": "Open",
+        "features": "Features",
+        "bugs": "Bugs",
+        "closed": "Closed",
+        "empty": "No requests match this filter yet."
       }
     }
   },
@@ -215,6 +222,13 @@
     "sortCoinValue": "Coin Value",
     "sortFrequency": "Frequency",
     "sortAlphabetical": "Alphabetical",
+    "sortManual": "Manual order",
+    "sortOverridesManualHint": "Sorting overrides your manual priority order. Choose Manual order to drag and reorder chores again.",
+    "reorderDisabledBySort": "Sorting is on. Choose Manual order in the sort menu to drag or move chores.",
+    "reorderDisabledByFilter": "Clear active filters to move chores.",
+    "reorderDisabledBusy": "Please wait for the current action to finish before moving chores.",
+    "moveUpAtTop": "Already at the top.",
+    "moveDownAtBottom": "Already at the bottom.",
     "viewAllChores": "View All Chores",
     "addMoreChores": "Add more chores",
     "addChore": "Add Chore",
@@ -715,6 +729,18 @@
       "intro": "Have an idea to make Family Chores better? We'd love to hear it.",
       "editTitle": "Edit feature request"
     },
+    "question": {
+      "menuLabel": "Ask a Question",
+      "title": "Ask a Question",
+      "intro": "Not sure how something works? Ask us and we'll help.",
+      "editTitle": "Edit question"
+    },
+    "feedback": {
+      "menuLabel": "Give Feedback",
+      "title": "Give Feedback",
+      "intro": "Tell us what you love or what we could do better.",
+      "editTitle": "Edit feedback"
+    },
     "subjectLabel": "Subject",
     "subjectPlaceholder": "A short summary",
     "descriptionLabel": "Description",
@@ -725,6 +751,15 @@
       "medium": "Medium",
       "high": "High"
     },
+    "importanceLabel": "Importance",
+    "importance": {
+      "nice_to_have": "Nice to have",
+      "useful": "Useful",
+      "very_important": "Very important",
+      "blocking": "Blocking"
+    },
+    "allowContactLabel": "Family Chores support may contact me with follow-up questions",
+    "notifyOnStatusChangeLabel": "Notify me when the status of this request changes",
     "categoryLabel": "Category",
     "categoryPlaceholder": "Select a category (optional)",
     "categoryCustomPlaceholder": "Enter a custom category…",
@@ -764,7 +799,9 @@
       "description_too_long": "Description is too long.",
       "severity_required": "Please choose a severity.",
       "severity_invalid": "That severity is not valid.",
-      "severity_not_allowed": "Feature requests can't have a severity.",
+      "severity_not_allowed": "Only bug reports can have a severity.",
+      "importance_invalid": "That importance is not valid.",
+      "importance_not_allowed": "Bug reports can't have an importance.",
       "rate_limited": "You've reached the daily limit for support requests. Please try again tomorrow.",
       "family_not_found": "We couldn't find your family. Please finish setup and try again.",
       "reauth_required": "Please sign out and sign in again, then try once more.",
@@ -773,16 +810,22 @@
     },
     "type": {
       "bug": "Bug",
-      "feature": "Feature"
+      "feature": "Feature",
+      "question": "Question",
+      "feedback": "Feedback"
     },
     "status": {
       "new": "New",
+      "needs_info": "Needs Info",
       "triaged": "Triaged",
       "planned": "Planned",
       "in_progress": "In Progress",
+      "released": "Released",
       "done": "Done",
+      "closed": "Closed",
       "declined": "Declined",
-      "duplicate": "Duplicate"
+      "duplicate": "Duplicate",
+      "cancelled": "Cancelled"
     },
     "updateToast": "Your request was updated.",
     "submitUpdate": "Save changes"
@@ -831,14 +874,24 @@
     "cards": {
       "total": "Total requests",
       "new": "New",
+      "newRequests": "New Requests",
+      "needs_info": "Needs Info",
       "triaged": "Triaged",
       "planned": "Planned",
       "in_progress": "In Progress",
+      "released": "Released",
       "done": "Done",
+      "closed": "Closed",
       "declined": "Declined",
       "duplicate": "Duplicate",
       "bugs": "Bugs",
+      "activeBugs": "Active Bugs",
+      "activeBugsDetail": "Open only",
       "features": "Feature requests",
+      "questions": "Questions",
+      "questionsOpen": "Questions (Open)",
+      "feedback": "Feedback",
+      "feedbackOpen": "Feedback (Open)",
       "highSeverityBugs": "High severity bugs"
     },
     "filters": {
@@ -846,20 +899,25 @@
       "type": "Type",
       "status": "Status",
       "severity": "Severity",
+      "importance": "Importance",
       "category": "Category",
       "sort": "Sort",
       "family": "Family ID",
       "reporter": "User email / UID",
+      "assignee": "Assigned to",
+      "assigneePlaceholder": "Email / UID or 'unassigned'",
       "createdFrom": "Created from",
       "createdTo": "Created to",
       "allTypes": "All types",
       "allStatuses": "All statuses",
-      "allSeverities": "All severities"
+      "allSeverities": "All severities",
+      "allImportances": "All importances"
     },
     "sort": {
       "updatedDesc": "Updated date",
       "createdDesc": "Created date",
-      "severity": "Severity",
+      "reporter": "Submitted by",
+      "priority": "Priority",
       "status": "Status",
       "type": "Type"
     },
@@ -867,7 +925,9 @@
       "type": "Type",
       "subject": "Subject",
       "status": "Status",
+      "priority": "Priority",
       "severity": "Severity",
+      "importance": "Importance",
       "category": "Category",
       "reporter": "Submitted by",
       "family": "Family",
@@ -878,27 +938,81 @@
     },
     "actions": {
       "refresh": "Refresh",
+      "apply": "Apply",
+      "advanced": "Advanced",
+      "quickFilters": "Quick Filters",
       "view": "View details",
       "saving": "Saving...",
+      "updateRequest": "Update request",
       "updateStatus": "Update status",
       "delete": "Delete request",
       "deleteConfirm": "Confirm delete",
       "deletePending": "Deleting...",
       "rebuildSnapshot": "Rebuild Public Snapshot",
-      "rebuilding": "Rebuilding..."
+      "rebuilding": "Rebuilding...",
+      "addNote": "Add note"
+    },
+    "quickFilters": {
+      "open": "Open",
+      "bugs": "Bugs",
+      "features": "Features",
+      "feedback": "Feedback",
+      "questions": "Questions"
     },
     "pager": {
       "previous": "Previous",
       "next": "Next",
       "pageOf": "Page {page} of {totalPages} ({total})"
     },
+    "tabs": {
+      "request": "Request",
+      "notes": "Notes",
+      "details": "Details",
+      "audit": "Audit"
+    },
+    "detailTabsLabel": "Support request detail tabs",
     "detailTitle": "Request details",
     "description": "Description",
     "history": "Status history",
     "activity": "Audit activity",
+    "auditTitle": "Unified audit history",
     "noHistory": "No status history yet.",
     "noActivity": "No related audit activity yet.",
+    "noAudit": "No audit history yet.",
     "manageStatus": "Manage status",
+    "preferences": "Preferences",
+    "prefYes": "Yes",
+    "prefNo": "No",
+    "allowContactShort": "May contact",
+    "notifyShort": "Notify on change",
+    "diagnostics": "Diagnostics",
+    "diag": {
+      "browser": "Browser",
+      "os": "OS",
+      "screen": "Screen",
+      "language": "Language",
+      "appVersion": "App version",
+      "userAgent": "User agent",
+      "consoleErrors": "Recent console errors",
+      "apiFailures": "Recent API failures"
+    },
+    "internalNotes": "Internal notes",
+    "noNotes": "No internal notes yet.",
+    "notePlaceholder": "Add an internal note (investigation, implementation, etc.)",
+    "assignee": "Assigned to",
+    "assigneeEmailPlaceholder": "Assignee email",
+    "assigneeUidPlaceholder": "Assignee UID",
+    "allowVoting": "Allow public voting",
+    "votes": "votes",
+    "changelogEntryId": "Linked changelog entry",
+    "changelogEntryIdPlaceholder": "Changelog entry id",
+    "duplicateOfId": "Duplicate of",
+    "duplicateOfIdPlaceholder": "Canonical request id",
+    "relatedTicketIds": "Related tickets",
+    "relatedTicketIdsPlaceholder": "Comma-separated request ids",
+    "publicMessage": "Public update message",
+    "publicMessagePlaceholder": "Optional message shown to the reporter",
+    "publicMessageHint": "Included in the reporter notification when the status changes.",
     "internalNote": "Internal note",
     "reportingHint": "Last 7 days: {recent} created, {closed} closed, avg close time {average} hours.",
     "severityNone": "-",
@@ -911,7 +1025,8 @@
       "statusUpdated": "Support request updated.",
       "deleted": "Support request deleted.",
       "publicUpdated": "Public visibility updated.",
-      "snapshotRebuilt": "Public snapshot rebuilt successfully."
+      "snapshotRebuilt": "Public snapshot rebuilt successfully.",
+      "noteAdded": "Internal note added."
     },
     "errors": {
       "load": "Could not load support requests: {error}",

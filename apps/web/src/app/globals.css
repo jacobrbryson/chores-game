@@ -4401,6 +4401,58 @@ white-space: nowrap;
   background: color-mix(in srgb, var(--brand) 14%, #ffffff);
 }
 
+.support-requests-quick-filter-chip {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  border: 1px solid #cfe0f4;
+  background: #f8fbff;
+  color: #35506f;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.1;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.support-requests-quick-filter-chip:hover,
+.support-requests-quick-filter-chip:focus-visible {
+  border-color: #9fc4f0;
+  background: #eef6ff;
+  color: #1e4f86;
+}
+
+.support-requests-quick-filter-chip.is-active {
+  border-color: #f0c24e;
+  background: linear-gradient(180deg, #f7c542, #f0af1a);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(240, 175, 26, 0.28);
+}
+
+.support-requests-quick-filter-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.support-requests-quick-filter-chip.is-active .support-requests-quick-filter-chip-count {
+  background: rgba(255, 255, 255, 0.22);
+}
+
 .table-search-input {
   height: 36px;
   border: 1px solid color-mix(in srgb, var(--accent) 35%, #ffffff);
@@ -4420,6 +4472,32 @@ white-space: nowrap;
   font-weight: 700;
   cursor: pointer;
   padding: 0;
+}
+
+.table-sort-btn-active {
+  color: #17416f;
+}
+
+.support-requests-subject-cell {
+  max-width: 420px;
+  max-height: 9rem;
+  overflow: auto;
+}
+
+.support-requests-actions-cell {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: #ffffff;
+  box-shadow:
+    -1px 0 0 rgba(203, 213, 225, 0.95),
+    -10px 0 18px rgba(15, 23, 42, 0.08),
+    -24px 0 28px rgba(15, 23, 42, 0.05);
+}
+
+.support-requests-actions-header {
+  z-index: 3;
+  background: #f8fafc;
 }
 
 .table-sort-btn:hover {
@@ -5591,6 +5669,26 @@ white-space: nowrap;
   font-weight: 700;
 }
 
+.today-chores-sort-menu-hint {
+  margin: 2px 8px 6px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+/* Disabled buttons suppress native title tooltips, so a hoverable wrapper
+   carries the explanation instead. */
+.menu-action-tooltip-wrap {
+  display: inline-block;
+  cursor: not-allowed;
+}
+
+.menu-action-tooltip-wrap-full {
+  display: block;
+  width: 100%;
+}
+
 .notifications-list {
   list-style: none;
   margin: 0;
@@ -5999,6 +6097,12 @@ white-space: nowrap;
   background: var(--brand);
   border-color: var(--brand);
   color: #ffffff;
+}
+
+.change-log-filter-pill-skeleton {
+  display: inline-block;
+  height: 30px;
+  border-radius: 999px;
 }
 
 .chores-filter-range {

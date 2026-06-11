@@ -7,6 +7,7 @@ import {
   documentIdFromName,
   findFirstFamilyIdByMemberUid,
   getDocument,
+  listAllDocuments,
   listDocuments,
   patchDocument,
   readBoolean,
@@ -359,7 +360,12 @@ export async function DELETE(
           ["deleted", "deletedAt", "updatedAt"],
         );
 
-        const choreDocs = await listDocuments(`families/${familyId}/chores`, idToken, 1000);
+        // Page the full chores collection so every chore referencing the
+        // deleted category is updated — a single capped page would leave
+        // chores past ~300 with a dangling category reference.
+        const choreDocs = await listAllDocuments(`families/${familyId}/chores`, idToken, {
+          cap: 5000,
+        });
         const choresToUpdate = choreDocs
           .map((doc) => {
             const choreId = documentIdFromName(doc.name);

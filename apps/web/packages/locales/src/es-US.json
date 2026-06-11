@@ -111,6 +111,13 @@
         "in_progress": "En progreso",
         "completed": "Completado",
         "declined": "Rechazado"
+      },
+      "filters": {
+        "open": "Abiertas",
+        "features": "Funciones",
+        "bugs": "Errores",
+        "closed": "Cerradas",
+        "empty": "Ninguna solicitud coincide con este filtro todavia."
       }
     }
   },
@@ -215,6 +222,13 @@
     "sortCoinValue": "Valor en monedas",
     "sortFrequency": "Frecuencia",
     "sortAlphabetical": "Alfabetico",
+    "sortManual": "Orden manual",
+    "sortOverridesManualHint": "El orden seleccionado anula tu orden de prioridad manual. Elige Orden manual para arrastrar y reordenar las tareas.",
+    "reorderDisabledBySort": "El ordenamiento está activado. Elige Orden manual en el menú de orden para arrastrar o mover tareas.",
+    "reorderDisabledByFilter": "Quita los filtros activos para mover tareas.",
+    "reorderDisabledBusy": "Espera a que termine la acción actual antes de mover tareas.",
+    "moveUpAtTop": "Ya está al principio.",
+    "moveDownAtBottom": "Ya está al final.",
     "viewAllChores": "Ver todas las tareas",
     "addMoreChores": "Agregar mas tareas",
     "addChore": "Agregar tarea",
@@ -715,6 +729,18 @@
       "intro": "¿Tienes una idea para mejorar Family Chores? Nos encantaría escucharla.",
       "editTitle": "Editar solicitud de función"
     },
+    "question": {
+      "menuLabel": "Hacer una pregunta",
+      "title": "Hacer una pregunta",
+      "intro": "¿No sabes cómo funciona algo? Pregúntanos y te ayudaremos.",
+      "editTitle": "Editar pregunta"
+    },
+    "feedback": {
+      "menuLabel": "Dar tu opinión",
+      "title": "Dar tu opinión",
+      "intro": "Dinos qué te encanta o qué podríamos mejorar.",
+      "editTitle": "Editar opinión"
+    },
     "subjectLabel": "Asunto",
     "subjectPlaceholder": "Un resumen breve",
     "descriptionLabel": "Descripción",
@@ -725,6 +751,15 @@
       "medium": "Media",
       "high": "Alta"
     },
+    "importanceLabel": "Importancia",
+    "importance": {
+      "nice_to_have": "Estaría bien",
+      "useful": "Útil",
+      "very_important": "Muy importante",
+      "blocking": "Bloqueante"
+    },
+    "allowContactLabel": "El soporte de Family Chores puede contactarme con preguntas de seguimiento",
+    "notifyOnStatusChangeLabel": "Avísame cuando cambie el estado de esta solicitud",
     "categoryLabel": "Categoría",
     "categoryPlaceholder": "Selecciona una categoría (opcional)",
     "categoryCustomPlaceholder": "Escribe una categoría personalizada…",
@@ -764,7 +799,9 @@
       "description_too_long": "La descripción es demasiado larga.",
       "severity_required": "Elige una gravedad.",
       "severity_invalid": "Esa gravedad no es válida.",
-      "severity_not_allowed": "Las solicitudes de funciones no pueden tener gravedad.",
+      "severity_not_allowed": "Solo los reportes de error pueden tener gravedad.",
+      "importance_invalid": "Esa importancia no es válida.",
+      "importance_not_allowed": "Los reportes de error no pueden tener importancia.",
       "rate_limited": "Has alcanzado el límite diario de solicitudes de soporte. Inténtalo de nuevo mañana.",
       "family_not_found": "No encontramos tu familia. Completa la configuración e inténtalo de nuevo.",
       "reauth_required": "Cierra sesión y vuelve a iniciarla, luego inténtalo de nuevo.",
@@ -773,16 +810,22 @@
     },
     "type": {
       "bug": "Error",
-      "feature": "Función"
+      "feature": "Función",
+      "question": "Pregunta",
+      "feedback": "Opinión"
     },
     "status": {
       "new": "Nueva",
+      "needs_info": "Falta información",
       "triaged": "Clasificada",
       "planned": "Planificada",
       "in_progress": "En curso",
+      "released": "Publicada",
       "done": "Hecha",
+      "closed": "Cerrada",
       "declined": "Rechazada",
-      "duplicate": "Duplicada"
+      "duplicate": "Duplicada",
+      "cancelled": "Cancelada"
     },
     "updateToast": "Tu solicitud se ha actualizado.",
     "submitUpdate": "Guardar cambios"
@@ -831,14 +874,24 @@
     "cards": {
       "total": "Solicitudes totales",
       "new": "Nuevas",
+      "newRequests": "Solicitudes nuevas",
+      "needs_info": "Falta información",
       "triaged": "Clasificadas",
       "planned": "Planificadas",
       "in_progress": "En curso",
+      "released": "Publicadas",
       "done": "Hechas",
+      "closed": "Cerradas",
       "declined": "Rechazadas",
       "duplicate": "Duplicadas",
       "bugs": "Errores",
+      "activeBugs": "Errores activos",
+      "activeBugsDetail": "Solo abiertas",
       "features": "Solicitudes de funciones",
+      "questions": "Preguntas",
+      "questionsOpen": "Preguntas (abiertas)",
+      "feedback": "Opiniones",
+      "feedbackOpen": "Opiniones (abiertas)",
       "highSeverityBugs": "Errores graves"
     },
     "filters": {
@@ -846,20 +899,25 @@
       "type": "Tipo",
       "status": "Estado",
       "severity": "Severidad",
+      "importance": "Importancia",
       "category": "Categoría",
       "sort": "Ordenar",
       "family": "ID de familia",
       "reporter": "Correo / UID del usuario",
+      "assignee": "Asignada a",
+      "assigneePlaceholder": "Correo / UID o 'unassigned'",
       "createdFrom": "Creada desde",
       "createdTo": "Creada hasta",
       "allTypes": "Todos los tipos",
       "allStatuses": "Todos los estados",
-      "allSeverities": "Todas las severidades"
+      "allSeverities": "Todas las severidades",
+      "allImportances": "Todas las importancias"
     },
     "sort": {
       "updatedDesc": "Fecha de actualizacion",
       "createdDesc": "Fecha de creacion",
-      "severity": "Severidad",
+      "reporter": "Enviada por",
+      "priority": "Prioridad",
       "status": "Estado",
       "type": "Tipo"
     },
@@ -867,7 +925,9 @@
       "type": "Tipo",
       "subject": "Asunto",
       "status": "Estado",
+      "priority": "Prioridad",
       "severity": "Severidad",
+      "importance": "Importancia",
       "category": "Categoría",
       "reporter": "Enviada por",
       "family": "Familia",
@@ -878,27 +938,81 @@
     },
     "actions": {
       "refresh": "Actualizar",
+      "apply": "Aplicar",
+      "advanced": "Avanzado",
+      "quickFilters": "Filtros rápidos",
       "view": "Ver detalles",
       "saving": "Guardando...",
+      "updateRequest": "Actualizar solicitud",
       "updateStatus": "Actualizar estado",
       "delete": "Eliminar solicitud",
       "deleteConfirm": "Confirmar eliminación",
       "deletePending": "Eliminando...",
       "rebuildSnapshot": "Reconstruir instantanea publica",
-      "rebuilding": "Reconstruyendo..."
+      "rebuilding": "Reconstruyendo...",
+      "addNote": "Añadir nota"
+    },
+    "quickFilters": {
+      "open": "Abiertas",
+      "bugs": "Errores",
+      "features": "Funciones",
+      "feedback": "Opiniones",
+      "questions": "Preguntas"
     },
     "pager": {
       "previous": "Anterior",
       "next": "Siguiente",
       "pageOf": "Pagina {page} de {totalPages} ({total})"
     },
+    "tabs": {
+      "request": "Solicitud",
+      "notes": "Notas",
+      "details": "Detalles",
+      "audit": "Auditoria"
+    },
+    "detailTabsLabel": "Pestanas de detalles de la solicitud de soporte",
     "detailTitle": "Detalles de la solicitud",
     "description": "Descripcion",
     "history": "Historial de estado",
     "activity": "Actividad de auditoria",
+    "auditTitle": "Historial de auditoria unificado",
     "noHistory": "Todavia no hay historial de estado.",
     "noActivity": "Todavia no hay actividad de auditoria relacionada.",
+    "noAudit": "Todavia no hay historial de auditoria.",
     "manageStatus": "Administrar estado",
+    "preferences": "Preferencias",
+    "prefYes": "Sí",
+    "prefNo": "No",
+    "allowContactShort": "Puede contactar",
+    "notifyShort": "Avisar al cambiar",
+    "diagnostics": "Diagnóstico",
+    "diag": {
+      "browser": "Navegador",
+      "os": "SO",
+      "screen": "Pantalla",
+      "language": "Idioma",
+      "appVersion": "Versión de la app",
+      "userAgent": "Agente de usuario",
+      "consoleErrors": "Errores recientes de consola",
+      "apiFailures": "Fallos recientes de API"
+    },
+    "internalNotes": "Notas internas",
+    "noNotes": "Aún no hay notas internas.",
+    "notePlaceholder": "Añade una nota interna (investigación, implementación, etc.)",
+    "assignee": "Asignada a",
+    "assigneeEmailPlaceholder": "Correo del responsable",
+    "assigneeUidPlaceholder": "UID del responsable",
+    "allowVoting": "Permitir votación pública",
+    "votes": "votos",
+    "changelogEntryId": "Entrada de changelog vinculada",
+    "changelogEntryIdPlaceholder": "ID de entrada de changelog",
+    "duplicateOfId": "Duplicada de",
+    "duplicateOfIdPlaceholder": "ID de la solicitud canónica",
+    "relatedTicketIds": "Tickets relacionados",
+    "relatedTicketIdsPlaceholder": "IDs de solicitudes separados por comas",
+    "publicMessage": "Mensaje público de actualización",
+    "publicMessagePlaceholder": "Mensaje opcional mostrado al solicitante",
+    "publicMessageHint": "Se incluye en la notificación al solicitante cuando cambia el estado.",
     "internalNote": "Nota interna",
     "reportingHint": "Ultimos 7 dias: {recent} creadas, {closed} cerradas, tiempo medio de cierre {average} horas.",
     "severityNone": "-",
@@ -911,7 +1025,8 @@
       "statusUpdated": "Solicitud de soporte actualizada.",
       "deleted": "Solicitud de soporte eliminada.",
       "publicUpdated": "Visibilidad publica actualizada.",
-      "snapshotRebuilt": "Instantanea publica reconstruida con exito."
+      "snapshotRebuilt": "Instantanea publica reconstruida con exito.",
+      "noteAdded": "Nota interna añadida."
     },
     "errors": {
       "load": "No se pudieron cargar las solicitudes de soporte: {error}",

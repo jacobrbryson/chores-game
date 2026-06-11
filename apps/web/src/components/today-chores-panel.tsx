@@ -7,6 +7,7 @@ import { AppMenu } from "@/components/app-menu";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
+import { FilterMenuIcon } from "@/components/filter-menu-icon";
 import { useLocale } from "@/components/locale-provider";
 import { MenuActionButton } from "@/components/menu-action-button";
 import { MenuActionLink } from "@/components/menu-action-link";
@@ -297,16 +298,6 @@ function SortMenuIcon() {
       <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-a" />
       <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-b" />
       <span className="today-chores-sort-icon-bar today-chores-sort-icon-bar-c" />
-    </span>
-  );
-}
-
-function FilterMenuIcon() {
-  return (
-    <span className="today-chores-filter-icon" aria-hidden="true">
-      <span className="today-chores-filter-icon-line today-chores-filter-icon-line-a" />
-      <span className="today-chores-filter-icon-line today-chores-filter-icon-line-b" />
-      <span className="today-chores-filter-icon-line today-chores-filter-icon-line-c" />
     </span>
   );
 }
@@ -1030,6 +1021,18 @@ export function TodayChoresPanel({
     !hasPendingCreates &&
     !hasActiveChoreFilters &&
     quickSortState === null;
+  const reorderDisabledReason = useMemo(() => {
+    if (viewerRole !== "admin" || canReorderChores) {
+      return "";
+    }
+    if (quickSortState !== null) {
+      return t("dashboard.reorderDisabledBySort");
+    }
+    if (hasActiveChoreFilters) {
+      return t("dashboard.reorderDisabledByFilter");
+    }
+    return t("dashboard.reorderDisabledBusy");
+  }, [canReorderChores, hasActiveChoreFilters, quickSortState, t, viewerRole]);
   useEffect(() => {
     if (canReorderChores) {
       return;
@@ -1243,6 +1246,13 @@ export function TodayChoresPanel({
       writeQuickSortState(next);
       return next;
     });
+    setToolbarOptionsMenuOpen(false);
+    setToolbarMenuView("root");
+  }
+
+  function onSelectManualSort() {
+    setQuickSortState(null);
+    writeQuickSortState(null);
     setToolbarOptionsMenuOpen(false);
     setToolbarMenuView("root");
   }
@@ -1863,6 +1873,15 @@ export function TodayChoresPanel({
                     <MenuActionButton fullWidth onClick={() => setToolbarMenuView("root")} leading={<BackMenuIcon />}>
                       {t("common.actions.back")}
                     </MenuActionButton>
+                    <p className="today-chores-sort-menu-hint">{t("dashboard.sortOverridesManualHint")}</p>
+                    <MenuActionButton
+                      fullWidth
+                      onClick={onSelectManualSort}
+                      leading={<SortMenuIcon />}
+                      trailing={quickSortState === null ? "✓" : null}
+                      trailingClassName="today-chores-sort-menu-direction">
+                      {t("dashboard.sortManual")}
+                    </MenuActionButton>
                     <MenuActionButton
                       fullWidth
                       onClick={() => onSelectQuickSort("coin_value")}
@@ -1996,6 +2015,7 @@ export function TodayChoresPanel({
                         Boolean(chore.assigneeId && viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId))))
                     }
                     canReorder={canReorderChores && !reorderBusy}
+                    reorderDisabledReason={reorderDisabledReason}
                     canMoveUp={(visibleChoreIndexById.get(chore.id) ?? -1) > 0}
                     canMoveDown={
                       (() => {

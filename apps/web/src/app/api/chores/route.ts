@@ -435,7 +435,9 @@ async function countActiveChoresForAssignee(
   if (!assigneeId) {
     return 0;
   }
-  const docs = await listDocuments(`families/${familyId}/chores`, idToken, 1000);
+  const docs = await listAllDocuments(`families/${familyId}/chores`, idToken, {
+    cap: MAX_CHORE_ARCHIVE,
+  });
   return docs.filter((doc) => {
     if (readBoolean(doc.fields, "deleted")) {
       return false;
@@ -1360,7 +1362,9 @@ export async function PATCH(request: NextRequest) {
           return { kind: "forbidden_action" as const };
         }
 
-        const docs = await listDocuments(`families/${familyId}/chores`, idToken, 1000);
+        const docs = await listAllDocuments(`families/${familyId}/chores`, idToken, {
+          cap: MAX_CHORE_ARCHIVE,
+        });
         const openChores = docs
           .map((doc) => normalizeChoreDoc(doc))
           .filter((doc) => !doc.deleted && doc.status === "Open")
@@ -1522,7 +1526,7 @@ export async function POST(request: NextRequest) {
         );
 
         const [existingDocs, categories] = await Promise.all([
-          listDocuments(`families/${familyId}/chores`, idToken, 1000),
+          listAllDocuments(`families/${familyId}/chores`, idToken, { cap: MAX_CHORE_ARCHIVE }),
           listFamilyCategories(familyId, idToken),
         ]);
         const categoryMap = buildCategoryMap(categories);

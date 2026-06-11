@@ -5,6 +5,7 @@ import {
   documentIdFromName,
   getDocument,
   integerField,
+  listAllDocuments,
   listDocuments,
   patchDocument,
   readBoolean,
@@ -407,7 +408,9 @@ export async function syncGoogleTasksForUser(
     const remoteTaskEntries = remoteTaskGroups.flatMap((group) =>
       group.tasks.map((task) => ({ taskListId: group.taskListId, task })),
     );
-    const choreDocs = await listDocuments(`families/${link.familyId}/chores`, options.idToken, 1000);
+    const choreDocs = await listAllDocuments(`families/${link.familyId}/chores`, options.idToken, {
+      cap: 5000,
+    });
     const allChores = choreDocs.map((doc) => parseLocalChore(doc));
     const localGoogleChores = allChores
       .filter((chore) => isGoogleMappedChoreForOwner(chore, options.uid))

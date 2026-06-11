@@ -3,6 +3,7 @@ import {
   documentIdFromName,
   getDocument,
   integerField,
+  listAllDocuments,
   listDocuments,
   readBoolean,
   readInteger,
@@ -280,7 +281,7 @@ export async function computeCompletionDerivedMaximums(params: {
 }) {
   const [memberDocs, choreDocs] = await Promise.all([
     listDocuments(`families/${params.familyId}/members`, params.idToken, 300),
-    listDocuments(`families/${params.familyId}/chores`, params.idToken, 2000),
+    listAllDocuments(`families/${params.familyId}/chores`, params.idToken, { cap: 5000 }),
   ]);
   const aliases = new Set<string>([params.uid]);
   for (const member of memberDocs) {

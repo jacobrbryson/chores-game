@@ -2,7 +2,9 @@ import { adminGetDocument, adminListDocuments, adminRunQuery } from "@/lib/fires
 import {
   documentIdFromName,
   readBoolean,
+  readInteger,
   readString,
+  readStringArray,
   readTimestamp,
   type FirestoreDocument,
 } from "@/lib/firestore/rest";
@@ -10,7 +12,9 @@ import {
   normalizeSupportRequestStatus,
   mapInternalStatusToPublicStatus,
   isPublicSupportRequestStatus,
+  isSupportRequestImportance,
   type PublicSupportRequestStatus,
+  type SupportRequestImportance,
   type SupportRequestSeverity,
   type SupportRequestStatus,
   type SupportRequestType,
@@ -25,13 +29,24 @@ export type SupportRequestListRecord = {
   descriptionPreview: string;
   status: SupportRequestStatus;
   severity: SupportRequestSeverity | null;
+  importance: SupportRequestImportance | null;
   category: string;
   createdByUid: string;
   createdByDisplayName: string;
   createdByEmail: string;
+  allowContact: boolean;
+  notifyOnStatusChange: boolean;
+  assignedToUid: string;
+  assignedToEmail: string;
+  allowVoting: boolean;
+  votesCount: number;
+  relatedChangelogEntryId: string;
+  duplicateOfId: string;
+  relatedTicketIds: string[];
   pageUrl: string;
   createdAt: string;
   updatedAt: string;
+  closedAt: string;
   isPublic: boolean;
   publicTitle: string;
   publicDescription: string;
@@ -44,6 +59,15 @@ export type SupportRequestListRecord = {
 export type SupportRequestDetailRecord = SupportRequestListRecord & {
   description: string;
   userAgent: string;
+  diagnostics: {
+    browser: string;
+    operatingSystem: string;
+    screenResolution: string;
+    language: string;
+    appVersion: string;
+    recentConsoleErrors: string;
+    recentApiFailures: string;
+  };
 };
 
 export type SupportRequestHistoryRecord = {
@@ -70,14 +94,26 @@ export type SupportRequestAuditRecord = {
   nextStatus: string;
 };
 
+// Internal-only operator note (Phase 10). Never exposed to end users.
+export type SupportRequestNoteRecord = {
+  id: string;
+  body: string;
+  authorUid: string;
+  authorEmail: string;
+  authorName: string;
+  createdAt: string;
+};
+
 export type SupportRequestQuery = {
   type?: string;
   status?: string;
   severity?: string;
+  importance?: string;
   category?: string;
   q?: string;
   familyId?: string;
   reporter?: string;
+  assignee?: string;
   createdFrom?: string;
   createdTo?: string;
   sortBy?: string;
@@ -90,6 +126,7 @@ export type SupportRequestSummary = {
   total: number;
   byStatus: Record<SupportRequestStatus, number>;
   byType: Record<SupportRequestType, number>;
+  openByType: Record<SupportRequestType, number>;
   bugsBySeverity: Record<"low" | "medium" | "high", number>;
   highSeverityBugs: number;
   recentCreatedLast7Days: number;
@@ -99,18 +136,58 @@ export type SupportRequestSummary = {
 
 const MAX_QUERY_ROWS = 500;
 const MAX_PAGE_SIZE = 100;
-const CLOSED_STATUSES: SupportRequestStatus[] = ["done", "declined", "duplicate"];
+const CLOSED_STATUSES: SupportRequestStatus[] = [
+  "released",
+  "done",
+  "closed",
+  "declined",
+  "duplicate",
+  "cancelled",
+];
 const STATUS_SORT_ORDER: Record<SupportRequestStatus, number> = {
   new: 0,
-  triaged: 1,
-  planned: 2,
-  in_progress: 3,
-  done: 4,
-  declined: 5,
-  duplicate: 6,
+  needs_info: 1,
+  triaged: 2,
+  planned: 3,
+  in_progress: 4,
+  released: 5,
+  done: 6,
+  closed: 7,
+  declined: 8,
+  duplicate: 9,
+  cancelled: 10,
 };
-const TYPE_SORT_ORDER: Record<SupportRequestType, number> = { bug: 0, feature: 1 };
+const TYPE_SORT_ORDER: Record<SupportRequestType, number> = {
+  bug: 0,
+  feature: 1,
+  question: 2,
+  feedback: 3,
+};
 const SEVERITY_SORT_ORDER: Record<SupportRequestSeverity, number> = { high: 0, medium: 1, low: 2 };
+const IMPORTANCE_SORT_ORDER: Record<SupportRequestImportance, number> = {
+  blocking: 0,
+  very_important: 1,
+  useful: 2,
+  nice_to_have: 3,
+};
+
+function getPrioritySortOrder(record: SupportRequestListRecord) {
+  if (record.severity) {
+    return SEVERITY_SORT_ORDER[record.severity] ?? 99;
+  }
+  if (record.importance) {
+    return IMPORTANCE_SORT_ORDER[record.importance] ?? 99;
+  }
+  return 99;
+}
+
+function getReporterSortValue(record: SupportRequestListRecord) {
+  return (
+    record.createdByDisplayName.trim() ||
+    record.createdByEmail.trim() ||
+    record.createdByUid.trim()
+  ).toLowerCase();
+}
 
 function familyIdFromDocumentName(name: string) {
   const match = name.match(/\/families\/([^/]+)\/supportRequests\//);
@@ -124,6 +201,18 @@ function readSeverity(doc: FirestoreDocument) {
     : null;
 }
 
+function readImportance(doc: FirestoreDocument): SupportRequestImportance | null {
+  const raw = readString(doc.fields, "importance");
+  return isSupportRequestImportance(raw) ? raw : null;
+}
+
+// Tolerant type read: anything outside the known set falls back to "bug" so a
+// malformed legacy doc still renders somewhere in the console.
+function readType(doc: FirestoreDocument): SupportRequestType {
+  const raw = readString(doc.fields, "type");
+  return raw === "feature" || raw === "question" || raw === "feedback" ? raw : "bug";
+}
+
 function buildDescriptionPreview(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 180 ? `${trimmed.slice(0, 177)}...` : trimmed;
@@ -131,9 +220,18 @@ function buildDescriptionPreview(value: string) {
 
 function normalizeRequest(doc: FirestoreDocument, familyNameById: Map<string, string>): SupportRequestDetailRecord {
   const familyId = familyIdFromDocumentName(doc.name);
-  const type = readString(doc.fields, "type") === "feature" ? "feature" : "bug";
+  const type = readType(doc);
   const description = readString(doc.fields, "description");
-  const status = normalizeSupportRequestStatus(readString(doc.fields, "status"));
+  const storedStatus = normalizeSupportRequestStatus(readString(doc.fields, "status"));
+  // A reporter-cancelled request keeps its document for record-keeping. Newer
+  // cancels write status "cancelled" directly; older ones only set the
+  // `cancelledByUser` flag and left status as "new". Surface both as
+  // "cancelled" here so the console never shows a cancelled request as New.
+  // Once an operator moves it off "new" (e.g. to re-triage), respect that.
+  const status: SupportRequestStatus =
+    readBoolean(doc.fields, "cancelledByUser") && storedStatus === "new"
+      ? "cancelled"
+      : storedStatus;
   const publicStatus = readString(doc.fields, "publicStatus");
   return {
     id: documentIdFromName(doc.name),
@@ -145,14 +243,34 @@ function normalizeRequest(doc: FirestoreDocument, familyNameById: Map<string, st
     descriptionPreview: buildDescriptionPreview(description),
     status,
     severity: readSeverity(doc),
+    importance: readImportance(doc),
     category: readString(doc.fields, "category"),
     createdByUid: readString(doc.fields, "createdByUid"),
     createdByDisplayName: readString(doc.fields, "createdByDisplayName"),
     createdByEmail: readString(doc.fields, "createdByEmail"),
+    allowContact: readBoolean(doc.fields, "allowContact"),
+    notifyOnStatusChange: readBoolean(doc.fields, "notifyOnStatusChange"),
+    assignedToUid: readString(doc.fields, "assignedToUid"),
+    assignedToEmail: readString(doc.fields, "assignedToEmail"),
+    allowVoting: readBoolean(doc.fields, "allowVoting"),
+    votesCount: readInteger(doc.fields, "votesCount"),
+    relatedChangelogEntryId: readString(doc.fields, "relatedChangelogEntryId"),
+    duplicateOfId: readString(doc.fields, "duplicateOfId"),
+    relatedTicketIds: readStringArray(doc.fields, "relatedTicketIds"),
     pageUrl: readString(doc.fields, "pageUrl"),
     userAgent: readString(doc.fields, "userAgent"),
+    diagnostics: {
+      browser: readString(doc.fields, "diagBrowser"),
+      operatingSystem: readString(doc.fields, "diagOperatingSystem"),
+      screenResolution: readString(doc.fields, "diagScreenResolution"),
+      language: readString(doc.fields, "diagLanguage"),
+      appVersion: readString(doc.fields, "diagAppVersion"),
+      recentConsoleErrors: readString(doc.fields, "diagRecentConsoleErrors"),
+      recentApiFailures: readString(doc.fields, "diagRecentApiFailures"),
+    },
     createdAt: readTimestamp(doc.fields, "createdAt"),
     updatedAt: readTimestamp(doc.fields, "updatedAt"),
+    closedAt: readTimestamp(doc.fields, "closedAt"),
     isPublic: readBoolean(doc.fields, "isPublic"),
     publicTitle: readString(doc.fields, "publicTitle"),
     publicDescription: readString(doc.fields, "publicDescription"),
@@ -174,6 +292,17 @@ function normalizeHistory(doc: FirestoreDocument): SupportRequestHistoryRecord {
     note: readString(doc.fields, "note"),
     changedByUid: readString(doc.fields, "changedByUid"),
     changedByEmail: readString(doc.fields, "changedByEmail"),
+    createdAt: readTimestamp(doc.fields, "createdAt"),
+  };
+}
+
+function normalizeNote(doc: FirestoreDocument): SupportRequestNoteRecord {
+  return {
+    id: documentIdFromName(doc.name),
+    body: readString(doc.fields, "body"),
+    authorUid: readString(doc.fields, "authorUid"),
+    authorEmail: readString(doc.fields, "authorEmail"),
+    authorName: readString(doc.fields, "authorName"),
     createdAt: readTimestamp(doc.fields, "createdAt"),
   };
 }
@@ -230,9 +359,11 @@ export function filterSupportRequests(
   const type = query.type?.trim();
   const status = query.status?.trim();
   const severity = query.severity?.trim();
+  const importance = query.importance?.trim();
   const category = query.category?.trim();
   const familyId = query.familyId?.trim().toLowerCase() ?? "";
   const reporter = query.reporter?.trim().toLowerCase() ?? "";
+  const assignee = query.assignee?.trim().toLowerCase() ?? "";
   const search = query.q?.trim().toLowerCase() ?? "";
   const createdFrom = query.createdFrom?.trim() ?? "";
   const createdTo = query.createdTo?.trim() ?? "";
@@ -241,10 +372,19 @@ export function filterSupportRequests(
     if (type && type !== "all" && request.type !== type) {
       return false;
     }
-    if (status && status !== "all" && request.status !== status) {
-      return false;
+    if (status && status !== "all") {
+      if (status === "open") {
+        if (CLOSED_STATUSES.includes(request.status)) {
+          return false;
+        }
+      } else if (request.status !== status) {
+        return false;
+      }
     }
     if (severity && severity !== "all" && request.severity !== severity) {
+      return false;
+    }
+    if (importance && importance !== "all" && request.importance !== importance) {
       return false;
     }
     if (category && category !== "all" && request.category !== category) {
@@ -262,6 +402,19 @@ export function filterSupportRequests(
       ].some((value) => value.toLowerCase().includes(reporter))
     ) {
       return false;
+    }
+    if (assignee && assignee !== "all") {
+      if (assignee === "unassigned") {
+        if (request.assignedToUid) {
+          return false;
+        }
+      } else if (
+        ![request.assignedToUid, request.assignedToEmail].some((value) =>
+          value.toLowerCase().includes(assignee),
+        )
+      ) {
+        return false;
+      }
     }
     if (search) {
       const haystack = [
@@ -299,8 +452,15 @@ export function sortSupportRequests(requests: SupportRequestListRecord[], query:
       case "severity":
         return ((SEVERITY_SORT_ORDER[a.severity ?? "low"] ?? 99) -
           (SEVERITY_SORT_ORDER[b.severity ?? "low"] ?? 99)) * direction;
+      case "importance":
+        return ((a.importance ? IMPORTANCE_SORT_ORDER[a.importance] : 99) -
+          (b.importance ? IMPORTANCE_SORT_ORDER[b.importance] : 99)) * direction;
+      case "priority":
+        return (getPrioritySortOrder(a) - getPrioritySortOrder(b)) * direction;
       case "status":
         return (STATUS_SORT_ORDER[a.status] - STATUS_SORT_ORDER[b.status]) * direction;
+      case "reporter":
+        return compareStrings(getReporterSortValue(a), getReporterSortValue(b), direction);
       case "type":
         return (TYPE_SORT_ORDER[a.type] - TYPE_SORT_ORDER[b.type]) * direction;
       default:
@@ -329,14 +489,19 @@ export function paginateSupportRequests(requests: SupportRequestListRecord[], qu
 export function summarizeSupportRequests(requests: SupportRequestListRecord[]): SupportRequestSummary {
   const byStatus: SupportRequestSummary["byStatus"] = {
     new: 0,
+    needs_info: 0,
     triaged: 0,
     planned: 0,
     in_progress: 0,
+    released: 0,
     done: 0,
+    closed: 0,
     declined: 0,
     duplicate: 0,
+    cancelled: 0,
   };
-  const byType: SupportRequestSummary["byType"] = { bug: 0, feature: 0 };
+  const byType: SupportRequestSummary["byType"] = { bug: 0, feature: 0, question: 0, feedback: 0 };
+  const openByType: SupportRequestSummary["openByType"] = { bug: 0, feature: 0, question: 0, feedback: 0 };
   const bugsBySeverity: SupportRequestSummary["bugsBySeverity"] = { low: 0, medium: 0, high: 0 };
   const now = Date.now();
   const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
@@ -349,6 +514,9 @@ export function summarizeSupportRequests(requests: SupportRequestListRecord[]): 
   for (const request of requests) {
     byStatus[request.status] += 1;
     byType[request.type] += 1;
+    if (!CLOSED_STATUSES.includes(request.status)) {
+      openByType[request.type] += 1;
+    }
     if (request.type === "bug" && request.severity) {
       bugsBySeverity[request.severity] += 1;
       if (request.severity === "high") {
@@ -376,6 +544,7 @@ export function summarizeSupportRequests(requests: SupportRequestListRecord[]): 
     total: requests.length,
     byStatus,
     byType,
+    openByType,
     bugsBySeverity,
     highSeverityBugs,
     recentCreatedLast7Days,
@@ -415,11 +584,14 @@ export async function loadSupportRequestDetail(familyId: string, supportRequestI
     [familyId, familyDoc ? readString(familyDoc.fields, "name") || "Family" : "Family"],
   ]);
   const request = normalizeRequest(requestDoc, familyNameById);
-  const [historyDocs, auditDocs] = await Promise.all([
+  const [historyDocs, auditDocs, noteDocs] = await Promise.all([
     adminListDocuments(`families/${familyId}/supportRequests/${supportRequestId}/history`, 200).catch(
       () => [],
     ),
     adminListDocuments(`families/${familyId}/auditLogs`, 300).catch(() => []),
+    adminListDocuments(`families/${familyId}/supportRequests/${supportRequestId}/internalNotes`, 200).catch(
+      () => [],
+    ),
   ]);
 
   const history = historyDocs
@@ -429,6 +601,9 @@ export async function loadSupportRequestDetail(familyId: string, supportRequestI
     .filter((doc) => readString(doc.fields, "requestId") === supportRequestId)
     .map((doc) => normalizeAudit(doc))
     .sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
+  const notes = noteDocs
+    .map((doc) => normalizeNote(doc))
+    .sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
 
-  return { request, history, activity };
+  return { request, history, activity, notes };
 }

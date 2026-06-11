@@ -7,6 +7,7 @@ import {
   documentIdFromName,
   getDocument,
   listDocuments,
+  runQuery,
   readBoolean,
   readString,
   readStringArray,
@@ -47,6 +48,12 @@ type NotificationItem = {
 };
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 50;
+// Notifications grow without bound, so we read the most-recent window via an
+// ordered query (single-field index on createdAt) instead of an arbitrary
+// unordered page. Search, sort, and the unseen badge operate over this window.
+const RECENT_NOTIFICATION_LIMIT = 500;
+// A single viewer's seen markers, scoped by uid (equality, single-field index).
+const VIEWER_SEEN_MARKER_LIMIT = 5000;
 type NotificationSortBy = "createdAt" | "title" | "message" | "seen" | "kind";
 
 function jsonUnauthorized() {
@@ -351,13 +358,34 @@ export async function GET(request: NextRequest) {
         );
 
         const [notificationDocs, seenDocs] = await Promise.all([
-          listDocuments(`families/${familyId}/notifications`, idToken, 500),
-          listDocuments(`families/${familyId}/notificationSeen`, idToken, 1000),
+          runQuery(
+            {
+              from: [{ collectionId: "notifications" }],
+              orderBy: [{ field: { fieldPath: "createdAt" }, direction: "DESCENDING" }],
+              limit: RECENT_NOTIFICATION_LIMIT,
+            },
+            idToken,
+            `families/${familyId}`,
+          ),
+          runQuery(
+            {
+              from: [{ collectionId: "notificationSeen" }],
+              where: {
+                fieldFilter: {
+                  field: { fieldPath: "uid" },
+                  op: "EQUAL",
+                  value: { stringValue: session.uid },
+                },
+              },
+              limit: VIEWER_SEEN_MARKER_LIMIT,
+            },
+            idToken,
+            `families/${familyId}`,
+          ),
         ]);
 
         const seenIds = new Set(
           seenDocs
-            .filter((doc) => readString(doc.fields, "uid") === session.uid)
             .map((doc) => readString(doc.fields, "notificationId"))
             .filter((value) => value.length > 0),
         );

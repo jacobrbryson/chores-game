@@ -1,5 +1,29 @@
 [
   {
+    "id": "dashboard-manual-sort-reorder",
+    "date": "2026-06-10",
+    "type": "Bug Fix",
+    "subject": "Reorder chores again after sorting",
+    "description": "The dashboard sort menu now includes a Manual order option, so you can clear an active sort and go back to dragging or moving chores to set their priority. Disabled move controls now explain why they're unavailable.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "feedback-bugs-features-questions",
+    "date": "2026-06-10",
+    "type": "Feature",
+    "subject": "Report bugs, request features, ask questions, and share feedback",
+    "description": "You can now tell us what you think right from the app. Report a bug, request a feature, ask a question, or share general feedback — set how important it is, and choose whether we can follow up and notify you when the status changes. We'll keep you posted as your request moves from planned to released.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "onboarding-duplicate-child-fix",
+    "date": "2026-06-08",
+    "type": "Bug Fix",
+    "subject": "Terms acceptance no longer restarts onboarding",
+    "description": "Accepting the latest Terms & Conditions now only records your consent — families that already have children go straight to the dashboard instead of being sent back through new-family setup. This prevents duplicate child profiles from being created.",
+    "image": "/file.svg"
+  },
+  {
     "id": "dashboard-future-chores-visible",
     "date": "2026-06-08",
     "type": "Bug Fix",

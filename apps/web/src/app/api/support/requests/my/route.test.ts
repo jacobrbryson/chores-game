@@ -40,6 +40,8 @@ vi.mock("@/lib/firestore/rest", () => ({
     fields?.[key]?.stringValue ?? "",
   readTimestamp: (fields: Record<string, { timestampValue?: string }> | undefined, key: string) =>
     fields?.[key]?.timestampValue ?? "",
+  readInteger: (fields: Record<string, { integerValue?: string }> | undefined, key: string) =>
+    Number(fields?.[key]?.integerValue ?? 0) || 0,
 }));
 
 import { GET } from "@/app/api/support/requests/my/route";

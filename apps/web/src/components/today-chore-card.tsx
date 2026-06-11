@@ -8,6 +8,7 @@ import { CoinIcon } from "@/components/coin-icon";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { MenuActionButton } from "@/components/menu-action-button";
 import { ModalShell } from "@/components/modal-shell";
+import { useLocale } from "@/components/locale-provider";
 import Link from "next/link";
 import { CSSProperties, useState } from "react";
 import type { FamilySnapshotChore } from "@/lib/family/types";
@@ -20,6 +21,11 @@ type TodayChoreCardProps = {
   canReorder?: boolean;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
+  /**
+   * Localized explanation for why reordering is unavailable (active sort,
+   * active filters, busy action). Surfaced as the disabled-button tooltip.
+   */
+  reorderDisabledReason?: string;
   isDragging?: boolean;
   isDragOver?: boolean;
   dropIndicatorPosition?: "before" | "after" | null;
@@ -74,6 +80,7 @@ export function TodayChoreCard({
   canReorder = false,
   canMoveUp = false,
   canMoveDown = false,
+  reorderDisabledReason = "",
   isDragging = false,
   isDragOver = false,
   dropIndicatorPosition = null,
@@ -91,9 +98,20 @@ export function TodayChoreCard({
   onDragEnd,
   onEdited,
 }: TodayChoreCardProps) {
+  const { t } = useLocale();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const moveUpDisabledTitle = !canReorder
+    ? reorderDisabledReason || undefined
+    : !canMoveUp
+      ? t("dashboard.moveUpAtTop")
+      : undefined;
+  const moveDownDisabledTitle = !canReorder
+    ? reorderDisabledReason || undefined
+    : !canMoveDown
+      ? t("dashboard.moveDownAtBottom")
+      : undefined;
   const assigneePrimaryColor = getSafeHexColor(chore.assigneePrimaryColor);
   const assigneeAvatarId = chore.assigneeAvatarId?.trim() || "";
   const assigneeAvatarPhotoUrl = chore.assigneeAvatarPhotoUrl?.trim() || "";
@@ -320,6 +338,7 @@ export function TodayChoreCard({
                 fullWidth
                 className="menu-action-divider-top"
                 disabled={disabled || !canReorder || !canMoveUp}
+                title={moveUpDisabledTitle}
                 onClick={() => {
                   setMenuOpen(false);
                   void onMoveUp?.(chore.id);
@@ -329,6 +348,7 @@ export function TodayChoreCard({
               <MenuActionButton
                 fullWidth
                 disabled={disabled || !canReorder || !canMoveDown}
+                title={moveDownDisabledTitle}
                 onClick={() => {
                   setMenuOpen(false);
                   void onMoveDown?.(chore.id);

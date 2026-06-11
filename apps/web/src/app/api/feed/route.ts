@@ -6,6 +6,7 @@ import {
   documentIdFromName,
   getDocument,
   listDocuments,
+  runQuery,
   readBoolean,
   readString,
   readStringArray,
@@ -21,6 +22,10 @@ import {
 
 const MAX_PAGE_SIZE = 50;
 const DEFAULT_PAGE_SIZE = 20;
+// The feed projects over the unbounded notifications collection, so read the
+// most-recent window via an ordered query (single-field index on createdAt)
+// rather than an arbitrary unordered page.
+const RECENT_NOTIFICATION_LIMIT = 500;
 
 type FeedActor = {
   uid: string;
@@ -217,7 +222,15 @@ export async function GET(request: NextRequest) {
 
         const [memberDocs, notificationDocs] = await Promise.all([
           listDocuments(`families/${familyId}/members`, idToken, 200),
-          listDocuments(`families/${familyId}/notifications`, idToken, 500),
+          runQuery(
+            {
+              from: [{ collectionId: "notifications" }],
+              orderBy: [{ field: { fieldPath: "createdAt" }, direction: "DESCENDING" }],
+              limit: RECENT_NOTIFICATION_LIMIT,
+            },
+            idToken,
+            `families/${familyId}`,
+          ),
         ]);
 
         const context = buildViewerContext(memberDocs, session.uid, session.email);

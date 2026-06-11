@@ -264,9 +264,11 @@ function PrivacyStep({
 function AddChildStep({
   onSkip,
   onDone,
+  onSetupAlreadyComplete,
 }: {
   onSkip: () => void;
   onDone: () => void;
+  onSetupAlreadyComplete: () => void;
 }) {
   const { t } = useLocale();
   const [childName, setChildName] = useState("");
@@ -285,10 +287,26 @@ function AddChildStep({
       const response = await fetch("/api/family/members", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email: "", role: "player" }),
+        // Mark this as an onboarding create. `onboardingFirstChild` is only true
+        // for the very first add in this session so the server can block a
+        // duplicate "first child" when the family already has children, without
+        // blocking legitimate additional children added during onboarding.
+        body: JSON.stringify({
+          name,
+          email: "",
+          role: "player",
+          source: "onboarding",
+          onboardingFirstChild: added.length === 0,
+        }),
       });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
+        // The family already has children — onboarding was reached in error.
+        // Bounce straight to the dashboard rather than minting a duplicate.
+        if (response.status === 409 && body.error === "setup_already_complete") {
+          onSetupAlreadyComplete();
+          return;
+        }
         throw new Error(body.error ?? `ADD_CHILD_HTTP_${response.status}`);
       }
       setAdded((prev) => [...prev, name]);
@@ -662,6 +680,7 @@ export function OnboardingWizard({ viewerName: _viewerName }: OnboardingWizardPr
           <AddChildStep
             onSkip={() => setStep("firstChore")}
             onDone={() => setStep("firstChore")}
+            onSetupAlreadyComplete={() => router.replace("/")}
           />
         ) : null}
 

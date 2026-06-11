@@ -71,6 +71,12 @@ vi.mock("@/lib/firestore/rest", () => ({
   stringField: (value: string) => ({ stringValue: value }),
   timestampField: (value: string) => ({ timestampValue: value }),
   boolField: (value: boolean) => ({ booleanValue: value }),
+  integerField: (value: number) => ({ integerValue: String(value) }),
+}));
+
+// Email notification is best-effort; stub it so the create path stays pure.
+vi.mock("@/lib/support/notify-email", () => ({
+  sendSupportNotificationEmail: vi.fn(async () => true),
 }));
 
 import { POST } from "@/app/api/support/requests/route";

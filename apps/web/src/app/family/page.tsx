@@ -903,6 +903,9 @@ export default function FamilyPage() {
       (member) => member.uid === summary.viewerUid || member.id === summary.viewerUid,
     ) ?? null;
   const canManageMembers = Boolean(summary?.noFamily) || viewerMember?.role === "admin";
+  // Children (players) should not be able to open member profiles from the
+  // Members tab, so their rows/cards are not interactive.
+  const canOpenMemberProfile = canManageMembers;
 
   return (
     <>
@@ -963,18 +966,30 @@ export default function FamilyPage() {
                                 return (
                                 <tr
                                   key={member.id}
-                                  className="family-member-table-row"
-                                  role="link"
-                                  tabIndex={0}
-                                  onClick={() => {
-                                    window.location.assign(memberHref);
-                                  }}
-                                  onKeyDown={(event) => {
-                                    if (event.key === "Enter" || event.key === " ") {
-                                      event.preventDefault();
-                                      window.location.assign(memberHref);
-                                    }
-                                  }}>
+                                  className={
+                                    canOpenMemberProfile
+                                      ? "family-member-table-row"
+                                      : undefined
+                                  }
+                                  role={canOpenMemberProfile ? "link" : undefined}
+                                  tabIndex={canOpenMemberProfile ? 0 : undefined}
+                                  onClick={
+                                    canOpenMemberProfile
+                                      ? () => {
+                                          window.location.assign(memberHref);
+                                        }
+                                      : undefined
+                                  }
+                                  onKeyDown={
+                                    canOpenMemberProfile
+                                      ? (event) => {
+                                          if (event.key === "Enter" || event.key === " ") {
+                                            event.preventDefault();
+                                            window.location.assign(memberHref);
+                                          }
+                                        }
+                                      : undefined
+                                  }>
                                   <td title={`${member.name}${member.email ? ` - ${member.email}` : ""} - ${humanizeEnum(member.role)}`}>
                                     <span className="table-assignee-cell">
                                       <Avatar
@@ -1046,7 +1061,7 @@ export default function FamilyPage() {
                                   />
                                   <div>
                                     <h3 className="family-member-name">
-                                      {canLinkToMemberProfile(member) ? (
+                                      {canOpenMemberProfile && canLinkToMemberProfile(member) ? (
                                         <Link href={memberProfileHref(member)} className="family-member-link">
                                           {member.name}
                                         </Link>

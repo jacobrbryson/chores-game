@@ -9,11 +9,13 @@ import {
   createOrReplaceDocument,
   findFirstFamilyIdByMemberUid,
   getDocument,
+  integerField,
   readStringArray,
   stringField,
   timestampField,
   type FirestoreValue,
 } from "@/lib/firestore/rest";
+import { sendSupportNotificationEmail } from "@/lib/support/notify-email";
 import { checkRateLimit, consumeRateLimit } from "@/lib/rate-limit/limiter";
 import {
   filterSupportRequests,
@@ -98,9 +100,11 @@ export async function GET(request: NextRequest) {
       type: searchParams.get("type") ?? "",
       status: searchParams.get("status") ?? "",
       severity: searchParams.get("severity") ?? "",
+      importance: searchParams.get("importance") ?? "",
       q: searchParams.get("q") ?? "",
       familyId: searchParams.get("familyId") ?? "",
       reporter: searchParams.get("reporter") ?? "",
+      assignee: searchParams.get("assignee") ?? "",
       createdFrom: searchParams.get("createdFrom") ?? "",
       createdTo: searchParams.get("createdTo") ?? "",
       sortBy: searchParams.get("sortBy") ?? "updatedAt",
@@ -190,11 +194,31 @@ export async function POST(request: NextRequest) {
           // Bug reports carry a severity; feature requests omit it (an absent
           // field reads as null in Firestore rules, satisfying severity == null).
           ...(input.severity ? { severity: stringField(input.severity) } : {}),
+          // Non-bug types may carry an importance grade.
+          ...(input.importance ? { importance: stringField(input.importance) } : {}),
           category: stringField(input.category),
           status: stringField(DEFAULT_SUPPORT_REQUEST_STATUS),
           appliedChangeLogDate: stringField(""),
+          // Reporter contact / notification preferences (Phase 2/7).
+          allowContact: boolField(input.allowContact),
+          notifyOnStatusChange: boolField(input.notifyOnStatusChange),
+          // Operator + roadmap fields initialized empty (managed later via Phase 6/8/9).
+          assignedToUid: stringField(""),
+          assignedToEmail: stringField(""),
+          allowVoting: boolField(false),
+          votesCount: integerField(0),
+          relatedChangelogEntryId: stringField(""),
+          closedAt: stringField(""),
           pageUrl: stringField(input.pageUrl),
           userAgent: stringField(userAgent),
+          // Best-effort diagnostics (Phase 3); empty strings when unavailable.
+          diagBrowser: stringField(input.diagnostics.browser),
+          diagOperatingSystem: stringField(input.diagnostics.operatingSystem),
+          diagScreenResolution: stringField(input.diagnostics.screenResolution),
+          diagLanguage: stringField(input.diagnostics.language),
+          diagAppVersion: stringField(input.diagnostics.appVersion),
+          diagRecentConsoleErrors: stringField(input.diagnostics.recentConsoleErrors),
+          diagRecentApiFailures: stringField(input.diagnostics.recentApiFailures),
           createdAt: timestampField(now),
           updatedAt: timestampField(now),
           deleted: boolField(false),
@@ -237,6 +261,28 @@ export async function POST(request: NextRequest) {
             supportRequestId,
             type: input.type,
           },
+        });
+
+        // Phase 4: notify the support inbox. Best-effort — never blocks or fails
+        // the submission if email is misconfigured or the provider errors.
+        await sendSupportNotificationEmail({
+          id: supportRequestId,
+          familyId,
+          type: input.type,
+          status: DEFAULT_SUPPORT_REQUEST_STATUS,
+          subject: input.subject,
+          description: input.description,
+          severity: input.severity,
+          importance: input.importance,
+          category: input.category,
+          createdByUid: session.uid,
+          createdByDisplayName: session.name ?? "",
+          createdByEmail: session.email ?? "",
+          allowContact: input.allowContact,
+          notifyOnStatusChange: input.notifyOnStatusChange,
+          pageUrl: input.pageUrl,
+          userAgent,
+          diagnostics: input.diagnostics,
         });
 
         return {

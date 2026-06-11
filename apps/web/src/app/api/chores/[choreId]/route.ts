@@ -10,6 +10,7 @@ import {
   type FirestoreValue,
   getDocument,
   integerField,
+  listAllDocuments,
   listDocuments,
   patchDocument,
   readBoolean,
@@ -65,6 +66,9 @@ type UpdateChoreBody = {
   approvalPayouts?: unknown;
 };
 const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
+// Safety cap when paging the full chores collection (recurring chores grow it
+// without bound). Mirrors MAX_CHORE_ARCHIVE in the chores list route.
+const MAX_CHORE_SCAN = 5000;
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -477,7 +481,9 @@ async function countActiveChoresForAssignee(
   if (!assigneeId) {
     return 0;
   }
-  const docs = await listDocuments(`families/${familyId}/chores`, idToken, 1000);
+  const docs = await listAllDocuments(`families/${familyId}/chores`, idToken, {
+    cap: MAX_CHORE_SCAN,
+  });
   return docs.filter((doc) => {
     const id = documentIdFromName(doc.name);
     if (excludeChoreId && id === excludeChoreId) {
@@ -1121,7 +1127,9 @@ export async function PATCH(
               choreRecurrence,
               completionDate,
             );
-            const allChoreDocs = await listDocuments(`families/${familyId}/chores`, idToken, 1000);
+            const allChoreDocs = await listAllDocuments(`families/${familyId}/chores`, idToken, {
+              cap: MAX_CHORE_SCAN,
+            });
             const openChores = allChoreDocs.filter((doc) => {
               if (readBoolean(doc.fields, "deleted")) {
                 return false;

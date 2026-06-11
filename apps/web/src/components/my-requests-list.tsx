@@ -11,6 +11,7 @@ import { ModalShell } from "@/components/modal-shell";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { showToast } from "@/components/toast";
 import type {
+  SupportRequestImportance,
   SupportRequestSeverity,
   SupportRequestStatus,
   SupportRequestType,
@@ -22,6 +23,7 @@ type MyRequestItem = {
   subject: string;
   description: string;
   severity: SupportRequestSeverity | null;
+  importance: SupportRequestImportance | null;
   category: string;
   status: SupportRequestStatus;
   appliedChangeLogDate: string;
@@ -86,6 +88,8 @@ function statusTone(status: SupportRequestStatus) {
   switch (status) {
     case "new":
       return "blue";
+    case "needs_info":
+      return "amber";
     case "triaged":
       return "indigo";
     case "planned":
@@ -95,12 +99,22 @@ function statusTone(status: SupportRequestStatus) {
     case "declined":
     case "duplicate":
       return "rose";
+    case "released":
     case "done":
       return "green";
+    case "closed":
+      return "slate";
     default:
       return "slate";
   }
 }
+
+const TYPE_TONE = {
+  bug: "rose",
+  feature: "violet",
+  question: "blue",
+  feedback: "teal",
+} as const;
 
 function severityTone(severity: SupportRequestSeverity) {
   if (severity === "high") {
@@ -224,6 +238,18 @@ export function MyRequestsList() {
             onClick={() => setDialog({ mode: "create", type: "feature" })}>
             {t("support.feature.menuLabel")}
           </Button>
+          <Button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setDialog({ mode: "create", type: "question" })}>
+            {t("support.question.menuLabel")}
+          </Button>
+          <Button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setDialog({ mode: "create", type: "feedback" })}>
+            {t("support.feedback.menuLabel")}
+          </Button>
         </div>
       </div>
 
@@ -256,7 +282,7 @@ export function MyRequestsList() {
                           <div className="mt-1">
                             <EnumChip
                               label={t(`support.type.${item.type}`)}
-                              tone={item.type === "bug" ? "rose" : "violet"}
+                              tone={TYPE_TONE[item.type] ?? "slate"}
                             />
                           </div>
                         </td>
@@ -359,6 +385,7 @@ export function MyRequestsList() {
                 subject: dialog.request.subject,
                 description: dialog.request.description,
                 severity: dialog.request.severity,
+                importance: dialog.request.importance,
                 category: dialog.request.category ?? "",
               }
             : undefined
