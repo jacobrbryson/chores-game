@@ -48,6 +48,11 @@ import {
 } from "@/lib/family/categories";
 import { computeCompletionDerivedMaximums, trackAchievementEvent } from "@/lib/achievements/service";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
+import {
+  canonicalRecurringChoreId,
+  claimNewSkillBonus,
+  NEW_SKILL_BONUS_AMOUNT,
+} from "@/lib/chores/skill-bonus";
 
 type UpdateChoreBody = {
   action?: unknown;
@@ -673,6 +678,88 @@ async function applyPayoutByAssignee(params: {
   return { kind: "ok" as const, anyApplied };
 }
 
+type NewSkillBonusOutcome = {
+  awarded: boolean;
+  amount: number;
+  totalCoins: number;
+  playerUids: string[];
+};
+
+const EMPTY_NEW_SKILL_BONUS: NewSkillBonusOutcome = {
+  awarded: false,
+  amount: NEW_SKILL_BONUS_AMOUNT,
+  totalCoins: 0,
+  playerUids: [],
+};
+
+// Awards the one-time New Skill Bonus to every assignee who is being paid for
+// the first completion of this chore identity. Runs at the same lifecycle point
+// as normal chore coins (immediate completion or approval). The durable claim
+// record makes it idempotent: retries, websocket replays and double-approvals
+// resolve to no additional payout. Best-effort — never throws into the
+// completion flow.
+async function awardNewSkillBonuses(params: {
+  familyId: string;
+  idToken: string;
+  rootChoreId: string;
+  payoutByAssignee: Map<string, number>;
+  sourceCompletionId: string;
+}): Promise<NewSkillBonusOutcome> {
+  const { familyId, idToken, rootChoreId, payoutByAssignee, sourceCompletionId } = params;
+  if (!rootChoreId) {
+    return EMPTY_NEW_SKILL_BONUS;
+  }
+  let totalCoins = 0;
+  const playerUids: string[] = [];
+  const seenUids = new Set<string>();
+  for (const [assigneeAlias, coins] of payoutByAssignee.entries()) {
+    if (coins <= 0) {
+      continue;
+    }
+    const assigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
+    if (!assigneeUid || seenUids.has(assigneeUid)) {
+      continue;
+    }
+    seenUids.add(assigneeUid);
+    try {
+      const { firstTime } = await claimNewSkillBonus({
+        familyId,
+        playerUid: assigneeUid,
+        rootChoreId,
+        sourceCompletionId,
+        idToken,
+      });
+      if (!firstTime) {
+        continue;
+      }
+      await applyWalletDelta({
+        uid: assigneeUid,
+        idToken,
+        delta: NEW_SKILL_BONUS_AMOUNT,
+        reason: "new_skill_bonus",
+        choreId: rootChoreId,
+        debugMeta: { familyId, rootChoreId, sourceCompletionId, assigneeAlias },
+      });
+      totalCoins += NEW_SKILL_BONUS_AMOUNT;
+      playerUids.push(assigneeUid);
+    } catch (error) {
+      const reason = error instanceof Error && error.message ? error.message.slice(0, 200) : "unknown";
+      console.error("[NEW_SKILL_BONUS_AWARD_ERROR]", {
+        familyId,
+        rootChoreId,
+        assigneeUid,
+        reason,
+      });
+    }
+  }
+  return {
+    awarded: playerUids.length > 0,
+    amount: NEW_SKILL_BONUS_AMOUNT,
+    totalCoins,
+    playerUids,
+  };
+}
+
 function mapCommonFirestoreErrors(reason: string, fallbackError: string) {
   if (reason.includes("FIRESTORE_HTTP_401") || reason.includes("FIREBASE_REFRESH_FAILED")) {
     return jsonReauthRequired();
@@ -1053,6 +1140,7 @@ export async function PATCH(
         const now = new Date().toISOString();
         const actorName = session.name || session.email;
         let syncOwnerUid = "";
+        let newSkillBonus: NewSkillBonusOutcome = EMPTY_NEW_SKILL_BONUS;
         if (action === "complete") {
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
           const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
@@ -1081,6 +1169,10 @@ export async function PATCH(
           });
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
           const hadPriorSubmission = Boolean(readTimestamp(existingChoreDoc.fields, "submittedAt"));
+          // Canonical identity used for the New Skill Bonus: the root chore of a
+          // recurring series so the bonus is granted only on the child's first
+          // completion of the recurring task, never on later occurrences.
+          const rootChoreId = canonicalRecurringChoreId(existingChoreDoc.fields, choreId);
           if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
             syncOwnerUid = choreGoogleTaskOwnerUid;
           } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.memberId, session.email)) {
@@ -1168,6 +1260,7 @@ export async function PATCH(
                 recurrenceInterval: integerField(choreRecurrence.recurrenceInterval ?? 0),
                 recurrenceUnit: stringField(choreRecurrence.recurrenceUnit ?? ""),
                 recurrenceParentChoreId: stringField(choreId),
+                recurrenceRootChoreId: stringField(rootChoreId),
                 deleted: boolField(false),
                 createdBy: stringField(session.uid),
                 createdAt: timestampField(now),
@@ -1242,6 +1335,13 @@ export async function PATCH(
               return { kind: "wallet_permission_denied" as const };
             }
             payoutApplied = payoutResult.kind === "ok" && payoutResult.anyApplied;
+            newSkillBonus = await awardNewSkillBonuses({
+              familyId,
+              idToken,
+              rootChoreId,
+              payoutByAssignee,
+              sourceCompletionId: choreId,
+            });
           }
           const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
           // Kiosk Mode attribution: in kiosk the current identity is the player,
@@ -1259,7 +1359,7 @@ export async function PATCH(
             title: completionNeedsApproval ? "Chore submitted for approval" : "Chore completed",
             message: completionNeedsApproval
               ? `${actorName} completed "${choreTitle}" and it is waiting for parent approval.`
-              : `${actorName} marked "${choreTitle}" complete${payoutApplied ? ` and earned ${approvedCoinValue} coins` : ""}.${choreRecurrence.recurrenceType !== "none" ? ` ${recurrenceLabel(choreRecurrence)}.` : ""}`,
+              : `${actorName} marked "${choreTitle}" complete${payoutApplied ? ` and earned ${approvedCoinValue} coins` : ""}.${newSkillBonus.awarded ? ` 🎉 New Skill Learned (+${newSkillBonus.totalCoins} bonus coins)!` : ""}${choreRecurrence.recurrenceType !== "none" ? ` ${recurrenceLabel(choreRecurrence)}.` : ""}`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
@@ -1267,6 +1367,8 @@ export async function PATCH(
             source: kioskActivity.source,
             authenticatedUid: kioskActivity.authenticatedUid,
             completedForPlayerId: kioskActivity.completedForPlayerId,
+            newSkillBonusAwarded: newSkillBonus.awarded,
+            newSkillBonusAmount: newSkillBonus.totalCoins,
           });
           await publishFamilyActivity({
             type: "chore_completed",
@@ -1276,6 +1378,8 @@ export async function PATCH(
             source: kioskActivity.source,
             authenticatedUid: kioskActivity.authenticatedUid,
             completedForPlayerId: kioskActivity.completedForPlayerId,
+            newSkillBonusAwarded: newSkillBonus.awarded,
+            newSkillBonusAmount: newSkillBonus.totalCoins,
           });
           if (assigneeUid) {
             const completionHour = new Date(now).getUTCHours();
@@ -1449,6 +1553,7 @@ export async function PATCH(
           );
           const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
           const choreRequireApproval = readBoolean(existingChoreDoc.fields, "requireApproval");
+          const rootChoreId = canonicalRecurringChoreId(existingChoreDoc.fields, choreId);
           if (currentStatus !== "Submitted" || !choreRequireApproval) {
             return { kind: "invalid_transition" as const };
           }
@@ -1511,6 +1616,13 @@ export async function PATCH(
             return { kind: "wallet_permission_denied" as const };
           }
           const payoutApplied = payoutResult.kind === "ok" && payoutResult.anyApplied;
+          newSkillBonus = await awardNewSkillBonuses({
+            familyId,
+            idToken,
+            rootChoreId,
+            payoutByAssignee,
+            sourceCompletionId: choreId,
+          });
           await emitFamilyActivityBestEffort({
             familyId,
             idToken,
@@ -1519,10 +1631,12 @@ export async function PATCH(
             actorEmail: session.email,
             actorName,
             title: "Chore approved",
-            message: `${actorName} approved "${choreTitle}"${payoutApplied ? " and paid coins" : ""}.`,
+            message: `${actorName} approved "${choreTitle}"${payoutApplied ? " and paid coins" : ""}.${newSkillBonus.awarded ? ` 🎉 New Skill Learned (+${newSkillBonus.totalCoins} bonus coins)!` : ""}`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
+            newSkillBonusAwarded: newSkillBonus.awarded,
+            newSkillBonusAmount: newSkillBonus.totalCoins,
           });
           await publishFamilyActivity({
             type: "chore_updated",
@@ -1824,7 +1938,7 @@ export async function PATCH(
           });
         }
 
-        return { kind: "ok" as const };
+        return { kind: "ok" as const, newSkillBonus };
       });
 
     if (data.kind === "family_not_found") {
@@ -1870,7 +1984,20 @@ export async function PATCH(
       return NextResponse.json({ error: "invalid_category_ids" }, { status: 400 });
     }
 
-    const response = NextResponse.json({ success: true });
+    const bonus = "newSkillBonus" in data ? data.newSkillBonus : undefined;
+    const response = NextResponse.json(
+      bonus && bonus.awarded
+        ? {
+            success: true,
+            newSkillBonus: {
+              awarded: true,
+              amount: bonus.amount,
+              totalCoins: bonus.totalCoins,
+              playerUids: bonus.playerUids,
+            },
+          }
+        : { success: true },
+    );
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);
     }

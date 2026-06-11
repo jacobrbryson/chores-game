@@ -14,5 +14,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   if (upstream.status >= 400) {
     return fail(String(upstream.json?.error ?? "upstream_error"), "Failed to complete chore", upstream.status, upstream.json);
   }
-  return ok({ id, status: "Submitted" });
+  // Forward New Skill Bonus metadata so mobile can celebrate the first-time bonus.
+  const newSkillBonus = (upstream.json as { newSkillBonus?: unknown } | undefined)?.newSkillBonus;
+  return ok({ id, status: "Submitted", ...(newSkillBonus ? { newSkillBonus } : {}) });
 }

@@ -592,6 +592,8 @@ export function TodayChoresPanel({
   const [completionStatsRefreshTick, setCompletionStatsRefreshTick] = useState(0);
   const [visibleChoreCount, setVisibleChoreCount] = useState(CHORE_PAGE_SIZE);
   const completionHideTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [newSkillCelebration, setNewSkillCelebration] = useState<{ amount: number } | null>(null);
+  const newSkillCelebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingApprovalAssigneeIds = useMemo(
     () => (pendingApproveChore ? getApprovalAssigneeIds(pendingApproveChore, members) : []),
     [members, pendingApproveChore],
@@ -723,6 +725,10 @@ export function TodayChoresPanel({
         clearTimeout(timer);
       }
       completionHideTimersRef.current = {};
+      if (newSkillCelebrationTimerRef.current) {
+        clearTimeout(newSkillCelebrationTimerRef.current);
+        newSkillCelebrationTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -1414,6 +1420,25 @@ export function TodayChoresPanel({
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? `COMPLETE_CHORE_HTTP_${response.status}`);
       }
+      const completePayload = (await response.json().catch(() => null)) as
+        | { newSkillBonus?: { awarded?: boolean; totalCoins?: number } }
+        | null;
+      if (completePayload?.newSkillBonus?.awarded) {
+        setNewSkillCelebration({ amount: completePayload.newSkillBonus.totalCoins ?? 0 });
+        triggerPartyConfetti({
+          intensity: 1.8,
+          sourceClientX: source?.clientX,
+          sourceClientY: source?.clientY,
+          showAllDone: false,
+        });
+        if (newSkillCelebrationTimerRef.current) {
+          clearTimeout(newSkillCelebrationTimerRef.current);
+        }
+        newSkillCelebrationTimerRef.current = setTimeout(() => {
+          setNewSkillCelebration(null);
+          newSkillCelebrationTimerRef.current = null;
+        }, 4500);
+      }
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("wallet:refresh"));
         window.dispatchEvent(new Event("notifications:refresh"));
@@ -1970,6 +1995,18 @@ export function TodayChoresPanel({
             </div>
           ) : null}
           {choreActionError ? <Alert className="mb-3">{t("dashboard.choreUpdateError", { error: choreActionError })}</Alert> : null}
+          {newSkillCelebration ? (
+            <div
+              className="mb-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800"
+              role="status">
+              <span aria-hidden="true">&#127881;</span>
+              <span>
+                {t("dashboard.newSkillCelebration", {
+                  amount: String(newSkillCelebration.amount),
+                })}
+              </span>
+            </div>
+          ) : null}
           {visibleChores.length === 0 ? (
             <div className="dashboard-empty-state">
               <span className="dashboard-empty-state-icon" aria-hidden="true">

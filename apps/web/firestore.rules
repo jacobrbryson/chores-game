@@ -683,6 +683,24 @@ service cloud.firestore {
         && request.resource.data.delta < 0;
     }
 
+    // New Skill Bonus: a one-time +5 credit keyed to the root chore identity.
+    // Ledger id is deterministic ("new_skill_bonus_" + rootChoreId) so it is
+    // idempotent per user/chore, mirroring the chore_complete ledger shape.
+    function isValidNewSkillBonusLedgerCreate(uid, entryId, actorIsAdmin) {
+      return request.resource.data.reason == "new_skill_bonus"
+        && request.resource.data.choreId != ""
+        && request.resource.data.itemId == ""
+        && request.resource.data.delta > 0
+        && request.resource.data.balanceAfter >= request.resource.data.delta
+        && entryId == "new_skill_bonus_" + request.resource.data.choreId
+        && userPrimaryFamilyHasChore(uid, request.resource.data.choreId, actorIsAdmin)
+        && userPrimaryFamilyChore(uid, request.resource.data.choreId, actorIsAdmin).deleted != true
+        && (
+          actorIsAdmin
+          || requesterMatchesChoreAssignee(userPrimaryFamilyChore(uid, request.resource.data.choreId, actorIsAdmin))
+        );
+    }
+
     function isValidQuestRewardLedgerCreate() {
       return request.resource.data.reason == "quest_reward"
         && request.resource.data.itemId is string
@@ -696,6 +714,7 @@ service cloud.firestore {
         && (
           isValidChoreCompleteLedgerCreate(uid, ledgerEntryId, false)
           || isValidChoreUndoLedgerCreate(uid, ledgerEntryId, false)
+          || isValidNewSkillBonusLedgerCreate(uid, ledgerEntryId, false)
           || isValidStorePurchaseLedgerCreate()
           || isValidQuestRewardLedgerCreate()
         );
@@ -708,6 +727,7 @@ service cloud.firestore {
           request.resource.data.reason == "manual_adjustment"
           || isValidChoreCompleteLedgerCreate(uid, ledgerEntryId, true)
           || isValidChoreUndoLedgerCreate(uid, ledgerEntryId, true)
+          || isValidNewSkillBonusLedgerCreate(uid, ledgerEntryId, true)
           || isValidStorePurchaseLedgerCreate()
           || isValidQuestRewardLedgerCreate()
         );
@@ -1128,6 +1148,24 @@ service cloud.firestore {
         allow read: if isFamilyAdmin(familyId);
         allow create, update: if isFamilyMember(familyId);
         allow delete: if false;
+      }
+
+      // New Skill Bonus claim records: one immutable doc per child per root
+      // chore identity, created with an exists:false precondition by the server
+      // (under the completing user's token) the first time a child completes a
+      // chore. Create-only and never mutated — the precondition + immutability
+      // are what make the +5 bonus idempotent. Family members may read for
+      // dashboard eligibility. Classification: FAMILY_PRIVATE / CHILD_SENSITIVE.
+      match /skillBonuses/{bonusId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.playerId is string
+          && request.resource.data.playerId.size() > 0
+          && request.resource.data.rootChoreId is string
+          && request.resource.data.rootChoreId.size() > 0
+          && request.resource.data.sourceCompletionId is string
+          && request.resource.data.firstCompletedAt is timestamp;
+        allow update, delete: if false;
       }
 
       // User-submitted bug reports / feature requests. Authors can read only

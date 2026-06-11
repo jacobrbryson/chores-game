@@ -72,6 +72,11 @@ export type FamilySnapshotChore = {
   recurrenceType?: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: ChoreRecurrenceUnit;
+  // New Skill Bonus: true when the assigned child has never completed this chore
+  // (by recurring-root identity) before, so the dashboard shows a "+5 New Skill"
+  // badge. Only set for single-assignee chores; omitted for multi/family chores.
+  newSkillBonusEligible?: boolean;
+  newSkillBonusAmount?: number;
   // Optional in-app deep link (e.g. seeded getting-started tasks point at /family,
   // /store, /profile). When present the dashboard card shows a quick-jump link.
   actionHref?: string;

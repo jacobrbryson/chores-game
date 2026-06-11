@@ -10,6 +10,9 @@ type FamilyActivityPublishEvent = {
   source?: string;
   authenticatedUid?: string;
   completedForPlayerId?: string;
+  // New Skill Bonus attribution for realtime celebration cues.
+  newSkillBonusAwarded?: boolean;
+  newSkillBonusAmount?: number;
 };
 
 export async function publishFamilyActivity(event: FamilyActivityPublishEvent) {

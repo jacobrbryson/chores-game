@@ -72,6 +72,31 @@ function getCoinTooltip(chore: Pick<FamilySnapshotChore, "choreType">) {
   return undefined;
 }
 
+function isRecurringChore(
+  chore: Pick<FamilySnapshotChore, "recurrenceType">,
+) {
+  return Boolean(chore.recurrenceType) && chore.recurrenceType !== "none";
+}
+
+function CalendarRecurrenceIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      width={14}
+      height={14}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round">
+      <rect x="3" y="4.5" width="14" height="12.5" rx="2" />
+      <path d="M3 8.5h14" />
+      <path d="M7 3v3M13 3v3" />
+    </svg>
+  );
+}
+
 export function TodayChoreCard({
   chore,
   isAdminViewer,
@@ -102,6 +127,51 @@ export function TodayChoreCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  // Recurrence indicator starts collapsed (calendar icon) and toggles to the
+  // frequency label on click. Local component state means a list reload/refresh
+  // naturally resets every row back to the icon, as required.
+  const [showRecurrenceFrequency, setShowRecurrenceFrequency] = useState(false);
+  const recurring = isRecurringChore(chore);
+  const newSkillBonusAmount = chore.newSkillBonusAmount ?? 5;
+
+  function recurrenceFrequencyLabel() {
+    const type = chore.recurrenceType;
+    if (type === "daily") {
+      return t("dashboard.recurrenceDaily");
+    }
+    if (type === "weekly") {
+      return t("dashboard.recurrenceWeekly");
+    }
+    if (type === "monthly") {
+      return t("dashboard.recurrenceMonthly");
+    }
+    if (type === "instant") {
+      return t("dashboard.recurrenceInstant");
+    }
+    if (type === "custom") {
+      const interval = Math.max(1, chore.recurrenceInterval ?? 2);
+      const unit = chore.recurrenceUnit ?? "day";
+      if (interval === 1) {
+        return unit === "day"
+          ? t("dashboard.recurrenceDaily")
+          : unit === "week"
+            ? t("dashboard.recurrenceWeekly")
+            : t("dashboard.recurrenceMonthly");
+      }
+      const unitLabel =
+        unit === "day"
+          ? t("dashboard.recurrenceUnitDays")
+          : unit === "week"
+            ? t("dashboard.recurrenceUnitWeeks")
+            : t("dashboard.recurrenceUnitMonths");
+      return t("dashboard.recurrenceEvery", { count: String(interval), unit: unitLabel });
+    }
+    return t("dashboard.recurrenceCustom");
+  }
+
+  const recurrenceToggleLabel = showRecurrenceFrequency
+    ? t("dashboard.recurringHideFrequency")
+    : t("dashboard.recurringShowFrequency");
   const moveUpDisabledTitle = !canReorder
     ? reorderDisabledReason || undefined
     : !canMoveUp
@@ -221,6 +291,17 @@ export function TodayChoreCard({
                 ) : null}
               </span>
               <span className="block break-words">{chore.assigneeName}</span>
+              {chore.newSkillBonusEligible ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700"
+                  title={t("dashboard.newSkillBonusTooltip", {
+                    amount: String(newSkillBonusAmount),
+                  })}>
+                  <span aria-hidden="true">&#10024;</span>
+                  {t("dashboard.newSkillBadge", { amount: String(newSkillBonusAmount) })}
+                  <CoinIcon size={14} />
+                </span>
+              ) : null}
               {(chore.categories?.length ?? 0) > 0 ? (
                 <ChoreCategoriesChip categories={chore.categories} className="today-chore-categories-chip" />
               ) : null}
@@ -232,6 +313,24 @@ export function TodayChoreCard({
                 <span className="today-chore-drag-handle" aria-hidden="true" title="Drag to reorder">
                   &#8942;&#8942;
                 </span>
+              ) : null}
+              {recurring ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  aria-label={recurrenceToggleLabel}
+                  aria-pressed={showRecurrenceFrequency}
+                  title={recurrenceToggleLabel}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setShowRecurrenceFrequency((value) => !value);
+                  }}>
+                  {showRecurrenceFrequency ? (
+                    <span>{recurrenceFrequencyLabel()}</span>
+                  ) : (
+                    <CalendarRecurrenceIcon />
+                  )}
+                </button>
               ) : null}
               <span
                 className="inline-flex items-center gap-1 text-lg font-bold leading-none text-amber-600"

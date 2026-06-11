@@ -19,6 +19,7 @@ type ApplyWalletDeltaInput = {
   reason:
     | "chore_complete"
     | "chore_undo_complete"
+    | "new_skill_bonus"
     | "store_purchase"
     | "manual_adjustment";
   choreId?: string;
@@ -27,7 +28,12 @@ type ApplyWalletDeltaInput = {
 };
 
 function ledgerEntryId(input: ApplyWalletDeltaInput) {
-  if ((input.reason === "chore_complete" || input.reason === "chore_undo_complete") && input.choreId) {
+  if (
+    (input.reason === "chore_complete" ||
+      input.reason === "chore_undo_complete" ||
+      input.reason === "new_skill_bonus") &&
+    input.choreId
+  ) {
     return `${input.reason}_${input.choreId}`;
   }
   return randomUUID();

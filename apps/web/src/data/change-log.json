@@ -1,5 +1,13 @@
 [
   {
+    "id": "new-skill-bonus",
+    "date": "2026-06-11",
+    "type": "Feature",
+    "subject": "New Skill Bonus for first-time chores",
+    "description": "Kids now earn a one-time +5 coin New Skill Bonus the first time they ever complete a chore — including the first time they tackle a recurring chore. The dashboard shows a sparkly \"New Skill +5\" badge on chores a child hasn't done before, and recurring chores get a calendar icon you can tap to reveal how often they repeat.",
+    "image": "/file.svg"
+  },
+  {
     "id": "family-kiosk-mode",
     "date": "2026-06-11",
     "type": "Feature",

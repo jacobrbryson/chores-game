@@ -133,6 +133,34 @@ export function recurrenceLabel(config: ChoreRecurrenceConfig) {
   return `Repeats every ${interval} ${unitLabel}`;
 }
 
+// Compact recurrence summary for dense UI (dashboard chore rows). Unlike
+// `recurrenceLabel` ("Repeats weekly") this returns just the cadence
+// ("Weekly", "Every 2 weeks", "Custom") so it fits inline next to a chore.
+export function recurrenceShortLabel(config: ChoreRecurrenceConfig) {
+  if (config.recurrenceType === "none") {
+    return "";
+  }
+  if (config.recurrenceType === "instant") {
+    return "Instant";
+  }
+  if (config.recurrenceType === "daily") {
+    return "Daily";
+  }
+  if (config.recurrenceType === "weekly") {
+    return "Weekly";
+  }
+  if (config.recurrenceType === "monthly") {
+    return "Monthly";
+  }
+  const interval = Math.max(1, config.recurrenceInterval ?? DEFAULT_RECURRENCE_INTERVAL);
+  const unit = config.recurrenceUnit ?? "day";
+  if (interval === 1) {
+    return unit === "day" ? "Daily" : unit === "week" ? "Weekly" : "Monthly";
+  }
+  const unitLabel = unit === "day" ? "days" : unit === "week" ? "weeks" : "months";
+  return `Every ${interval} ${unitLabel}`;
+}
+
 function addMonths(baseDate: Date, months: number) {
   const nextDate = new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), 1));
   nextDate.setUTCMonth(nextDate.getUTCMonth() + months);

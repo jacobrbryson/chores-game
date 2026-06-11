@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import {
+  boolField,
   createOrReplaceDocument,
+  integerField,
   stringArrayField,
   stringField,
   timestampField,
@@ -38,6 +40,11 @@ type EmitFamilyActivityInput = {
   source?: string;
   authenticatedUid?: string;
   completedForPlayerId?: string;
+  // New Skill Bonus attribution. Set when a child earned the one-time +5 bonus
+  // as part of this completion/approval so feed/notification consumers can
+  // celebrate it without re-deriving the state.
+  newSkillBonusAwarded?: boolean;
+  newSkillBonusAmount?: number;
 };
 
 function normalizeId(value: string) {
@@ -75,6 +82,10 @@ export async function emitFamilyActivity(input: EmitFamilyActivityInput) {
       source: stringField(input.source ?? "app"),
       authenticatedUid: stringField(input.authenticatedUid ?? input.actorUid),
       completedForPlayerId: stringField(input.completedForPlayerId ?? ""),
+      newSkillBonusAwarded: boolField(Boolean(input.newSkillBonusAwarded)),
+      newSkillBonusAmount: integerField(
+        input.newSkillBonusAwarded ? input.newSkillBonusAmount ?? 0 : 0,
+      ),
       createdAt: timestampField(now),
     },
     input.idToken,

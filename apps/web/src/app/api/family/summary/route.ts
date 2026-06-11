@@ -36,6 +36,12 @@ import {
   normalizeCoinValue,
   normalizeRecurrenceConfig,
 } from "@/lib/chores/recurrence";
+import {
+  canonicalRecurringChoreId,
+  loadClaimedSkillBonusKeys,
+  NEW_SKILL_BONUS_AMOUNT,
+  skillBonusEligibilityKey,
+} from "@/lib/chores/skill-bonus";
 import { normalizeChoreType } from "@/lib/chores/types";
 import { DEFAULT_LOCALE, resolveAppLocale } from "@/lib/locale";
 
@@ -394,12 +400,14 @@ export async function GET(request: NextRequest) {
           minIntervalSeconds: 60,
         });
 
-        const [familyDoc, memberDocs, choreDocs, categories] = await Promise.all([
-          getDocument(`families/${familyId}`, idToken),
-          listDocuments(`families/${familyId}/members`, idToken, 100),
-          listAllDocuments(`families/${familyId}/chores`, idToken, { cap: MAX_SUMMARY_CHORES }),
-          listFamilyCategories(familyId, idToken),
-        ]);
+        const [familyDoc, memberDocs, choreDocs, categories, claimedSkillBonusKeys] =
+          await Promise.all([
+            getDocument(`families/${familyId}`, idToken),
+            listDocuments(`families/${familyId}/members`, idToken, 100),
+            listAllDocuments(`families/${familyId}/chores`, idToken, { cap: MAX_SUMMARY_CHORES }),
+            listFamilyCategories(familyId, idToken),
+            loadClaimedSkillBonusKeys(familyId, idToken),
+          ]);
         const viewerAssigneeAliases = buildViewerAssigneeAliases(
           memberDocs,
           session.uid,
@@ -430,6 +438,47 @@ export async function GET(request: NextRequest) {
             deleted: readBoolean(doc.fields, "deleted"),
           }))
           .filter((member) => !member.deleted);
+
+        // Maps every assignee alias (member id, uid, email) to the member's
+        // canonical Firebase uid so per-chore New Skill Bonus eligibility can be
+        // resolved against the durable claim records.
+        const assigneeUidByAlias = new Map<string, string>();
+        for (const member of rawMembers) {
+          if (!member.uid) {
+            continue;
+          }
+          assigneeUidByAlias.set(member.id, member.uid);
+          assigneeUidByAlias.set(member.uid, member.uid);
+          const normalizedMemberEmail = normalizeEmail(member.email);
+          if (normalizedMemberEmail) {
+            assigneeUidByAlias.set(normalizedMemberEmail, member.uid);
+          }
+        }
+        // Eligibility is only computed for clearly single-assignee chores: for
+        // multi/family chores assignees differ per child, so we omit the badge
+        // rather than risk promising a bonus the viewing child won't get.
+        function resolveNewSkillBonusEligible(
+          fields: Record<string, FirestoreValue> | undefined,
+          choreId: string,
+          choreType: string,
+          assigneeScope: "single" | "multiple" | "family",
+          assigneeId: string,
+        ) {
+          if (assigneeScope !== "single" || choreType === "see_and_do") {
+            return false;
+          }
+          const assigneeUid =
+            assigneeUidByAlias.get(assigneeId) ||
+            assigneeUidByAlias.get(normalizeEmail(assigneeId)) ||
+            "";
+          if (!assigneeUid) {
+            return false;
+          }
+          const rootChoreId = canonicalRecurringChoreId(fields, choreId);
+          return !claimedSkillBonusKeys.has(
+            skillBonusEligibilityKey(assigneeUid, rootChoreId),
+          );
+        }
 
         const normalizedSessionEmail = session.email.trim().toLowerCase();
         const viewerMember =
@@ -788,6 +837,19 @@ export async function GET(request: NextRequest) {
                   : ("manual" as const),
               sortOrder: readOptionalSortOrder(doc.fields),
               createdAt: readTimestamp(doc.fields, "createdAt") || undefined,
+              newSkillBonusEligible: resolveNewSkillBonusEligible(
+                doc.fields,
+                documentIdFromName(doc.name),
+                normalizeChoreType(
+                  readString(doc.fields, "choreType"),
+                  readString(doc.fields, "assigneeScope") === "family" ||
+                    readStringArray(doc.fields, "assigneeIds").length > 1
+                    ? "group"
+                    : "normal",
+                ),
+                parseAssigneeScope(readString(doc.fields, "assigneeScope")),
+                readString(doc.fields, "assigneeId"),
+              ),
             }))
             .filter(
               (chore) =>
@@ -820,6 +882,10 @@ export async function GET(request: NextRequest) {
               recurrenceType: chore.recurrence.recurrenceType,
               recurrenceInterval: chore.recurrence.recurrenceInterval,
               recurrenceUnit: chore.recurrence.recurrenceUnit,
+              newSkillBonusEligible: chore.newSkillBonusEligible,
+              newSkillBonusAmount: chore.newSkillBonusEligible
+                ? NEW_SKILL_BONUS_AMOUNT
+                : undefined,
               source: chore.source,
               status:
                 chore.status === "Open" ||
