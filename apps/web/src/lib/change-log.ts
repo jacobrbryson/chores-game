@@ -15,10 +15,27 @@ export type ChangeLogEntry = {
 
 export type ChangeLogEntryGroup = {
   date: string;
+  slug: string;
+  startDate: string;
+  endDate: string;
   entries: ChangeLogEntry[];
   features: ChangeLogEntry[];
   bugFixes: ChangeLogEntry[];
 };
+
+type ChangeLogDateRange = {
+  slug: string;
+  startDate: string;
+  endDate: string;
+};
+
+const CHANGE_LOG_DATE_RANGES: ChangeLogDateRange[] = [
+  {
+    slug: "2026-06-14",
+    startDate: "2026-06-11",
+    endDate: "2026-06-14",
+  },
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -78,32 +95,54 @@ export function getChangeLogEntries(): ChangeLogEntry[] {
   return validateChangeLogEntries(rawChangeLogEntries);
 }
 
-export function getChangeLogEntryGroup(date: string): ChangeLogEntryGroup | null {
-  const entries = getChangeLogEntries().filter((entry) => entry.date === date);
-  if (entries.length === 0) {
-    return null;
-  }
+function toChangeLogEntryGroup(
+  date: string,
+  entries: ChangeLogEntry[],
+  range?: ChangeLogDateRange,
+): ChangeLogEntryGroup {
   return {
     date,
+    slug: range?.slug ?? date,
+    startDate: range?.startDate ?? date,
+    endDate: range?.endDate ?? date,
     entries,
     features: entries.filter((entry) => entry.type === "Feature"),
     bugFixes: entries.filter((entry) => entry.type === "Bug Fix"),
   };
 }
 
+function isEntryInRange(entry: ChangeLogEntry, range: ChangeLogDateRange) {
+  return entry.date >= range.startDate && entry.date <= range.endDate;
+}
+
+function getRangeForDate(date: string) {
+  return CHANGE_LOG_DATE_RANGES.find((range) => date >= range.startDate && date <= range.endDate);
+}
+
+export function getChangeLogEntryGroup(slugOrDate: string): ChangeLogEntryGroup | null {
+  const range = CHANGE_LOG_DATE_RANGES.find((candidate) => candidate.slug === slugOrDate) ?? getRangeForDate(slugOrDate);
+  const entries = getChangeLogEntries().filter((entry) =>
+    range ? isEntryInRange(entry, range) : entry.date === slugOrDate,
+  );
+  if (entries.length === 0) {
+    return null;
+  }
+  return toChangeLogEntryGroup(range?.endDate ?? slugOrDate, entries, range);
+}
+
 export function getChangeLogEntryGroups(): ChangeLogEntryGroup[] {
   const groups = new Map<string, ChangeLogEntry[]>();
   for (const entry of getChangeLogEntries()) {
-    const current = groups.get(entry.date) ?? [];
+    const range = getRangeForDate(entry.date);
+    const key = range?.slug ?? entry.date;
+    const current = groups.get(key) ?? [];
     current.push(entry);
-    groups.set(entry.date, current);
+    groups.set(key, current);
   }
   return [...groups.entries()]
-    .sort(([leftDate], [rightDate]) => rightDate.localeCompare(leftDate))
-    .map(([date, entries]) => ({
-      date,
-      entries,
-      features: entries.filter((entry) => entry.type === "Feature"),
-      bugFixes: entries.filter((entry) => entry.type === "Bug Fix"),
-    }));
+    .map(([key, entries]) => {
+      const range = CHANGE_LOG_DATE_RANGES.find((candidate) => candidate.slug === key);
+      return toChangeLogEntryGroup(range?.endDate ?? key, entries, range);
+    })
+    .sort((left, right) => right.endDate.localeCompare(left.endDate));
 }

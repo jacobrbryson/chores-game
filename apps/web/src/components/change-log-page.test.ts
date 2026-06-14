@@ -9,7 +9,7 @@ describe("ChangeLogPage source", () => {
 
     expect(source).toContain("const groups = getChangeLogEntryGroups()");
     expect(source).toContain("const group = getChangeLogEntryGroup(date)");
-    expect(source).toContain('href={`/change-log/${group.date}`}');
+    expect(source).toContain('href={`/change-log/${group.slug}`}');
     expect(source).toContain("group.entries.map((entry) =>");
     expect(source).toContain("entry.subject");
     expect(source).toContain("entry.description");

@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ChangeLogTabs } from "@/components/change-log-tabs";
-import { getChangeLogEntryGroup, getChangeLogEntryGroups, type ChangeLogEntryType } from "@/lib/change-log";
+import { getChangeLogEntryGroup, getChangeLogEntryGroups, type ChangeLogEntryGroup, type ChangeLogEntryType } from "@/lib/change-log";
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
@@ -18,6 +18,25 @@ export function formatChangeLogDate(value: string, locale: string) {
     day: "numeric",
     timeZone: "UTC",
   }).format(new Date(parsed));
+}
+
+export function formatChangeLogGroupDate(group: ChangeLogEntryGroup, locale: string) {
+  if (group.startDate === group.endDate) {
+    return formatChangeLogDate(group.date, locale);
+  }
+
+  const start = Date.parse(`${group.startDate}T00:00:00Z`);
+  const end = Date.parse(`${group.endDate}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end)) {
+    return `${group.startDate} - ${group.endDate}`;
+  }
+
+  return new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  }).formatRange(new Date(start), new Date(end));
 }
 
 function changeTypeKey(type: ChangeLogEntryType) {
@@ -127,11 +146,11 @@ export function ChangeLogIndexContent({ locale, t }: { locale: string; t: Transl
       recentContent={
       <section className="change-log-day-list" aria-label={t("changeLog.title")}>
         {groups.map((group) => (
-          <Link key={group.date} href={`/change-log/${group.date}`} className="family-page-card change-log-day-card">
+          <Link key={group.slug} href={`/change-log/${group.slug}`} className="family-page-card change-log-day-card">
             <div className="change-log-day-card-header">
-              <time dateTime={group.date} className="change-log-date">
+              <time dateTime={group.startDate === group.endDate ? group.date : `${group.startDate}/${group.endDate}`} className="change-log-date">
                 <CalendarIcon />
-                {formatChangeLogDate(group.date, locale)}
+                {formatChangeLogGroupDate(group, locale)}
               </time>
               <span className="change-log-day-card-arrow" aria-hidden="true">
                 →
@@ -180,9 +199,11 @@ export function ChangeLogDateContent({
     );
   }
 
+  const formattedDate = formatChangeLogGroupDate(group, locale);
+
   return renderPageShell(
-    formatChangeLogDate(group.date, locale),
-    t("changeLog.daySubtitle", { date: formatChangeLogDate(group.date, locale) }),
+    formattedDate,
+    t("changeLog.daySubtitle", { date: formattedDate }),
     <section className="change-log-list" aria-label={t("changeLog.title")}>
       {group.entries.map((entry) => {
         const badgeClass =

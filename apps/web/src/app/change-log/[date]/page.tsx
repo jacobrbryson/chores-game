@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { createTranslator } from "@packages/locales";
-import { ChangeLogDateContent, formatChangeLogDate } from "@/components/change-log-page";
+import { ChangeLogDateContent, formatChangeLogGroupDate } from "@/components/change-log-page";
 import { parseSessionToken } from "@/lib/auth/session";
 import { getChangeLogEntryGroup } from "@/lib/change-log";
 import { DEFAULT_LOCALE } from "@/lib/locale";
@@ -21,18 +21,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const formattedDate = formatChangeLogDate(group.date, DEFAULT_LOCALE);
+  const formattedDate = formatChangeLogGroupDate(group, DEFAULT_LOCALE);
   const description = `Family Chores app updates and fixes published on ${formattedDate}.`;
 
   return {
     title: `Change Log — ${formattedDate}`,
     description,
-    alternates: { canonical: `/change-log/${group.date}` },
+    alternates: { canonical: `/change-log/${group.slug}` },
     openGraph: {
       type: "article",
       title: `Change Log — ${formattedDate} | Family Chores`,
       description,
-      url: `/change-log/${group.date}`,
+      url: `/change-log/${group.slug}`,
     },
   };
 }
@@ -49,5 +49,5 @@ export default async function ChangeLogDateRoute({ params }: Props) {
   const locale = sessionUser?.locale || DEFAULT_LOCALE;
   const t = createTranslator({ locale });
 
-  return <ChangeLogDateContent date={group.date} locale={locale} t={t} />;
+  return <ChangeLogDateContent date={group.slug} locale={locale} t={t} />;
 }

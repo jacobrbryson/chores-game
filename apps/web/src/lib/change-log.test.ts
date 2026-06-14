@@ -34,10 +34,22 @@ describe("change log data", () => {
 
     for (const group of groups) {
       expect(group.entries.length).toBeGreaterThan(0);
-      expect(group.entries.every((entry) => entry.date === group.date)).toBe(true);
+      expect(group.slug).toBeTruthy();
+      expect(group.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(group.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(group.entries.every((entry) => entry.date >= group.startDate && entry.date <= group.endDate)).toBe(true);
       expect(group.features.every((entry) => entry.type === "Feature")).toBe(true);
       expect(group.bugFixes.every((entry) => entry.type === "Bug Fix")).toBe(true);
     }
+  });
+
+  it("combines June 11 through June 14 into one public group", () => {
+    const group = getChangeLogEntryGroup("2026-06-14");
+
+    expect(group?.startDate).toBe("2026-06-11");
+    expect(group?.endDate).toBe("2026-06-14");
+    expect(group?.entries.length).toBeGreaterThan(1);
+    expect(group?.entries.every((entry) => entry.date >= "2026-06-11" && entry.date <= "2026-06-14")).toBe(true);
   });
 
   it("returns a single date group when requested", () => {
@@ -45,7 +57,9 @@ describe("change log data", () => {
     expect(firstEntry).toBeTruthy();
 
     const group = getChangeLogEntryGroup(firstEntry.date);
-    expect(group?.date).toBe(firstEntry.date);
-    expect(group?.entries.some((entry) => entry.id === firstEntry.id)).toBe(true);
+    expect(group).toBeTruthy();
+    expect(group!.startDate <= firstEntry.date).toBe(true);
+    expect(group!.endDate >= firstEntry.date).toBe(true);
+    expect(group!.entries.some((entry) => entry.id === firstEntry.id)).toBe(true);
   });
 });

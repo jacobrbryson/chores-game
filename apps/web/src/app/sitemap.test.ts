@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/change-log", () => ({
   getChangeLogEntryGroups: () => [
-    { date: "2026-06-01" },
-    { date: "2026-05-01" },
+    { slug: "2026-06-01", endDate: "2026-06-01" },
+    { slug: "2026-05-01", endDate: "2026-05-01" },
   ],
 }));
 
