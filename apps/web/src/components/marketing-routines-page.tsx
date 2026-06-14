@@ -1,7 +1,7 @@
 import Link from "next/link";
+import routinesWorkflowImage from "../../public/routines-workflow.png";
 import {
   APP_STATS,
-  MARKETING_CTA_BACKGROUND_IMAGE,
   MarketingCta,
   MarketingImageFrame,
   MarketingSectionIntro,
@@ -123,9 +123,11 @@ export function routinesFaqStructuredData() {
 export function MarketingRoutinesPage() {
   return (
     <main className="marketing-home">
-      <section className="marketing-hero panel" aria-labelledby="routines-page-title">
+      <section
+        className="marketing-hero marketing-routines-hero panel"
+        aria-labelledby="routines-page-title">
         <div className="marketing-hero-grid">
-          <div className="hero-copy marketing-hero-copy">
+          <div className="marketing-hero-copy marketing-hero-copy-plain">
             <span className="marketing-hero-kicker">Chore routines for kids</span>
             <h1 id="routines-page-title">
               Group today&apos;s chores into routines that build tomorrow&apos;s habits.
@@ -144,20 +146,13 @@ export function MarketingRoutinesPage() {
                 See example routines
               </Link>
             </div>
-            <p className="marketing-hero-actions-note">
-              Families using routines complete {APP_STATS.routineCompletionBoost} more
-              chores. Over {APP_STATS.routinesCompleted} routines finished platform-wide.
-            </p>
           </div>
           <div className="marketing-hero-side">
             <MarketingImageFrame
-              src={MARKETING_CTA_BACKGROUND_IMAGE.src}
-              alt={MARKETING_CTA_BACKGROUND_IMAGE.alt}
-              width={MARKETING_CTA_BACKGROUND_IMAGE.width}
-              height={MARKETING_CTA_BACKGROUND_IMAGE.height}
+              src={routinesWorkflowImage}
+              alt="Family Chores routine workflow."
               priority
               className="marketing-image-hero"
-              caption="One routine, four chores, one habit — assigned in a single step."
             />
           </div>
         </div>
@@ -230,14 +225,17 @@ export function MarketingRoutinesPage() {
       <section className="marketing-section" aria-labelledby="routine-data-title">
         <MarketingSectionIntro
           id="routine-data-title"
-          eyebrow="From real Family Chores data"
+          eyebrow="Routine planning guide"
           title="Routines, by the numbers."
-          description="Aggregated and anonymized across the platform."
+          description="Practical benchmarks for building routines kids can actually finish."
         />
         <MarketingStatStrip
           ariaLabel="Platform routine statistics"
           stats={[
-            { value: APP_STATS.routinesCompleted, label: "routines completed by families" },
+            {
+              value: APP_STATS.recommendedDailyRoutineSteps,
+              label: "focused steps for most daily routines",
+            },
             {
               value: APP_STATS.routineCompletionBoost,
               label: "more chores completed by families that use routines",
@@ -262,7 +260,7 @@ export function MarketingRoutinesPage() {
           id="routines-faq-title"
           eyebrow="Common questions"
           title="Routines: what parents ask us."
-          description="The short version of what we've learned from tens of thousands of completed routines."
+          description="The short version of what we recommend when parents start turning chores into routines."
         />
         <div className="marketing-card-grid">
           {faqs.map((faq) => (

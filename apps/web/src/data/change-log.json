@@ -1,5 +1,45 @@
 [
   {
+    "id": "routines-page-stat-copy",
+    "date": "2026-06-14",
+    "type": "Bug Fix",
+    "subject": "Routines page now uses a more realistic public metric",
+    "description": "The public Routines page now highlights practical routine guidance instead of an inflated completed-routines count.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "mobile-kiosk-live-refresh",
+    "date": "2026-06-14",
+    "type": "Bug Fix",
+    "subject": "Mobile Kiosk Mode updates live again",
+    "description": "Kiosk Mode on mobile now refreshes when chores change elsewhere in the family, so a shared tablet stays in sync after parents add, edit, complete, approve, or remove chores from another device.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "routine-editor-new-badge-fix",
+    "date": "2026-06-14",
+    "type": "Bug Fix",
+    "subject": "Editing a routine no longer marks every step as new",
+    "description": "The Routines page now stops showing a New badge on every step while you edit a routine template. That badge is only meant for chores that are newly introduced for the child a routine is assigned to, not for the reusable routine itself.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "routine-reassign-moves-whole-routine",
+    "date": "2026-06-14",
+    "type": "Bug Fix",
+    "subject": "Reassigning a routine step now moves the whole routine",
+    "description": "Changing the assignee on a chore that belongs to a routine now moves the entire routine — every remaining open step and the routine's progress — to the new child, instead of splitting the routine's steps across kids. This fixes a mismatch where the dashboard and the routine progress view disagreed about which steps were still open after a routine was handed to someone else.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "routine-step-pending-approval",
+    "date": "2026-06-14",
+    "type": "Bug Fix",
+    "subject": "Routine steps awaiting approval no longer look unfinished",
+    "description": "When a child completes a routine step that needs a parent's approval, the routine progress dialog now shows that step as \"Pending approval\" instead of offering a Done button that did nothing. This clears up the mismatch where the dashboard had already advanced to the next step but the routine still showed the earlier step as available to complete.",
+    "image": "/file.svg"
+  },
+  {
     "id": "mobile-kiosk-mode-screen",
     "date": "2026-06-14",
     "type": "Feature",

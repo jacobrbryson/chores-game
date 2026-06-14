@@ -1,7 +1,7 @@
 import Link from "next/link";
+import pillarsWorkflowImage from "../../public/pillars-workflow.png";
 import {
   APP_STATS,
-  MARKETING_CTA_BACKGROUND_IMAGE,
   MarketingCta,
   MarketingImageFrame,
   MarketingSectionIntro,
@@ -101,16 +101,14 @@ export function pillarsFaqStructuredData() {
   };
 }
 
-export function MarketingPillarsPage({
-  useHomepageCtaHero = false,
-}: {
-  useHomepageCtaHero?: boolean;
-}) {
+export function MarketingPillarsPage() {
   return (
     <main className="marketing-home">
-      <section className="marketing-hero panel" aria-labelledby="pillars-page-title">
+      <section
+        className="marketing-hero marketing-pillars-hero panel"
+        aria-labelledby="pillars-page-title">
         <div className="marketing-hero-grid">
-          <div className="hero-copy marketing-hero-copy">
+          <div className="marketing-hero-copy marketing-hero-copy-plain">
             <span className="marketing-hero-kicker">The Pillars of Responsibility</span>
             <h1 id="pillars-page-title">
               Chores end. The skills they build shouldn&apos;t.
@@ -137,21 +135,10 @@ export function MarketingPillarsPage({
           </div>
           <div className="marketing-hero-side">
             <MarketingImageFrame
-              src={useHomepageCtaHero ? MARKETING_CTA_BACKGROUND_IMAGE.src : "/saas_flow.png"}
-              alt={
-                useHomepageCtaHero
-                  ? MARKETING_CTA_BACKGROUND_IMAGE.alt
-                  : "A child's Responsibility Progress card showing five pillar bars with levels and XP."
-              }
-              width={MARKETING_CTA_BACKGROUND_IMAGE.width}
-              height={MARKETING_CTA_BACKGROUND_IMAGE.height}
+              src={pillarsWorkflowImage}
+              alt="Family Chores Responsibility Pillars workflow."
               priority
               className="marketing-image-hero"
-              caption={
-                useHomepageCtaHero
-                  ? undefined
-                  : "The Responsibility Progress card: five pillars, levels, XP, routines completed."
-              }
             />
           </div>
         </div>

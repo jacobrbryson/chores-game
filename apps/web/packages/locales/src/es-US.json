@@ -1539,6 +1539,7 @@
       "completed": "¡Completada!",
       "skipped": "{count} omitido(s)",
       "skippedTag": "Omitido",
+      "pendingApproval": "Pendiente de aprobación",
       "markDone": "Listo",
       "markingDone": "Guardando...",
       "undo": "Deshacer",

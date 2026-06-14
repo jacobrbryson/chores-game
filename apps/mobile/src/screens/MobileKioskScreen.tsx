@@ -1,6 +1,7 @@
 import React from "react";
 import {
   ActivityIndicator,
+  AppState,
   Modal,
   Pressable,
   ScrollView,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/api";
 import { useMobileLocale } from "@/lib/locale";
 import { collapseRoutineChores } from "@/lib/routine-chores";
+import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
 import { MobileAllDoneCelebration } from "@/components/MobileAllDoneCelebration";
 import { CONFETTI_DURATION_MS, MobileConfetti } from "@/components/MobileConfetti";
 import { MobileRoutineProgressDialog } from "@/components/MobileRoutineProgressDialog";
@@ -85,6 +87,7 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
   const [roster, setRoster] = React.useState<RosterMember[]>([]);
   const [allChores, setAllChores] = React.useState<MobileFamilyChore[]>([]);
   const [coinsByMember, setCoinsByMember] = React.useState<Record<string, number>>({});
+  const [realtime, setRealtime] = React.useState<{ authToken: string; familyId: string } | null>(null);
   const [activeId, setActiveId] = React.useState(activeMemberId ?? "");
   const [pinRequired, setPinRequired] = React.useState(false);
   const [switching, setSwitching] = React.useState(false);
@@ -100,11 +103,15 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
   const [burstLabel, setBurstLabel] = React.useState("");
   const [celebrating, setCelebrating] = React.useState(false);
   const burstTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(
     () => () => {
       if (burstTimer.current) {
         clearTimeout(burstTimer.current);
+      }
+      if (refreshTimer.current) {
+        clearTimeout(refreshTimer.current);
       }
     },
     [],
@@ -150,6 +157,15 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
       setCoinsByMember(
         Object.fromEntries(summary.members.map((m) => [m.id, m.stats?.currentCoins ?? 0])),
       );
+      const authToken = summary.wsAuthToken?.trim() ?? "";
+      const familyId = summary.family?.id ?? "";
+      if (authToken && familyId) {
+        setRealtime((current) =>
+          current?.authToken === authToken && current.familyId === familyId
+            ? current
+            : { authToken, familyId },
+        );
+      }
       const viewerMember = summary.members.find(
         (m) => m.uid === summary.viewerUid || m.id === summary.viewerUid,
       );
@@ -164,6 +180,59 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
   React.useEffect(() => {
     void load();
   }, [load]);
+
+  const scheduleRefresh = React.useCallback(() => {
+    if (refreshTimer.current) {
+      clearTimeout(refreshTimer.current);
+    }
+    refreshTimer.current = setTimeout(() => {
+      void load().catch(() => {
+        // Keep the cached kiosk state if a background refresh fails.
+      });
+    }, 120);
+  }, [load]);
+
+  React.useEffect(() => {
+    if (!realtime) {
+      return;
+    }
+    const socket = connectFamilySocket({ authToken: realtime.authToken });
+    if (!socket) {
+      return;
+    }
+
+    const onFamilyActivity = (event: FamilyActivityEvent) => {
+      if (event.familyId !== realtime.familyId) {
+        return;
+      }
+      scheduleRefresh();
+    };
+    const onConnect = () => {
+      scheduleRefresh();
+    };
+
+    socket.on("family:activity", onFamilyActivity);
+    socket.on("connect", onConnect);
+    return () => {
+      socket.off("family:activity", onFamilyActivity);
+      socket.off("connect", onConnect);
+    };
+  }, [realtime, scheduleRefresh]);
+
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        scheduleRefresh();
+      }
+    });
+    const interval = setInterval(() => {
+      scheduleRefresh();
+    }, 30000);
+    return () => {
+      subscription.remove();
+      clearInterval(interval);
+    };
+  }, [scheduleRefresh]);
 
   const activeMember = members.find((m) => m.id === activeId) ?? null;
   // Routine assignments surface only their next incomplete step, same as the

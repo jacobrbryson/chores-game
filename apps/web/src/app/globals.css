@@ -1453,6 +1453,13 @@ body {
     linear-gradient(180deg, #fdfefe, #eff6ff);
 }
 
+.marketing-routines-hero.panel,
+.marketing-pillars-hero.panel {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
 .marketing-hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
@@ -6513,8 +6520,17 @@ white-space: nowrap;
   gap: 14px;
 }
 
+.family-member-profile-stack {
+  display: grid;
+  gap: 16px;
+}
+
 .family-member-profile-grid {
   margin-bottom: 14px;
+}
+
+.family-member-profile-stack .family-member-profile-grid {
+  margin-bottom: 0;
 }
 
 .profile-page-avatar-card,
@@ -9235,6 +9251,10 @@ a.family-award-claim-card:focus-visible {
 
 .profile-owned-items-card {
   margin-top: 0.95rem;
+}
+
+.profile-family-summary-stack .profile-owned-items-card {
+  margin-top: 0;
 }
 
 .profile-owned-items-grid {

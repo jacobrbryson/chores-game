@@ -570,44 +570,46 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        for (const member of rawMembers) {
-          const statsKey = resolveMemberStatsKey(member);
-          const currentStats = memberStatsByKey.get(statsKey);
-          if (!currentStats) {
-            continue;
-          }
-          let ledgerLifetimeCoinsEarned = 0;
-          if (member.uid) {
-            try {
-              const ledgerDocs = await listAllDocuments(
-                `users/${member.uid}/walletLedger`,
-                idToken,
-                { cap: 1000 },
-              );
-              ledgerLifetimeCoinsEarned = ledgerDocs.reduce((total, ledgerDoc) => {
-                if (readBoolean(ledgerDoc.fields, "countsTowardBalance") === false) {
-                  return total;
+        await Promise.all(
+          rawMembers.map(async (member) => {
+            const statsKey = resolveMemberStatsKey(member);
+            const currentStats = memberStatsByKey.get(statsKey);
+            if (!currentStats) {
+              return;
+            }
+            let ledgerLifetimeCoinsEarned = 0;
+            if (member.uid) {
+              try {
+                const ledgerDocs = await listAllDocuments(
+                  `users/${member.uid}/walletLedger`,
+                  idToken,
+                  { cap: 1000 },
+                );
+                ledgerLifetimeCoinsEarned = ledgerDocs.reduce((total, ledgerDoc) => {
+                  if (readBoolean(ledgerDoc.fields, "countsTowardBalance") === false) {
+                    return total;
+                  }
+                  const creditAmount = readInteger(ledgerDoc.fields, "creditAmount");
+                  if (creditAmount > 0) {
+                    return total + creditAmount;
+                  }
+                  const delta = readInteger(ledgerDoc.fields, "delta");
+                  return delta > 0 ? total + delta : total;
+                }, 0);
+              } catch (error) {
+                const reason = error instanceof Error ? error.message : "";
+                if (!reason.includes("FIRESTORE_HTTP_404")) {
+                  throw error;
                 }
-                const creditAmount = readInteger(ledgerDoc.fields, "creditAmount");
-                if (creditAmount > 0) {
-                  return total + creditAmount;
-                }
-                const delta = readInteger(ledgerDoc.fields, "delta");
-                return delta > 0 ? total + delta : total;
-              }, 0);
-            } catch (error) {
-              const reason = error instanceof Error ? error.message : "";
-              if (!reason.includes("FIRESTORE_HTTP_404")) {
-                throw error;
               }
             }
-          }
-          currentStats.lifetimeCoinsEarned = Math.max(
-            currentStats.lifetimeCoinsEarned,
-            ledgerLifetimeCoinsEarned,
-            currentStats.currentCoins,
-          );
-        }
+            currentStats.lifetimeCoinsEarned = Math.max(
+              currentStats.lifetimeCoinsEarned,
+              ledgerLifetimeCoinsEarned,
+              currentStats.currentCoins,
+            );
+          }),
+        );
 
         const assigneeColorByAlias = new Map<string, string>();
         const assigneeAvatarByAlias = new Map<string, string>();

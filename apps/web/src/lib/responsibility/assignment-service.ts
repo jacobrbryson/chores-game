@@ -694,6 +694,106 @@ export async function recordRoutineStepUnskipBestEffort(input: {
   }
 }
 
+// Reassigns a whole routine to a new child when the assignee of one of its step
+// chores is changed (the only way the UI exposes "move this routine to someone
+// else"). Editing a single step chore would otherwise only repoint that one
+// chore, scattering the routine's steps across kids and desyncing the
+// assignment document from its own steps. Here we keep the routine cohesive:
+// every still-open step chore and the assignment record itself move to the new
+// assignee. Steps the original child already finished or submitted stay with
+// them — that work (and any coins) is theirs and remains in the routine's
+// history. Best-effort: a failure never fails the underlying chore edit.
+export async function reassignRoutineAssignmentBestEffort(input: {
+  familyId: string;
+  idToken: string;
+  assignmentId: string;
+  assigneeId: string;
+  assigneeName: string;
+  // The step chore the caller already repointed (skip re-patching it).
+  excludeChoreId?: string;
+  actor: { uid: string; email: string; name: string };
+}): Promise<void> {
+  const { familyId, idToken, assignmentId, assigneeId, assigneeName, excludeChoreId, actor } =
+    input;
+  if (!assignmentId || !assigneeId) {
+    return;
+  }
+  try {
+    const assignmentPath = `families/${familyId}/routineAssignments/${assignmentId}`;
+    const assignmentDoc = await getDocument(assignmentPath, idToken);
+    if (readBoolean(assignmentDoc.fields, "deleted")) {
+      return;
+    }
+    const assignment = routineAssignmentFromDoc(assignmentDoc);
+    const now = new Date().toISOString();
+    // Repoint each still-open step chore. Completed/submitted/skipped steps keep
+    // their existing assignee so the original child's record is preserved.
+    await Promise.all(
+      assignment.steps
+        .filter((step) => step.choreId && step.choreId !== excludeChoreId)
+        .map(async (step) => {
+          try {
+            const choreDoc = await getDocument(
+              `families/${familyId}/chores/${step.choreId}`,
+              idToken,
+            );
+            if (readBoolean(choreDoc.fields, "deleted")) {
+              return;
+            }
+            if ((readString(choreDoc.fields, "status") || "Open") !== "Open") {
+              return;
+            }
+            await patchDocument(
+              `families/${familyId}/chores/${step.choreId}`,
+              {
+                assigneeId: stringField(assigneeId),
+                assigneeIds: stringArrayField([assigneeId]),
+                assigneeScope: stringField("single"),
+                assigneeName: stringField(assigneeName),
+                updatedAt: timestampField(now),
+              },
+              idToken,
+              ["assigneeId", "assigneeIds", "assigneeScope", "assigneeName", "updatedAt"],
+            );
+          } catch (error) {
+            const reason = error instanceof Error ? error.message : "";
+            if (!reason.includes("FIRESTORE_HTTP_404")) {
+              throw error;
+            }
+          }
+        }),
+    );
+    await patchDocument(
+      assignmentPath,
+      {
+        assigneeId: stringField(assigneeId),
+        assigneeName: stringField(assigneeName),
+        updatedAt: timestampField(now),
+      },
+      idToken,
+      ["assigneeId", "assigneeName", "updatedAt"],
+    );
+    await writeAuditLogBestEffort({
+      familyId,
+      idToken,
+      eventType: "routine_updated",
+      actor: { uid: actor.uid, email: actor.email, name: actor.name, role: "admin" },
+      userId: assigneeId,
+      previous: { assigneeId: assignment.assigneeId, assigneeName: assignment.assigneeName },
+      next: { assignmentId, routineId: assignment.routineId, assigneeId, assigneeName },
+      reason: "reassign_routine_assignment",
+    });
+    await publishFamilyActivity({
+      type: "routine_updated",
+      familyId,
+      occurredAt: now,
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.slice(0, 200) : "unknown";
+    console.error("[ROUTINE_REASSIGN_ERROR]", { familyId, assignmentId, reason });
+  }
+}
+
 const MAX_CHORE_SCAN = 4000;
 const MAX_ASSIGNMENT_SCAN = 2000;
 

@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
 import choreIdeas from "@/data/chore-ideas.json";
 
@@ -46,7 +46,7 @@ export const MARKETING_CTA_BACKGROUND_IMAGE = {
 export const APP_STATS = {
   families: "12,000+",
   choresCompleted: "1.4 million",
-  routinesCompleted: "86,000+",
+  recommendedDailyRoutineSteps: "3-5",
   routineCompletionBoost: "31%",
   averageRoutineSteps: "4.2",
   mostPopularRoutine: "Morning Routine",
@@ -136,10 +136,10 @@ export function MarketingImageFrame({
   priority,
   caption,
 }: {
-  src: string;
+  src: string | StaticImageData;
   alt: string;
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
   className?: string;
   priority?: boolean;
   caption?: string;

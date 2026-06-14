@@ -1517,6 +1517,7 @@
       "completed": "Completed!",
       "skipped": "{count} skipped",
       "skippedTag": "Skipped",
+      "pendingApproval": "Pending approval",
       "markDone": "Done",
       "markingDone": "Saving...",
       "undo": "Undo",

@@ -1539,6 +1539,7 @@
       "completed": "Terminée !",
       "skipped": "{count} passée(s)",
       "skippedTag": "Passée",
+      "pendingApproval": "En attente d'approbation",
       "markDone": "Terminer",
       "markingDone": "Enregistrement...",
       "undo": "Annuler",

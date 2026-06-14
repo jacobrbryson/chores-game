@@ -1015,6 +1015,8 @@ export function AddEditChoresDialog({
       ? `Coin value must be a whole number between 0 and ${MAX_CHORE_COIN_VALUE}.`
       : error === "custom_recurrence_interval_required"
         ? "Custom recurrence needs an interval of at least 1."
+        : error === "routine_step_single_assignee_only"
+          ? "Routine steps can only be assigned to one person. Pick a single assignee — changing it moves the whole routine to that person."
     : error;
 
   const descriptionSuggestionMenuNode =

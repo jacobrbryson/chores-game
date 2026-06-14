@@ -7,6 +7,7 @@ import {
   getDocument,
   patchDocument,
   readBoolean,
+  readString,
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
@@ -65,6 +66,34 @@ export async function GET(
           throw error;
         }
         const assignment = routineAssignmentFromDoc(assignmentDoc);
+        // The assignment only records steps once they are fully *approved*
+        // (completedStepIds). A step that has been completed by a child but is
+        // still awaiting parent approval sits in "Submitted" on its step chore,
+        // so it is neither Open (gone from the dashboard) nor in
+        // completedStepIds. Surface each step's live chore status so the
+        // progress dialog can show "pending approval" instead of offering a
+        // no-op "Done" button on a step that is already finished.
+        const stepStatusEntries = await Promise.all(
+          assignment.steps.map(async (step) => {
+            try {
+              const choreDoc = await getDocument(
+                `families/${familyId}/chores/${step.choreId}`,
+                idToken,
+              );
+              if (readBoolean(choreDoc.fields, "deleted")) {
+                return [step.id, "Deleted"] as const;
+              }
+              return [step.id, readString(choreDoc.fields, "status") || "Open"] as const;
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              if (reason.includes("FIRESTORE_HTTP_404")) {
+                return [step.id, "Deleted"] as const;
+              }
+              throw error;
+            }
+          }),
+        );
+        const stepStatusById = Object.fromEntries(stepStatusEntries);
         const config = await loadResponsibilityConfig();
         const completionBonusXp =
           assignment.completionBonusXp >= 0
@@ -73,6 +102,7 @@ export async function GET(
         return {
           kind: "ok" as const,
           assignment,
+          stepStatusById,
           completionBonusXp,
           stepXp: config.xpValues.routineStepXp,
           viewerRole,
@@ -87,6 +117,7 @@ export async function GET(
     }
     const response = NextResponse.json({
       assignment: data.assignment,
+      stepStatusById: data.stepStatusById,
       completionBonusXp: data.completionBonusXp,
       stepXp: data.stepXp,
       viewerRole: data.viewerRole,

@@ -63,6 +63,7 @@ import {
   recordRoutineStepSkipBestEffort,
   recordRoutineStepUndoBestEffort,
   recordRoutineStepUnskipBestEffort,
+  reassignRoutineAssignmentBestEffort,
   type RoutineStepProgressOutcome,
 } from "@/lib/responsibility/assignment-service";
 
@@ -2167,6 +2168,16 @@ export async function PATCH(
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
           const previousAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
           const previousTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
+          // Routine steps are single-assignee by model. Changing one step's
+          // assignee moves the whole routine (handled after the patch below), so
+          // a family/multiple scope on a routine step is not allowed.
+          const editChoreRoutineAssignmentId = readString(
+            existingChoreDoc.fields,
+            "routineAssignmentId",
+          );
+          if (editChoreRoutineAssignmentId && resolvedAssigneeScope !== "single") {
+            return { kind: "routine_step_single_assignee_only" as const };
+          }
           const choreSource = readString(existingChoreDoc.fields, "source");
           const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
           const existingCategoryIds = readChoreCategoryIds(existingChoreDoc.fields);
@@ -2265,6 +2276,24 @@ export async function PATCH(
               "updatedAt",
             ],
           );
+          // Changing a routine step's assignee moves the entire routine to the
+          // new child: every still-open step chore and the assignment record
+          // follow, so the routine never ends up split across kids.
+          if (
+            editChoreRoutineAssignmentId &&
+            resolvedSingleAssigneeId &&
+            resolvedSingleAssigneeId !== previousAssigneeId
+          ) {
+            await reassignRoutineAssignmentBestEffort({
+              familyId,
+              idToken,
+              assignmentId: editChoreRoutineAssignmentId,
+              assigneeId: resolvedSingleAssigneeId,
+              assigneeName: resolvedAssigneeName,
+              excludeChoreId: choreId,
+              actor: { uid: session.uid, email: session.email, name: actorName },
+            });
+          }
           await emitFamilyActivityBestEffort({
             familyId,
             idToken,
@@ -2342,6 +2371,12 @@ export async function PATCH(
     }
     if (data.kind === "not_routine_step") {
       return NextResponse.json({ error: "not_routine_step" }, { status: 400 });
+    }
+    if (data.kind === "routine_step_single_assignee_only") {
+      return NextResponse.json(
+        { error: "routine_step_single_assignee_only" },
+        { status: 400 },
+      );
     }
 
     const bonus = "newSkillBonus" in data ? data.newSkillBonus : undefined;

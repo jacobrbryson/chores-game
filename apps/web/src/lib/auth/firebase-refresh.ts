@@ -6,11 +6,50 @@ type FirebaseRefreshResponse = {
   user_id: string;
 };
 
+const ID_TOKEN_REFRESH_SKEW_SECONDS = 5 * 60;
+const inFlightRefreshes = new Map<string, Promise<SessionUser>>();
+
 function isFirestoreUnauthorizedError(error: unknown) {
   if (!(error instanceof Error)) {
     return false;
   }
   return error.message.includes("FIRESTORE_HTTP_401");
+}
+
+function decodeJwtExpiresAtSeconds(token: string | undefined) {
+  if (!token) {
+    return 0;
+  }
+
+  const [, payload] = token.split(".");
+  if (!payload) {
+    return 0;
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+      exp?: unknown;
+    };
+    return typeof parsed.exp === "number" && Number.isFinite(parsed.exp)
+      ? parsed.exp
+      : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function shouldRefreshBeforeFirestore(session: SessionUser) {
+  if (!session.firebaseRefreshToken) {
+    return false;
+  }
+  if (!session.firebaseIdToken) {
+    return true;
+  }
+  const expiresAtSeconds = decodeJwtExpiresAtSeconds(session.firebaseIdToken);
+  if (!expiresAtSeconds) {
+    return false;
+  }
+  return expiresAtSeconds - Math.floor(Date.now() / 1000) <= ID_TOKEN_REFRESH_SKEW_SECONDS;
 }
 
 async function refreshFirebaseSession(session: SessionUser) {
@@ -60,6 +99,23 @@ async function refreshFirebaseSession(session: SessionUser) {
   } satisfies SessionUser;
 }
 
+async function refreshFirebaseSessionOnce(session: SessionUser) {
+  const authenticated = getAuthenticatedSessionIdentity(session);
+  const refreshKey = `${authenticated.uid}:${session.firebaseRefreshToken ?? ""}`;
+  const existing = inFlightRefreshes.get(refreshKey);
+  if (existing) {
+    return existing;
+  }
+
+  const refreshPromise = refreshFirebaseSession(session);
+  inFlightRefreshes.set(refreshKey, refreshPromise);
+  try {
+    return await refreshPromise;
+  } finally {
+    inFlightRefreshes.delete(refreshKey);
+  }
+}
+
 export async function runWithRefreshedFirebaseToken<T>(
   session: SessionUser,
   work: (idToken: string) => Promise<T>,
@@ -75,6 +131,12 @@ export async function runWithRefreshedFirebaseToken<T>(
     return work(token);
   };
 
+  if (shouldRefreshBeforeFirestore(session)) {
+    const refreshedSession = await refreshFirebaseSessionOnce(session);
+    const data = await attempt(refreshedSession.firebaseIdToken);
+    return { data, session: refreshedSession, refreshed: true as const };
+  }
+
   try {
     const data = await attempt(session.firebaseIdToken);
     return { data, session, refreshed: false as const };
@@ -87,7 +149,7 @@ export async function runWithRefreshedFirebaseToken<T>(
     }
   }
 
-  const refreshedSession = await refreshFirebaseSession(session);
+  const refreshedSession = await refreshFirebaseSessionOnce(session);
   const data = await attempt(refreshedSession.firebaseIdToken);
   return { data, session: refreshedSession, refreshed: true as const };
 }

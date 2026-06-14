@@ -570,6 +570,7 @@ function RoutineEditorModal({
               onChange={setSteps}
               choreCatalog={choreCatalog}
               choreCatalogByTitle={choreCatalogByTitle}
+              showNewChoreBadge={false}
             />
           </div>
         </div>

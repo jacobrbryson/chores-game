@@ -307,7 +307,7 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
       {!isLoading && error ? <Alert>{t("family.memberProfileError", { error })}</Alert> : null}
 
       {!isLoading && !error && profile ? (
-        <>
+        <div className="family-member-profile-stack">
           <section className="profile-page-grid family-member-profile-grid">
             <article className="profile-page-avatar-card family-member-profile-card">
               <div className="family-member-profile-card-header">
@@ -432,7 +432,7 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
               void onClaimAward(awardId);
             }}
           />
-        </>
+        </div>
       ) : null}
       <AccountSwitchModal
         open={switchDialogOpen}

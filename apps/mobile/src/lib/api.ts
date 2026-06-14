@@ -345,6 +345,7 @@ export type MobileChoreDetail = MobileFamilyChore & {
 export type MobileFamilySummary = {
   viewerUid: string;
   viewerAssigneeAliases?: string[];
+  wsAuthToken?: string;
   noFamily: boolean;
   family: null | { id: string; name: string; defaultLocale?: AppLocale };
   members: MobileFamilyMember[];
@@ -626,6 +627,7 @@ export async function fetchMobileFamilySummary(): Promise<MobileFamilySummary> {
   return {
     viewerUid: typeof summary.viewerUid === "string" ? summary.viewerUid : "",
     viewerAssigneeAliases: Array.isArray(summary.viewerAssigneeAliases) ? summary.viewerAssigneeAliases : [],
+    wsAuthToken: typeof summary.wsAuthToken === "string" ? summary.wsAuthToken : "",
     noFamily: Boolean(summary.noFamily),
     family: summary.family ?? null,
     members: Array.isArray(summary.members) ? summary.members : [],

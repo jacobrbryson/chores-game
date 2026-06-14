@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import {
   MarketingPillarsPage,
   pillarsFaqStructuredData,
 } from "@/components/marketing-pillars-page";
-import { parseSessionToken } from "@/lib/auth/session";
 import { absoluteUrl, DEFAULT_OG_IMAGE } from "@/lib/seo";
 
 // Public SEO page describing the Responsibility Pillars system. Always
@@ -35,16 +33,13 @@ export const metadata: Metadata = {
 };
 
 export default async function PillarsOfResponsibilityRoute() {
-  const cookieStore = await cookies();
-  const sessionUser = parseSessionToken(cookieStore.get("session_user")?.value);
-
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(pillarsFaqStructuredData()) }}
       />
-      <MarketingPillarsPage useHomepageCtaHero={!sessionUser} />
+      <MarketingPillarsPage />
     </>
   );
 }

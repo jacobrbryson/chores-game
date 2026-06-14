@@ -29,6 +29,10 @@ type AssignmentPayload = {
     skippedStepIds: string[];
     completionBonusCoins: number;
   };
+  // Live chore status per step id (e.g. "Open", "Submitted", "Approved"). Lets
+  // the dialog distinguish a step that is awaiting parent approval from one that
+  // is still open, since the assignment only records steps once approved.
+  stepStatusById?: Record<string, string>;
   completionBonusXp?: number;
   stepXp?: number;
   error?: string;
@@ -133,6 +137,7 @@ export function RoutineProgressDialog({
   }
 
   const assignment = payload?.assignment;
+  const stepStatusById = payload?.stepStatusById ?? {};
   const completed = new Set(assignment?.completedStepIds ?? []);
   const skipped = new Set(assignment?.skippedStepIds ?? []);
   const completedCount = (assignment?.steps ?? []).filter((step) =>
@@ -207,7 +212,15 @@ export function RoutineProgressDialog({
               {assignment.steps.map((step) => {
                 const done = completed.has(step.id);
                 const isSkipped = !done && skipped.has(step.id);
+                const stepStatus = stepStatusById[step.id] ?? "Open";
+                // A step whose chore has been submitted but not yet approved is
+                // already done by the child — it just hasn't earned its coins.
+                // It is not "Open", so completing it again would fail; show it
+                // as pending instead of offering a no-op Done button.
+                const isPending = !done && !isSkipped && stepStatus === "Submitted";
                 const isResolved = done || isSkipped;
+                // Only a genuinely open step can be marked done from here.
+                const canMarkDone = !isResolved && !isPending && stepStatus === "Open";
                 // While the routine is in progress, an open step can be finished
                 // out of order, and a resolved step (done or skipped) can be
                 // reverted back to open. Once the routine has closed out the
@@ -221,9 +234,11 @@ export function RoutineProgressDialog({
                       className={`relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
                         done
                           ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                          : isSkipped
-                            ? "border-amber-300 bg-amber-50 text-amber-700"
-                            : "border-slate-300 bg-white text-slate-400"
+                          : isPending
+                            ? "border-sky-300 bg-sky-50 text-sky-700"
+                            : isSkipped
+                              ? "border-amber-300 bg-amber-50 text-amber-700"
+                              : "border-slate-300 bg-white text-slate-400"
                       }`}>
                       {isResolved ? (
                         <CheckmarkWatermark
@@ -234,12 +249,16 @@ export function RoutineProgressDialog({
                     </span>
                     <span
                       className={`min-w-0 break-words ${
-                        isResolved ? "text-slate-400 line-through" : "text-slate-700"
+                        isResolved || isPending ? "text-slate-400 line-through" : "text-slate-700"
                       }`}>
                       {step.title}
                     </span>
                     <div className="ml-auto flex shrink-0 items-center gap-2">
-                      {isSkipped ? (
+                      {isPending ? (
+                        <span className="text-xs font-semibold text-sky-600">
+                          {t("responsibility.progressDialog.pendingApproval")}
+                        </span>
+                      ) : isSkipped ? (
                         <span className="text-xs font-semibold text-amber-600">
                           {t("responsibility.progressDialog.skippedTag")}
                         </span>
@@ -248,7 +267,7 @@ export function RoutineProgressDialog({
                           +{step.coinValue} <CoinIcon size={12} />
                         </span>
                       ) : null}
-                      {isActive && !isResolved ? (
+                      {isActive && canMarkDone ? (
                         <IconActionButton
                           label={t("responsibility.progressDialog.markDone")}
                           tone="done"
