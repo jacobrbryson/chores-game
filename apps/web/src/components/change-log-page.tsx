@@ -21,22 +21,7 @@ export function formatChangeLogDate(value: string, locale: string) {
 }
 
 export function formatChangeLogGroupDate(group: ChangeLogEntryGroup, locale: string) {
-  if (group.startDate === group.endDate) {
-    return formatChangeLogDate(group.date, locale);
-  }
-
-  const start = Date.parse(`${group.startDate}T00:00:00Z`);
-  const end = Date.parse(`${group.endDate}T00:00:00Z`);
-  if (Number.isNaN(start) || Number.isNaN(end)) {
-    return `${group.startDate} - ${group.endDate}`;
-  }
-
-  return new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC",
-  }).formatRange(new Date(start), new Date(end));
+  return formatChangeLogDate(group.date, locale);
 }
 
 function changeTypeKey(type: ChangeLogEntryType) {
@@ -148,7 +133,7 @@ export function ChangeLogIndexContent({ locale, t }: { locale: string; t: Transl
         {groups.map((group) => (
           <Link key={group.slug} href={`/change-log/${group.slug}`} className="family-page-card change-log-day-card">
             <div className="change-log-day-card-header">
-              <time dateTime={group.startDate === group.endDate ? group.date : `${group.startDate}/${group.endDate}`} className="change-log-date">
+              <time dateTime={group.date} className="change-log-date">
                 <CalendarIcon />
                 {formatChangeLogGroupDate(group, locale)}
               </time>
