@@ -28,9 +28,10 @@ import {
 } from "chart.js";
 import Link from "next/link";
 import { TodayChoreCard } from "@/components/today-chore-card";
-import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Line } from "react-chartjs-2";
 import {
+  choreNeedsCoinAssignmentPrompt,
   createApprovalAssigneeSelections,
   listApprovalPayouts,
   toggleApprovalAssigneeSelection,
@@ -38,6 +39,8 @@ import {
   type ApprovalAssigneeSelectionMap,
 } from "@packages/core";
 import { getDashboardChorePage } from "@/lib/ui/chore-dashboard";
+import { collapseRoutineChores } from "@/lib/responsibility/routine-chores";
+import { AssignRoutineDialog } from "@/components/assign-routine-dialog";
 import type { FamilySnapshotChore, FamilySnapshotMember } from "@/lib/family/types";
 import {
   parseCompletionWindow,
@@ -90,7 +93,6 @@ type QuickSortState = {
 };
 
 type ChoreScopeSelection = "family" | `member:${string}`;
-type ToolbarMenuView = "root" | "sort";
 type ChoreFilterSection = "category" | "type" | "dueDate";
 type DashboardChoreFilterState = {
   categoryIds: string[];
@@ -282,12 +284,12 @@ function readCompletionWindow(): CompletionWindow {
   return "today";
 }
 
-function ToolbarOptionsIcon() {
+function ListViewMenuIcon() {
   return (
-    <span className="today-chores-toolbar-icon" aria-hidden="true">
-      <span className="today-chores-toolbar-icon-bar today-chores-toolbar-icon-bar-a" />
-      <span className="today-chores-toolbar-icon-bar today-chores-toolbar-icon-bar-b" />
-      <span className="today-chores-toolbar-icon-bar today-chores-toolbar-icon-bar-c" />
+    <span className="today-chores-list-view-icon" aria-hidden="true">
+      <span className="today-chores-list-view-icon-bar" />
+      <span className="today-chores-list-view-icon-bar" />
+      <span className="today-chores-list-view-icon-bar" />
     </span>
   );
 }
@@ -332,16 +334,6 @@ function ViewAllChoresIcon() {
   );
 }
 
-function BackMenuIcon() {
-  return (
-    <span className="today-chores-back-icon" aria-hidden="true">
-      <span className="today-chores-back-icon-shaft" />
-      <span className="today-chores-back-icon-wing today-chores-back-icon-wing-top" />
-      <span className="today-chores-back-icon-wing today-chores-back-icon-wing-bottom" />
-    </span>
-  );
-}
-
 function AddMenuIcon() {
   return (
     <span className="today-chores-add-icon" aria-hidden="true">
@@ -350,6 +342,41 @@ function AddMenuIcon() {
     </span>
   );
 }
+
+function AddMenuCaretIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="today-chores-add-caret-icon">
+      <path d="m6 8 4 4 4-4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function AddMenuItemIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+const addChoreMenuIcon = (
+  <AddMenuItemIcon>
+    <path d="M10 4.75v10.5" />
+    <path d="M4.75 10h10.5" />
+    <rect x="4.75" y="4.75" width="10.5" height="10.5" rx="2.25" />
+  </AddMenuItemIcon>
+);
+
+const addRoutineMenuIcon = (
+  <AddMenuItemIcon>
+    <path d="M6 5.75h8" />
+    <path d="M6 10h8" />
+    <path d="M6 14.25h8" />
+    <circle cx="4.25" cy="5.75" r="0.75" fill="currentColor" stroke="none" />
+    <circle cx="4.25" cy="10" r="0.75" fill="currentColor" stroke="none" />
+    <circle cx="4.25" cy="14.25" r="0.75" fill="currentColor" stroke="none" />
+  </AddMenuItemIcon>
+);
 
 function writeCompletionWindow(next: CompletionWindow) {
   try {
@@ -557,12 +584,14 @@ export function TodayChoresPanel({
   const [expandedChoreFilterSection, setExpandedChoreFilterSection] =
     useState<ChoreFilterSection | null>(null);
   const [toolbarOptionsMenuOpen, setToolbarOptionsMenuOpen] = useState(false);
-  const [toolbarMenuView, setToolbarMenuView] = useState<ToolbarMenuView>("root");
+  const [listViewMenuOpen, setListViewMenuOpen] = useState(false);
   const [quickSortState, setQuickSortState] = useState<QuickSortState | null>(readQuickSortState);
   const [choreFilters, setChoreFilters] =
     useState<DashboardChoreFilterState>(readDashboardChoreFilters);
   const [toolbarAddDialogOpen, setToolbarAddDialogOpen] = useState(false);
-  const [busyActionsById, setBusyActionsById] = useState<Record<string, "delete" | "complete">>({});
+  const [toolbarAddMenuOpen, setToolbarAddMenuOpen] = useState(false);
+  const [assignRoutineDialogOpen, setAssignRoutineDialogOpen] = useState(false);
+  const [busyActionsById, setBusyActionsById] = useState<Record<string, "delete" | "delete_routine" | "complete" | "skip">>({});
   const [exitingChoreIds, setExitingChoreIds] = useState<Record<string, true>>({});
   const [optimisticallyCompletedIds, setOptimisticallyCompletedIds] = useState<Record<string, true>>({});
   const [optimisticallyRemovedIds, setOptimisticallyRemovedIds] = useState<Record<string, true>>({});
@@ -1007,7 +1036,13 @@ export function TodayChoresPanel({
     () => new Set(Object.values(pendingCreateChoresByRequestId).map((chore) => chore.id)),
     [pendingCreateChoresByRequestId],
   );
-  const visibleChores = filteredOpenChores;
+  // Routine assignments materialize one chore per step; the dashboard shows
+  // only the next incomplete step per assignment so routines read as a single
+  // progressing item rather than a wall of rows.
+  const visibleChores = useMemo(
+    () => collapseRoutineChores(filteredOpenChores),
+    [filteredOpenChores],
+  );
   const visibleChorePage = useMemo(
     () => getDashboardChorePage(visibleChores, visibleChoreCount),
     [visibleChoreCount, visibleChores],
@@ -1253,30 +1288,16 @@ export function TodayChoresPanel({
       return next;
     });
     setToolbarOptionsMenuOpen(false);
-    setToolbarMenuView("root");
   }
 
   function onSelectManualSort() {
     setQuickSortState(null);
     writeQuickSortState(null);
     setToolbarOptionsMenuOpen(false);
-    setToolbarMenuView("root");
-  }
-
-  function onToolbarOptionsMenuOpenChange(next: boolean) {
-    setToolbarOptionsMenuOpen(next);
-    if (!next) {
-      setToolbarMenuView("root");
-    }
   }
 
   function onChoreFilterMenuOpenChange(next: boolean) {
     setChoreFilterMenuOpen(next);
-  }
-
-  function openToolbarSortMenu() {
-    setToolbarMenuView("sort");
-    setToolbarOptionsMenuOpen(true);
   }
 
   function quickSortDirectionLabel(key: QuickSortKey, direction: QuickSortDirection) {
@@ -1309,6 +1330,7 @@ export function TodayChoresPanel({
             categories: pendingChore.categories,
             coinValue: pendingChore.coinValue,
             requireApproval: pendingChore.requireApproval,
+            newSkillEnabled: pendingChore.newSkillEnabled,
             recurrenceType: pendingChore.recurrenceType,
             recurrenceInterval: pendingChore.recurrenceInterval,
             recurrenceUnit: pendingChore.recurrenceUnit,
@@ -1369,6 +1391,90 @@ export function TodayChoresPanel({
     }
   }
 
+  async function onDeleteRoutineAssignment(assignmentId: string, choreId: string) {
+    if (busyActionsById[choreId]) {
+      return;
+    }
+    setChoreActionError("");
+    setBusyActionsById((current) => ({ ...current, [choreId]: "delete_routine" }));
+    try {
+      const response = await fetch(`/api/routines/assignments/${assignmentId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `DELETE_ROUTINE_HTTP_${response.status}`);
+      }
+      setOptimisticallyRemovedIds((current) => ({ ...current, [choreId]: true }));
+      await onReload();
+    } catch (removeError) {
+      setChoreActionError(normalizeError(removeError, "delete_routine_failed"));
+    } finally {
+      setBusyActionsById((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
+    }
+  }
+
+  async function onSkipChore(choreId: string) {
+    if (busyActionsById[choreId]) {
+      return;
+    }
+    setChoreActionError("");
+    setBusyActionsById((current) => ({ ...current, [choreId]: "skip" }));
+    setExitingChoreIds((current) => ({ ...current, [choreId]: true }));
+    const existingTimer = completionHideTimersRef.current[choreId];
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+    completionHideTimersRef.current[choreId] = setTimeout(() => {
+      setOptimisticallyCompletedIds((current) => ({ ...current, [choreId]: true }));
+      setExitingChoreIds((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
+      delete completionHideTimersRef.current[choreId];
+    }, CHORE_EXIT_ANIMATION_MS);
+    try {
+      const response = await fetch(`/api/chores/${choreId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "skip" }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `SKIP_CHORE_HTTP_${response.status}`);
+      }
+      await onReload();
+    } catch (skipError) {
+      const timer = completionHideTimersRef.current[choreId];
+      if (timer) {
+        clearTimeout(timer);
+        delete completionHideTimersRef.current[choreId];
+      }
+      setExitingChoreIds((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
+      setOptimisticallyCompletedIds((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
+      setChoreActionError(normalizeError(skipError, "skip_chore_failed"));
+    } finally {
+      setBusyActionsById((current) => {
+        const next = { ...current };
+        delete next[choreId];
+        return next;
+      });
+    }
+  }
+
   async function onCompleteChore(
     choreId: string,
     source?: { clientX: number; clientY: number },
@@ -1377,9 +1483,7 @@ export function TodayChoresPanel({
     if (busyActionsById[choreId]) {
       return;
     }
-    const isMultiOrFamily =
-      chore?.assigneeScope === "family" || (chore?.assigneeIds?.length ?? 0) > 1;
-    const needsApprovalCoinPrompt = isMultiOrFamily || chore?.choreType === "see_and_do";
+    const needsApprovalCoinPrompt = chore ? choreNeedsCoinAssignmentPrompt(chore) : false;
     if (viewerRole === "admin" && chore && needsApprovalCoinPrompt) {
       const assigneeIds = getApprovalAssigneeIds(chore, members);
       setApprovalSelectionsByAssignee(
@@ -1871,95 +1975,138 @@ export function TodayChoresPanel({
               </AppMenu>
               <AppMenu
                 open={toolbarOptionsMenuOpen}
-                onOpenChange={onToolbarOptionsMenuOpenChange}
+                onOpenChange={setToolbarOptionsMenuOpen}
                 wrapperClassName="today-chores-options-wrap"
                 triggerClassName={`btn btn-secondary today-chores-options-trigger${
-                  toolbarMenuView === "sort" || quickSortState ? " today-chores-action-sort-trigger-active" : ""
+                  quickSortState ? " today-chores-action-sort-trigger-active" : ""
                 }`}
-                triggerTitle={t("dashboard.toolbarOptions")}
-                triggerAriaLabel={t("dashboard.toolbarOptions")}
+                triggerTitle={t("dashboard.sort")}
+                triggerAriaLabel={t("dashboard.sort")}
                 panelClassName="app-menu-panel family-action-dropdown today-chores-toolbar-menu"
-                trigger={<ToolbarOptionsIcon />}>
-                {toolbarMenuView === "root" ? (
-                  <>
-                    <MenuActionButton fullWidth onClick={openToolbarSortMenu} leading={<SortMenuIcon />}>
-                      {t("dashboard.sort")}
-                    </MenuActionButton>
-                    <MenuActionLink
-                      href="/chores"
-                      fullWidth
-                      leading={<ViewAllChoresIcon />}
-                      onClick={() => setToolbarOptionsMenuOpen(false)}>
-                      {t("dashboard.viewAllChores")}
-                    </MenuActionLink>
-                  </>
-                ) : (
-                  <>
-                    <MenuActionButton fullWidth onClick={() => setToolbarMenuView("root")} leading={<BackMenuIcon />}>
-                      {t("common.actions.back")}
-                    </MenuActionButton>
-                    <p className="today-chores-sort-menu-hint">{t("dashboard.sortOverridesManualHint")}</p>
-                    <MenuActionButton
-                      fullWidth
-                      onClick={onSelectManualSort}
-                      leading={<SortMenuIcon />}
-                      trailing={quickSortState === null ? "✓" : null}
-                      trailingClassName="today-chores-sort-menu-direction">
-                      {t("dashboard.sortManual")}
-                    </MenuActionButton>
-                    <MenuActionButton
-                      fullWidth
-                      onClick={() => onSelectQuickSort("coin_value")}
-                      leading={<SortMenuIcon />}
-                      trailing={
-                        quickSortState?.key === "coin_value"
-                          ? quickSortDirectionLabel("coin_value", quickSortState.direction)
-                          : null
-                      }
-                      trailingClassName="today-chores-sort-menu-direction">
-                      {t("dashboard.sortCoinValue")}
-                    </MenuActionButton>
-                    <MenuActionButton
-                      fullWidth
-                      onClick={() => onSelectQuickSort("frequency")}
-                      leading={<SortMenuIcon />}
-                      trailing={
-                        quickSortState?.key === "frequency"
-                          ? quickSortDirectionLabel("frequency", quickSortState.direction)
-                          : null
-                      }
-                      trailingClassName="today-chores-sort-menu-direction">
-                      {t("dashboard.sortFrequency")}
-                    </MenuActionButton>
-                    <MenuActionButton
-                      fullWidth
-                      onClick={() => onSelectQuickSort("alphabetical")}
-                      leading={<SortMenuIcon />}
-                      trailing={
-                        quickSortState?.key === "alphabetical"
-                          ? quickSortDirectionLabel("alphabetical", quickSortState.direction)
-                          : null
-                      }
-                      trailingClassName="today-chores-sort-menu-direction">
-                      {t("dashboard.sortAlphabetical")}
-                    </MenuActionButton>
-                  </>
-                )}
+                trigger={<SortMenuIcon />}>
+                <p className="today-chores-sort-menu-hint">{t("dashboard.sortOverridesManualHint")}</p>
+                <MenuActionButton
+                  fullWidth
+                  onClick={onSelectManualSort}
+                  leading={<SortMenuIcon />}
+                  trailing={quickSortState === null ? "✓" : null}
+                  trailingClassName="today-chores-sort-menu-direction">
+                  {t("dashboard.sortManual")}
+                </MenuActionButton>
+                <MenuActionButton
+                  fullWidth
+                  onClick={() => onSelectQuickSort("coin_value")}
+                  leading={<SortMenuIcon />}
+                  trailing={
+                    quickSortState?.key === "coin_value"
+                      ? quickSortDirectionLabel("coin_value", quickSortState.direction)
+                      : null
+                  }
+                  trailingClassName="today-chores-sort-menu-direction">
+                  {t("dashboard.sortCoinValue")}
+                </MenuActionButton>
+                <MenuActionButton
+                  fullWidth
+                  onClick={() => onSelectQuickSort("frequency")}
+                  leading={<SortMenuIcon />}
+                  trailing={
+                    quickSortState?.key === "frequency"
+                      ? quickSortDirectionLabel("frequency", quickSortState.direction)
+                      : null
+                  }
+                  trailingClassName="today-chores-sort-menu-direction">
+                  {t("dashboard.sortFrequency")}
+                </MenuActionButton>
+                <MenuActionButton
+                  fullWidth
+                  onClick={() => onSelectQuickSort("alphabetical")}
+                  leading={<SortMenuIcon />}
+                  trailing={
+                    quickSortState?.key === "alphabetical"
+                      ? quickSortDirectionLabel("alphabetical", quickSortState.direction)
+                      : null
+                  }
+                  trailingClassName="today-chores-sort-menu-direction">
+                  {t("dashboard.sortAlphabetical")}
+                </MenuActionButton>
+              </AppMenu>
+              <AppMenu
+                open={listViewMenuOpen}
+                onOpenChange={setListViewMenuOpen}
+                wrapperClassName="today-chores-list-view-wrap"
+                triggerClassName="btn btn-secondary today-chores-options-trigger"
+                triggerTitle={t("dashboard.listView")}
+                triggerAriaLabel={t("dashboard.listView")}
+                panelClassName="app-menu-panel family-action-dropdown today-chores-toolbar-menu"
+                trigger={<ListViewMenuIcon />}>
+                <MenuActionLink
+                  href="/chores"
+                  fullWidth
+                  leading={<ViewAllChoresIcon />}
+                  onClick={() => setListViewMenuOpen(false)}>
+                  {t("dashboard.viewAllChores")}
+                </MenuActionLink>
+                <MenuActionLink
+                  href="/routines"
+                  fullWidth
+                  leading={addRoutineMenuIcon}
+                  onClick={() => setListViewMenuOpen(false)}>
+                  {t("dashboard.viewAllRoutines")}
+                </MenuActionLink>
               </AppMenu>
             </div>
             {canCreateChores ? (
               <div className="today-chores-actions-desktop">
-                <Button
-                  type="button"
-                  title={t("dashboard.addMoreChores")}
-                  aria-label={t("dashboard.addMoreChores")}
-                  className="btn today-chores-action-add"
-                  onClick={() => setToolbarAddDialogOpen(true)}>
-                  <span className="today-chores-add-btn-content">
-                    <AddMenuIcon />
-                    <span>{playerSeeAndDoMode ? t("dashboard.addSeeAndDoChore") : t("dashboard.addChore")}</span>
-                  </span>
-                </Button>
+                {viewerRole === "admin" ? (
+                  // Parents pick what to add: a single chore (existing flow)
+                  // or a routine (multi-step assignment workflow).
+                  <AppMenu
+                    open={toolbarAddMenuOpen}
+                    onOpenChange={setToolbarAddMenuOpen}
+                    triggerClassName="btn today-chores-action-add"
+                    triggerAriaLabel={t("dashboard.addMoreChores")}
+                    panelClassName="app-menu-panel family-action-dropdown"
+                    trigger={
+                      <span className="today-chores-add-btn-content today-chores-add-btn-content-menu">
+                        <span className="today-chores-add-btn-label">
+                          <AddMenuIcon />
+                          <span>{t("dashboard.addMenuLabel")}</span>
+                        </span>
+                        <AddMenuCaretIcon />
+                      </span>
+                    }>
+                    <MenuActionButton
+                      fullWidth
+                      leading={addChoreMenuIcon}
+                      onClick={() => {
+                        setToolbarAddMenuOpen(false);
+                        setToolbarAddDialogOpen(true);
+                      }}>
+                      {t("dashboard.addMenuChore")}
+                    </MenuActionButton>
+                    <MenuActionButton
+                      fullWidth
+                      leading={addRoutineMenuIcon}
+                      onClick={() => {
+                        setToolbarAddMenuOpen(false);
+                        setAssignRoutineDialogOpen(true);
+                      }}>
+                      {t("dashboard.addMenuRoutine")}
+                    </MenuActionButton>
+                  </AppMenu>
+                ) : (
+                  <Button
+                    type="button"
+                    title={t("dashboard.addMoreChores")}
+                    aria-label={t("dashboard.addMoreChores")}
+                    className="btn today-chores-action-add"
+                    onClick={() => setToolbarAddDialogOpen(true)}>
+                    <span className="today-chores-add-btn-content">
+                      <AddMenuIcon />
+                      <span>{playerSeeAndDoMode ? t("dashboard.addSeeAndDoChore") : t("dashboard.addChore")}</span>
+                    </span>
+                  </Button>
+                )}
               </div>
             ) : null}
             {canCreateChores ? (
@@ -1970,6 +2117,14 @@ export function TodayChoresPanel({
                 open={toolbarAddDialogOpen}
                 onOpenChange={setToolbarAddDialogOpen}
                 onSaved={onChoreSaved}
+              />
+            ) : null}
+            {viewerRole === "admin" ? (
+              <AssignRoutineDialog
+                open={assignRoutineDialogOpen}
+                onOpenChange={setAssignRoutineDialogOpen}
+                onAssigned={onReload}
+                defaultAssigneeId={selectedChoreMember?.id}
               />
             ) : null}
           </div>
@@ -2076,7 +2231,9 @@ export function TodayChoresPanel({
                     isExiting={Boolean(exitingChoreIds[chore.id])}
                     isCreatePending={pendingCreateChoreIdSet.has(chore.id)}
                     onDelete={onDeleteChore}
+                    onDeleteRoutine={onDeleteRoutineAssignment}
                     onComplete={onCompleteChore}
+                    onSkip={onSkipChore}
                     onMoveUp={(choreId) => onStepReorder(choreId, -1)}
                     onMoveDown={(choreId) => onStepReorder(choreId, 1)}
                     onDragStart={(choreId) => {

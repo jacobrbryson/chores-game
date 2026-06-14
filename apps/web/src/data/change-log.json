@@ -1,5 +1,117 @@
 [
   {
+    "id": "mobile-kiosk-mode-screen",
+    "date": "2026-06-14",
+    "type": "Feature",
+    "subject": "Kiosk Mode now has its own screen on mobile",
+    "description": "Starting Kiosk Mode on the mobile app now opens a focused shared-tablet screen with a player switcher and a big-button chore checklist, matching the web experience. Routine chores collapse to the next step and can be opened to view and manage the whole routine, and parent controls stay locked until you exit with the PIN.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "dashboard-custom-routine-bonus-coins",
+    "date": "2026-06-14",
+    "type": "Bug Fix",
+    "subject": "Set bonus coins when assigning a custom routine",
+    "description": "The dashboard's Assign Routine flow now lets parents set completion bonus coins for a custom routine, and keeps that bonus when saving a routine copy or updating the saved routine.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "mobile-expo-go-google-android-sign-in",
+    "date": "2026-06-14",
+    "type": "Bug Fix",
+    "subject": "Mobile Google sign-in opens in the right build",
+    "description": "Mobile development now points Google sign-in through the Android and iOS development builds that support native Google Sign-In, and Expo Go shows clearer guidance instead of a failed Google redirect.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "routine-step-delete-choice",
+    "date": "2026-06-13",
+    "type": "Feature",
+    "subject": "Deleting a routine chore asks: this step or the whole routine?",
+    "description": "Deleting a chore that belongs to a routine now asks whether to remove just that one step or the entire assigned routine (every step), and points you to the Routines page if you'd rather edit the routine's steps. Removing the whole routine never claws back coins already earned on completed steps.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "routine-step-skip",
+    "date": "2026-06-13",
+    "type": "Feature",
+    "subject": "Skip or finish routine steps in any order",
+    "description": "Routine steps now have a Skip option on the dashboard for steps that are already done or not needed today. A skipped step earns no coins, and the routine still pays its completion bonus when it finishes — as long as at least one step was actually completed. In the routine progress dialog each step has a quick Done or Undo button, so you can finish steps out of order, pick a skipped step back up, or reverse one — all while the routine is still in progress.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "routine-edits-sync-to-assigned-kids",
+    "date": "2026-06-13",
+    "type": "Bug Fix",
+    "subject": "Editing a routine updates routines already assigned to kids",
+    "description": "Adding, removing, renaming, or reordering a routine's steps — including moving a chore from one routine to another — now flows through to routines that are already assigned and still in progress. Routine step chores no longer show the New Skill bonus badge, and the unused \"Active\" toggle has been removed from the routine editor.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "routine-step-coin-leading-zeroes",
+    "date": "2026-06-12",
+    "type": "Bug Fix",
+    "subject": "Routine step coin values clean up extra zeroes",
+    "description": "Coin values in the Add Routine step list now snap back to whole numbers like 3 instead of lingering as entries like 03.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "dashboard-sort-list-view-menus",
+    "date": "2026-06-12",
+    "type": "Bug Fix",
+    "subject": "Dashboard toolbar is easier to navigate",
+    "description": "The chore dashboard now has separate Sort and List View menus, with quick links to all chores and all routines.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "routines-page-creation-ui",
+    "date": "2026-06-12",
+    "type": "Bug Fix",
+    "subject": "Routine creation is easier to start",
+    "description": "The Routines page now has a clearer + Add routine action, a more helpful empty state, and a cleaner routine creation modal.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "dashboard-add-menu-icons",
+    "date": "2026-06-12",
+    "type": "Bug Fix",
+    "subject": "Dashboard + Add menu is clearer to scan",
+    "description": "The dashboard's + Add button now shrinks to fit its label, keeps its dropdown caret on the right edge, and shows matching icons for the Chore and Routine menu options so it's easier to scan at a glance.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "see-and-do-preassigned-coins",
+    "date": "2026-06-12",
+    "type": "Bug Fix",
+    "subject": "Save See and Do coins before approval",
+    "description": "Parents can now save coins on a See and Do chore before approval, see the saved amount in the app, and approve the chore later without being asked to enter the coins again.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "chore-new-skill-toggle",
+    "date": "2026-06-12",
+    "type": "Bug Fix",
+    "subject": "Turn off New Skill bonus per chore",
+    "description": "Additional Options in the chore editor now let parents turn off the New Skill bonus for chores that should not award the first-time extra coins.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "undo-completion-realtime-refresh",
+    "date": "2026-06-12",
+    "type": "Bug Fix",
+    "subject": "Undo completion refreshes chores right away",
+    "description": "Fixed an issue where undoing a completed chore could leave the dashboard or All Chores page showing stale chore data until a manual refresh.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "responsibility-pillars",
+    "date": "2026-06-12",
+    "type": "Feature",
+    "subject": "Responsibility Pillars, Routines, and Responsibility XP",
+    "description": "Family Chores now helps kids build real life skills, not just check off tasks. Build reusable Routines — like Clean Room or Morning Routine — from a sequence of smaller chores, then assign them straight from the dashboard's new + Add menu with due dates and repeats. Each routine step appears in the chore list like a normal chore (approvals, New Skill Bonus, and Kiosk Mode included), with a routine badge you can tap to see overall progress, and finishing the last step pays a routine completion bonus. Tag chores and routines with one of five Responsibility Pillars — Home Care, Self Care, Organization, Family Contribution, and Life Skills — and kids earn Responsibility XP and pillar levels as they grow, all visible on the profile's Responsibility Progress card.",
+    "image": "/file.svg"
+  },
+  {
     "id": "new-skill-bonus",
     "date": "2026-06-11",
     "type": "Feature",

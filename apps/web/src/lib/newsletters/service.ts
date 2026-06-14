@@ -149,13 +149,14 @@ export async function buildWeeklyFamilyHighlightsPreview(input: {
   });
   const locale = input.recipientLocale ?? family.recipients[0]?.locale ?? family.familyLocale;
   const appOrigin = getCanonicalAppOrigin();
-  // New features shipped within the same window the recap covers.
+  // Curated set of feature dates to highlight in the "New this week" section.
+  // We intentionally hand-pick dates rather than surface every Feature in the
+  // window, which would flood the recap with minor releases.
+  const HIGHLIGHTED_ENHANCEMENT_DATES = new Set(["2026-06-08", "2026-06-10"]);
   const recentEnhancements = getChangeLogEntries()
     .filter(
       (entry) =>
-        entry.type === "Feature" &&
-        entry.date >= window.weekStartDateOnly &&
-        entry.date <= window.weekEndDateOnly,
+        entry.type === "Feature" && HIGHLIGHTED_ENHANCEMENT_DATES.has(entry.date),
     )
     .map((entry) => ({ title: entry.subject, description: entry.description }));
   const rendered = renderEmailTemplate({
@@ -248,8 +249,12 @@ async function sendWeeklyHighlightsToFamily(input: {
   provider: EmailProvider;
   replyTo: string[];
   outcome: WeeklySendOutcome;
+  // When true, families with no activity this week are still emailed. Used by the
+  // manual support "Send to family" trigger; the automatic weekly run leaves this
+  // false so quiet families are skipped (skippedReason "no_activity").
+  allowNoActivity?: boolean;
 }) {
-  const { familyId, window, provider, replyTo, outcome } = input;
+  const { familyId, window, provider, replyTo, outcome, allowNoActivity } = input;
   const preview = await buildWeeklyFamilyHighlightsPreview({ familyId, window });
 
   for (const recipient of preview.family.recipients) {
@@ -272,7 +277,9 @@ async function sendWeeklyHighlightsToFamily(input: {
       continue;
     }
 
-    const skipReason = getRecipientSkipReason(recipient) || (!preview.metrics.hasActivity ? "no_activity" : "");
+    const skipReason =
+      getRecipientSkipReason(recipient) ||
+      (!preview.metrics.hasActivity && !allowNoActivity ? "no_activity" : "");
     const baseRecord: NewsletterSendRecord = {
       id: sendId,
       familyId,
@@ -366,12 +373,20 @@ async function sendWeeklyHighlightsToFamily(input: {
 export async function sendWeeklyFamilyHighlightsForFamily(input: {
   familyId: string;
   window?: WeeklyWindow;
+  allowNoActivity?: boolean;
 }) {
   const window = input.window ?? getPreviousWeeklyWindow();
   const provider = getEmailProvider();
   const replyTo = getEmailReplyToAddresses();
   const outcome: WeeklySendOutcome = { sent: 0, skipped: 0, failed: 0, records: [], lastSentAt: "" };
-  await sendWeeklyHighlightsToFamily({ familyId: input.familyId, window, provider, replyTo, outcome });
+  await sendWeeklyHighlightsToFamily({
+    familyId: input.familyId,
+    window,
+    provider,
+    replyTo,
+    outcome,
+    allowNoActivity: input.allowNoActivity,
+  });
   return { window, ...outcome };
 }
 

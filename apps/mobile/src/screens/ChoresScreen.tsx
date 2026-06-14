@@ -15,6 +15,7 @@ import {
 import { MobileChoreEditorModal, type MobileChoreEditorSubmitPayload } from "@/components/MobileChoreEditorModal";
 import { loadAllChoresPreferences, saveAllChoresPreferences } from "@/lib/mobile-preferences";
 import { colors, radius, spacing, typography } from "@/theme";
+import { shouldHideChoreCoinValue } from "@packages/core";
 import {
   AppScreen,
   AvatarBadge,
@@ -107,7 +108,7 @@ function formatCompletedDate(value?: string) {
 }
 
 function getDisplayedCoinValue(chore: Pick<ChoreRow, "choreType" | "status" | "coinValue">) {
-  if (chore.choreType === "see_and_do" && chore.status !== "Approved") return "-";
+  if (shouldHideChoreCoinValue(chore)) return "-";
   return String(chore.coinValue ?? 0);
 }
 

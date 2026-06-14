@@ -7,6 +7,11 @@ import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { KioskPinModal } from "@/components/kiosk-pin-modal";
 import { useLocale } from "@/components/locale-provider";
+import {
+  RoutineBadgeIcon,
+  RoutineProgressDialog,
+} from "@/components/routine-progress-dialog";
+import { collapseRoutineChores } from "@/lib/responsibility/routine-chores";
 import { triggerPartyConfetti } from "@/lib/confetti/party";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
 import type { FamilySnapshotChore, FamilySummaryResponse } from "@/lib/family/types";
@@ -68,6 +73,7 @@ export function KioskActiveClient({
   const [pinRequired, setPinRequired] = useState(false);
 
   const [exitOpen, setExitOpen] = useState(false);
+  const [routineDialogAssignmentId, setRoutineDialogAssignmentId] = useState("");
   const [pin, setPin] = useState("");
   const [pinPending, setPinPending] = useState(false);
   const [pinError, setPinError] = useState("");
@@ -242,9 +248,13 @@ export function KioskActiveClient({
   );
   const activeMember = members.find((member) => member.id === activeMemberId) ?? null;
   const activeAliases = activeMember ? memberAliasSet(activeMember) : new Set<string>();
-  const activeChores = allChores.filter(
-    (chore) =>
-      !completedIds[chore.id] && (activeMember ? choreMatchesMember(chore, activeAliases) : false),
+  // Routine assignments surface only their next incomplete step, same as the
+  // main dashboard, so kiosk players walk a routine one step at a time.
+  const activeChores = collapseRoutineChores(
+    allChores.filter(
+      (chore) =>
+        !completedIds[chore.id] && (activeMember ? choreMatchesMember(chore, activeAliases) : false),
+    ),
   );
   const activeName = activeMember?.name || playerName;
   const activeCoins = activeMemberId ? coinsByMember[activeMemberId] ?? 0 : 0;
@@ -454,6 +464,23 @@ export function KioskActiveClient({
               className={`kiosk-chore-card${exitingIds[chore.id] ? " is-exiting" : ""}`}>
               <div className="kiosk-chore-main">
                 <span className="kiosk-chore-title">{chore.title}</span>
+                {chore.routineAssignmentId ? (
+                  <button
+                    type="button"
+                    className="inline-flex w-fit items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700"
+                    title={t("responsibility.routineBadgeTooltip", {
+                      name: chore.routineName ?? "",
+                    })}
+                    onClick={() => setRoutineDialogAssignmentId(chore.routineAssignmentId ?? "")}>
+                    <RoutineBadgeIcon size={13} />
+                    <span>{chore.routineName}</span>
+                    {chore.routineStepOrder && chore.routineStepCount ? (
+                      <span>
+                        {chore.routineStepOrder}/{chore.routineStepCount}
+                      </span>
+                    ) : null}
+                  </button>
+                ) : null}
                 {chore.details ? <span className="small kiosk-chore-details">{chore.details}</span> : null}
                 {chore.coinValue > 0 ? (
                   <span className="kiosk-chore-coins">
@@ -472,6 +499,15 @@ export function KioskActiveClient({
           ))}
         </ul>
       )}
+
+      {routineDialogAssignmentId ? (
+        <RoutineProgressDialog
+          assignmentId={routineDialogAssignmentId}
+          open
+          onRequestClose={() => setRoutineDialogAssignmentId("")}
+          onChanged={scheduleRefresh}
+        />
+      ) : null}
 
       <KioskPinModal
         open={exitOpen}

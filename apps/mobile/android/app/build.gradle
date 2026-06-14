@@ -1,7 +1,6 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
-apply plugin: "com.google.gms.google-services"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
@@ -68,9 +67,6 @@ react {
  * Set this to true in release builds to optimize the app using [R8](https://developer.android.com/topic/performance/app-optimization/enable-app-optimization).
  */
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
-def userHomeDebugKeystore = new File(System.properties['user.home'], '.android/debug.keystore')
-def projectDebugKeystore = file('debug.keystore')
-def resolvedDebugKeystore = userHomeDebugKeystore.exists() ? userHomeDebugKeystore : projectDebugKeystore
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -103,7 +99,7 @@ android {
     }
     signingConfigs {
         debug {
-            storeFile resolvedDebugKeystore
+            storeFile file('debug.keystore')
             storePassword 'android'
             keyAlias 'androiddebugkey'
             keyPassword 'android'

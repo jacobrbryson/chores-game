@@ -1,5 +1,6 @@
 import {
   adminGetDocument,
+  adminListAllDocuments,
   adminListDocuments,
 } from "@/lib/firestore/admin";
 import {
@@ -111,7 +112,7 @@ export async function getPlayerCoins(token: ApiTokenRecord, playerId: string) {
   const playerUid = resolved.player.uid || resolved.player.id;
   const userDoc = await adminGetDocument(`users/${playerUid}`).catch(() => null);
   const coinBalance = Math.max(0, readInteger(userDoc?.fields, "walletBalance"));
-  const choreDocs = await adminListDocuments(`families/${token.familyId}/chores`, 1000).catch(() => []);
+  const choreDocs = await adminListAllDocuments(`families/${token.familyId}/chores`, { cap: 1000 }).catch(() => []);
   const aliases = new Set([resolved.player.id, resolved.player.uid, normalizeEmail(resolved.player.email)].filter(Boolean));
   let pendingCoins = 0;
   let approvedCoins = 0;
@@ -151,7 +152,7 @@ export async function getPlayerChoresToday(token: ApiTokenRecord, playerId: stri
   }
   const today = new Date().toISOString().slice(0, 10);
   const aliases = new Set([resolved.player.id, resolved.player.uid, normalizeEmail(resolved.player.email)].filter(Boolean));
-  const choreDocs = await adminListDocuments(`families/${token.familyId}/chores`, 1000).catch(() => []);
+  const choreDocs = await adminListAllDocuments(`families/${token.familyId}/chores`, { cap: 1000 }).catch(() => []);
   return {
     status: "ok" as const,
     data: choreDocs

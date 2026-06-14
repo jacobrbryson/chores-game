@@ -1,6 +1,6 @@
 import type { FamilyAwardClaim } from "@/lib/family/award-claims";
 import { listFamilyAwardClaims } from "@/lib/family/award-claims";
-import { getDocument, listDocuments, readInteger, readString, readStringArray, readTimestamp } from "@/lib/firestore/rest";
+import { getDocument, listAllDocuments, readInteger, readString, readStringArray, readTimestamp } from "@/lib/firestore/rest";
 import {
   canViewerAccessFamilyMember,
   getViewerFamilyContext,
@@ -189,9 +189,9 @@ export async function loadFamilyMemberProfileData(
     try {
       const [userDoc, inventoryDocs] = await Promise.all([
         getDocument(`users/${member.uid}`, input.idToken),
-        listDocuments(`users/${member.uid}/inventory`, input.idToken, 500),
+        listAllDocuments(`users/${member.uid}/inventory`, input.idToken, { cap: 500 }),
       ]);
-      const ledgerDocs = await listDocuments(`users/${member.uid}/walletLedger`, input.idToken, 500);
+      const ledgerDocs = await listAllDocuments(`users/${member.uid}/walletLedger`, input.idToken, { cap: 500 });
       const inventoryByItemId = new Map<string, { quantity: number; addedAt?: string }>();
       const paidValueByItemId = new Map<string, number>();
       const acquisitionLabelByItemId = new Map<string, string>();

@@ -9,100 +9,129 @@ type MarketingHomepageProps = {
   signInErrorMessage?: string;
 };
 
-const proofPoints = [
-  "Flexible approval rules",
-  "Managed child profiles",
-  "Family awards, quests, and live activity",
+// A playful peek at the family feed — the product's personality, not a
+// metrics dashboard. (Deep-dive numbers live on the guide pages.)
+const heroMoments = [
+  { emoji: "🛏️", text: "Maya finished Make the Bed", reward: "+10 🪙" },
+  { emoji: "🎉", text: "Leo completed his whole Morning Routine!", reward: "+5 bonus" },
+  { emoji: "✨", text: "First time mowing the lawn — New Skill learned!", reward: "+5 🪙" },
+  { emoji: "🌱", text: "Self Care just hit Level 3", reward: "Level up!" },
 ];
 
-const comparisonCards = [
+const pillarTiles = [
   {
-    label: "Flexible workflow",
-    title: "Built for more than one kind of chore",
-    body: "Use standard chores, group or family chores, and See and Do chores so the system fits the job instead of forcing every task into the same template.",
+    id: "home_care",
+    emoji: "🏠",
+    title: "Home Care",
+    body: "Dishes, laundry, yard work — caring for the space they live in.",
   },
   {
-    label: "Real accountability",
-    title: "Approval when you need it, instant payout when you do not",
-    body: "Parents can require review for chores that need a second look, while other chores can approve immediately and pay coins as soon as they are completed.",
+    id: "self_care",
+    emoji: "🌱",
+    title: "Self Care",
+    body: "Morning routines and personal responsibility, handled independently.",
   },
   {
-    label: "Kid motivation",
-    title: "Progress feels tangible",
-    body: "Coins, unlocks, quest content, themes, avatars, confetti, and visible household progress give kids concrete signals that effort leads somewhere.",
+    id: "organization",
+    emoji: "📋",
+    title: "Organization",
+    body: "Planning, packing, and keeping life orderly.",
   },
   {
-    label: "Household control",
-    title: "One system for parents, kids, and managed profiles",
-    body: "Create managed child profiles, switch between accounts with a parent PIN, and add invite or Google-link flows only when your family actually needs them.",
-  },
-];
-
-const workflowSteps = [
-  {
-    title: "Set up the family the way your household works",
-    body: "Families can start with managed child profiles and use PIN-protected Switch Account, while invite and Google-link options stay available for later when needed.",
+    id: "family_contribution",
+    emoji: "🤝",
+    title: "Family Contribution",
+    body: "Helping siblings and pitching in for the household.",
   },
   {
-    title: "Choose the right chore type and rules",
-    body: "Assign standard chores, group or family chores, or See and Do chores with coin values, approval rules, and optional recurrence.",
-  },
-  {
-    title: "Completion follows the path you configured",
-    body: "Some chores pay coins immediately on completion. Approval-required chores move into review first, and group or See and Do chores stay parent-controlled.",
-  },
-  {
-    title: "Rewards, awards, and progress keep moving",
-    body: "Coins feed store unlocks, family awards, quest items, and visible progress that keeps responsibility tied to real outcomes.",
+    id: "life_skills",
+    emoji: "🛠️",
+    title: "Life Skills",
+    body: "Cooking, budgeting, and practical adulthood skills.",
   },
 ];
 
-const choreTypeCards = [
+const pathCards = [
   {
-    label: "Standard",
-    title: "Everyday chores for one person",
-    body: "Great for normal assigned work. Parents can choose whether a standard chore pays immediately on completion or waits for approval.",
+    href: "/chores",
+    accent: "sky",
+    emoji: "✅",
+    meta: "Chores · ages 5–16",
+    title: "Chores that fit your kid",
+    body: "Age-by-age guides packed with chore ideas — from sock-matching at five to cooking dinner at fifteen — plus coins, rewards, and a New Skill Bonus that makes trying new things exciting.",
+    cta: "Browse chore ideas by age →",
   },
   {
-    label: "Group / Family",
-    title: "Shared chores for multiple people or the whole house",
-    body: "Use family assignment or multiple assignees when everyone needs to help. These chores stay approval-based so parents can confirm the work and adjust coins at approval time.",
+    href: "/routines",
+    accent: "emerald",
+    emoji: "🔁",
+    meta: "Routines · daily, weekly, monthly",
+    title: "Chain chores into habits",
+    body: "Morning Routine, Dinner Cleanup, Laundry Day — reusable sequences with step-by-step progress and completion bonuses. The structure does the reminding.",
+    cta: "See example routines →",
   },
   {
-    label: "See and Do",
-    title: "Parent-reviewed chores that kids can notice and claim",
-    body: "Ideal for jobs that are not always scheduled in advance. See and Do chores always require parent approval, and parents assign the coin value during approval.",
-  },
-];
-
-const familyFeatureCards = [
-  {
-    label: "Managed child profiles",
-    title: "Start with safe parent-managed accounts",
-    body: "Parents can create player profiles without email first, switch into them with a PIN, and link Google later only if that child eventually needs a direct sign-in.",
-  },
-  {
-    label: "Family awards",
-    title: "Offer rewards your household actually cares about",
-    body: "Parents can create custom family awards with coin amounts, imagery, and redemption limits so rewards match real family goals.",
-  },
-  {
-    label: "Quests",
-    title: "Turn bigger goals into guided adventures",
-    body: "The app includes family quests and interactive quest content for households that want bigger goals to feel more guided than a single checkbox.",
+    href: "/pillars-of-responsibility",
+    accent: "violet",
+    emoji: "🏛️",
+    meta: "The system · Responsibility XP",
+    title: "Watch life skills level up",
+    body: "Every chore and routine feeds one of five Responsibility Pillars. Kids level up Home Care, Self Care, and more — growing up becomes a game they can see themselves winning.",
+    cta: "Meet the five pillars →",
   },
 ];
 
-const parentBenefits = [
-  "Create chores with assignee scope, approval, coin values, and recurrence",
-  "Manage invited members and managed child profiles from the same household system",
-  "Review notifications, approvals, family awards, and quest content in one place",
+// "How it works" as a day in the life — four connected moments instead of a
+// feature list.
+const journeySteps = [
+  {
+    emoji: "🌙",
+    when: "Sunday night",
+    actor: "Parent",
+    accent: "sky",
+    title: "Set it up once",
+    body: "Add the kids, pick chores and routines, set coins and repeat schedules. Ten minutes on the couch — then the system takes the night shift.",
+    chip: { emoji: "📋", text: "Dinner Cleanup assigned to Leo", reward: "daily" },
+  },
+  {
+    emoji: "🌅",
+    when: "Monday morning",
+    actor: "Kid",
+    accent: "amber",
+    title: "They see exactly what's theirs",
+    body: "Their own dashboard (or the kitchen tablet in Kiosk Mode) shows what's next — one routine step at a time, no nagging required.",
+    chip: { emoji: "🛏️", text: "Make the Bed — up next", reward: "1 / 4" },
+  },
+  {
+    emoji: "✅",
+    when: "After school",
+    actor: "Together",
+    accent: "emerald",
+    title: "Done means done — or reviewed",
+    body: "Trusted chores pay coins the second they're checked off. Anything you've flagged waits for your quick approval, payout adjustable on the spot.",
+    chip: { emoji: "🎉", text: "Whole routine finished!", reward: "+10 🪙" },
+  },
+  {
+    emoji: "🏆",
+    when: "All week long",
+    actor: "Everyone",
+    accent: "violet",
+    title: "Progress everyone can feel",
+    body: "Coins turn into store unlocks and family awards, and every chore quietly levels up a Responsibility Pillar in the background.",
+    chip: { emoji: "🌱", text: "Self Care reached Level 2", reward: "Level up!" },
+  },
 ];
 
-const playerBenefits = [
-  "See clear progress, complete chores, and understand what ownership looks like",
-  "Earn coins for store unlocks, family awards, quest items, and personalization",
-  "Explore quest content and customize avatars, themes, and celebration effects",
+const roleParent = [
+  "Create chores with assignees, approvals, coins, and recurrence",
+  "Assign reusable routines from the same dashboard",
+  "Review approvals, awards, and the family feed in one place",
+];
+
+const rolePlayer = [
+  "A clear list, a Kiosk Mode for shared tablets, and visible progress",
+  "Coins for store unlocks, family awards, quests, and personalization",
+  "Responsibility levels that make growing up feel like leveling up",
 ];
 
 function SectionIntro({
@@ -172,230 +201,183 @@ export function MarketingHomepage({
         </Alert>
       ) : null}
 
-      <section className="marketing-hero panel" aria-labelledby="marketing-home-title">
-        <div className="marketing-hero-grid">
-          <div className="hero-copy marketing-hero-copy">
-            <span className="marketing-hero-kicker">Family Chores Game</span>
-            <h1 id="marketing-home-title">A chore system families will actually keep using.</h1>
-            <p>
-              Parents get structure and control. Kids get visible progress, rewards,
-              and game-like momentum that help responsibility feel real instead of abstract.
-            </p>
-            <div className="marketing-hero-actions">
-              {hasGoogleCta ? (
-                <GoogleSignInButton
-                  mode="gsi"
-                  clientId={googleClientId!}
-                  loginUri={gsiLoginUri!}
-                  width={280}
-                  includeOnload={false}
-                  includeScript={false}
-                  wrapperClassName="google-signin-wrap marketing-google-cta"
-                />
-              ) : (
-                <Link href="#get-started" className="btn btn-primary">
-                  Get started
-                </Link>
-              )}
-              <Link href="#how-it-works" className="btn btn-secondary">
-                See how it works
-              </Link>
-            </div>
-            <p className="marketing-hero-actions-note">
-              Free to start. Sign in with Google to create your family in seconds.
-            </p>
-          </div>
-
-          <div className="marketing-hero-side">
-            <MarketingImageFrame
-              src="/saas_interface.png"
-              alt="Family Chores Game interface shown across desktop and mobile layouts."
-              width={1536}
-              height={1024}
-              priority
-              className="marketing-image-hero"
-              caption="A shared family workspace across desktop and mobile."
+      {/* Hero: dark gradient band with the single primary CTA. */}
+      <section className="mh2-hero" aria-labelledby="marketing-home-title">
+        <span className="mh2-hero-kicker">Family Chores Game</span>
+        <h1 id="marketing-home-title">
+          Raise kids who <span className="mh2-hero-highlight">handle things</span>.
+        </h1>
+        <p className="mh2-hero-sub">
+          Family Chores turns everyday household tasks into a system kids actually follow —
+          coins and rewards today, routines that become habits this month, and five
+          Pillars of Responsibility that grow into real life skills over the years.
+        </p>
+        <div className="mh2-hero-actions">
+          {hasGoogleCta ? (
+            <GoogleSignInButton
+              mode="gsi"
+              clientId={googleClientId!}
+              loginUri={gsiLoginUri!}
+              width={280}
+              includeOnload={false}
+              includeScript={false}
+              wrapperClassName="google-signin-wrap marketing-google-cta"
             />
+          ) : (
+            <Link href="#get-started" className="btn btn-primary">
+              Start your family
+            </Link>
+          )}
+        </div>
+        <p className="mh2-hero-note">
+          Free to start. Sign in with Google and assign your first chore in under five minutes.
+        </p>
 
-            <article className="marketing-side-card marketing-side-card-feature">
-              <span className="marketing-card-label">Why families choose it</span>
-              <h2>One place for chores, rewards, quest content, and family momentum.</h2>
-              <p>
-                Built for households that want a system that can handle everyday chores,
-                shared responsibilities, custom rewards, and longer-term goals.
-              </p>
-              <ul className="marketing-checklist">
-                <li>Flexible chores with optional approval and recurrence</li>
-                <li>Managed child profiles with PIN-protected Switch Account</li>
-                <li>Rewards, family awards, and quest content that make progress visible</li>
-              </ul>
-            </article>
-
-            <div className="marketing-side-grid">
-              <article className="marketing-side-card">
-                <span className="marketing-card-label">Structured workflow</span>
-                <h3>Assign, complete, review when needed.</h3>
-                <p>Every chore has clear ownership, status, and the right level of parent control.</p>
-              </article>
-              <article className="marketing-side-card">
-                <span className="marketing-card-label">Live visibility</span>
-                <h3>Updates do not go stale.</h3>
-                <p>Realtime activity and notifications keep the whole household aligned.</p>
-              </article>
-            </div>
-          </div>
+        <div className="mh2-hero-pillar-chips" aria-label="The five Responsibility Pillars">
+          {pillarTiles.map((pillar) => (
+            <Link
+              key={pillar.id}
+              href="/pillars-of-responsibility"
+              className="mh2-pillar-chip">
+              <span aria-hidden="true">{pillar.emoji}</span>
+              {pillar.title}
+            </Link>
+          ))}
         </div>
 
-        <div className="marketing-proof-strip" aria-label="Key product highlights">
-          {proofPoints.map((point) => (
-            <div key={point} className="marketing-proof-item">
-              <span className="marketing-proof-dot" aria-hidden="true" />
-              <span>{point}</span>
+        <div className="mh2-hero-feed" aria-label="Moments from a family's day">
+          {heroMoments.map((moment) => (
+            <div key={moment.text} className="mh2-hero-moment">
+              <span className="mh2-hero-moment-emoji" aria-hidden="true">
+                {moment.emoji}
+              </span>
+              <span className="mh2-hero-moment-text">{moment.text}</span>
+              <span className="mh2-hero-moment-reward">{moment.reward}</span>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="marketing-section" aria-labelledby="why-different-title">
+      {/* The three flagship destinations. */}
+      <section className="marketing-section" aria-labelledby="paths-title">
         <SectionIntro
-          id="why-different-title"
-          eyebrow="Why families switch"
-          title="Built for real household follow-through, not just task lists."
-          description="Family Chores Game combines chore assignment, approvals, rewards, profiles, and long-term motivation so the system still works after the first week."
+          id="paths-title"
+          eyebrow="Start anywhere"
+          title="Chores today. Routines this month. Responsibility for life."
+          description="Three layers, one system — each one builds on the last, and each has a full guide you can read before you ever sign in."
         />
-        <div className="marketing-card-grid">
-          {comparisonCards.map((card) => (
-            <article key={card.title} className="marketing-info-card">
-              <span className="marketing-card-label">{card.label}</span>
+        <div className="mh2-paths">
+          {pathCards.map((card) => (
+            <Link key={card.href} href={card.href} className="mh2-path-card" data-accent={card.accent}>
+              <span className="mh2-path-emoji" aria-hidden="true">
+                {card.emoji}
+              </span>
+              <span className="mh2-path-meta">{card.meta}</span>
               <h3>{card.title}</h3>
               <p>{card.body}</p>
-            </article>
+              <span className="mh2-path-cta">{card.cta}</span>
+            </Link>
           ))}
         </div>
       </section>
 
+      {/* Pillar band. */}
+      <section
+        className="marketing-section"
+        id="responsibility-pillars"
+        aria-labelledby="responsibility-pillars-title">
+        <SectionIntro
+          id="responsibility-pillars-title"
+          eyebrow="The Pillars of Responsibility"
+          title="Five skills. One capable young adult."
+          description="Tag any chore or routine with a pillar and every completion earns Responsibility XP — a growth chart that means more than a checked box."
+        />
+        <div className="mh2-pillar-band">
+          {pillarTiles.map((pillar) => (
+            <Link
+              key={pillar.id}
+              href="/pillars-of-responsibility"
+              className="mh2-pillar-tile"
+              data-pillar={pillar.id}>
+              <span className="mh2-pillar-emoji" aria-hidden="true">
+                {pillar.emoji}
+              </span>
+              <h3>{pillar.title}</h3>
+              <p>{pillar.body}</p>
+            </Link>
+          ))}
+        </div>
+        <p className="marketing-hero-actions-note">
+          See exactly how XP, levels, and routines fit together on the{" "}
+          <Link href="/pillars-of-responsibility">Pillars of Responsibility</Link> page.
+        </p>
+      </section>
+
+      {/* How it works: a day in the life, told as a connected journey. */}
       <section className="marketing-section" id="how-it-works" aria-labelledby="how-it-works-title">
         <SectionIntro
           id="how-it-works-title"
           eyebrow="How it works"
-          title="A clear workflow from setup to visible progress."
-          description="The app supports both instant-payout chores and approval-based chores, so families can match the workflow to the task."
+          title="One quiet Sunday setup. A whole week that runs itself."
+          description="Here's what Family Chores actually looks like in a real house, from couch to high-five."
         />
-        <div className="marketing-how-layout">
-          <MarketingImageFrame
-            src="/workflow.png"
-            alt="Illustrated flow showing a parent assigning chores, a child completing work, a parent reviewing when needed, and rewards updating."
-            width={1881}
-            height={836}
-            className="marketing-image-wide"
-            caption="Assignment, completion, review, and rewards stay in one clear flow."
-          />
-          <div className="marketing-step-grid">
-            {workflowSteps.map((step, index) => (
-              <article key={step.title} className="marketing-step-card">
-                <span className="marketing-step-number">0{index + 1}</span>
-                <h3>{step.title}</h3>
-                <p>{step.body}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="marketing-section" aria-labelledby="chore-types-title">
-        <SectionIntro
-          id="chore-types-title"
-          eyebrow="Chore types"
-          title="Use the right type of chore for the job."
-          description="Not every responsibility works the same way. The app supports one-person chores, shared chores, and parent-reviewed claimable chores."
-        />
-        <div className="marketing-card-grid">
-          {choreTypeCards.map((card) => (
-            <article key={card.title} className="marketing-info-card">
-              <span className="marketing-card-label">{card.label}</span>
-              <h3>{card.title}</h3>
-              <p>{card.body}</p>
-            </article>
+        <ol className="mh2-journey">
+          {journeySteps.map((step, index) => (
+            <li key={step.title} className="mh2-journey-step" data-accent={step.accent}>
+              <div className="mh2-journey-marker">
+                <span className="mh2-journey-emoji" aria-hidden="true">
+                  {step.emoji}
+                </span>
+                <span className="mh2-journey-index" aria-hidden="true">
+                  {index + 1}
+                </span>
+              </div>
+              <div className="mh2-journey-meta">
+                <span className="mh2-journey-when">{step.when}</span>
+                <span className="mh2-journey-actor">{step.actor}</span>
+              </div>
+              <h3>{step.title}</h3>
+              <p>{step.body}</p>
+              <div className="mh2-journey-chip" aria-hidden="true">
+                <span className="mh2-journey-chip-emoji">{step.chip.emoji}</span>
+                <span className="mh2-journey-chip-text">{step.chip.text}</span>
+                <span className="mh2-hero-moment-reward">{step.chip.reward}</span>
+              </div>
+            </li>
           ))}
-        </div>
+        </ol>
       </section>
 
-      <section className="marketing-section" aria-labelledby="google-integration-title">
-        <div className="marketing-spotlight panel">
-          <div className="marketing-spotlight-copy">
-            <span className="marketing-eyebrow">Works with Google</span>
-            <h2 id="google-integration-title">Fits into the tools your family already uses.</h2>
-            <p>
-              For families already organized around Google accounts and Google Tasks,
-              Family Chores Game adds a household layer on top. Selected task lists can
-              sync into the chore system so parents keep structure, kids keep accountability,
-              and the family does not have to rebuild everything from scratch.
-            </p>
-            <p className="marketing-spotlight-note">
-              Use the routine you already have. Add household visibility, rewards, and
-              the level of approval each chore actually needs.
-            </p>
-          </div>
-
-          <article className="marketing-spotlight-card">
-            <span className="marketing-card-label">Connected workflow</span>
-            <h3>Bring Google Tasks into a family-ready system.</h3>
-            <ul className="marketing-checklist">
-              <li>Sync selected Google task lists into household chore workflows</li>
-              <li>Layer in approvals, rewards, and family visibility where useful</li>
-              <li>Reduce duplicate task entry for busy families already using Google</li>
-            </ul>
-          </article>
-        </div>
-      </section>
-
-      <section className="marketing-section" aria-labelledby="family-features-title">
-        <SectionIntro
-          id="family-features-title"
-          eyebrow="Beyond chores"
-          title="Profiles, awards, and quest content keep the system growing with your family."
-          description="The app is not limited to a single chore list. It gives parents more ways to manage access, shape rewards, and guide bigger goals."
-        />
-        <div className="marketing-card-grid">
-          {familyFeatureCards.map((card) => (
-            <article key={card.title} className="marketing-info-card">
-              <span className="marketing-card-label">{card.label}</span>
-              <h3>{card.title}</h3>
-              <p>{card.body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
+      {/* Both roles. */}
       <section className="marketing-section" aria-labelledby="whole-household-title">
         <SectionIntro
           id="whole-household-title"
           eyebrow="Designed for both roles"
           title="Structure for parents. Motivation for kids."
-          description="The platform gives each side of the household what it actually needs instead of forcing everyone into the same flat task list."
+          description="Each side of the household gets what it actually needs instead of a flat shared task list."
         />
         <div className="marketing-role-layout">
           <div className="marketing-role-grid">
             <article className="marketing-role-card">
-              <span className="marketing-card-label">Admin experience</span>
-              <h3>Parents stay in control</h3>
+              <span className="marketing-card-label">Parents</span>
+              <h3>Set the rules once, then step back</h3>
               <p>Manage the household, set expectations, and decide when rewards are earned.</p>
               <ul className="marketing-bullet-list">
-                {parentBenefits.map((benefit) => (
+                {roleParent.map((benefit) => (
                   <li key={benefit}>{benefit}</li>
                 ))}
               </ul>
             </article>
 
             <article className="marketing-role-card">
-              <span className="marketing-card-label">Player experience</span>
-              <h3>Kids get a system that rewards ownership</h3>
+              <span className="marketing-card-label">Kids</span>
+              <h3>Effort they can see paying off</h3>
               <p>
-                For kids who love games and visible progress, the app turns responsibility
-                into something they can see building over time instead of hearing about after the fact.
+                Coins, unlocks, quests, and Responsibility levels turn doing your part into
+                progress kids can watch build over time.
               </p>
               <ul className="marketing-bullet-list">
-                {playerBenefits.map((benefit) => (
+                {rolePlayer.map((benefit) => (
                   <li key={benefit}>{benefit}</li>
                 ))}
               </ul>
@@ -408,27 +390,29 @@ export function MarketingHomepage({
             width={1536}
             height={1024}
             className="marketing-image-tall"
-            caption="Rewards, profiles, and family progress feel connected instead of separate."
+            caption="Rewards, profiles, and family progress feel connected instead of separate. Kids can see what they have earned, who they are becoming, and what is next, while parents get one clear system instead of scattered charts, checklists, and reward rules."
           />
         </div>
       </section>
 
+      {/* Live visibility + Google. */}
       <section className="marketing-section" aria-labelledby="live-visibility-title">
         <div className="marketing-visibility panel">
           <div className="marketing-visibility-top">
             <div className="marketing-visibility-copy">
               <span className="marketing-eyebrow">Live visibility</span>
-              <h2 id="live-visibility-title">The household stays aligned without constant follow-up.</h2>
+              <h2 id="live-visibility-title">The household stays aligned without follow-up.</h2>
               <p>
-                Family activity updates in realtime, so the app feels current instead of
-                static. Parents can quickly see what changed, kids can see progress move,
-                and notifications help everyone stay on the same page without extra reminders.
+                Family activity updates in realtime: completions, approvals, routine
+                milestones, and rewards land in a shared feed the moment they happen.
+                Already organized around Google? Selected Google Tasks lists can sync
+                straight into the chore system.
               </p>
             </div>
 
             <MarketingImageFrame
               src="/prizes.png"
-              alt="Family Chores Game interface highlighting notifications, approvals, rewards, and progress across desktop and mobile."
+              alt="Family Chores interface highlighting notifications, approvals, rewards, and progress across desktop and mobile."
               width={1536}
               height={1024}
               className="marketing-image-visibility"
@@ -439,27 +423,28 @@ export function MarketingHomepage({
           <div className="marketing-activity-grid" aria-label="Sample household activity highlights">
             <article className="marketing-activity-card">
               <span className="marketing-card-label">Activity feed</span>
-              <p>Mia completed Kitchen cleanup and it moved straight into the family timeline.</p>
+              <p>Mia finished step 3 of Dinner Cleanup — the whole routine pays a bonus when she&apos;s done.</p>
             </article>
             <article className="marketing-activity-card">
-              <span className="marketing-card-label">Approval status</span>
-              <p>Approval-required chores wait for review, while eligible chores can approve and pay coins immediately.</p>
+              <span className="marketing-card-label">Approvals</span>
+              <p>Approval-required chores wait for review; trusted chores pay coins instantly.</p>
             </article>
             <article className="marketing-activity-card">
-              <span className="marketing-card-label">Shared visibility</span>
-              <p>Notifications and live updates reduce the &quot;Did anyone do this yet?&quot; loop.</p>
+              <span className="marketing-card-label">Kiosk Mode</span>
+              <p>A shared tablet in the kitchen, locked to a simple player-safe checklist.</p>
             </article>
           </div>
         </div>
       </section>
 
+      {/* Final CTA. */}
       <section className="marketing-section" id="get-started" aria-labelledby="get-started-title">
-        <div className="marketing-final-cta panel">
-          <span className="badge marketing-final-badge">Ready to get organized?</span>
-          <h2 id="get-started-title">Make responsibility feel visible and worth owning.</h2>
+        <div className="mh2-final">
+          <span className="mh2-hero-kicker">Ready to start growing?</span>
+          <h2 id="get-started-title">Raise capable, independent, responsible young adults.</h2>
           <p>
-            Family Chores Game gives parents a system they can trust and gives kids
-            tangible signs of ownership through rewards, unlocks, quest content, and visible momentum.
+            Start with one chore tonight. Watch the coins, confetti, and high-fives kick in
+            this week — and the life skills quietly stack up for years after.
           </p>
           <div className="marketing-final-actions">
             {hasGoogleCta ? (
@@ -477,14 +462,13 @@ export function MarketingHomepage({
                 Get started
               </Link>
             )}
-            <Link href="#how-it-works" className="btn btn-secondary">
-              See how it works
+            <Link href="/chores" className="btn btn-secondary">
+              Read the chores guide first
             </Link>
           </div>
-          <p className="marketing-final-note">
-            {hasGoogleCta
-              ? "Google sign-in gets the parent account started quickly, and most child profiles can be managed through PIN-protected Switch Account."
-              : "Configure Google sign-in to enable the fastest start for new families."}
+          <p className="mh2-final-note">
+            Google sign-in starts the parent account; kids join through managed profiles
+            with PIN-protected Switch Account — no child emails required.
           </p>
         </div>
       </section>

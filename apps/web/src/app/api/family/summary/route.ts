@@ -43,6 +43,7 @@ import {
   skillBonusEligibilityKey,
 } from "@/lib/chores/skill-bonus";
 import { normalizeChoreType } from "@/lib/chores/types";
+import { normalizeResponsibilityPillar } from "@/lib/responsibility/types";
 import { DEFAULT_LOCALE, resolveAppLocale } from "@/lib/locale";
 
 export const dynamic = "force-dynamic";
@@ -464,7 +465,11 @@ export async function GET(request: NextRequest) {
           assigneeScope: "single" | "multiple" | "family",
           assigneeId: string,
         ) {
-          if (assigneeScope !== "single" || choreType === "see_and_do") {
+          const newSkillEnabled =
+            !fields || !Object.prototype.hasOwnProperty.call(fields, "newSkillEnabled")
+              ? true
+              : readBoolean(fields, "newSkillEnabled");
+          if (assigneeScope !== "single" || choreType === "see_and_do" || !newSkillEnabled) {
             return false;
           }
           const assigneeUid =
@@ -574,10 +579,10 @@ export async function GET(request: NextRequest) {
           let ledgerLifetimeCoinsEarned = 0;
           if (member.uid) {
             try {
-              const ledgerDocs = await listDocuments(
+              const ledgerDocs = await listAllDocuments(
                 `users/${member.uid}/walletLedger`,
                 idToken,
-                1000,
+                { cap: 1000 },
               );
               ledgerLifetimeCoinsEarned = ledgerDocs.reduce((total, ledgerDoc) => {
                 if (readBoolean(ledgerDoc.fields, "countsTowardBalance") === false) {
@@ -826,6 +831,10 @@ export async function GET(request: NextRequest) {
               deleted: readBoolean(doc.fields, "deleted"),
               coinValue: normalizeCoinValue(readInteger(doc.fields, "coinValue")),
               requireApproval: readBoolean(doc.fields, "requireApproval"),
+              newSkillEnabled:
+                !doc.fields || !Object.prototype.hasOwnProperty.call(doc.fields, "newSkillEnabled")
+                  ? true
+                  : readBoolean(doc.fields, "newSkillEnabled"),
               recurrence: normalizeRecurrenceConfig({
                 recurrenceType: readString(doc.fields, "recurrenceType"),
                 recurrenceInterval: readInteger(doc.fields, "recurrenceInterval"),
@@ -837,6 +846,14 @@ export async function GET(request: NextRequest) {
                   : ("manual" as const),
               sortOrder: readOptionalSortOrder(doc.fields),
               createdAt: readTimestamp(doc.fields, "createdAt") || undefined,
+              responsibilityPillar:
+                normalizeResponsibilityPillar(readString(doc.fields, "responsibilityPillar")) ||
+                undefined,
+              routineAssignmentId: readString(doc.fields, "routineAssignmentId") || undefined,
+              routineId: readString(doc.fields, "routineId") || undefined,
+              routineName: readString(doc.fields, "routineName") || undefined,
+              routineStepOrder: readInteger(doc.fields, "routineStepOrder") || undefined,
+              routineStepCount: readInteger(doc.fields, "routineStepCount") || undefined,
               newSkillBonusEligible: resolveNewSkillBonusEligible(
                 doc.fields,
                 documentIdFromName(doc.name),
@@ -879,6 +896,7 @@ export async function GET(request: NextRequest) {
               categories: resolveChoreCategories(chore.categoryIds, categoryMap),
               coinValue: chore.coinValue,
               requireApproval: chore.requireApproval,
+              newSkillEnabled: chore.newSkillEnabled,
               recurrenceType: chore.recurrence.recurrenceType,
               recurrenceInterval: chore.recurrence.recurrenceInterval,
               recurrenceUnit: chore.recurrence.recurrenceUnit,
@@ -886,6 +904,12 @@ export async function GET(request: NextRequest) {
               newSkillBonusAmount: chore.newSkillBonusEligible
                 ? NEW_SKILL_BONUS_AMOUNT
                 : undefined,
+              responsibilityPillar: chore.responsibilityPillar,
+              routineAssignmentId: chore.routineAssignmentId,
+              routineId: chore.routineId,
+              routineName: chore.routineName,
+              routineStepOrder: chore.routineStepOrder,
+              routineStepCount: chore.routineStepCount,
               source: chore.source,
               status:
                 chore.status === "Open" ||

@@ -10,6 +10,7 @@ import {
   mapField,
   readInteger,
   readString,
+  listAllDocuments,
   readStringArray,
   readTimestamp,
   signedIntegerField,
@@ -235,7 +236,7 @@ export async function listQuestProgress(uid: string, idToken: string) {
 
 export async function listInventoryByItemId(uid: string, idToken: string) {
   try {
-    const docs = await listDocuments(`users/${uid}/inventory`, idToken, 400);
+    const docs = await listAllDocuments(`users/${uid}/inventory`, idToken, { cap: 400 });
     const map = new Map<string, InventoryEntry>();
     for (const doc of docs) {
       const entry = toInventoryEntry(doc.fields);

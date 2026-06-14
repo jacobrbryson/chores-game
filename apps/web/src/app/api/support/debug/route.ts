@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { isSupportAdmin } from "@/lib/support/access";
+import { loadSupportDashboardMetrics } from "@/lib/support/dashboard-metrics";
 import {
   adminGetDocument,
   adminListDocuments,
@@ -213,7 +214,7 @@ export async function GET(request: NextRequest) {
   const selectedChoreId = (url.searchParams.get("choreId") ?? "").trim();
 
   try {
-    const [userDocs, familyDocs, choreDocs, auditDocs, notificationDocs, adminMemberDocs, newsletterSendDocs] = await Promise.all([
+    const [userDocs, familyDocs, choreDocs, auditDocs, notificationDocs, adminMemberDocs, newsletterSendDocs, supportDashboardMetrics] = await Promise.all([
       adminListDocuments("users", MAX_SUPPORT_ROWS),
       adminListDocuments("families", MAX_SUPPORT_ROWS),
       listCollectionGroup("chores", MAX_SUPPORT_ROWS),
@@ -221,6 +222,7 @@ export async function GET(request: NextRequest) {
       listCollectionGroup("notifications", 300),
       listAdminMembers(),
       listCollectionGroup("newsletterSends", 2000),
+      loadSupportDashboardMetrics(),
     ]);
 
     // Latest successful weekly-highlights send per family, for the Families table column.
@@ -374,6 +376,7 @@ export async function GET(request: NextRequest) {
       chores,
       ledgers,
       events,
+      supportDashboardMetrics,
       suspicious,
       counts: {
         users: userDocs.length,

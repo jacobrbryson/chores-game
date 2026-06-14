@@ -3,6 +3,7 @@ import { DEFAULT_LOCALE, resolveLocalePreference } from "@packages/locales";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import type { SessionUser } from "@/lib/auth/session";
 import { createFamilyForUser } from "@/lib/family/bootstrap";
+import { mobileWebCorsPreflight, withMobileWebCors } from "@/lib/mobile-web-cors";
 import {
   findFirstFamilyIdByMemberEmail,
   getDocument,
@@ -194,11 +195,18 @@ async function upsertFirebaseUser(session: FirebaseSession, tokenInfo: GoogleTok
   };
 }
 
+export function OPTIONS(request: NextRequest) {
+  return mobileWebCorsPreflight(request);
+}
+
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as { idToken?: string };
   const idToken = typeof body.idToken === "string" ? body.idToken.trim() : "";
   if (!idToken) {
-    return NextResponse.json({ ok: false, error: "missing_id_token" }, { status: 400 });
+    return withMobileWebCors(
+      NextResponse.json({ ok: false, error: "missing_id_token" }, { status: 400 }),
+      request,
+    );
   }
 
   try {
@@ -228,10 +236,13 @@ export async function POST(request: NextRequest) {
       firebaseIdToken: firebaseSession.idToken,
       firebaseRefreshToken: firebaseSession.refreshToken,
     });
-    return response;
+    return withMobileWebCors(response, request);
   } catch (error) {
     const reason = error instanceof Error && error.message ? error.message.slice(0, 120) : "unknown";
     console.error("[MOBILE_GOOGLE_AUTH_ERROR]", reason);
-    return NextResponse.json({ ok: false, error: "google_signin_failed" }, { status: 401 });
+    return withMobileWebCors(
+      NextResponse.json({ ok: false, error: "google_signin_failed" }, { status: 401 }),
+      request,
+    );
   }
 }

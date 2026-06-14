@@ -1,6 +1,6 @@
 import {
   documentIdFromName,
-  listDocuments,
+  listAllDocuments,
   readBoolean,
   readInteger,
   readString,
@@ -80,8 +80,8 @@ export function parseFamilyAwardClaims(
 export async function listFamilyAwardClaims(
   familyId: string,
   idToken: string,
-  pageSize = 500,
+  cap = 500,
 ) {
-  const docs = await listDocuments(`families/${familyId}/awardClaims`, idToken, pageSize);
+  const docs = await listAllDocuments(`families/${familyId}/awardClaims`, idToken, { cap });
   return parseFamilyAwardClaims(docs);
 }

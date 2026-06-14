@@ -1,5 +1,9 @@
 import { DEFAULT_LOCALE, resolveLocalePreference } from "@packages/locales";
-import { adminGetDocument, adminListDocuments } from "@/lib/firestore/admin";
+import {
+  adminGetDocument,
+  adminListAllDocuments,
+  adminListDocuments,
+} from "@/lib/firestore/admin";
 import {
   documentIdFromName,
   readBoolean,
@@ -121,11 +125,106 @@ export async function computeWeeklyFamilyHighlightMetrics(input: {
   recipientUids: string[];
   window: WeeklyWindow;
 }): Promise<WeeklyFamilyHighlightMetrics> {
-  const [choreDocs, notificationDocs, awardClaimDocs] = await Promise.all([
-    adminListDocuments(`families/${input.familyId}/chores`, 2000),
-    adminListDocuments(`families/${input.familyId}/notifications`, 500),
-    adminListDocuments(`families/${input.familyId}/awardClaims`, 500),
+  // chores/awardClaims grow unbounded (recurring chores spawn a doc each cycle),
+  // so they must page past the 300-doc REST cap or the recap under-counts.
+  // members is capped at 100 per family, so a single page is always complete.
+  const [choreDocs, notificationDocs, awardClaimDocs, memberDocs] = await Promise.all([
+    adminListAllDocuments(`families/${input.familyId}/chores`),
+    adminListAllDocuments(`families/${input.familyId}/notifications`),
+    adminListAllDocuments(`families/${input.familyId}/awardClaims`),
+    adminListDocuments(`families/${input.familyId}/members`, 250),
   ]);
+
+  // Mirror the dashboard's completion-stats attribution so the "most active
+  // helper" tally matches the dashboard leaderboard. A chore credits a single
+  // member (`assigneeId`), several members (`assigneeIds`), or the whole family
+  // (`assigneeScope === "family"`); counting only `assigneeId` drops every
+  // group/family completion for all but the lone single-assignee member.
+  const rawMembers = memberDocs
+    .map((doc) => ({
+      id: documentIdFromName(doc.name),
+      uid: readString(doc.fields, "uid") || undefined,
+      email: readString(doc.fields, "email"),
+      name: readString(doc.fields, "name") || "Unnamed member",
+      avatarId: readString(doc.fields, "avatarId"),
+      avatarPhotoUrl: readString(doc.fields, "avatarPhotoUrl"),
+      dashboardPrimaryColor: readString(doc.fields, "dashboardPrimaryColor"),
+      deleted: readBoolean(doc.fields, "deleted"),
+    }))
+    .filter((member) => !member.deleted);
+  const normalizeEmail = (value: string) => value.trim().toLowerCase();
+  const emailsWithUid = new Set(
+    rawMembers
+      .filter((member) => Boolean(member.uid))
+      .map((member) => normalizeEmail(member.email))
+      .filter(Boolean),
+  );
+  // Drop email-only invite docs that are superseded by an accepted uid doc so a
+  // single person is not double-counted under two member ids.
+  const members = rawMembers.filter((member) => {
+    if (member.uid) {
+      return true;
+    }
+    const email = normalizeEmail(member.email);
+    return !email || !emailsWithUid.has(email);
+  });
+  const memberById = new Map(members.map((member) => [member.id, member] as const));
+  const allMemberIds = members.map((member) => member.id);
+  const canonicalByEmail = new Map(
+    members
+      .map((member) => [normalizeEmail(member.email), member.id] as const)
+      .filter(([email]) => Boolean(email)),
+  );
+  const assigneeAliasToMemberId = new Map<string, string>();
+  for (const member of members) {
+    assigneeAliasToMemberId.set(member.id, member.id);
+    if (member.uid) {
+      assigneeAliasToMemberId.set(member.uid, member.id);
+    }
+    const email = normalizeEmail(member.email);
+    if (email) {
+      assigneeAliasToMemberId.set(email, member.id);
+    }
+  }
+  for (const member of rawMembers) {
+    const email = normalizeEmail(member.email);
+    if (!email || assigneeAliasToMemberId.has(member.id)) {
+      continue;
+    }
+    const canonicalId = canonicalByEmail.get(email);
+    if (canonicalId) {
+      assigneeAliasToMemberId.set(member.id, canonicalId);
+    }
+  }
+
+  function resolveCountedMemberIds(
+    fields: Parameters<typeof readString>[0],
+  ): string[] {
+    if (readString(fields, "assigneeScope") === "family") {
+      return allMemberIds;
+    }
+    const assigneeIdsRaw = readStringArray(fields, "assigneeIds");
+    const singleAssigneeId = readString(fields, "assigneeId");
+    const aliases =
+      assigneeIdsRaw.length > 0
+        ? assigneeIdsRaw
+        : singleAssigneeId
+          ? [singleAssigneeId]
+          : [];
+    const resolved: string[] = [];
+    const seen = new Set<string>();
+    for (const alias of aliases) {
+      const memberId =
+        assigneeAliasToMemberId.get(alias) ??
+        assigneeAliasToMemberId.get(normalizeEmail(alias)) ??
+        alias;
+      if (memberById.has(memberId) && !seen.has(memberId)) {
+        seen.add(memberId);
+        resolved.push(memberId);
+      }
+    }
+    return resolved;
+  }
 
   const completedCounts = new Map<string, number>();
   let choresCompleted = 0;
@@ -147,9 +246,8 @@ export async function computeWeeklyFamilyHighlightMetrics(input: {
       continue;
     }
     choresCompleted += 1;
-    const assigneeId = readString(choreDoc.fields, "assigneeId");
-    if (assigneeId) {
-      completedCounts.set(assigneeId, (completedCounts.get(assigneeId) ?? 0) + 1);
+    for (const memberId of resolveCountedMemberIds(choreDoc.fields)) {
+      completedCounts.set(memberId, (completedCounts.get(memberId) ?? 0) + 1);
     }
   }
 
@@ -158,23 +256,16 @@ export async function computeWeeklyFamilyHighlightMetrics(input: {
   let mostActiveHelperAvatarId = "";
   let mostActiveHelperAvatarPhotoUrl = "";
   let mostActiveHelperPrimaryColor = "";
-  for (const [assigneeId, count] of completedCounts) {
+  for (const [memberId, count] of completedCounts) {
     if (count <= mostActiveHelperCount) {
       continue;
     }
     mostActiveHelperCount = count;
-    mostActiveHelperAvatarId = "";
-    mostActiveHelperAvatarPhotoUrl = "";
-    mostActiveHelperPrimaryColor = "";
-    try {
-      const memberDoc = await adminGetDocument(`families/${input.familyId}/members/${assigneeId}`);
-      mostActiveHelperName = readString(memberDoc.fields, "name") || assigneeId;
-      mostActiveHelperAvatarId = readString(memberDoc.fields, "avatarId");
-      mostActiveHelperAvatarPhotoUrl = readString(memberDoc.fields, "avatarPhotoUrl");
-      mostActiveHelperPrimaryColor = readString(memberDoc.fields, "dashboardPrimaryColor");
-    } catch {
-      mostActiveHelperName = assigneeId;
-    }
+    const member = memberById.get(memberId);
+    mostActiveHelperName = member?.name || memberId;
+    mostActiveHelperAvatarId = member?.avatarId ?? "";
+    mostActiveHelperAvatarPhotoUrl = member?.avatarPhotoUrl ?? "";
+    mostActiveHelperPrimaryColor = member?.dashboardPrimaryColor ?? "";
   }
 
   let rewardsRedeemed = 0;
@@ -200,9 +291,9 @@ export async function computeWeeklyFamilyHighlightMetrics(input: {
   await Promise.all(
     input.recipientUids.map(async (uid) => {
       const [ledgerDocs, questDocs, achievementDocs] = await Promise.all([
-        adminListDocuments(`users/${uid}/walletLedger`, 500).catch(() => []),
-        adminListDocuments(`users/${uid}/questProgress`, 300).catch(() => []),
-        adminListDocuments(`users/${uid}/achievements`, 300).catch(() => []),
+        adminListAllDocuments(`users/${uid}/walletLedger`).catch(() => []),
+        adminListAllDocuments(`users/${uid}/questProgress`).catch(() => []),
+        adminListAllDocuments(`users/${uid}/achievements`).catch(() => []),
       ]);
       for (const ledgerDoc of ledgerDocs) {
         if (!readBoolean(ledgerDoc.fields, "countsTowardBalance")) {

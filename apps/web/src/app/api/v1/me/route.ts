@@ -4,6 +4,7 @@ import { fail, ok } from "@/app/api/v1/_lib/response";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
+import { getAuthenticatedSessionIdentity, isKioskActive, isSessionSwitched } from "@/lib/auth/session";
 import {
   getDocument,
   readInteger,
@@ -11,6 +12,7 @@ import {
   readStringArray,
 } from "@/lib/firestore/rest";
 import { DEFAULT_LOCALE, resolveAppLocale } from "@/lib/locale";
+import { mobileWebCorsPreflight, withMobileWebCors } from "@/lib/mobile-web-cors";
 import { getPublicApiMe } from "@/lib/public-api/data";
 import { withPublicApi } from "@/lib/public-api/middleware";
 
@@ -87,7 +89,7 @@ export async function GET(request: NextRequest) {
   if (!request.headers.get("authorization")) {
     const session = getSessionFromRequest(request);
     if (!session?.uid) {
-      return fail("unauthorized", "Sign in required", 401);
+      return withMobileWebCors(fail("unauthorized", "Sign in required", 401), request);
     }
 
     const fallbackSummary = {
@@ -118,6 +120,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const switched = isSessionSwitched(session);
     const response = ok({
       uid: session.uid,
       memberId: session.memberId,
@@ -129,14 +132,25 @@ export async function GET(request: NextRequest) {
       balance: summary.balance,
       locale: session.locale || summary.locale,
       resolvedLocale: summary.locale,
+      // Account-switch ("Switch To...") and Kiosk Mode state, mirroring the web
+      // profile menu so the mobile menu can offer "Return to Parent" / kiosk
+      // controls while acting as a child.
+      isSwitched: switched,
+      kioskActive: isKioskActive(session),
+      authenticatedName:
+        switched || isKioskActive(session) ? getAuthenticatedSessionIdentity(session).name : "",
     });
     if (shouldSetSessionCookie || refreshedSession.locale !== summary.locale) {
       setSessionUserCookie(response, { ...refreshedSession, locale: summary.locale });
     }
-    return response;
+    return withMobileWebCors(response, request);
   }
 
   return withPublicApi(request, ["read:profile"], async ({ token }) => {
     return NextResponse.json(await getPublicApiMe(token));
   });
+}
+
+export function OPTIONS(request: NextRequest) {
+  return mobileWebCorsPreflight(request);
 }

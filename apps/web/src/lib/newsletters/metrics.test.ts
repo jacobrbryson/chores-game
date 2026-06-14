@@ -5,14 +5,18 @@ import {
   loadNewsletterFamilyContext,
 } from "@/lib/newsletters/metrics";
 
-const { mockAdminGetDocument, mockAdminListDocuments } = vi.hoisted(() => ({
-  mockAdminGetDocument: vi.fn(),
-  mockAdminListDocuments: vi.fn(),
-}));
+const { mockAdminGetDocument, mockAdminListDocuments, mockAdminListAllDocuments } = vi.hoisted(
+  () => ({
+    mockAdminGetDocument: vi.fn(),
+    mockAdminListDocuments: vi.fn(),
+    mockAdminListAllDocuments: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/firestore/admin", () => ({
   adminGetDocument: mockAdminGetDocument,
   adminListDocuments: mockAdminListDocuments,
+  adminListAllDocuments: mockAdminListAllDocuments,
 }));
 
 function doc(name: string, fields: Record<string, unknown>) {
@@ -35,6 +39,7 @@ describe("newsletter metrics and recipients", () => {
   beforeEach(() => {
     mockAdminGetDocument.mockReset();
     mockAdminListDocuments.mockReset();
+    mockAdminListAllDocuments.mockReset();
   });
 
   it("includes admins, excludes players by default, and identifies skip reasons", async () => {
@@ -92,7 +97,28 @@ describe("newsletter metrics and recipients", () => {
   });
 
   it("aggregates weekly counts from chores, ledger, rewards, quests, achievements, and pending approvals", async () => {
-    mockAdminListDocuments.mockImplementation(async (path: string) => {
+    // members is read via adminListDocuments; the unbounded collections (chores,
+    // notifications, awardClaims, walletLedger, ...) are paged via
+    // adminListAllDocuments. Both resolve from the same path-keyed fixtures.
+    const listByPath = async (path: string) => {
+      if (path === "families/family-1/members") {
+        return [
+          doc(`${path}/player-1`, {
+            role: stringValue("player"),
+            status: stringValue("active"),
+            uid: stringValue("player-1"),
+            email: stringValue("ava@example.com"),
+            name: stringValue("Ava"),
+          }),
+          doc(`${path}/player-2`, {
+            role: stringValue("player"),
+            status: stringValue("active"),
+            uid: stringValue("player-2"),
+            email: stringValue("bo@example.com"),
+            name: stringValue("Bo"),
+          }),
+        ];
+      }
       if (path === "families/family-1/chores") {
         return [
           doc(`${path}/chore-1`, {
@@ -104,6 +130,13 @@ describe("newsletter metrics and recipients", () => {
             status: stringValue("Submitted"),
             assigneeId: stringValue("player-1"),
             submittedAt: stringValue("2026-06-03T10:00:00.000Z"),
+          }),
+          // Family-scoped chore: credits every member, mirroring the dashboard
+          // leaderboard. The old metric ignored this entirely.
+          doc(`${path}/chore-3`, {
+            status: stringValue("Approved"),
+            assigneeScope: stringValue("family"),
+            submittedAt: stringValue("2026-06-04T10:00:00.000Z"),
           }),
         ];
       }
@@ -151,11 +184,9 @@ describe("newsletter metrics and recipients", () => {
         ];
       }
       return [];
-    });
-    mockAdminGetDocument.mockResolvedValue(
-      doc("families/family-1/members/player-1", { name: stringValue("Ava") }),
-    );
-
+    };
+    mockAdminListDocuments.mockImplementation(listByPath);
+    mockAdminListAllDocuments.mockImplementation(listByPath);
     const metrics = await computeWeeklyFamilyHighlightMetrics({
       familyId: "family-1",
       recipientUids: ["player-1"],
@@ -167,14 +198,16 @@ describe("newsletter metrics and recipients", () => {
       },
     });
 
-    expect(metrics.choresCompleted).toBe(2);
+    expect(metrics.choresCompleted).toBe(3);
     expect(metrics.coinsEarned).toBe(15);
     expect(metrics.rewardsRedeemed).toBe(1);
     expect(metrics.familyAwardsClaimed).toBe(1);
     expect(metrics.questsCompleted).toBe(1);
     expect(metrics.achievementsUnlocked).toBe(1);
     expect(metrics.pendingApprovals).toBe(1);
+    // Ava is credited for 2 single-assignee chores + the family-scoped chore.
     expect(metrics.mostActiveHelperName).toBe("Ava");
+    expect(metrics.mostActiveHelperCount).toBe(3);
     expect(metrics.recentHighlights).toHaveLength(1);
   });
 });

@@ -16,6 +16,8 @@ export const FEED_EVENT_TYPES = [
   "chore_approved",
   "chore_rejected",
   "reward_claimed",
+  "routine_assigned",
+  "routine_completed",
 ] as const;
 
 export type FeedEventType = (typeof FEED_EVENT_TYPES)[number];
@@ -24,12 +26,17 @@ export type FeedEventType = (typeof FEED_EVENT_TYPES)[number];
 // event type. Noisy lifecycle kinds (chore_edited, chore_deleted, chore_undo_completed)
 // are intentionally excluded so the feed stays cheerful and uncluttered rather than a
 // raw activity log (which already exists at /notifications).
+// Routine events are deliberately limited to assignment and completion — the
+// per-step chore_completed events already cover intermediate progress, so a
+// routine never floods the feed with one extra event per step.
 const NOTIFICATION_KIND_TO_FEED_TYPE: Record<string, FeedEventType> = {
   chore_created: "chore_created",
   chore_completed: "chore_completed",
   chore_approved: "chore_approved",
   chore_rejected: "chore_rejected",
   reward_claimed: "reward_claimed",
+  routine_assigned: "routine_assigned",
+  routine_completed: "routine_completed",
 };
 
 export function mapNotificationKindToFeedType(kind: string): FeedEventType | null {
@@ -48,6 +55,8 @@ const FEED_TYPE_ICONS: Record<FeedEventType, string> = {
   chore_approved: "approved",
   chore_rejected: "rejected",
   reward_claimed: "reward",
+  routine_assigned: "routine",
+  routine_completed: "routine_done",
 };
 
 export function feedTypeIcon(type: FeedEventType): string {
@@ -62,6 +71,8 @@ const FEED_TYPE_EMOJI: Record<FeedEventType, string> = {
   chore_approved: "🌟",
   chore_rejected: "🔁",
   reward_claimed: "🎁",
+  routine_assigned: "📋",
+  routine_completed: "🎉",
 };
 
 // Fallback for notification kinds that surface in the email highlights but aren't part
@@ -79,6 +90,10 @@ export type FeedActionType = "view_chore" | "view_reward";
 export function feedTypeAction(type: FeedEventType): FeedActionType | null {
   if (type === "reward_claimed") {
     return "view_reward";
+  }
+  if (type === "routine_assigned" || type === "routine_completed") {
+    // Routine events carry no single chore to deep-link to.
+    return null;
   }
   return "view_chore";
 }

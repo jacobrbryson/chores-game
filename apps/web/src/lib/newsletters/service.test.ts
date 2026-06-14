@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildWeeklyFamilyHighlightsPreview,
   sendWeeklyFamilyHighlightsForAllFamilies,
+  sendWeeklyFamilyHighlightsForFamily,
 } from "@/lib/newsletters/service";
 
 const {
@@ -188,5 +189,56 @@ describe("newsletter service", () => {
     expect(result.failed).toBe(1);
     expect(result.skipped).toBe(1);
     expect(mockAdminCreateOrReplaceDocument).toHaveBeenCalled();
+  });
+
+  it("skips no-activity families on the weekly run but sends them when forced for one family", async () => {
+    mockAdminListDocuments.mockResolvedValue([{ name: "families/family-1", fields: {} }]);
+    mockLoadContext.mockResolvedValue({
+      familyId: "family-1",
+      familyName: "Rivera",
+      familyLocale: "en-US",
+      recipients: [{ uid: "admin-1", email: "parent@example.com", locale: "en-US", name: "Parent", optedIn: true }],
+      activeMemberUids: ["player-1"],
+    });
+    mockComputeMetrics.mockResolvedValue({
+      choresCompleted: 0,
+      coinsEarned: 0,
+      rewardsRedeemed: 0,
+      familyAwardsClaimed: 0,
+      questsCompleted: 0,
+      achievementsUnlocked: 0,
+      pendingApprovals: 0,
+      mostActiveHelperName: "",
+      mostActiveHelperCount: 0,
+      recentHighlights: [],
+      hasActivity: false,
+    });
+    mockRenderEmailTemplate.mockReturnValue({ subject: "Weekly", html: "<p>Hi</p>", text: "Hi" });
+    mockAdminGetDocument.mockRejectedValue(new Error("FIRESTORE_ADMIN_HTTP_404_document not found"));
+    const send = vi.fn().mockResolvedValue({ provider: "ses", messageId: "msg-forced" });
+    mockGetEmailProvider.mockReturnValue({ name: "ses", send });
+
+    const window = {
+      weekStart: "2026-05-26T00:00:00.000Z",
+      weekEnd: "2026-06-01T23:59:59.999Z",
+      weekStartDateOnly: "2026-05-26",
+      weekEndDateOnly: "2026-06-01",
+    };
+
+    // Weekly run: quiet family is skipped with no_activity.
+    const weeklyResult = await sendWeeklyFamilyHighlightsForAllFamilies({ window });
+    expect(weeklyResult.skipped).toBe(1);
+    expect(weeklyResult.sent).toBe(0);
+    expect(send).not.toHaveBeenCalled();
+
+    // Manual support trigger: same quiet family is emailed once.
+    const forcedResult = await sendWeeklyFamilyHighlightsForFamily({
+      familyId: "family-1",
+      window,
+      allowNoActivity: true,
+    });
+    expect(forcedResult.sent).toBe(1);
+    expect(forcedResult.skipped).toBe(0);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });

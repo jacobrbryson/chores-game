@@ -4,6 +4,11 @@ import { appBaseUrl, signOut } from "@/lib/api";
 import { useMobileLocale } from "@/lib/locale";
 import { AvatarBadge } from "@/components/ui/AvatarBadge";
 import { MobileSupportRequestModal } from "@/components/MobileSupportRequestModal";
+import {
+  MobileReturnToParentModal,
+  MobileSwitchAccountModal,
+} from "@/components/MobileSwitchAccountModal";
+import { MobileKioskControlsModal } from "@/components/MobileKioskControlsModal";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 
 type Props = {
@@ -11,8 +16,16 @@ type Props = {
   name?: string;
   avatarUrl?: string;
   coinBalance?: number;
+  role?: "admin" | "player" | string;
+  isSwitched?: boolean;
+  kioskActive?: boolean;
+  authenticatedName?: string;
+  currentMemberId?: string;
   onOpenProfile?: () => void;
   onLoggedOut?: () => void;
+  // Called after switching into a child, returning to the parent, or changing
+  // kiosk state so the host can refresh the session and reset navigation.
+  onAccountChanged?: () => void;
   triggerVariant?: "avatar" | "main-nav";
   triggerLabel?: string;
 };
@@ -32,8 +45,14 @@ export function MobileProfileMenu({
   name = "",
   avatarUrl = "",
   coinBalance = 0,
+  role = "player",
+  isSwitched = false,
+  kioskActive = false,
+  authenticatedName = "",
+  currentMemberId = "",
   onOpenProfile,
   onLoggedOut,
+  onAccountChanged,
   triggerVariant = "avatar",
   triggerLabel = "More",
 }: Props) {
@@ -41,6 +60,9 @@ export function MobileProfileMenu({
   const [open, setOpen] = React.useState(false);
   const [pendingLogout, setPendingLogout] = React.useState(false);
   const [supportType, setSupportType] = React.useState<"bug" | "feature" | null>(null);
+  const [switchOpen, setSwitchOpen] = React.useState(false);
+  const [returnOpen, setReturnOpen] = React.useState(false);
+  const [kioskOpen, setKioskOpen] = React.useState(false);
   const initial = (name.trim()[0] || email.trim()[0] || "U").toUpperCase();
 
   async function openWebPath(path: string) {
@@ -77,6 +99,39 @@ export function MobileProfileMenu({
         setSupportType("feature");
       },
     },
+    ...(!isSwitched && !kioskActive
+      ? [
+          {
+            label: t("nav.switchTo"),
+            onPress: () => {
+              setOpen(false);
+              setSwitchOpen(true);
+            },
+          } as MenuAction,
+        ]
+      : []),
+    ...(isSwitched
+      ? [
+          {
+            label: t("nav.returnToParent"),
+            onPress: () => {
+              setOpen(false);
+              setReturnOpen(true);
+            },
+          } as MenuAction,
+        ]
+      : []),
+    ...(kioskActive
+      ? [
+          {
+            label: t("kiosk.badge"),
+            onPress: () => {
+              setOpen(false);
+              setKioskOpen(true);
+            },
+          } as MenuAction,
+        ]
+      : []),
     {
       label: pendingLogout ? t("common.actions.loading") : t("nav.logout"),
       tone: "danger",
@@ -163,6 +218,32 @@ export function MobileProfileMenu({
         type={supportType ?? "bug"}
         onClose={() => setSupportType(null)}
       />
+      <MobileSwitchAccountModal
+        visible={switchOpen}
+        onClose={() => setSwitchOpen(false)}
+        onSwitched={() => {
+          setSwitchOpen(false);
+          onAccountChanged?.();
+        }}
+      />
+      <MobileReturnToParentModal
+        visible={returnOpen}
+        parentName={authenticatedName}
+        onClose={() => setReturnOpen(false)}
+        onReturned={() => {
+          setReturnOpen(false);
+          onAccountChanged?.();
+        }}
+      />
+      <MobileKioskControlsModal
+        visible={kioskOpen}
+        activeMemberId={currentMemberId}
+        onClose={() => setKioskOpen(false)}
+        onChanged={() => {
+          setKioskOpen(false);
+          onAccountChanged?.();
+        }}
+      />
     </>
   );
 }
@@ -176,7 +257,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "transparent",
   },
-  navTrigger: { width: "100%", height: "100%", borderRadius: 0, gap: 3 },
+  navTrigger: {
+    alignSelf: "stretch",
+    width: "100%",
+    minHeight: 64,
+    borderRadius: 0,
+    gap: 3,
+    paddingVertical: spacing.xs,
+  },
   triggerPressed: { transform: [{ scale: 0.97 }] },
   navLabel: { color: colors.brandStrong, fontSize: typography.tiny, fontWeight: "800" },
   coinChip: {

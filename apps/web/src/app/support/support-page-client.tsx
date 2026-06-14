@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
 import { AppMenu } from "@/components/app-menu";
 import { MenuActionButton } from "@/components/menu-action-button";
 import { SupportCommunityAwardsPanel } from "@/components/support-community-awards-panel";
+import { SupportActivityChart } from "@/components/support-activity-chart";
 import { SupportContentPanel, SupportSeoPanel } from "@/components/support-content-panel";
 import { SupportConsoleShell, type SupportModuleId } from "@/components/support-console-shell";
 import { SupportDiscoveryPanel } from "@/components/support-discovery-panel";
@@ -18,6 +20,8 @@ import { SupportNewslettersPanel } from "@/components/support-newsletters-panel"
 import { SupportPrivacyPanel } from "@/components/support-privacy-panel";
 import { SupportStaleInvitesPanel } from "@/components/support-stale-invites-panel";
 import { SupportDuplicateChildrenPanel } from "@/components/support-duplicate-children-panel";
+import { SupportResponsibilityPanel } from "@/components/support-responsibility-panel";
+import type { SupportDashboardMetrics } from "@/lib/support/dashboard-metrics";
 
 type SupportUser = {
   uid: string;
@@ -39,6 +43,25 @@ type SupportFamily = {
   createdAt: string;
   admins: Array<{ name: string }>;
   lastWeeklyHighlightSentAt: string;
+};
+
+type WeeklyHighlightsPreview = {
+  family: {
+    familyName: string;
+    recipients: Array<{ uid: string; email: string; optedIn: boolean }>;
+  };
+  metrics: {
+    choresCompleted: number;
+    coinsEarned: number;
+    rewardsRedeemed: number;
+    pendingApprovals: number;
+    hasActivity: boolean;
+  };
+  rendered: {
+    subject: string;
+    html: string;
+    text: string;
+  };
 };
 
 type SupportChore = {
@@ -94,6 +117,7 @@ type SupportPayload = {
   chores: SupportChore[];
   ledgers: SupportLedger[];
   events: SupportEvent[];
+  supportDashboardMetrics: SupportDashboardMetrics;
   suspicious: Array<{
     choreId: string;
     familyId: string;
@@ -162,6 +186,11 @@ const MODULE_COPY: Record<SupportModuleId, { title: string; subtitle: string }> 
   seo: {
     title: "SEO",
     subtitle: "Monitor public content health, metadata readiness, and sitemap eligibility.",
+  },
+  responsibility: {
+    title: "Responsibility",
+    subtitle:
+      "Manage Responsibility Pillars: XP configuration, suggested chores, the community routine library, and analytics.",
   },
 };
 
@@ -345,6 +374,11 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
   } | null>(null);
   const [consentResetting, setConsentResetting] = useState(false);
   const [notice, setNotice] = useState("");
+  const [pendingHighlights, setPendingHighlights] = useState<SupportFamily | null>(null);
+  const [highlightsPreview, setHighlightsPreview] = useState<WeeklyHighlightsPreview | null>(null);
+  const [highlightsPreviewLoading, setHighlightsPreviewLoading] = useState(false);
+  const [highlightsError, setHighlightsError] = useState("");
+  const [highlightsSending, setHighlightsSending] = useState(false);
 
   const loadSupportData = useCallback(async () => {
     setLoading(true);
@@ -514,6 +548,74 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
     await deleteEntity(entity, id, familyId);
   }
 
+  function closeHighlights() {
+    if (highlightsSending) return;
+    setPendingHighlights(null);
+    setHighlightsPreview(null);
+    setHighlightsError("");
+  }
+
+  async function requestSendHighlights(family: SupportFamily) {
+    setPendingHighlights(family);
+    setHighlightsPreview(null);
+    setHighlightsError("");
+    setHighlightsPreviewLoading(true);
+    try {
+      const response = await fetch(
+        `/api/support/newsletters/weekly/preview?familyId=${encodeURIComponent(family.id)}`,
+        { cache: "no-store" },
+      );
+      const data = (await response.json()) as WeeklyHighlightsPreview & { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? `SUPPORT_NEWSLETTER_PREVIEW_HTTP_${response.status}`);
+      }
+      setHighlightsPreview(data);
+    } catch (previewError) {
+      setHighlightsError(
+        previewError instanceof Error ? previewError.message : "weekly_newsletter_preview_unavailable",
+      );
+    } finally {
+      setHighlightsPreviewLoading(false);
+    }
+  }
+
+  async function confirmSendHighlights() {
+    if (!pendingHighlights || highlightsSending) return;
+    const family = pendingHighlights;
+    setHighlightsSending(true);
+    setHighlightsError("");
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/support/newsletters/weekly/send-family", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ familyId: family.id }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        sent?: number;
+        skipped?: number;
+        failed?: number;
+      };
+      if (!response.ok) {
+        throw new Error(data.error ?? "weekly_newsletter_send_failed");
+      }
+      setNotice(
+        `Weekly highlights for ${family.name}: ${data.sent ?? 0} sent, ${data.skipped ?? 0} skipped, ${data.failed ?? 0} failed.`,
+      );
+      setPendingHighlights(null);
+      setHighlightsPreview(null);
+      await loadSupportData();
+    } catch (sendError) {
+      setHighlightsError(
+        sendError instanceof Error ? sendError.message : "weekly_newsletter_send_failed",
+      );
+    } finally {
+      setHighlightsSending(false);
+    }
+  }
+
   async function resetConsent(familyId: string, mode: "reacceptance" | "full") {
     setConsentResetting(true);
     setError("");
@@ -572,10 +674,11 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
               {payload.suspicious.length} submitted chore(s) have approval or payout evidence.
             </Alert>
           ) : null}
-          <div className="grid gap-5 2xl:grid-cols-[1fr_1fr]">
-            <SupportFeedPanel events={payload.events} />
-            <EventsTable events={payload.events.slice(0, 12)} title="Recent Activity Objects" />
-          </div>
+          <SupportActivityChart
+            series={payload.supportDashboardMetrics.audit30DaySeries}
+            updatedAt={payload.supportDashboardMetrics.updatedAt}
+          />
+          <SupportFeedPanel events={payload.events} />
           <SupportDiscoveryPanel />
         </>
       ) : null}
@@ -591,6 +694,7 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
               families={paginate(filteredFamilies, page).rows}
               deleting={deleting}
               onDelete={(family) => requestDelete("family", family.id, family.name)}
+              onSendHighlights={(family) => void requestSendHighlights(family)}
             />
             <Pager
               page={paginate(filteredFamilies, page).page}
@@ -676,6 +780,8 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
       {!loading && payload && module === "content" ? <SupportContentPanel /> : null}
 
       {!loading && payload && module === "seo" ? <SupportSeoPanel /> : null}
+
+      {!loading && payload && module === "responsibility" ? <SupportResponsibilityPanel /> : null}
       <ModalShell open={Boolean(pendingConsentReset)} onRequestClose={() => setPendingConsentReset(null)}>
         <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
           {pendingConsentReset ? (
@@ -764,6 +870,88 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
           ) : null}
         </div>
       </ModalShell>
+
+      <ModalShell open={Boolean(pendingHighlights)} onRequestClose={closeHighlights}>
+        <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+          {pendingHighlights ? (
+            <>
+              <div className="modal-dialog-title-row mb-2">
+                <h3 className="text-lg font-bold text-slate-800">Send weekly highlights?</h3>
+                <Button
+                  type="button"
+                  className="modal-close-button"
+                  disabled={highlightsSending}
+                  onClick={closeHighlights}
+                  aria-label="Close">
+                  X
+                </Button>
+              </div>
+              <p className="mb-4 text-sm text-slate-600">
+                This sends the live weekly highlights email to every opted-in recipient of{" "}
+                <strong className="text-slate-900">{pendingHighlights.name}</strong>. Review the preview below
+                before sending.
+              </p>
+              {highlightsError ? <Alert className="mb-3">{highlightsError}</Alert> : null}
+              {highlightsPreviewLoading ? (
+                <p className="text-sm text-slate-500">Loading preview...</p>
+              ) : null}
+              {highlightsPreview ? (
+                <div className="space-y-4">
+                  {!highlightsPreview.metrics.hasActivity ? (
+                    <Alert tone="warning">
+                      This family had no activity this week. The automatic weekly cron would skip
+                      them (no_activity) — sending now overrides that and emails them manually.
+                    </Alert>
+                  ) : null}
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                    <div><strong>Subject:</strong> {highlightsPreview.rendered.subject}</div>
+                    <div>
+                      <strong>Recipients:</strong>{" "}
+                      {highlightsPreview.family.recipients.filter((recipient) => recipient.optedIn).length} opted-in
+                      {" "}of {highlightsPreview.family.recipients.length}
+                    </div>
+                    <div>
+                      <strong>Activity this week:</strong>{" "}
+                      {highlightsPreview.metrics.hasActivity ? "Yes" : "No activity"}
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4 text-sm">
+                    <div>Chores completed: <strong>{highlightsPreview.metrics.choresCompleted}</strong></div>
+                    <div>Coins earned: <strong>{highlightsPreview.metrics.coinsEarned}</strong></div>
+                    <div>Rewards redeemed: <strong>{highlightsPreview.metrics.rewardsRedeemed}</strong></div>
+                    <div>Pending approvals: <strong>{highlightsPreview.metrics.pendingApprovals}</strong></div>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white">
+                    <div className="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">
+                      Rendered HTML preview
+                    </div>
+                    <div
+                      className="max-h-[24rem] overflow-auto p-3"
+                      dangerouslySetInnerHTML={{ __html: highlightsPreview.rendered.html }}
+                    />
+                  </div>
+                </div>
+              ) : null}
+              <div className="mt-5 flex justify-end gap-2">
+                <Button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={highlightsSending}
+                  onClick={closeHighlights}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={highlightsSending || highlightsPreviewLoading || !highlightsPreview}
+                  onClick={() => void confirmSendHighlights()}>
+                  {highlightsSending ? "Sending..." : "Send to family"}
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </ModalShell>
     </SupportConsoleShell>
   );
 }
@@ -772,11 +960,15 @@ function FamiliesTable({
   families,
   deleting,
   onDelete,
+  onSendHighlights,
 }: {
   families: SupportFamily[];
   deleting: string | null;
   onDelete: (family: SupportFamily) => void;
+  onSendHighlights: (family: SupportFamily) => void;
 }) {
+  const router = useRouter();
+
   return (
     <div className="overflow-auto">
       <table className="w-full min-w-[980px] text-left text-sm">
@@ -792,7 +984,19 @@ function FamiliesTable({
         </thead>
         <tbody>
           {families.map((family) => (
-            <tr key={family.id} className="border-t border-slate-100 align-top">
+            <tr
+              key={family.id}
+              className="cursor-pointer border-t border-slate-100 align-top transition-colors hover:bg-sky-50/50 focus-within:bg-sky-50/50"
+              tabIndex={0}
+              role="link"
+              aria-label={`Open ${family.name}`}
+              onClick={() => router.push(`/support/families/${encodeURIComponent(family.id)}`)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  router.push(`/support/families/${encodeURIComponent(family.id)}`);
+                }
+              }}>
               <td className="px-3 py-2">
                 <div className="font-semibold text-slate-900">{family.name}</div>
                 <div className="text-xs text-slate-500">{family.id}</div>
@@ -803,10 +1007,16 @@ function FamiliesTable({
               </td>
               <td className="px-3 py-2">{formatDate(family.createdAt)}</td>
               <td className="px-3 py-2">{family.lastWeeklyHighlightSentAt ? formatDate(family.lastWeeklyHighlightSentAt) : "Never"}</td>
-              <td className="px-3 py-2">
-                <Button className="btn btn-danger" disabled={deleting === family.id} onClick={() => onDelete(family)}>
-                  {deleting === family.id ? "Deleting..." : "Delete"}
-                </Button>
+              <td
+                className="px-3 py-2"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}>
+                <FamilyActionsMenu
+                  family={family}
+                  deleting={deleting}
+                  onDelete={onDelete}
+                  onSendHighlights={onSendHighlights}
+                />
               </td>
             </tr>
           ))}
@@ -820,6 +1030,50 @@ function FamiliesTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function FamilyActionsMenu({
+  family,
+  deleting,
+  onDelete,
+  onSendHighlights,
+}: {
+  family: SupportFamily;
+  deleting: string | null;
+  onDelete: (family: SupportFamily) => void;
+  onSendHighlights: (family: SupportFamily) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const busy = deleting === family.id;
+
+  return (
+    <AppMenu
+      open={open}
+      onOpenChange={setOpen}
+      triggerClassName="btn btn-secondary"
+      triggerAriaLabel="Family actions"
+      triggerDisabled={busy}
+      panelClassName="app-menu-panel"
+      trigger={busy ? "..." : "Actions ▾"}>
+      <MenuActionButton
+        fullWidth
+        onClick={() => {
+          setOpen(false);
+          onSendHighlights(family);
+        }}>
+        Send weekly highlights…
+      </MenuActionButton>
+      <MenuActionButton
+        fullWidth
+        className="menu-action-link-danger"
+        onClick={() => {
+          setOpen(false);
+          onDelete(family);
+        }}>
+        Delete…
+      </MenuActionButton>
+    </AppMenu>
   );
 }
 

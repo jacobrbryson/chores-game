@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   adminCreateOrReplaceDocument,
   adminGetDocument,
+  adminListAllDocuments,
   adminListDocuments,
   adminPatchDocument,
 } from "@/lib/firestore/admin";
@@ -179,7 +180,7 @@ export async function resolveGhostViewerContext(session: {
     }
   }
 
-  const choreDocs = await adminListDocuments(`families/${familyId}/chores`, 500);
+  const choreDocs = await adminListAllDocuments(`families/${familyId}/chores`, { cap: 500 });
   const openChoreKeys = new Set<string>();
   const ownedChoreKeys = new Set<string>();
   let openChoreCount = 0;
@@ -223,7 +224,7 @@ export async function resolveGhostViewerContext(session: {
 
 /** Recent + commonly used family chores, newest first, distinct by title. */
 export async function listFamilyChoreSeeds(familyId: string): Promise<FamilyChoreSeed[]> {
-  const choreDocs = await adminListDocuments(`families/${familyId}/chores`, 500);
+  const choreDocs = await adminListAllDocuments(`families/${familyId}/chores`, { cap: 500 });
   const byKey = new Map<string, { seed: FamilyChoreSeed; createdAt: string }>();
   for (const doc of choreDocs) {
     if (readBoolean(doc.fields, "deleted")) {
@@ -257,7 +258,7 @@ export async function listFamilyChoreSeeds(familyId: string): Promise<FamilyChor
 
 async function listGhostRecords(familyId: string): Promise<GhostChoreSuggestionRecord[]> {
   try {
-    const docs = await adminListDocuments(ghostSuggestionsPath(familyId), 500);
+    const docs = await adminListAllDocuments(ghostSuggestionsPath(familyId), { cap: 500 });
     return docs.map(parseGhostSuggestionRecord);
   } catch (error) {
     if (isNotFound(error)) {

@@ -4,6 +4,7 @@ import type {
   ChoreRecurrenceUnit,
 } from "@/lib/chores/recurrence";
 import type { ChoreType } from "@/lib/chores/types";
+import type { ResponsibilityPillar } from "@/lib/responsibility/types";
 
 export type FamilyCategory = {
   id: string;
@@ -69,14 +70,25 @@ export type FamilySnapshotChore = {
   categories?: FamilyCategory[];
   coinValue: number;
   requireApproval?: boolean;
+  newSkillEnabled?: boolean;
   recurrenceType?: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: ChoreRecurrenceUnit;
+  // Which Responsibility Pillar this chore develops; drives the pillar chip
+  // on dashboard rows. Optional — most chores may have no pillar.
+  responsibilityPillar?: ResponsibilityPillar;
   // New Skill Bonus: true when the assigned child has never completed this chore
   // (by recurring-root identity) before, so the dashboard shows a "+5 New Skill"
   // badge. Only set for single-assignee chores; omitted for multi/family chores.
   newSkillBonusEligible?: boolean;
   newSkillBonusAmount?: number;
+  // Routine linkage: set when this chore is a materialized step of a routine
+  // assignment, so the dashboard can badge the row and collapse sibling steps.
+  routineAssignmentId?: string;
+  routineId?: string;
+  routineName?: string;
+  routineStepOrder?: number;
+  routineStepCount?: number;
   // Optional in-app deep link (e.g. seeded getting-started tasks point at /family,
   // /store, /profile). When present the dashboard card shows a quick-jump link.
   actionHref?: string;

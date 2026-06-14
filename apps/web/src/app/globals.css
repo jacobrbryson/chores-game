@@ -1351,9 +1351,10 @@ body {
   background-repeat: no-repeat;
 }
 
-.hero-copy,
-.hero-copy * {
-  color: #fbfdff;
+.hero-copy h1,
+.hero-copy p,
+.hero-copy .marketing-hero-kicker,
+.hero-copy .badge {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
@@ -1363,6 +1364,10 @@ body {
 
 .hero-copy p {
   color: #f2f8ff;
+}
+
+.hero-copy .marketing-hero-kicker {
+  color: #fbfdff;
 }
 
 .hero-copy .badge {
@@ -1462,6 +1467,32 @@ body {
   min-height: 100%;
 }
 
+.marketing-hero-copy-plain h1 {
+  color: #16345b;
+}
+
+.marketing-hero-copy-plain p {
+  color: #5b708a;
+}
+
+.marketing-hero-copy-plain .marketing-hero-kicker {
+  color: #1d5f9c;
+}
+
+.marketing-chores-secondary-cta {
+  border-color: #1d5f9c;
+  background: #ffffff;
+  color: #17416f;
+  box-shadow: 0 10px 22px rgba(23, 65, 111, 0.12);
+}
+
+.marketing-chores-secondary-cta:hover,
+.marketing-chores-secondary-cta:focus-visible {
+  background: #eaf4ff;
+  border-color: #17416f;
+  color: #13375d;
+}
+
 .marketing-hero-kicker {
   display: block;
   margin: 0 0 10px;
@@ -1499,6 +1530,7 @@ body {
 .marketing-hero-side {
   display: grid;
   gap: 14px;
+  align-content: center;
 }
 
 .marketing-image-frame {
@@ -1729,6 +1761,30 @@ body {
   margin: 0;
   color: #607490;
   line-height: 1.6;
+}
+
+.marketing-age-range-card-link {
+  display: block;
+  text-decoration: none;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.marketing-age-range-card-link:hover,
+.marketing-age-range-card-link:focus-visible {
+  transform: translateY(-3px);
+  border-color: rgba(93, 155, 215, 0.98);
+  background: linear-gradient(180deg, #ffffff, #ecf5ff);
+  box-shadow: 0 22px 38px rgba(21, 57, 99, 0.14);
+  outline: none;
+}
+
+.marketing-age-range-card-link:hover h3,
+.marketing-age-range-card-link:focus-visible h3 {
+  color: #13508a;
 }
 
 .marketing-step-grid {
@@ -2590,6 +2646,11 @@ textarea:disabled {
   border-left-width: 0 !important;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.today-chores-controls-group > :last-child .today-chores-options-trigger {
   border-top-right-radius: 0.5rem;
   border-bottom-right-radius: 0.5rem;
 }
@@ -4296,6 +4357,15 @@ white-space: nowrap;
   font-weight: 800;
 }
 
+.family-modal-title-row {
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.family-modal-title-row .family-modal-title {
+  margin: 0;
+}
+
 .family-modal-actions {
   margin-top: 8px;
   display: flex;
@@ -5253,7 +5323,6 @@ white-space: nowrap;
 }
 
 .today-chores-action-add {
-  min-width: 160px;
   height: 42px;
   min-height: 42px;
   border: 1px solid #15803d;
@@ -5278,6 +5347,7 @@ white-space: nowrap;
 }
 
 .today-chores-toolbar-icon,
+.today-chores-list-view-icon,
 .today-chores-sort-icon,
 .today-chores-filter-icon {
   display: inline-grid;
@@ -5285,6 +5355,7 @@ white-space: nowrap;
 }
 
 .today-chores-toolbar-icon-bar,
+.today-chores-list-view-icon-bar,
 .today-chores-sort-icon-bar,
 .today-chores-filter-icon-line {
   display: block;
@@ -5296,6 +5367,10 @@ white-space: nowrap;
 .today-chores-toolbar-icon-bar-a,
 .today-chores-sort-icon-bar-a,
 .today-chores-filter-icon-line-a {
+  width: 16px;
+}
+
+.today-chores-list-view-icon-bar {
   width: 16px;
 }
 
@@ -5337,6 +5412,23 @@ white-space: nowrap;
   align-items: center;
   justify-content: center;
   gap: 0.55rem;
+}
+
+.today-chores-add-btn-content-menu {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.today-chores-add-btn-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.today-chores-add-caret-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
 }
 
 .today-chores-add-icon {
@@ -8137,6 +8229,23 @@ a.family-award-claim-card:focus-visible {
   border-radius: 6px;
 }
 
+/* Footer link groups: legal/identity on one side, product & guide links on
+   the other, with a slim divider between them. */
+.app-footer-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.app-footer-separator {
+  width: 1px;
+  height: 18px;
+  background: #b9d2ea;
+  border-radius: 1px;
+}
+
 .legal-page {
   max-width: 920px;
   margin: 0 auto;
@@ -8209,6 +8318,17 @@ a.family-award-claim-card:focus-visible {
     align-items: center;
     gap: 8px;
     text-align: center;
+  }
+
+  .app-footer-group {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Stacked layout: the divider becomes a short horizontal rule. */
+  .app-footer-separator {
+    width: 56px;
+    height: 1px;
   }
 }
 
@@ -10342,6 +10462,8 @@ a.family-award-claim-card:focus-visible {
 .switch-mode-tabs {
   display: flex;
   gap: 0.4rem;
+  width: 100%;
+  min-width: 0;
   padding: 0.25rem;
   border-radius: 0.75rem;
   background: #eef4fc;
@@ -10362,6 +10484,12 @@ a.family-award-claim-card:focus-visible {
   background: #fff;
   color: #1b2a41;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+@media (max-width: 520px) {
+  .switch-mode-tabs {
+    width: calc(100% - 3rem);
+  }
 }
 
 .switch-member-option-selected {
@@ -10550,4 +10678,538 @@ a.family-award-claim-card:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
+}
+
+/* ============================================================
+   Marketing homepage v2 (mh2-*): bold hero, pillar band, and
+   guide path cards. Scoped to the signed-out homepage only.
+   ============================================================ */
+
+.mh2-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1.25rem, 5vw, 4rem);
+  /* The classic hero banner photo, darkened for text contrast, with the v2
+     color glows layered on top. */
+  background:
+    radial-gradient(620px 320px at 12% -10%, #3b82f655, transparent 70%),
+    radial-gradient(520px 300px at 92% 8%, #10b98144, transparent 70%),
+    radial-gradient(420px 280px at 70% 110%, #8b5cf644, transparent 70%),
+    linear-gradient(160deg, rgba(10, 24, 48, 0.88), rgba(8, 20, 40, 0.72)),
+    url("/hero-bg.png");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  color: #eaf2ff;
+}
+
+.mh2-hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #ffffff2e;
+  background: #ffffff14;
+  color: #bcd7ff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mh2-hero h1 {
+  margin: 18px 0 14px;
+  max-width: 17ch;
+  font-size: clamp(2.1rem, 5.2vw, 3.6rem);
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.mh2-hero-highlight {
+  background: linear-gradient(92deg, #7dd3fc, #6ee7b7 55%, #fcd34d);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.mh2-hero-sub {
+  max-width: 56ch;
+  font-size: clamp(1rem, 1.6vw, 1.15rem);
+  line-height: 1.6;
+  color: #c4d6f2;
+}
+
+.mh2-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.mh2-hero-note {
+  margin-top: 12px;
+  font-size: 0.88rem;
+  color: #93b1d9;
+}
+
+.mh2-hero-pillar-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 30px;
+}
+
+.mh2-pillar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #ffffff24;
+  background: #ffffff10;
+  color: #dbe9ff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  backdrop-filter: blur(4px);
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.mh2-pillar-chip:hover {
+  transform: translateY(-2px);
+  background: #ffffff22;
+}
+
+.mh2-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+  margin-top: 36px;
+  padding-top: 26px;
+  border-top: 1px solid #ffffff1f;
+}
+
+.mh2-hero-stat strong {
+  display: block;
+  font-size: clamp(1.4rem, 2.6vw, 1.9rem);
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.mh2-hero-stat span {
+  font-size: 0.85rem;
+  color: #9db8de;
+}
+
+/* Guide path cards: the three flagship destinations. */
+.mh2-paths {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.mh2-path-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 26px 24px 22px;
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.mh2-path-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 5px;
+  background: var(--mh2-accent, #3b82f6);
+}
+
+.mh2-path-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 38px -18px #0b1d3a4d;
+  border-color: color-mix(in srgb, var(--mh2-accent, #3b82f6) 45%, #e2e8f0);
+}
+
+.mh2-path-card[data-accent="sky"] { --mh2-accent: #0ea5e9; }
+.mh2-path-card[data-accent="emerald"] { --mh2-accent: #10b981; }
+.mh2-path-card[data-accent="violet"] { --mh2-accent: #8b5cf6; }
+
+.mh2-path-emoji {
+  font-size: 1.9rem;
+  line-height: 1;
+}
+
+.mh2-path-card h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #0f2548;
+}
+
+.mh2-path-card p {
+  margin: 0;
+  color: #44587a;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.mh2-path-cta {
+  margin-top: auto;
+  padding-top: 10px;
+  font-weight: 800;
+  font-size: 0.92rem;
+  color: var(--mh2-accent, #3b82f6);
+}
+
+.mh2-path-meta {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7b8db0;
+}
+
+/* Pillar band: five colorful tiles. */
+.mh2-pillar-band {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.mh2-pillar-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 18px;
+  border-radius: 16px;
+  color: #ffffff;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.mh2-pillar-tile:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 30px -16px #0b1d3a66;
+}
+
+.mh2-pillar-tile h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #ffffff;
+}
+
+.mh2-pillar-tile p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #ffffffd9;
+}
+
+.mh2-pillar-tile .mh2-pillar-emoji {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.mh2-pillar-tile[data-pillar="home_care"] {
+  background: linear-gradient(150deg, #0284c7, #0369a1);
+}
+.mh2-pillar-tile[data-pillar="self_care"] {
+  background: linear-gradient(150deg, #059669, #047857);
+}
+.mh2-pillar-tile[data-pillar="organization"] {
+  background: linear-gradient(150deg, #7c3aed, #6d28d9);
+}
+.mh2-pillar-tile[data-pillar="family_contribution"] {
+  background: linear-gradient(150deg, #ea580c, #c2410c);
+}
+.mh2-pillar-tile[data-pillar="life_skills"] {
+  background: linear-gradient(150deg, #d97706, #b45309);
+}
+
+/* Final CTA band, echoing the hero. */
+.mh2-final {
+  border-radius: 24px;
+  padding: clamp(2.2rem, 5vw, 3.6rem) clamp(1.25rem, 4vw, 3rem);
+  text-align: center;
+  color: #eaf2ff;
+  background:
+    radial-gradient(480px 260px at 18% 0%, #3b82f64d, transparent 70%),
+    radial-gradient(420px 260px at 85% 100%, #10b9813d, transparent 70%),
+    linear-gradient(155deg, #0b1d3a, #122c54);
+}
+
+.mh2-final h2 {
+  margin: 10px auto 12px;
+  max-width: 24ch;
+  font-size: clamp(1.7rem, 3.6vw, 2.5rem);
+  color: #ffffff;
+  letter-spacing: -0.015em;
+}
+
+.mh2-final p {
+  max-width: 62ch;
+  margin: 0 auto;
+  color: #c4d6f2;
+}
+
+.mh2-final .marketing-final-actions {
+  justify-content: center;
+  margin-top: 24px;
+}
+
+/* The homepage CTAs request a 280px Google button, but the shared
+   .google-signin-wrap is sized for the 248px nav button — the iframe was
+   overflowing 32px to the right, so the centered wrapper looked off-center.
+   Match the wrapper to the rendered button. */
+.mh2-final .marketing-google-cta,
+.mh2-hero .marketing-google-cta {
+  width: 280px;
+}
+
+.mh2-final-note {
+  margin-top: 14px;
+  font-size: 0.85rem;
+  color: #93b1d9;
+}
+
+@media (max-width: 700px) {
+  .mh2-hero {
+    border-radius: 18px;
+  }
+
+  .mh2-hero-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Hero "family moments" feed: playful product vignette replacing the old
+   stat strip. Cards tilt slightly and float for a game-y feel. */
+.mh2-hero-feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 36px;
+  padding-top: 26px;
+  border-top: 1px solid #ffffff1f;
+}
+
+.mh2-hero-moment {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #ffffff2b;
+  background: #ffffff14;
+  backdrop-filter: blur(6px);
+  color: #eaf2ff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  animation: mh2-float 5s ease-in-out infinite;
+}
+
+.mh2-hero-moment:nth-child(odd) {
+  transform: rotate(-1.1deg);
+}
+
+.mh2-hero-moment:nth-child(even) {
+  transform: rotate(1.1deg);
+  animation-delay: 1.4s;
+}
+
+.mh2-hero-moment-emoji {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.mh2-hero-moment-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.mh2-hero-moment-reward {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #fcd34d, #fbbf24);
+  color: #54340a;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+@keyframes mh2-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mh2-hero-moment {
+    animation: none;
+  }
+}
+
+/* "How it works" journey: four connected day-in-the-life steps with a
+   dotted connector, accent-colored markers, and an in-app moment chip. */
+.mh2-journey {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+
+.mh2-journey-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 22px 20px 20px;
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.mh2-journey-step:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 32px -18px #0b1d3a4d;
+}
+
+.mh2-journey-step[data-accent="sky"] { --mh2-accent: #0ea5e9; }
+.mh2-journey-step[data-accent="amber"] { --mh2-accent: #f59e0b; }
+.mh2-journey-step[data-accent="emerald"] { --mh2-accent: #10b981; }
+.mh2-journey-step[data-accent="violet"] { --mh2-accent: #8b5cf6; }
+
+/* Dotted connector between steps (hidden on the last card and when the grid
+   wraps to fewer columns the absolute arrow simply overlaps padding-safe). */
+.mh2-journey-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 42px;
+  right: -15px;
+  width: 14px;
+  border-top: 3px dotted #b9cdea;
+}
+
+.mh2-journey-marker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mh2-journey-emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  font-size: 1.45rem;
+  background: color-mix(in srgb, var(--mh2-accent, #3b82f6) 14%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--mh2-accent, #3b82f6) 32%, #ffffff);
+}
+
+.mh2-journey-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--mh2-accent, #3b82f6);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.mh2-journey-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mh2-journey-when {
+  color: #7b8db0;
+}
+
+.mh2-journey-actor {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mh2-accent, #3b82f6) 14%, #ffffff);
+  color: color-mix(in srgb, var(--mh2-accent, #3b82f6) 78%, #1e293b);
+}
+
+.mh2-journey-step h3 {
+  margin: 0;
+  font-size: 1.12rem;
+  color: #0f2548;
+}
+
+.mh2-journey-step p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: #44587a;
+  flex: 1;
+}
+
+/* Two-row chip: emoji top-left with the gold reward pill inline at top-right
+   (vertically centered with the icon), and the text on its own full-width
+   line underneath — never squeezed by the pill. */
+.mh2-journey-chip {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 4px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid #dbe7f6;
+  background: #ffffff;
+  box-shadow: 0 6px 16px -12px #0b1d3a66;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #29507d;
+}
+
+.mh2-journey-chip-emoji {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.mh2-journey-chip .mh2-hero-moment-reward {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.mh2-journey-chip-text {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  /* Stacked/wrapped layouts: drop the horizontal connector. */
+  .mh2-journey-step:not(:last-child)::after {
+    display: none;
+  }
 }

@@ -221,6 +221,53 @@ describe("PATCH /api/chores/[choreId] new skill bonus", () => {
       expect.objectContaining({ uid: "player-uid", reason: "chore_complete" }),
     );
   });
+
+  it("does not award when the chore has New Skill turned off", async () => {
+    mockGetDocument.mockImplementation(async (path: string) => {
+      if (path === "users/player-uid") {
+        return { fields: { familyIds: ["family-1"] } };
+      }
+      if (path === "families/family-1/chores/chore-1") {
+        return {
+          fields: {
+            title: "Make bed",
+            assigneeId: "player-uid",
+            source: "manual",
+            googleTaskOwnerUid: "",
+            coinValue: 10,
+            details: "",
+            requireApproval: false,
+            newSkillEnabled: false,
+            recurrenceType: "none",
+            recurrenceInterval: 0,
+            recurrenceUnit: "",
+            status: "Open",
+          },
+        };
+      }
+      if (path === "families/family-1/members/player-uid") {
+        return {
+          fields: { uid: "player-uid", email: "player@example.com", role: "player", deleted: false },
+        };
+      }
+      if (path === "families/family-1/members/player@example.com") {
+        throw new Error("FIRESTORE_HTTP_404");
+      }
+      if (path === "users/player-uid/achievementState/state") {
+        throw new Error("FIRESTORE_HTTP_404");
+      }
+      throw new Error(`Unexpected getDocument path: ${path}`);
+    });
+
+    const response = await completeChore();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true });
+    expect(mockClaimNewSkillBonus).not.toHaveBeenCalled();
+    expect(mockApplyWalletDelta).not.toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "new_skill_bonus" }),
+    );
+  });
 });
 
 describe("PATCH /api/chores/[choreId] new skill bonus at approval", () => {

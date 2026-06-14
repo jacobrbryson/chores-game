@@ -3,7 +3,7 @@ import { DEFAULT_LOCALE, normalizeLocale } from "@packages/locales";
 import {
   adminCreateOrReplaceDocument,
   adminGetDocument,
-  adminListDocuments,
+  adminListAllDocuments,
   adminPatchDocument,
 } from "@/lib/firestore/admin";
 import {
@@ -301,7 +301,7 @@ async function writeContentAudit(record: PublicContentRecord, actor: Actor, even
 }
 
 export async function listPublicContentRecords(query: PublicContentListQuery = {}) {
-  const all = (await adminListDocuments(COLLECTION, 1000)).map(normalizePublicContentDocument);
+  const all = (await adminListAllDocuments(COLLECTION, { cap: 1000 })).map(normalizePublicContentDocument);
   const q = (query.q ?? "").trim().toLowerCase();
   const type = query.type && isPublicContentType(query.type) ? query.type : "";
   const status = query.status && isPublicContentStatus(query.status) ? query.status : "";

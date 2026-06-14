@@ -11,9 +11,13 @@ import { useNotFound } from "@/lib/not-found-context";
 
 type AppBreadcrumbsProps = {
   hideGuestHomepage?: boolean;
+  isAuthenticated?: boolean;
 };
 
-export function AppBreadcrumbs({ hideGuestHomepage = false }: AppBreadcrumbsProps) {
+export function AppBreadcrumbs({
+  hideGuestHomepage = false,
+  isAuthenticated = false,
+}: AppBreadcrumbsProps) {
   const pathname = usePathname();
   const { t } = useLocale();
   const { isNotFound } = useNotFound();
@@ -111,7 +115,7 @@ export function AppBreadcrumbs({ hideGuestHomepage = false }: AppBreadcrumbsProp
     return null;
   }
 
-  const subtitle = getWebBreadcrumbSubtitle(pathname, t);
+  const subtitle = !isAuthenticated && pathname === "/chores" ? undefined : getWebBreadcrumbSubtitle(pathname, t);
   const subtitleContent: ReactNode = memberBreadcrumb ? (
     <span className="app-breadcrumb-subtitle-detail">
       <span className="app-breadcrumb-subtitle-email">

@@ -328,6 +328,13 @@ export type MobileFamilyChore = {
   recurrenceUnit?: string;
   source?: "manual" | "google_tasks";
   createdAt?: string;
+  // Routine linkage: set when this chore is a materialized step of a routine
+  // assignment, so lists can badge the row and collapse sibling steps.
+  routineAssignmentId?: string;
+  routineId?: string;
+  routineName?: string;
+  routineStepOrder?: number;
+  routineStepCount?: number;
 };
 
 export type MobileChoreDetail = MobileFamilyChore & {
@@ -688,6 +695,68 @@ export async function editMobileChore(choreId: string, body: Record<string, unkn
   });
 }
 
+export type MobileRoutineAssignmentStep = {
+  id: string;
+  title: string;
+  order: number;
+  choreId: string;
+  coinValue: number;
+};
+
+export type MobileRoutineAssignment = {
+  id: string;
+  routineName: string;
+  pillar: string;
+  assigneeName: string;
+  status: "active" | "completed";
+  steps: MobileRoutineAssignmentStep[];
+  completedStepIds: string[];
+  skippedStepIds: string[];
+  completionBonusCoins: number;
+  completionBonusXp: number;
+  stepXp: number;
+};
+
+// Read one routine assignment for the routine progress dialog. Step mutations
+// (complete / undo_complete / unskip) go through patchMobileChore on the step's
+// choreId, mirroring the web routine dialog.
+export async function fetchMobileRoutineAssignment(
+  assignmentId: string,
+): Promise<MobileRoutineAssignment> {
+  const json = (await apiFetch(`/routines/assignments/${encodeURIComponent(assignmentId)}`)) as {
+    assignment?: Partial<MobileRoutineAssignment>;
+    completionBonusXp?: number;
+    stepXp?: number;
+  };
+  const assignment = json.assignment ?? {};
+  return {
+    id: typeof assignment.id === "string" ? assignment.id : assignmentId,
+    routineName: typeof assignment.routineName === "string" ? assignment.routineName : "",
+    pillar: typeof assignment.pillar === "string" ? assignment.pillar : "",
+    assigneeName: typeof assignment.assigneeName === "string" ? assignment.assigneeName : "",
+    status: assignment.status === "completed" ? "completed" : "active",
+    steps: Array.isArray(assignment.steps)
+      ? assignment.steps.map((step) => ({
+          id: String(step.id ?? ""),
+          title: String(step.title ?? ""),
+          order: typeof step.order === "number" ? step.order : 0,
+          choreId: String(step.choreId ?? ""),
+          coinValue: typeof step.coinValue === "number" ? step.coinValue : 0,
+        }))
+      : [],
+    completedStepIds: Array.isArray(assignment.completedStepIds)
+      ? assignment.completedStepIds.filter((value): value is string => typeof value === "string")
+      : [],
+    skippedStepIds: Array.isArray(assignment.skippedStepIds)
+      ? assignment.skippedStepIds.filter((value): value is string => typeof value === "string")
+      : [],
+    completionBonusCoins:
+      typeof assignment.completionBonusCoins === "number" ? assignment.completionBonusCoins : 0,
+    completionBonusXp: typeof json.completionBonusXp === "number" ? json.completionBonusXp : 0,
+    stepXp: typeof json.stepXp === "number" ? json.stepXp : 0,
+  };
+}
+
 export async function completeMobileChore(choreId: string, body?: Record<string, unknown>) {
   return apiFetch(`/chores/${encodeURIComponent(choreId)}/complete`, {
     method: "POST",
@@ -753,6 +822,113 @@ export async function reorderMobileChores(orderedChoreIds: string[]) {
     throw new Error(String(json?.error ?? `reorder_chores_failed_${response.status}`));
   }
   return json;
+}
+
+export type SwitchableMember = {
+  id: string;
+  name: string;
+  status: "active" | "invited";
+  avatarUrl: string;
+  primaryColor: string;
+};
+
+// Resolve a family member's avatar to an absolute image URL, preferring a stored
+// avatarId (served locally) and falling back to an external photo URL.
+export function memberAvatarUrl(member: { avatarId?: string; avatarPhotoUrl?: string }): string {
+  const avatarId = member.avatarId?.trim() ?? "";
+  if (avatarId) {
+    return `${appBaseUrl}/avatars/default/${encodeURIComponent(avatarId)}`;
+  }
+  return member.avatarPhotoUrl?.trim() ?? "";
+}
+
+// Players the signed-in guardian can switch into ("Switch To..."). Mirrors the
+// web profile menu: player-role members excluding the viewer themselves.
+export async function fetchSwitchableMembers(): Promise<SwitchableMember[]> {
+  const summary = await fetchMobileFamilySummary();
+  const viewerUid = summary.viewerUid;
+  return summary.members
+    .filter(
+      (member) =>
+        member.role === "player" && member.id !== viewerUid && member.uid !== viewerUid,
+    )
+    .map((member) => ({
+      id: member.id,
+      name: member.name,
+      status: member.status === "active" ? "active" : "invited",
+      avatarUrl: memberAvatarUrl(member),
+      primaryColor: member.dashboardPrimaryColor ?? "",
+    }));
+}
+
+// Switch the current session into a child profile. Throws with the upstream
+// error code as the message (e.g. "pin_not_configured", "invalid_pin").
+export async function startAccountSwitch(memberId: string, pin: string) {
+  return apiFetch("/account-switch/start", {
+    method: "POST",
+    body: JSON.stringify({ memberId, pin }),
+  });
+}
+
+// Restore the original signed-in (guardian) account.
+export async function stopAccountSwitch(pin: string) {
+  return apiFetch("/account-switch/stop", {
+    method: "POST",
+    body: JSON.stringify({ pin }),
+  });
+}
+
+// First-time guardian PIN setup, required before the initial account switch.
+export async function setupAccountSwitchPin(pin: string, confirmPin: string) {
+  return apiFetch("/account-switch/pin", {
+    method: "POST",
+    body: JSON.stringify({ pin, confirmPin }),
+  });
+}
+
+export type KioskStatus = {
+  active: boolean;
+  inFamily: boolean;
+  pinRequired: boolean;
+  playerIds: string[];
+  authenticatedName: string;
+};
+
+// Kiosk Mode availability/status probe. Mirrors the web profile menu: decides
+// whether to offer the "Kiosk Mode" tab and whether a PIN is required.
+export async function fetchKioskStatus(): Promise<KioskStatus> {
+  const data = (await apiFetch("/kiosk")) as Partial<KioskStatus>;
+  return {
+    active: Boolean(data.active),
+    inFamily: Boolean(data.inFamily),
+    pinRequired: Boolean(data.pinRequired),
+    playerIds: Array.isArray(data.playerIds) ? data.playerIds : [],
+    authenticatedName: typeof data.authenticatedName === "string" ? data.authenticatedName : "",
+  };
+}
+
+// Enter Kiosk Mode for the selected roster of players (shared-tablet mode).
+export async function startKiosk(playerIds: string[], pin: string) {
+  return apiFetch("/kiosk/start", {
+    method: "POST",
+    body: JSON.stringify({ playerIds, pin }),
+  });
+}
+
+// Exit Kiosk Mode back to the original signed-in account.
+export async function stopKiosk(pin: string) {
+  return apiFetch("/kiosk/stop", {
+    method: "POST",
+    body: JSON.stringify({ pin }),
+  });
+}
+
+// Switch the active kiosk player within the approved roster (no PIN required).
+export async function switchKioskPlayer(playerId: string) {
+  return apiFetch("/kiosk/switch", {
+    method: "POST",
+    body: JSON.stringify({ playerId }),
+  });
 }
 
 export async function signInWithGoogleIdToken(idToken: string) {

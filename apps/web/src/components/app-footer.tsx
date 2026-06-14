@@ -3,7 +3,7 @@ import { createTranslator, type AppLocale } from "@packages/locales";
 import { AppBrand } from "@/components/app-brand";
 import { FooterDiscoveryBadge } from "@/components/footer-discovery-badge";
 
-type FooterIconName = "copyright" | "privacy" | "terms" | "changeLog" | "orcwood";
+type FooterIconName = "copyright" | "privacy" | "terms" | "changeLog" | "guide" | "orcwood";
 
 function FooterItemIcon({ name }: { name: FooterIconName }) {
   if (name === "copyright") {
@@ -107,6 +107,28 @@ function FooterItemIcon({ name }: { name: FooterIconName }) {
     );
   }
 
+  if (name === "guide") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="app-footer-icon">
+        <path
+          d="M12 5.5c-1.6-1.1-3.6-1.6-6-1.6v14.6c2.4 0 4.4.5 6 1.6 1.6-1.1 3.6-1.6 6-1.6V3.9c-2.4 0-4.4.5-6 1.6z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M12 5.5v14.6"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="app-footer-icon">
       <path
@@ -138,31 +160,56 @@ export function AppFooter({ locale, authed = false }: { locale: AppLocale; authe
         <AppBrand />
       </div>
       <div className="app-footer-content">
-        <p className="app-footer-item">
-          <FooterItemIcon name="copyright" />
-          <span>Family Chores {currentYear}</span>
-        </p>
-        <Link href="/privacy-policy" className="app-footer-link app-footer-item">
-          <FooterItemIcon name="privacy" />
-          <span>{t("footer.privacyPolicy")}</span>
-        </Link>
-        <Link href="/terms-of-service" className="app-footer-link app-footer-item">
-          <FooterItemIcon name="terms" />
-          <span>{t("footer.termsOfService")}</span>
-        </Link>
-        <Link href="/change-log" className="app-footer-link app-footer-item">
-          <FooterItemIcon name="changeLog" />
-          <span>{t("footer.changeLog")}</span>
-          <FooterDiscoveryBadge sections={["changelog", "requested_changes"]} enabled={authed} />
-        </Link>
-        <a
-          href="https://orcwood.com"
-          target="_blank"
-          rel="noreferrer"
-          className="app-footer-link app-footer-item">
-          <FooterItemIcon name="orcwood" />
-          <span>{t("footer.broughtBy")}</span>
-        </a>
+        {/* Legal / identity group, visually separated from product links. */}
+        <div className="app-footer-group">
+          <p className="app-footer-item">
+            <FooterItemIcon name="copyright" />
+            <span>Family Chores {currentYear}</span>
+          </p>
+          <Link href="/privacy-policy" className="app-footer-link app-footer-item">
+            <FooterItemIcon name="privacy" />
+            <span>{t("footer.privacyPolicy")}</span>
+          </Link>
+          <Link href="/terms-of-service" className="app-footer-link app-footer-item">
+            <FooterItemIcon name="terms" />
+            <span>{t("footer.termsOfService")}</span>
+          </Link>
+        </div>
+        <span className="app-footer-separator" aria-hidden="true" />
+        <div className="app-footer-group">
+          <Link href="/change-log" className="app-footer-link app-footer-item">
+            <FooterItemIcon name="changeLog" />
+            <span>{t("footer.changeLog")}</span>
+            <FooterDiscoveryBadge sections={["changelog", "requested_changes"]} enabled={authed} />
+          </Link>
+          {!authed ? (
+            // Public SEO guides — surfaced for signed-out visitors only, so the
+            // signed-in app footer stays uncluttered (members reach /chores and
+            // /routines from the dashboard tabs instead).
+            <>
+              <Link href="/chores" className="app-footer-link app-footer-item">
+                <FooterItemIcon name="guide" />
+                <span>{t("footer.guidesChores")}</span>
+              </Link>
+              <Link href="/routines" className="app-footer-link app-footer-item">
+                <FooterItemIcon name="guide" />
+                <span>{t("footer.guidesRoutines")}</span>
+              </Link>
+              <Link href="/pillars-of-responsibility" className="app-footer-link app-footer-item">
+                <FooterItemIcon name="guide" />
+                <span>{t("footer.guidesPillars")}</span>
+              </Link>
+            </>
+          ) : null}
+          <a
+            href="https://orcwood.com"
+            target="_blank"
+            rel="noreferrer"
+            className="app-footer-link app-footer-item">
+            <FooterItemIcon name="orcwood" />
+            <span>{t("footer.broughtBy")}</span>
+          </a>
+        </div>
       </div>
     </footer>
   );

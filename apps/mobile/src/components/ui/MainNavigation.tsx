@@ -15,11 +15,17 @@ type Props = {
   email?: string;
   avatarUrl?: string;
   coinBalance?: number;
+  role?: "admin" | "player" | string;
+  isSwitched?: boolean;
+  kioskActive?: boolean;
+  authenticatedName?: string;
+  currentMemberId?: string;
   // Discovery / What's New unseen counts keyed by nav item id.
   discoveryCounts?: Partial<Record<MainNavigationItemId, number>>;
   onNavigate: (tab: MainNavigationItemId) => void;
   onOpenProfile: () => void;
   onLoggedOut: () => void;
+  onAccountChanged?: () => void;
 };
 
 function NavDiscoveryBadge({ count }: { count: number }) {
@@ -94,10 +100,16 @@ export function MainNavigation({
   email,
   avatarUrl,
   coinBalance = 0,
+  role,
+  isSwitched,
+  kioskActive,
+  authenticatedName,
+  currentMemberId,
   discoveryCounts,
   onNavigate,
   onOpenProfile,
   onLoggedOut,
+  onAccountChanged,
 }: Props) {
   const { t } = useMobileLocale();
   return (
@@ -111,10 +123,16 @@ export function MainNavigation({
                 email={email}
                 avatarUrl={avatarUrl}
                 coinBalance={coinBalance}
+                role={role}
+                isSwitched={isSwitched}
+                kioskActive={kioskActive}
+                authenticatedName={authenticatedName}
+                currentMemberId={currentMemberId}
                 triggerVariant="main-nav"
                 triggerLabel={t(`nav.${item.id}` as const)}
                 onOpenProfile={onOpenProfile}
                 onLoggedOut={onLoggedOut}
+                onAccountChanged={onAccountChanged}
               />
             </View>
           );
@@ -148,13 +166,18 @@ export function MainNavigation({
 const styles = StyleSheet.create({
   wrap: {
     flexDirection: "row",
+    width: "100%",
+    flexShrink: 0,
+    alignItems: "stretch",
     backgroundColor: "#ffffff",
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
   item: {
     minHeight: 64,
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
     alignItems: "center",
     justifyContent: "center",
     borderRightWidth: 1,
@@ -162,6 +185,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
     paddingVertical: spacing.xs,
     gap: 4,
+    overflow: "hidden",
   },
   itemActive: { backgroundColor: "#e8f5ff" },
   itemPressed: { opacity: 0.76 },

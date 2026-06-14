@@ -3,6 +3,7 @@ import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { isSupportAdmin } from "@/lib/support/access";
 import {
   adminGetDocument,
+  adminListAllDocuments,
   adminListDocuments,
   adminPatchDocument,
   adminRunQuery,
@@ -54,7 +55,7 @@ async function computeChildActivity(
 ): Promise<ChildActivity> {
   let chores = familyChoresCache.get(child.familyId);
   if (!chores) {
-    chores = await adminListDocuments(`families/${child.familyId}/chores`, 1000).catch(() => []);
+    chores = await adminListAllDocuments(`families/${child.familyId}/chores`, { cap: 1000 }).catch(() => []);
     familyChoresCache.set(child.familyId, chores);
   }
 

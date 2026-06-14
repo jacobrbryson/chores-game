@@ -18,6 +18,8 @@ import {
 } from "@/lib/chores/recurrence";
 import type { ChoreType } from "@/lib/chores/types";
 import type { FamilyCategory } from "@/lib/family/types";
+import { responsibilityPillarSelectOptions } from "@/lib/responsibility/labels";
+import type { ResponsibilityPillar } from "@/lib/responsibility/types";
 
 type Suggestion = {
   description: string;
@@ -45,9 +47,11 @@ type EditableChore = {
   categoryIds?: string[];
   coinValue?: number;
   requireApproval?: boolean;
+  newSkillEnabled?: boolean;
   recurrenceType?: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: ChoreRecurrenceUnit;
+  responsibilityPillar?: ResponsibilityPillar;
 };
 
 export type AddEditChoreSavedResult = {
@@ -69,9 +73,11 @@ export type AddEditChoreSavedResult = {
     categories?: FamilyCategory[];
     coinValue: number;
     requireApproval: boolean;
+    newSkillEnabled: boolean;
     recurrenceType: ChoreRecurrenceType;
     recurrenceInterval?: number;
     recurrenceUnit?: ChoreRecurrenceUnit;
+    responsibilityPillar?: ResponsibilityPillar;
   };
   error?: string;
 };
@@ -252,6 +258,8 @@ export function AddEditChoresDialog({
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [coinValue, setCoinValue] = useState(String(DEFAULT_CHORE_COIN_VALUE));
   const [requireApproval, setRequireApproval] = useState(false);
+  const [newSkillEnabled, setNewSkillEnabled] = useState(true);
+  const [responsibilityPillar, setResponsibilityPillar] = useState<ResponsibilityPillar | "">("");
   const [recurrenceType, setRecurrenceType] = useState<ChoreRecurrenceType>("none");
   const [recurrenceInterval, setRecurrenceInterval] = useState(
     String(DEFAULT_RECURRENCE_INTERVAL),
@@ -292,6 +300,10 @@ export function AddEditChoresDialog({
       { value: "week", label: t("choreDialog.recurrence.weeks") },
       { value: "month", label: t("choreDialog.recurrence.months") },
     ],
+    [t],
+  );
+  const pillarSelectOptions = useMemo<TailwindSelectOption<ResponsibilityPillar | "">[]>(
+    () => responsibilityPillarSelectOptions(t),
     [t],
   );
 
@@ -550,6 +562,8 @@ export function AddEditChoresDialog({
         : readLastCoinValueFromStorage() || String(DEFAULT_CHORE_COIN_VALUE),
     );
     setRequireApproval(Boolean(chore?.requireApproval));
+    setNewSkillEnabled(chore?.newSkillEnabled ?? true);
+    setResponsibilityPillar(chore?.responsibilityPillar ?? "");
     setRecurrenceType(chore?.recurrenceType ?? "none");
     setRecurrenceInterval(String(chore?.recurrenceInterval ?? DEFAULT_RECURRENCE_INTERVAL));
     setRecurrenceUnit(chore?.recurrenceUnit ?? "day");
@@ -734,6 +748,13 @@ export function AddEditChoresDialog({
       : isEditMode
         ? Boolean(chore?.requireApproval)
         : false;
+    const resolvedNewSkillEnabled = isSeeAndDoMode
+      ? false
+      : showAdditionalOptions
+        ? newSkillEnabled
+        : isEditMode
+          ? chore?.newSkillEnabled ?? true
+          : true;
     const resolvedRecurrenceType = isSeeAndDoMode
       ? "none"
       : showAdditionalOptions
@@ -741,6 +762,13 @@ export function AddEditChoresDialog({
       : isEditMode
         ? chore?.recurrenceType ?? "none"
         : "none";
+    const resolvedResponsibilityPillar = isSeeAndDoMode
+      ? ""
+      : showAdditionalOptions
+        ? responsibilityPillar
+        : isEditMode
+          ? chore?.responsibilityPillar ?? ""
+          : "";
     const resolvedRecurrenceInterval =
       resolvedRecurrenceType === "custom"
         ? showAdditionalOptions
@@ -778,6 +806,8 @@ export function AddEditChoresDialog({
       setCategoryIds([]);
       setCoinValue(String(DEFAULT_CHORE_COIN_VALUE));
       setRequireApproval(false);
+      setNewSkillEnabled(true);
+      setResponsibilityPillar("");
       setRecurrenceType("none");
       setRecurrenceInterval(String(DEFAULT_RECURRENCE_INTERVAL));
       setRecurrenceUnit("day");
@@ -808,9 +838,11 @@ export function AddEditChoresDialog({
             categories: resolvedCategories,
             coinValue: resolvedCoinValue,
             requireApproval: resolvedRequireApproval,
+            newSkillEnabled: resolvedNewSkillEnabled,
             recurrenceType: resolvedRecurrenceType,
             recurrenceInterval: resolvedRecurrenceInterval,
             recurrenceUnit: resolvedRecurrenceUnit,
+            responsibilityPillar: resolvedResponsibilityPillar || undefined,
           },
         });
       }
@@ -839,9 +871,11 @@ export function AddEditChoresDialog({
                   categoryIds: resolvedCategoryIds,
                   coinValue: resolvedCoinValue,
                   requireApproval: resolvedRequireApproval,
+                  newSkillEnabled: resolvedNewSkillEnabled,
                   recurrenceType: resolvedRecurrenceType,
                   recurrenceInterval: resolvedRecurrenceInterval,
                   recurrenceUnit: resolvedRecurrenceUnit,
+                  responsibilityPillar: resolvedResponsibilityPillar,
                   choreType: isSeeAndDoMode ? "see_and_do" : hasMultipleAssignees ? "group" : "normal",
                 }
               : {
@@ -859,9 +893,11 @@ export function AddEditChoresDialog({
                   categoryIds: resolvedCategoryIds,
                   coinValue: resolvedCoinValue,
                   requireApproval: resolvedRequireApproval,
+                  newSkillEnabled: resolvedNewSkillEnabled,
                   recurrenceType: resolvedRecurrenceType,
                   recurrenceInterval: resolvedRecurrenceInterval,
                   recurrenceUnit: resolvedRecurrenceUnit,
+                  responsibilityPillar: resolvedResponsibilityPillar,
                 },
           ),
         },
@@ -905,6 +941,7 @@ export function AddEditChoresDialog({
         setCategoryIds([]);
         setCoinValue(String(DEFAULT_CHORE_COIN_VALUE));
         setRequireApproval(false);
+        setNewSkillEnabled(true);
         setRecurrenceType("none");
         setRecurrenceInterval(String(DEFAULT_RECURRENCE_INTERVAL));
         setRecurrenceUnit("day");
@@ -1203,6 +1240,21 @@ export function AddEditChoresDialog({
                     ) : null}
                   </div>
 
+                  <label className="flex w-full flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-700">{t("responsibility.choreDialog.label")}</span>
+                    <TailwindSelect
+                      ariaLabel={t("responsibility.choreDialog.label")}
+                      value={responsibilityPillar}
+                      onChange={(value) => setResponsibilityPillar(value as ResponsibilityPillar | "")}
+                      options={pillarSelectOptions}
+                      className="w-full"
+                      buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                      menuClassName="border-slate-300"
+                      disabled={!showAdditionalOptions}
+                    />
+                    <span className="text-xs text-slate-500">{t("responsibility.choreDialog.hint")}</span>
+                  </label>
+
                   <label className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
                     <input
                       type="checkbox"
@@ -1217,6 +1269,24 @@ export function AddEditChoresDialog({
                         {hasMultipleAssignees
                           ? t("choreDialog.requireApprovalMultiHint")
                           : t("choreDialog.requireApprovalHint")}
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={newSkillEnabled}
+                      disabled={!showAdditionalOptions}
+                      onChange={(event) => setNewSkillEnabled(event.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#1f69b7]"
+                    />
+                    <span className="flex flex-col gap-1">
+                      <span className="text-sm font-medium text-slate-700">
+                        {t("choreDialog.newSkillLabel")}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {t("choreDialog.newSkillHint")}
                       </span>
                     </span>
                   </label>

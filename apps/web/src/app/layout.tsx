@@ -102,7 +102,7 @@ gtag('config', 'G-GM3MZZ6NXK');`,
             <div className="container app-layout">
               <div className="app-main">
                 <AppHeader />
-                {!kioskActive ? <AppBreadcrumbs hideGuestHomepage={!sessionUser} /> : null}
+                {!kioskActive ? <AppBreadcrumbs hideGuestHomepage={!sessionUser} isAuthenticated={Boolean(sessionUser)} /> : null}
                 {children}
               </div>
               {!kioskActive ? <AppFooter locale={locale} authed={Boolean(sessionUser)} /> : null}

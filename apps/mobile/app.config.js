@@ -12,9 +12,13 @@ const iosClientId =
   "";
 
 const iosUrlScheme = reverseGoogleClientId(iosClientId);
-const icon192 = "../web/public/icons/web-app-manifest-192x192.png";
-const icon512 = "../web/public/icons/web-app-manifest-512x512.png";
-const favicon = "../web/public/icons/favicon-96x96.png";
+// Assets live inside the mobile project root so Metro/Expo can serve them in
+// dev. They are copies of apps/web/public/icons/* — re-copy if the web icons
+// change. Referencing the web paths directly (../web/public/...) puts them
+// outside the project root, which aborts manifest asset resolution in dev.
+const icon192 = "./assets/icon-192.png";
+const icon512 = "./assets/icon-512.png";
+const favicon = "./assets/favicon-96.png";
 
 module.exports = {
   expo: {

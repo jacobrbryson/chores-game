@@ -16,6 +16,7 @@ import { AchievementsScreen } from "@/screens/AchievementsScreen";
 import { ChoresScreen } from "@/screens/ChoresScreen";
 import { HomeScreen } from "@/screens/HomeScreen";
 import { LoginPlaceholderScreen } from "@/screens/LoginPlaceholderScreen";
+import { MobileKioskScreen } from "@/screens/MobileKioskScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { QuestsScreen } from "@/screens/QuestsScreen";
 import { RewardsScreen } from "@/screens/RewardsScreen";
@@ -45,6 +46,9 @@ type SessionMe = {
   picture?: string;
   avatarUrl?: string;
   balance?: number;
+  isSwitched?: boolean;
+  kioskActive?: boolean;
+  authenticatedName?: string;
 };
 
 export default function App() {
@@ -190,6 +194,29 @@ function AppContent({
     );
   }
 
+  // While Kiosk Mode is active the session identity is the active player; take
+  // over the whole app with a focused shared-tablet screen (no parent tabs),
+  // mirroring the web /kiosk page.
+  if (authState === "authenticated" && sessionMe?.kioskActive) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.safe}>
+          <MobileKioskScreen
+            activeMemberId={sessionMe.memberId}
+            onExited={() => {
+              const sessionRequest = refreshSession();
+              void sessionRequest.promise.then(() => loadDiscovery());
+            }}
+            onSwitched={() => {
+              const sessionRequest = refreshSession();
+              void sessionRequest.promise;
+            }}
+          />
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.safe}>
@@ -200,9 +227,19 @@ function AppContent({
             email={sessionMe?.email}
             avatarUrl={avatarUrl}
             coinBalance={coinBalance}
+            role={sessionMe?.role}
+            isSwitched={sessionMe?.isSwitched}
+            kioskActive={sessionMe?.kioskActive}
+            authenticatedName={sessionMe?.authenticatedName}
+            currentMemberId={sessionMe?.memberId}
             discoveryCounts={discoveryCounts}
             onNavigate={handleNavigate}
             onOpenProfile={() => setTab("profile")}
+            onAccountChanged={() => {
+              setTab("dashboard");
+              const sessionRequest = refreshSession();
+              void sessionRequest.promise.then(() => loadDiscovery());
+            }}
             onLoggedOut={() => {
               setSessionMe(null);
               onLocaleChange(DEFAULT_LOCALE);

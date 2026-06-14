@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FirestoreDocument, FirestoreValue } from "@/lib/firestore/rest";
 
 const mocks = vi.hoisted(() => ({
-  adminListDocuments: vi.fn(),
+  adminListAllDocuments: vi.fn(),
   adminGetDocument: vi.fn(),
   adminCreateOrReplaceDocument: vi.fn(),
   adminPatchDocument: vi.fn(),
 }));
 
 vi.mock("@/lib/firestore/admin", () => ({
-  adminListDocuments: mocks.adminListDocuments,
+  adminListAllDocuments: mocks.adminListAllDocuments,
   adminGetDocument: mocks.adminGetDocument,
   adminCreateOrReplaceDocument: mocks.adminCreateOrReplaceDocument,
   adminPatchDocument: mocks.adminPatchDocument,
@@ -93,7 +93,7 @@ const actor = { uid: "support-1", email: "support@example.com", name: "Support" 
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.adminListDocuments.mockResolvedValue([]);
+  mocks.adminListAllDocuments.mockResolvedValue([]);
   mocks.adminCreateOrReplaceDocument.mockResolvedValue({});
   mocks.adminPatchDocument.mockResolvedValue({});
 });
@@ -120,7 +120,7 @@ describe("public content service", () => {
       ok: false,
       error: "type_not_creatable",
     });
-    mocks.adminListDocuments.mockResolvedValue([doc({ fields: { type: stringField("guide"), slug: stringField("same"), status: stringField("published") } })]);
+    mocks.adminListAllDocuments.mockResolvedValue([doc({ fields: { type: stringField("guide"), slug: stringField("same"), status: stringField("published") } })]);
     await expect(createPublicContent({ type: "guide", title: "Same", slug: "same" }, actor)).resolves.toEqual({
       ok: false,
       error: "slug_not_unique",
@@ -128,7 +128,7 @@ describe("public content service", () => {
   });
 
   it("does not return draft content from public lists", async () => {
-    mocks.adminListDocuments.mockResolvedValue([
+    mocks.adminListAllDocuments.mockResolvedValue([
       doc({ docId: "published", fields: { status: stringField("published") } }),
       doc({ docId: "draft", fields: { status: stringField("draft"), slug: stringField("draft") } }),
     ]);
@@ -159,7 +159,7 @@ describe("public content service", () => {
   });
 
   it("finds published content by slug only", async () => {
-    mocks.adminListDocuments.mockResolvedValue([
+    mocks.adminListAllDocuments.mockResolvedValue([
       doc({ docId: "published", fields: { status: stringField("published") } }),
       doc({ docId: "approved", fields: { status: stringField("approved"), slug: stringField("approved-only") } }),
     ]);

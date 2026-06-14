@@ -9,11 +9,13 @@ export default function robots(): MetadataRoute.Robots {
         allow: "/",
         // App and private surfaces that should never be indexed. Public SEO
         // pages (/, /change-log, /privacy-policy, /terms-of-service, /docs/api,
-        // /chores/[slug], /rewards/[slug], /resources/[slug]) stay crawlable.
+        // /chores, /chores/ideas/*, /chores/[slug], /routines,
+        // /pillars-of-responsibility, /rewards/[slug], /resources/[slug])
+        // stay crawlable. /chores and /routines are session-aware: signed-out
+        // visitors get public marketing pages.
         disallow: [
           "/api/",
           "/achievements/",
-          "/chores/",
           "/community/",
           "/docs/",
           "/family/",

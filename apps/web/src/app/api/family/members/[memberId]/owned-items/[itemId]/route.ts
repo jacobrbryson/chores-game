@@ -5,7 +5,7 @@ import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import {
   getDocument,
   integerField,
-  listDocuments,
+  listAllDocuments,
   patchDocument,
   readInteger,
   readString,
@@ -86,7 +86,7 @@ function canRemoveStoreOption(optionId: string) {
 }
 
 async function getPaidValueByItemId(uid: string, itemId: string, idToken: string) {
-  const ledgerDocs = await listDocuments(`users/${uid}/walletLedger`, idToken, 500);
+  const ledgerDocs = await listAllDocuments(`users/${uid}/walletLedger`, idToken, { cap: 500 });
   let totalPaidValue = 0;
   for (const doc of ledgerDocs) {
     if (readString(doc.fields, "reason") !== "store_purchase") {

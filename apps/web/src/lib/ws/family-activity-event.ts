@@ -7,6 +7,9 @@ export const FAMILY_ACTIVITY_TYPES = [
   "theme_changed",
   "avatar_changed",
   "quest_rewarded",
+  "routine_updated",
+  "routine_assigned",
+  "routine_completed",
 ] as const;
 
 export type FamilyActivityType = (typeof FAMILY_ACTIVITY_TYPES)[number];

@@ -4,8 +4,10 @@
   "private": true,
   "main": "index.js",
   "scripts": {
-    "dev": "expo start --offline",
-    "android": "expo run:android",
+    "dev": "expo start --offline --dev-client",
+    "dev:go": "node scripts/start-expo-go.mjs",
+    "dev:client": "expo start --offline --dev-client",
+    "android": "node scripts/run-android-dev.mjs",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit"
   },
@@ -20,6 +22,7 @@
     "expo-auth-session": "~7.0.11",
     "expo-constants": "~18.0.13",
     "expo-crypto": "~15.0.9",
+    "expo-dev-client": "~6.0.21",
     "expo-linking": "~8.0.12",
     "expo-web-browser": "~15.0.11",
     "react": "19.1.0",

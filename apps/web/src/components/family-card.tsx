@@ -12,6 +12,7 @@ import {
 import { TodayChoresPanel } from "@/components/today-chores-panel";
 import type { FamilySnapshotChore, FamilySummaryResponse } from "@/lib/family/types";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
+import { shouldReloadFamilySummary } from "@/lib/ws/realtime-refresh";
 
 export function FamilyCard() {
   const { t } = useLocale();
@@ -138,6 +139,7 @@ export function FamilyCard() {
           categories?: { id: string; name: string; color: string }[];
           coinValue: number;
           requireApproval?: boolean;
+          newSkillEnabled?: boolean;
           recurrenceType?: FamilySnapshotChore["recurrenceType"];
           recurrenceInterval?: number;
           recurrenceUnit?: FamilySnapshotChore["recurrenceUnit"];
@@ -164,11 +166,13 @@ export function FamilyCard() {
         details: chore.details,
         actionHref: chore.actionHref,
         actionLabel: chore.actionLabel,
-        categoryIds: Array.isArray(chore.categoryIds) ? chore.categoryIds : [],
-        categories: Array.isArray(chore.categories) ? chore.categories : [],
-        coinValue: chore.coinValue,
-        requireApproval: Boolean(chore.requireApproval),
-        recurrenceType: chore.recurrenceType,
+          categoryIds: Array.isArray(chore.categoryIds) ? chore.categoryIds : [],
+          categories: Array.isArray(chore.categories) ? chore.categories : [],
+          coinValue: chore.coinValue,
+          requireApproval: Boolean(chore.requireApproval),
+          newSkillEnabled:
+            typeof chore.newSkillEnabled === "boolean" ? chore.newSkillEnabled : true,
+          recurrenceType: chore.recurrenceType,
         recurrenceInterval: chore.recurrenceInterval,
         recurrenceUnit: chore.recurrenceUnit,
         createdAt: chore.createdAt,
@@ -256,19 +260,13 @@ export function FamilyCard() {
       ) {
         setCompletionStatsReloadKey((current) => current + 1);
       }
-      if (
-        event.type === "theme_changed" ||
-        event.type === "avatar_changed" ||
-        event.type === "chore_reordered"
-      ) {
+      if (shouldReloadFamilySummary(event.type)) {
         queueSilentSummaryRefresh();
-        return;
       }
       if (event.type === "chore_completed" || event.type === "chore_deleted") {
         if (event.choreId) {
           removeTodayChore(event.choreId);
         }
-        queueSilentSummaryRefresh();
       } else if (event.choreId) {
         void refreshTodayChoreFromApi(event.choreId);
       }
@@ -406,4 +404,3 @@ export function FamilyCard() {
     </>
   );
 }
-

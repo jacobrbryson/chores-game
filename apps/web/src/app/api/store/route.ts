@@ -7,6 +7,7 @@ import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { applyWalletDelta, getPrimaryFamilyId, getWalletBalance } from "@/lib/economy/wallet";
 import {
   createOrReplaceDocument,
+  listAllDocuments,
   listDocuments,
   getDocument,
   patchDocument,
@@ -396,7 +397,7 @@ async function getStoreSummary(session: SessionUser, memberId: string, idToken: 
   const questItemQuantities: Record<string, number> = {};
   const inventoryByItemId = new Map<string, { quantity: number }>();
   try {
-    const ledgerDocs = await listDocuments(`users/${uid}/walletLedger`, idToken, 500);
+    const ledgerDocs = await listAllDocuments(`users/${uid}/walletLedger`, idToken, { cap: 500 });
     for (const doc of ledgerDocs) {
       if (readString(doc.fields, "reason") !== "store_purchase") {
         continue;
@@ -421,7 +422,7 @@ async function getStoreSummary(session: SessionUser, memberId: string, idToken: 
     }
   }
   try {
-    const inventoryDocs = await listDocuments(`users/${uid}/inventory`, idToken, 500);
+    const inventoryDocs = await listAllDocuments(`users/${uid}/inventory`, idToken, { cap: 500 });
     for (const doc of inventoryDocs) {
       const itemId = readString(doc.fields, "itemId");
       if (!itemId) {
@@ -944,7 +945,7 @@ export async function POST(request: NextRequest) {
               const questItemOptionIds = new Set(category.options.map((entry) => entry.itemId?.trim() || entry.id));
               const unlockedQuestItemIds = new Set<string>();
               try {
-                const inventoryDocs = await listDocuments(`users/${uid}/inventory`, idToken, 500);
+                const inventoryDocs = await listAllDocuments(`users/${uid}/inventory`, idToken, { cap: 500 });
                 for (const doc of inventoryDocs) {
                   const unlockedItemId = readString(doc.fields, "itemId").trim();
                   if (!unlockedItemId || !questItemOptionIds.has(unlockedItemId)) {

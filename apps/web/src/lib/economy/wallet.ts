@@ -20,9 +20,11 @@ type ApplyWalletDeltaInput = {
     | "chore_complete"
     | "chore_undo_complete"
     | "new_skill_bonus"
+    | "routine_completion_bonus"
     | "store_purchase"
     | "manual_adjustment";
   choreId?: string;
+  routineAssignmentId?: string;
   itemId?: string;
   debugMeta?: Record<string, unknown>;
 };
@@ -35,6 +37,11 @@ function ledgerEntryId(input: ApplyWalletDeltaInput) {
     input.choreId
   ) {
     return `${input.reason}_${input.choreId}`;
+  }
+  // Routine completion bonuses are idempotent per assignment — one assignment
+  // can only ever pay its bonus once, even across retries.
+  if (input.reason === "routine_completion_bonus" && input.routineAssignmentId) {
+    return `${input.reason}_${input.routineAssignmentId}`;
   }
   return randomUUID();
 }
@@ -104,6 +111,9 @@ export async function applyWalletDelta(input: ApplyWalletDeltaInput) {
         countsTowardBalance: boolField(true),
         choreId: stringField(input.choreId ?? ""),
         itemId: stringField(input.itemId ?? ""),
+        // Required by the routine-bonus security rule (ledger id must equal
+        // "routine_completion_bonus_" + this value); empty for other reasons.
+        routineAssignmentId: stringField(input.routineAssignmentId ?? ""),
         createdAt: timestampField(now),
       },
       input.idToken,

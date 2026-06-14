@@ -53,6 +53,18 @@ import {
   claimNewSkillBonus,
   NEW_SKILL_BONUS_AMOUNT,
 } from "@/lib/chores/skill-bonus";
+import { normalizeResponsibilityPillar } from "@/lib/responsibility/types";
+import {
+  awardChoreResponsibilityXpBestEffort,
+  type ChoreXpOutcome,
+} from "@/lib/responsibility/service";
+import {
+  recordRoutineStepCompletionBestEffort,
+  recordRoutineStepSkipBestEffort,
+  recordRoutineStepUndoBestEffort,
+  recordRoutineStepUnskipBestEffort,
+  type RoutineStepProgressOutcome,
+} from "@/lib/responsibility/assignment-service";
 
 type UpdateChoreBody = {
   action?: unknown;
@@ -65,11 +77,13 @@ type UpdateChoreBody = {
   categoryIds?: unknown;
   coinValue?: unknown;
   requireApproval?: unknown;
+  newSkillEnabled?: unknown;
   recurrenceType?: unknown;
   recurrenceInterval?: unknown;
   recurrenceUnit?: unknown;
   feedback?: unknown;
   approvalPayouts?: unknown;
+  responsibilityPillar?: unknown;
 };
 const MAX_ACTIVE_CHORES_PER_ASSIGNEE = 100;
 // Safety cap when paging the full chores collection (recurring chores grow it
@@ -692,6 +706,17 @@ const EMPTY_NEW_SKILL_BONUS: NewSkillBonusOutcome = {
   playerUids: [],
 };
 
+function resolveStoredNewSkillEnabled(fields: Record<string, FirestoreValue> | undefined) {
+  if (!fields || !Object.prototype.hasOwnProperty.call(fields, "newSkillEnabled")) {
+    return true;
+  }
+  return readBoolean(fields, "newSkillEnabled");
+}
+
+function parseOptionalNewSkillEnabled(value: unknown) {
+  return typeof value === "boolean" ? value : undefined;
+}
+
 // Awards the one-time New Skill Bonus to every assignee who is being paid for
 // the first completion of this chore identity. Runs at the same lifecycle point
 // as normal chore coins (immediate completion or approval). The durable claim
@@ -758,6 +783,44 @@ async function awardNewSkillBonuses(params: {
     totalCoins,
     playerUids,
   };
+}
+
+// Resolves the distinct player uids that actually received coins for this
+// completion, used to attribute Responsibility XP at the same lifecycle point
+// as the payout itself.
+async function resolvePaidPlayerUids(
+  familyId: string,
+  payoutByAssignee: Map<string, number>,
+  idToken: string,
+) {
+  const uids = new Set<string>();
+  for (const [assigneeAlias, coins] of payoutByAssignee.entries()) {
+    if (coins <= 0) {
+      continue;
+    }
+    const assigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
+    if (assigneeUid) {
+      uids.add(assigneeUid);
+    }
+  }
+  return Array.from(uids);
+}
+
+// " (step 2 of 4 in the "Clean Room" routine)" suffix for activity messages,
+// or "" for chores that are not routine steps.
+function describeRoutineStepContext(
+  choreFields: Record<string, FirestoreValue> | undefined,
+) {
+  const routineName = readString(choreFields, "routineName");
+  if (!routineName) {
+    return "";
+  }
+  const stepOrder = readInteger(choreFields, "routineStepOrder");
+  const stepCount = readInteger(choreFields, "routineStepCount");
+  if (stepOrder > 0 && stepCount > 0) {
+    return ` (step ${stepOrder} of ${stepCount} in the "${routineName}" routine)`;
+  }
+  return ` (part of the "${routineName}" routine)`;
 }
 
 function mapCommonFirestoreErrors(reason: string, fallbackError: string) {
@@ -878,6 +941,14 @@ export async function GET(
             }).recurrenceType,
             recurrenceInterval: readInteger(choreDoc.fields, "recurrenceInterval") || undefined,
             recurrenceUnit: readString(choreDoc.fields, "recurrenceUnit") || undefined,
+            responsibilityPillar:
+              normalizeResponsibilityPillar(readString(choreDoc.fields, "responsibilityPillar")) ||
+              undefined,
+            routineAssignmentId: readString(choreDoc.fields, "routineAssignmentId") || undefined,
+            routineId: readString(choreDoc.fields, "routineId") || undefined,
+            routineName: readString(choreDoc.fields, "routineName") || undefined,
+            routineStepOrder: readInteger(choreDoc.fields, "routineStepOrder") || undefined,
+            routineStepCount: readInteger(choreDoc.fields, "routineStepCount") || undefined,
             createdAt: readTimestamp(choreDoc.fields, "createdAt") || undefined,
           },
           viewerRole: requester.role,
@@ -1068,6 +1139,8 @@ export async function PATCH(
     action !== "edit" &&
     action !== "complete" &&
     action !== "undo_complete" &&
+    action !== "skip" &&
+    action !== "unskip" &&
     action !== "set_categories" &&
     action !== "approve" &&
     action !== "reject"
@@ -1093,6 +1166,7 @@ export async function PATCH(
       : "";
   const coinValue = parseCoinValue(body.coinValue);
   const requireApproval = parseRequireApproval(body.requireApproval);
+  const newSkillEnabled = parseOptionalNewSkillEnabled(body.newSkillEnabled);
   const recurrence = normalizeRecurrenceConfig({
     recurrenceType: body.recurrenceType,
     recurrenceInterval: body.recurrenceInterval,
@@ -1104,6 +1178,8 @@ export async function PATCH(
       : "";
   const hasCategoryIds = Array.isArray(body.categoryIds);
   const categoryIds = normalizeCategoryIds(body.categoryIds);
+  const hasResponsibilityPillar = body.responsibilityPillar !== undefined;
+  const responsibilityPillar = normalizeResponsibilityPillar(body.responsibilityPillar);
   const resolvedAssigneeIds = assigneeIds.length > 0 ? assigneeIds : assigneeId ? [assigneeId] : [];
   const resolvedAssigneeScope =
     assigneeScope || (resolvedAssigneeIds.length > 1 ? "multiple" : resolvedAssigneeIds.length === 1 ? "single" : "single");
@@ -1141,6 +1217,12 @@ export async function PATCH(
         const actorName = session.name || session.email;
         let syncOwnerUid = "";
         let newSkillBonus: NewSkillBonusOutcome = EMPTY_NEW_SKILL_BONUS;
+        let responsibilityXp: ChoreXpOutcome = {
+          pillar: "",
+          choreXpAwarded: 0,
+          newSkillXpAwarded: 0,
+        };
+        let routineProgress: RoutineStepProgressOutcome | null = null;
         if (action === "complete") {
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
           const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
@@ -1162,12 +1244,14 @@ export async function PATCH(
           const choreDetails = readString(existingChoreDoc.fields, "details") || "";
           const choreCategoryIds = readChoreCategoryIds(existingChoreDoc.fields);
           const choreRequireApproval = readBoolean(existingChoreDoc.fields, "requireApproval");
+          const choreNewSkillEnabled = resolveStoredNewSkillEnabled(existingChoreDoc.fields);
           const choreRecurrence = normalizeRecurrenceConfig({
             recurrenceType: readString(existingChoreDoc.fields, "recurrenceType"),
             recurrenceInterval: readInteger(existingChoreDoc.fields, "recurrenceInterval"),
             recurrenceUnit: readString(existingChoreDoc.fields, "recurrenceUnit"),
           });
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
+          const choreRoutineAssignmentId = readString(existingChoreDoc.fields, "routineAssignmentId");
           const hadPriorSubmission = Boolean(readTimestamp(existingChoreDoc.fields, "submittedAt"));
           // Canonical identity used for the New Skill Bonus: the root chore of a
           // recurring series so the bonus is granted only on the child's first
@@ -1178,7 +1262,13 @@ export async function PATCH(
           } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.memberId, session.email)) {
             syncOwnerUid = session.uid;
           }
-          if (currentStatus !== "Open") {
+          // A skipped routine step can be picked back up and completed (from the
+          // routine progress dialog), so completion is valid from Open or — for
+          // a routine step only — from Skipped. recordRoutineStepCompletion then
+          // moves it out of the assignment's skipped set into completed.
+          const resumingSkippedStep =
+            currentStatus === "Skipped" && Boolean(choreRoutineAssignmentId);
+          if (currentStatus !== "Open" && !resumingSkippedStep) {
             return { kind: "invalid_transition" as const };
           }
           const requesterOwnsChore = choreAssigneeIds.some((id) =>
@@ -1256,11 +1346,17 @@ export async function PATCH(
                 dueDate: stringField(nextDueDate),
                 coinValue: integerField(choreCoinValue),
                 requireApproval: boolField(choreRequireApproval),
+                newSkillEnabled: boolField(choreNewSkillEnabled),
                 recurrenceType: stringField(choreRecurrence.recurrenceType),
                 recurrenceInterval: integerField(choreRecurrence.recurrenceInterval ?? 0),
                 recurrenceUnit: stringField(choreRecurrence.recurrenceUnit ?? ""),
                 recurrenceParentChoreId: stringField(choreId),
                 recurrenceRootChoreId: stringField(rootChoreId),
+                responsibilityPillar: stringField(
+                  normalizeResponsibilityPillar(
+                    readString(existingChoreDoc.fields, "responsibilityPillar"),
+                  ),
+                ),
                 deleted: boolField(false),
                 createdBy: stringField(session.uid),
                 createdAt: timestampField(now),
@@ -1335,12 +1431,25 @@ export async function PATCH(
               return { kind: "wallet_permission_denied" as const };
             }
             payoutApplied = payoutResult.kind === "ok" && payoutResult.anyApplied;
-            newSkillBonus = await awardNewSkillBonuses({
+            if (choreNewSkillEnabled) {
+              newSkillBonus = await awardNewSkillBonuses({
+                familyId,
+                idToken,
+                rootChoreId,
+                payoutByAssignee,
+                sourceCompletionId: choreId,
+              });
+            }
+            // Responsibility XP rides the same payout lifecycle: chore XP for
+            // every paid player plus bonus XP when the New Skill Bonus fired.
+            // Chores without a pillar award nothing, silently.
+            responsibilityXp = await awardChoreResponsibilityXpBestEffort({
               familyId,
               idToken,
-              rootChoreId,
-              payoutByAssignee,
-              sourceCompletionId: choreId,
+              choreId,
+              choreFields: existingChoreDoc.fields,
+              paidPlayerUids: await resolvePaidPlayerUids(familyId, payoutByAssignee, idToken),
+              newSkillPlayerUids: newSkillBonus.playerUids,
             });
           }
           const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
@@ -1349,6 +1458,21 @@ export async function PATCH(
           // while the originally signed-in account is preserved as
           // authenticated_user_id and the event is tagged source=kiosk.
           const kioskActivity = buildKioskActivityMetadata(session, choreAssigneeId || assigneeUid);
+          // Routine step bookkeeping rides the payout: marking the step done
+          // in its assignment and, on the final step, paying the routine
+          // completion bonus + pillar XP.
+          if (nextStatus === "Approved") {
+            routineProgress = await recordRoutineStepCompletionBestEffort({
+              familyId,
+              idToken,
+              choreId,
+              choreFields: existingChoreDoc.fields,
+              playerUid: assigneeUid || "",
+              actor: { uid: session.uid, email: session.email, name: actorName },
+              kiosk: kioskActivity,
+            });
+          }
+          const routineStepContext = describeRoutineStepContext(existingChoreDoc.fields);
           await emitFamilyActivityBestEffort({
             familyId,
             idToken,
@@ -1358,8 +1482,8 @@ export async function PATCH(
             actorName,
             title: completionNeedsApproval ? "Chore submitted for approval" : "Chore completed",
             message: completionNeedsApproval
-              ? `${actorName} completed "${choreTitle}" and it is waiting for parent approval.`
-              : `${actorName} marked "${choreTitle}" complete${payoutApplied ? ` and earned ${approvedCoinValue} coins` : ""}.${newSkillBonus.awarded ? ` 🎉 New Skill Learned (+${newSkillBonus.totalCoins} bonus coins)!` : ""}${choreRecurrence.recurrenceType !== "none" ? ` ${recurrenceLabel(choreRecurrence)}.` : ""}`,
+              ? `${actorName} completed "${choreTitle}"${routineStepContext} and it is waiting for parent approval.`
+              : `${actorName} marked "${choreTitle}"${routineStepContext} complete${payoutApplied ? ` and earned ${approvedCoinValue} coins` : ""}.${newSkillBonus.awarded ? ` 🎉 New Skill Learned (+${newSkillBonus.totalCoins} bonus coins)!` : ""}${choreRecurrence.recurrenceType !== "none" ? ` ${recurrenceLabel(choreRecurrence)}.` : ""}`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
@@ -1414,15 +1538,13 @@ export async function PATCH(
             session.email,
             idToken,
           );
-          if (requester.role !== "admin") {
-            return { kind: "forbidden_action" as const };
-          }
           const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
           const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
           const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
           const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
           const choreAssigneeIdsRaw = readStringArray(existingChoreDoc.fields, "assigneeIds");
           const choreAssigneeScope = readString(existingChoreDoc.fields, "assigneeScope");
+          const choreRoutineAssignmentId = readString(existingChoreDoc.fields, "routineAssignmentId");
           const choreAssigneeIds =
             choreAssigneeScope === "family"
               ? await listActiveFamilyMemberIds(familyId, idToken)
@@ -1431,6 +1553,18 @@ export async function PATCH(
                 : choreAssigneeId
                   ? [choreAssigneeId]
                   : [];
+          // Undo is an admin action for ordinary chores, but the assignee may
+          // undo their own routine step from the routine progress dialog (the
+          // wallet ledger keeps the coin clawback idempotent and non-negative).
+          const requesterOwnsChore = choreAssigneeIds.some((id) =>
+            isRequesterAssignee(id, session.uid, session.memberId, session.email),
+          );
+          if (
+            requester.role !== "admin" &&
+            !(Boolean(choreRoutineAssignmentId) && requesterOwnsChore)
+          ) {
+            return { kind: "forbidden_action" as const };
+          }
           const choreSource = readString(existingChoreDoc.fields, "source");
           const choreGoogleTaskOwnerUid = readString(existingChoreDoc.fields, "googleTaskOwnerUid");
           const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
@@ -1512,6 +1646,14 @@ export async function PATCH(
             if (payoutResult.kind === "wallet_permission_denied") {
               return { kind: "wallet_permission_denied" as const };
             }
+            // Undoing a paid routine step re-opens it inside its assignment
+            // (an already-paid routine completion bonus is not clawed back —
+            // the wallet ledger keeps it from ever double-paying).
+            await recordRoutineStepUndoBestEffort({
+              familyId,
+              idToken,
+              choreFields: existingChoreDoc.fields,
+            });
           }
           await emitFamilyActivityBestEffort({
             familyId,
@@ -1522,6 +1664,185 @@ export async function PATCH(
             actorName,
             title: "Completion undone",
             message: `${actorName} moved "${choreTitle}" back to open.${spawnedNextChoreId ? " The next recurring copy was removed." : ""}`,
+            choreId,
+            choreTitle,
+            relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
+          });
+          await publishFamilyActivity({
+            type: "chore_updated",
+            familyId,
+            choreId,
+            occurredAt: now,
+          });
+        } else if (action === "skip") {
+          // Skipping is only meaningful for routine-step chores (something the
+          // child already did, or that does not need doing this time). The step
+          // closes out with no payout; the routine completion bonus still fires
+          // when the routine finishes, but only if at least one sibling step was
+          // actually completed.
+          const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
+          const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
+          const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
+          const routineAssignmentId = readString(existingChoreDoc.fields, "routineAssignmentId");
+          if (!routineAssignmentId) {
+            return { kind: "not_routine_step" as const };
+          }
+          if (currentStatus !== "Open") {
+            return { kind: "invalid_transition" as const };
+          }
+          const choreAssigneeIds = await resolveChoreAssigneeIds(
+            familyId,
+            existingChoreDoc.fields,
+            idToken,
+          );
+          const requesterOwnsChore = choreAssigneeIds.some((id) =>
+            isRequesterAssignee(id, session.uid, session.memberId, session.email),
+          );
+          const requester = await getRequesterContext(
+            familyId,
+            session.uid,
+            session.email,
+            idToken,
+          );
+          if (!requesterOwnsChore && requester.role !== "admin") {
+            return { kind: "forbidden_action" as const };
+          }
+          await patchDocument(
+            `families/${familyId}/chores/${choreId}`,
+            {
+              status: stringField("Skipped"),
+              skippedAt: timestampField(now),
+              updatedAt: timestampField(now),
+            },
+            idToken,
+            ["status", "skippedAt", "updatedAt"],
+          );
+          await writeAuditLogBestEffort({
+            familyId,
+            idToken,
+            eventType: "chore_status_changed",
+            actor: {
+              uid: session.uid,
+              email: session.email,
+              name: actorName,
+              role: requester.role,
+            },
+            userId: choreAssigneeId,
+            choreId,
+            choreTitle,
+            source: readString(existingChoreDoc.fields, "source") || "manual",
+            previous: { status: currentStatus },
+            next: { status: "Skipped" },
+            reason: "skip",
+          });
+          const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
+          const kioskActivity = buildKioskActivityMetadata(session, choreAssigneeId || assigneeUid);
+          routineProgress = await recordRoutineStepSkipBestEffort({
+            familyId,
+            idToken,
+            choreId,
+            choreFields: existingChoreDoc.fields,
+            playerUid: assigneeUid || "",
+            actor: { uid: session.uid, email: session.email, name: actorName },
+            actorRole: requester.role,
+            kiosk: kioskActivity,
+          });
+          await emitFamilyActivityBestEffort({
+            familyId,
+            idToken,
+            kind: "chore_skipped",
+            actorUid: session.uid,
+            actorEmail: session.email,
+            actorName,
+            title: "Routine step skipped",
+            message: `${actorName} skipped "${choreTitle}"${describeRoutineStepContext(existingChoreDoc.fields)}.`,
+            choreId,
+            choreTitle,
+            relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
+            source: kioskActivity.source,
+            authenticatedUid: kioskActivity.authenticatedUid,
+            completedForPlayerId: kioskActivity.completedForPlayerId,
+          });
+          await publishFamilyActivity({
+            type: "chore_updated",
+            familyId,
+            choreId,
+            occurredAt: now,
+          });
+        } else if (action === "unskip") {
+          const requester = await getRequesterContext(
+            familyId,
+            session.uid,
+            session.email,
+            idToken,
+          );
+          const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
+          const currentStatus = readString(existingChoreDoc.fields, "status") || "Open";
+          const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
+          const choreAssigneeId = readString(existingChoreDoc.fields, "assigneeId");
+          const choreRoutineAssignmentId = readString(existingChoreDoc.fields, "routineAssignmentId");
+          const choreAssigneeIds = await resolveChoreAssigneeIds(
+            familyId,
+            existingChoreDoc.fields,
+            idToken,
+          );
+          // Like skip, un-skipping a routine step is allowed for the assignee
+          // (back to open, no payout) as well as any family admin.
+          const requesterOwnsChore = choreAssigneeIds.some((id) =>
+            isRequesterAssignee(id, session.uid, session.memberId, session.email),
+          );
+          if (
+            requester.role !== "admin" &&
+            !(Boolean(choreRoutineAssignmentId) && requesterOwnsChore)
+          ) {
+            return { kind: "forbidden_action" as const };
+          }
+          if (currentStatus !== "Skipped") {
+            return { kind: "invalid_transition" as const };
+          }
+          await patchDocument(
+            `families/${familyId}/chores/${choreId}`,
+            {
+              status: stringField("Open"),
+              skippedAt: stringField(""),
+              updatedAt: timestampField(now),
+            },
+            idToken,
+            ["status", "skippedAt", "updatedAt"],
+          );
+          await writeAuditLogBestEffort({
+            familyId,
+            idToken,
+            eventType: "chore_status_changed",
+            actor: {
+              uid: session.uid,
+              email: session.email,
+              name: actorName,
+              role: requester.role,
+            },
+            userId: choreAssigneeId,
+            choreId,
+            choreTitle,
+            source: readString(existingChoreDoc.fields, "source") || "manual",
+            previous: { status: currentStatus },
+            next: { status: "Open" },
+            reason: "unskip",
+          });
+          await recordRoutineStepUnskipBestEffort({
+            familyId,
+            idToken,
+            choreFields: existingChoreDoc.fields,
+          });
+          await emitFamilyActivityBestEffort({
+            familyId,
+            idToken,
+            kind: "chore_edited",
+            actorUid: session.uid,
+            actorEmail: session.email,
+            actorName,
+            title: "Routine step restored",
+            message: `${actorName} moved "${choreTitle}"${describeRoutineStepContext(existingChoreDoc.fields)} back to open.`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
@@ -1553,6 +1874,7 @@ export async function PATCH(
           );
           const choreCoinValue = normalizeCoinValue(readInteger(existingChoreDoc.fields, "coinValue"));
           const choreRequireApproval = readBoolean(existingChoreDoc.fields, "requireApproval");
+          const choreNewSkillEnabled = resolveStoredNewSkillEnabled(existingChoreDoc.fields);
           const rootChoreId = canonicalRecurringChoreId(existingChoreDoc.fields, choreId);
           if (currentStatus !== "Submitted" || !choreRequireApproval) {
             return { kind: "invalid_transition" as const };
@@ -1616,12 +1938,33 @@ export async function PATCH(
             return { kind: "wallet_permission_denied" as const };
           }
           const payoutApplied = payoutResult.kind === "ok" && payoutResult.anyApplied;
-          newSkillBonus = await awardNewSkillBonuses({
+          if (choreNewSkillEnabled) {
+            newSkillBonus = await awardNewSkillBonuses({
+              familyId,
+              idToken,
+              rootChoreId,
+              payoutByAssignee,
+              sourceCompletionId: choreId,
+            });
+          }
+          responsibilityXp = await awardChoreResponsibilityXpBestEffort({
             familyId,
             idToken,
-            rootChoreId,
-            payoutByAssignee,
-            sourceCompletionId: choreId,
+            choreId,
+            choreFields: existingChoreDoc.fields,
+            paidPlayerUids: await resolvePaidPlayerUids(familyId, payoutByAssignee, idToken),
+            newSkillPlayerUids: newSkillBonus.playerUids,
+          });
+          // Approval is the payout point for approval-required routine steps,
+          // so routine progress (and the completion bonus on the final step)
+          // is recorded here.
+          routineProgress = await recordRoutineStepCompletionBestEffort({
+            familyId,
+            idToken,
+            choreId,
+            choreFields: existingChoreDoc.fields,
+            playerUid: (await resolveAssigneeUid(familyId, choreAssigneeId, idToken)) || "",
+            actor: { uid: session.uid, email: session.email, name: actorName },
           });
           await emitFamilyActivityBestEffort({
             familyId,
@@ -1631,7 +1974,7 @@ export async function PATCH(
             actorEmail: session.email,
             actorName,
             title: "Chore approved",
-            message: `${actorName} approved "${choreTitle}"${payoutApplied ? " and paid coins" : ""}.${newSkillBonus.awarded ? ` 🎉 New Skill Learned (+${newSkillBonus.totalCoins} bonus coins)!` : ""}`,
+            message: `${actorName} approved "${choreTitle}"${describeRoutineStepContext(existingChoreDoc.fields)}${payoutApplied ? " and paid coins" : ""}.${newSkillBonus.awarded ? ` 🎉 New Skill Learned (+${newSkillBonus.totalCoins} bonus coins)!` : ""}`,
             choreId,
             choreTitle,
             relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
@@ -1884,9 +2227,21 @@ export async function PATCH(
                   ? true
                   : requireApproval,
               ),
+              newSkillEnabled: boolField(
+                nextChoreType === "see_and_do"
+                  ? false
+                  : newSkillEnabled ?? resolveStoredNewSkillEnabled(existingChoreDoc.fields),
+              ),
               recurrenceType: stringField(recurrence.recurrenceType),
               recurrenceInterval: integerField(recurrence.recurrenceInterval ?? 0),
               recurrenceUnit: stringField(recurrence.recurrenceUnit ?? ""),
+              responsibilityPillar: stringField(
+                hasResponsibilityPillar
+                  ? responsibilityPillar
+                  : normalizeResponsibilityPillar(
+                      readString(existingChoreDoc.fields, "responsibilityPillar"),
+                    ),
+              ),
               updatedAt: timestampField(now),
             },
             idToken,
@@ -1902,9 +2257,11 @@ export async function PATCH(
               "categoryIds",
               "coinValue",
               "requireApproval",
+              "newSkillEnabled",
               "recurrenceType",
               "recurrenceInterval",
               "recurrenceUnit",
+              "responsibilityPillar",
               "updatedAt",
             ],
           );
@@ -1938,7 +2295,7 @@ export async function PATCH(
           });
         }
 
-        return { kind: "ok" as const, newSkillBonus };
+        return { kind: "ok" as const, newSkillBonus, responsibilityXp, routineProgress };
       });
 
     if (data.kind === "family_not_found") {
@@ -1983,8 +2340,26 @@ export async function PATCH(
     if (data.kind === "invalid_category_ids") {
       return NextResponse.json({ error: "invalid_category_ids" }, { status: 400 });
     }
+    if (data.kind === "not_routine_step") {
+      return NextResponse.json({ error: "not_routine_step" }, { status: 400 });
+    }
 
     const bonus = "newSkillBonus" in data ? data.newSkillBonus : undefined;
+    const xp = "responsibilityXp" in data ? data.responsibilityXp : undefined;
+    const routineProgressPayload =
+      "routineProgress" in data && data.routineProgress
+        ? { routineProgress: data.routineProgress }
+        : undefined;
+    const responsibilityXpPayload =
+      xp && xp.pillar && (xp.choreXpAwarded > 0 || xp.newSkillXpAwarded > 0)
+        ? {
+            responsibilityXp: {
+              pillar: xp.pillar,
+              choreXpAwarded: xp.choreXpAwarded,
+              newSkillXpAwarded: xp.newSkillXpAwarded,
+            },
+          }
+        : undefined;
     const response = NextResponse.json(
       bonus && bonus.awarded
         ? {
@@ -1995,8 +2370,10 @@ export async function PATCH(
               totalCoins: bonus.totalCoins,
               playerUids: bonus.playerUids,
             },
+            ...responsibilityXpPayload,
+            ...routineProgressPayload,
           }
-        : { success: true },
+        : { success: true, ...responsibilityXpPayload, ...routineProgressPayload },
     );
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);

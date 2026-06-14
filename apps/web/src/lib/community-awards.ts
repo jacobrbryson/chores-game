@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   adminCommitWrites,
   adminGetDocument,
-  adminListDocuments,
+  adminListAllDocuments,
   adminPatchDocument,
 } from "@/lib/firestore/admin";
 import {
@@ -182,7 +182,7 @@ export function toPublicCommunityAward(record: CommunityAwardRecord, viewerVote:
 }
 
 export async function listCommunityAwardRecords() {
-  const docs = await adminListDocuments("communityAwards", 500);
+  const docs = await adminListAllDocuments("communityAwards", { cap: 500 });
   return docs.map(parseCommunityAward);
 }
 

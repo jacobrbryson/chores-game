@@ -701,6 +701,19 @@ service cloud.firestore {
         );
     }
 
+    // Routine completion bonus: a one-time credit keyed to the routine
+    // assignment id, so the bonus is idempotent per assignment.
+    function isValidRoutineBonusLedgerCreate(entryId) {
+      return request.resource.data.reason == "routine_completion_bonus"
+        && request.resource.data.choreId == ""
+        && request.resource.data.itemId == ""
+        && request.resource.data.routineAssignmentId is string
+        && request.resource.data.routineAssignmentId != ""
+        && entryId == "routine_completion_bonus_" + request.resource.data.routineAssignmentId
+        && request.resource.data.delta > 0
+        && request.resource.data.balanceAfter >= request.resource.data.delta;
+    }
+
     function isValidQuestRewardLedgerCreate() {
       return request.resource.data.reason == "quest_reward"
         && request.resource.data.itemId is string
@@ -715,6 +728,7 @@ service cloud.firestore {
           isValidChoreCompleteLedgerCreate(uid, ledgerEntryId, false)
           || isValidChoreUndoLedgerCreate(uid, ledgerEntryId, false)
           || isValidNewSkillBonusLedgerCreate(uid, ledgerEntryId, false)
+          || isValidRoutineBonusLedgerCreate(ledgerEntryId)
           || isValidStorePurchaseLedgerCreate()
           || isValidQuestRewardLedgerCreate()
         );
@@ -728,6 +742,7 @@ service cloud.firestore {
           || isValidChoreCompleteLedgerCreate(uid, ledgerEntryId, true)
           || isValidChoreUndoLedgerCreate(uid, ledgerEntryId, true)
           || isValidNewSkillBonusLedgerCreate(uid, ledgerEntryId, true)
+          || isValidRoutineBonusLedgerCreate(ledgerEntryId)
           || isValidStorePurchaseLedgerCreate()
           || isValidQuestRewardLedgerCreate()
         );
@@ -934,7 +949,11 @@ service cloud.firestore {
           || (
             isFamilyMember(familyId)
             && canRequesterCompleteChore(familyId, resource.data)
-            && resource.data.status == "Open"
+            && (
+              resource.data.status == "Open"
+              // A skipped routine step can be picked back up and completed.
+              || (resource.data.status == "Skipped" && resource.data.routineAssignmentId is string)
+            )
             && request.resource.data.status in ["Submitted", "Approved"]
             && (
               (request.resource.data.status == "Submitted" && resource.data.requireApproval == true)
@@ -951,6 +970,54 @@ service cloud.firestore {
               "submittedAt",
               "updatedAt",
               "spawnedNextChoreId"
+            ])
+          )
+          || (
+            // A family member who can complete a routine step may skip it
+            // instead: it closes out with no payout (status Open -> Skipped).
+            isFamilyMember(familyId)
+            && canRequesterCompleteChore(familyId, resource.data)
+            && resource.data.status == "Open"
+            && request.resource.data.status == "Skipped"
+            && resource.data.routineAssignmentId is string
+            && request.resource.data.updatedAt is timestamp
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              "status",
+              "skippedAt",
+              "updatedAt"
+            ])
+          )
+          || (
+            // The assignee may undo a routine step they finished, from the
+            // routine progress dialog (status Submitted/Approved -> Open). The
+            // wallet ledger keeps the coin clawback idempotent.
+            isFamilyMember(familyId)
+            && canRequesterCompleteChore(familyId, resource.data)
+            && resource.data.status in ["Submitted", "Approved", "Rejected"]
+            && request.resource.data.status == "Open"
+            && resource.data.routineAssignmentId is string
+            && request.resource.data.updatedAt is timestamp
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              "status",
+              "updatedAt",
+              "spawnedNextChoreId",
+              "rejectionFeedback",
+              "approvalPayoutsJson"
+            ])
+          )
+          || (
+            // The assignee may un-skip a routine step they skipped, from the
+            // routine progress dialog (status Skipped -> Open, no payout).
+            isFamilyMember(familyId)
+            && canRequesterCompleteChore(familyId, resource.data)
+            && resource.data.status == "Skipped"
+            && request.resource.data.status == "Open"
+            && resource.data.routineAssignmentId is string
+            && request.resource.data.updatedAt is timestamp
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              "status",
+              "skippedAt",
+              "updatedAt"
             ])
           )
           || (
@@ -1166,6 +1233,61 @@ service cloud.firestore {
           && request.resource.data.sourceCompletionId is string
           && request.resource.data.firstCompletedAt is timestamp;
         allow update, delete: if false;
+      }
+
+      // Routine templates: reusable parent-defined chore chains. Parent-curated
+      // structure, so all writes are admin-only (the routine-step chores and
+      // assignment bookkeeping have their own rules below).
+      match /routines/{routineId} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update, delete: if isFamilyAdmin(familyId);
+      }
+
+      // Routine assignments: one assigned occurrence of a routine for one
+      // player. Created by admins; the assigned player may only advance the
+      // progress bookkeeping fields on their own assignment (this is how
+      // completing a step chore marks the step done, including Kiosk Mode).
+      match /routineAssignments/{assignmentId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isFamilyAdmin(familyId);
+        allow update: if isFamilyAdmin(familyId)
+          || (
+            isFamilyMember(familyId)
+            && isRequesterAssigneeId(resource.data.assigneeId)
+            && request.resource.data.status in ["active", "completed"]
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              "completedStepIdsJson",
+              "skippedStepIdsJson",
+              "status",
+              "completedAt",
+              "updatedAt"
+            ])
+          );
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      // Responsibility XP: append-only award events plus a per-player additive
+      // aggregate. Players write their own XP at completion time; admins write
+      // a child's XP at approval time. Events are immutable.
+      match /responsibilityXpEvents/{eventId} {
+        allow read: if isFamilyAdmin(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.playerId is string
+          && (
+            request.resource.data.playerId == request.auth.uid
+            || isFamilyAdmin(familyId)
+          )
+          && request.resource.data.xpAwarded is int
+          && request.resource.data.xpAwarded > 0
+          && request.resource.data.createdAt is timestamp;
+        allow update, delete: if false;
+      }
+
+      match /responsibilityProgress/{playerUid} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update: if isFamilyMember(familyId)
+          && (playerUid == request.auth.uid || isFamilyAdmin(familyId));
+        allow delete: if false;
       }
 
       // User-submitted bug reports / feature requests. Authors can read only

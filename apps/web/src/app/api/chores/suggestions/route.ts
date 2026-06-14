@@ -4,7 +4,7 @@ import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import {
   getDocument,
-  listDocuments,
+  listAllDocuments,
   readBoolean,
   readInteger,
   readString,
@@ -146,7 +146,7 @@ export async function GET(request: NextRequest) {
             return [];
           }
           try {
-            return await listDocuments(`families/${familyId}/choreUsage`, idToken, 500);
+            return await listAllDocuments(`families/${familyId}/choreUsage`, idToken, { cap: 500 });
           } catch (error) {
             const reason = error instanceof Error ? error.message : "";
             if (isForbiddenOrMissing(reason)) {
@@ -159,7 +159,7 @@ export async function GET(request: NextRequest) {
         const familyChoreDocs = familyId
           ? await (async () => {
               try {
-                return await listDocuments(`families/${familyId}/chores`, idToken, 500);
+                return await listAllDocuments(`families/${familyId}/chores`, idToken, { cap: 500 });
               } catch (error) {
                 const reason = error instanceof Error ? error.message : "";
                 if (isForbiddenOrMissing(reason)) {

@@ -26,8 +26,17 @@ import type {
 } from "@/lib/chores/recurrence";
 import type { ChoreType } from "@/lib/chores/types";
 import { parseCompletionWindow } from "@/lib/preferences/completion-window";
+import {
+  RoutineBadgeIcon,
+  RoutineProgressDialog,
+} from "@/components/routine-progress-dialog";
 import { useMarkDiscoverySeen } from "@/lib/hooks/use-discovery";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
+import { shouldReloadChoresPageList } from "@/lib/ws/realtime-refresh";
+import {
+  choreNeedsCoinAssignmentPrompt,
+  shouldHideChoreCoinValue,
+} from "@packages/core";
 
 type ChoreCategory = {
   id: string;
@@ -55,9 +64,15 @@ type ChoreRow = {
   completedAt?: string;
   coinValue: number;
   requireApproval?: boolean;
+  newSkillEnabled?: boolean;
   recurrenceType?: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: ChoreRecurrenceUnit;
+  routineAssignmentId?: string;
+  routineId?: string;
+  routineName?: string;
+  routineStepOrder?: number;
+  routineStepCount?: number;
   createdAt?: string;
 };
 
@@ -343,17 +358,17 @@ function isMultiAssigneeChore(chore: Pick<ChoreRow, "assigneeScope" | "assigneeI
 }
 
 function getDisplayedCoinValue(chore: Pick<ChoreRow, "choreType" | "status" | "coinValue">) {
-  if (chore.choreType === "see_and_do" && chore.status !== "Approved") {
+  if (shouldHideChoreCoinValue(chore)) {
     return "-";
   }
   return String(chore.coinValue ?? 0);
 }
 
 function getCoinTooltip(
-  chore: Pick<ChoreRow, "choreType">,
+  chore: Pick<ChoreRow, "choreType" | "status" | "coinValue">,
   t: (key: string, params?: Record<string, string | number>) => string,
 ) {
-  if (chore.choreType === "see_and_do") {
+  if (shouldHideChoreCoinValue(chore)) {
     return t("choresPage.coinTooltip.seeAndDo");
   }
   return undefined;
@@ -724,6 +739,7 @@ export default function ChoresPage() {
   const [actionError, setActionError] = useState("");
   const [rowActionState, setRowActionState] = useState<RowActionState | null>(null);
   const [editingChore, setEditingChore] = useState<ChoreRow | null>(null);
+  const [routineDialogAssignmentId, setRoutineDialogAssignmentId] = useState("");
   const [pendingDeleteChore, setPendingDeleteChore] = useState<ChoreRow | null>(null);
   const [pendingRejectChore, setPendingRejectChore] = useState<ChoreRow | null>(null);
   const [pendingApproveChore, setPendingApproveChore] = useState<ChoreRow | null>(null);
@@ -1085,15 +1101,24 @@ export default function ChoresPage() {
       if (event.familyId !== realtimeContext.familyId) {
         return;
       }
+      if (shouldReloadChoresPageList(event.type)) {
+        void loadChores({ silent: true });
+        if (refreshTimer) {
+          clearTimeout(refreshTimer);
+        }
+        refreshTimer = setTimeout(() => {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new Event("notifications:refresh"));
+            window.dispatchEvent(new Event("wallet:refresh"));
+          }
+        }, 80);
+        return;
+      }
       if (event.type === "theme_changed" || event.type === "avatar_changed") {
         void loadChores({ silent: true });
         return;
       }
-      if (event.type === "chore_deleted") {
-        if (event.choreId) {
-          applyChoreRow(null, event.choreId);
-        }
-      } else if (event.choreId) {
+      if (event.choreId) {
         if (shouldApplySearch) {
           void loadChores({ silent: true });
         } else {
@@ -1587,7 +1612,7 @@ export default function ChoresPage() {
     if (hasBusyAction) {
       return;
     }
-    if (isMultiAssigneeChore(chore) || chore.choreType === "see_and_do") {
+    if (choreNeedsCoinAssignmentPrompt(chore)) {
       const assigneeIds =
         chore.assigneeIds && chore.assigneeIds.length > 0
           ? chore.assigneeIds
@@ -1918,6 +1943,14 @@ export default function ChoresPage() {
   return (
     <>
       <main className="family-page">
+          {routineDialogAssignmentId ? (
+            <RoutineProgressDialog
+              assignmentId={routineDialogAssignmentId}
+              open
+              onRequestClose={() => setRoutineDialogAssignmentId("")}
+              onChanged={() => void loadChores({ silent: true })}
+            />
+          ) : null}
           <AddEditChoresDialog
             chore={
               editingChore
@@ -1934,6 +1967,7 @@ export default function ChoresPage() {
                     categoryIds: editingChore.categoryIds,
                     coinValue: editingChore.coinValue,
                     requireApproval: editingChore.requireApproval,
+                    newSkillEnabled: editingChore.newSkillEnabled,
                     recurrenceType: editingChore.recurrenceType,
                     recurrenceInterval: editingChore.recurrenceInterval,
                     recurrenceUnit: editingChore.recurrenceUnit,
@@ -2397,6 +2431,22 @@ export default function ChoresPage() {
                                 <td>
                                   <span className="table-chore-title-cell">
                                     <span className="chores-title-text" title={chore.title}>{chore.title}</span>
+                                    {chore.routineAssignmentId ? (
+                                      <button
+                                        type="button"
+                                        className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700 hover:bg-sky-200"
+                                        title={t("responsibility.routineBadgeTooltip", {
+                                          name: chore.routineName ?? "",
+                                        })}
+                                        onClick={() =>
+                                          setRoutineDialogAssignmentId(chore.routineAssignmentId ?? "")
+                                        }>
+                                        <RoutineBadgeIcon size={12} />
+                                        {chore.routineStepOrder && chore.routineStepCount
+                                          ? `${chore.routineStepOrder}/${chore.routineStepCount}`
+                                          : null}
+                                      </button>
+                                    ) : null}
                                   </span>
                                 </td>
                                 {isColumnVisible("categories") ? (

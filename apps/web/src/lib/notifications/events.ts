@@ -16,9 +16,15 @@ type ActivityKind =
   | "chore_deleted"
   | "chore_completed"
   | "chore_undo_completed"
+  | "chore_skipped"
   | "chore_approved"
   | "chore_rejected"
-  | "reward_claimed";
+  | "reward_claimed"
+  | "routine_created"
+  | "routine_updated"
+  | "routine_assigned"
+  | "routine_step_completed"
+  | "routine_completed";
 
 type EmitFamilyActivityInput = {
   familyId: string;

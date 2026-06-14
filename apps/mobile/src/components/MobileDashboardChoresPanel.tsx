@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import {
+  choreNeedsCoinAssignmentPrompt,
+  shouldHideChoreCoinValue,
   createApprovalAssigneeSelections,
   getDashboardChorePage,
   listApprovalPayouts,
@@ -251,8 +253,7 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
 
   async function completeChore(chore: MobileFamilyChore) {
     if (busyId) return;
-    const isMultiOrFamily = chore.assigneeScope === "family" || (chore.assigneeIds?.length ?? 0) > 1;
-    const needsApprovalCoinPrompt = isMultiOrFamily || chore.choreType === "see_and_do";
+    const needsApprovalCoinPrompt = choreNeedsCoinAssignmentPrompt(chore);
     if (viewerRole === "admin" && needsApprovalCoinPrompt) {
       const assigneeIds = getApprovalAssigneeIds(chore, members);
       setApprovalSelectionsByAssignee(createApprovalAssigneeSelections(assigneeIds, chore.coinValue ?? 0));
@@ -460,7 +461,7 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
                       {(chore.categories ?? []).slice(0, 2).map((category) => <Badge key={category.id} label={category.name} />)}
                     </View>
                   </View>
-                  <CoinPill value={chore.choreType === "see_and_do" ? "-" : chore.coinValue ?? 0} />
+                  <CoinPill value={shouldHideChoreCoinValue(chore) ? "-" : chore.coinValue ?? 0} />
                 </View>
                 <View style={styles.cardActions}>
                   <View style={styles.actionGroup}>

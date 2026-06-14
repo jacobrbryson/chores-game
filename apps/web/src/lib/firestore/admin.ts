@@ -211,6 +211,40 @@ export async function adminListDocuments(path: string, pageSize = 100) {
   return response.documents ?? [];
 }
 
+// Firestore REST caps documents.list pageSize at 300 and a single call never
+// returns more than one page, so adminListDocuments silently drops anything
+// beyond that. adminListAllDocuments follows nextPageToken until the collection
+// is exhausted (or the safety cap is hit) so callers can read an entire
+// collection — important for unbounded ones like chores (recurring chores spawn
+// a new doc each cycle) and walletLedger.
+export async function adminListAllDocuments(
+  path: string,
+  options?: { cap?: number; pageSize?: number },
+) {
+  const cap = options?.cap ?? 5000;
+  const pageSize = Math.min(300, Math.max(1, options?.pageSize ?? 300));
+  const documents: FirestoreDocument[] = [];
+  let pageToken = "";
+  do {
+    const params = new URLSearchParams({ pageSize: String(pageSize) });
+    if (pageToken) {
+      params.set("pageToken", pageToken);
+    }
+    const response = await requestFirestoreAdmin<{
+      documents?: FirestoreDocument[];
+      nextPageToken?: string;
+    }>(`${baseDocumentsUrl()}/${path}?${params.toString()}`);
+    for (const doc of response.documents ?? []) {
+      documents.push(doc);
+      if (documents.length >= cap) {
+        return documents;
+      }
+    }
+    pageToken = response.nextPageToken ?? "";
+  } while (pageToken);
+  return documents;
+}
+
 export async function adminGetDocument(path: string) {
   return requestFirestoreAdmin<FirestoreDocument>(`${baseDocumentsUrl()}/${path}`);
 }

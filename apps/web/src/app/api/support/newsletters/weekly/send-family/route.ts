@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await sendWeeklyFamilyHighlightsForFamily({ familyId });
+    // Manual support trigger: send even when the family had no activity this week.
+    const result = await sendWeeklyFamilyHighlightsForFamily({ familyId, allowNoActivity: true });
     return NextResponse.json({
       success: true,
       sent: result.sent,

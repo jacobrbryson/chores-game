@@ -48,6 +48,10 @@ import {
 } from "@/lib/family/categories";
 import type { FamilyCategory } from "@/lib/family/types";
 import { trackAchievementEvent } from "@/lib/achievements/service";
+import {
+  normalizeResponsibilityPillar,
+  type ResponsibilityPillar,
+} from "@/lib/responsibility/types";
 
 type CreateChoresBody = {
   description?: unknown;
@@ -61,9 +65,11 @@ type CreateChoresBody = {
   categoryIds?: unknown;
   coinValue?: unknown;
   requireApproval?: unknown;
+  newSkillEnabled?: unknown;
   recurrenceType?: unknown;
   recurrenceInterval?: unknown;
   recurrenceUnit?: unknown;
+  responsibilityPillar?: unknown;
 };
 
 type ReorderChoresBody = {
@@ -92,9 +98,16 @@ type ChoreRow = {
   completedAt?: string;
   coinValue: number;
   requireApproval: boolean;
+  newSkillEnabled: boolean;
   recurrenceType: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: ChoreRecurrenceUnit;
+  responsibilityPillar?: ResponsibilityPillar;
+  routineAssignmentId?: string;
+  routineId?: string;
+  routineName?: string;
+  routineStepOrder?: number;
+  routineStepCount?: number;
   deleted: boolean;
   createdAt?: string;
   submittedAt?: string;
@@ -128,7 +141,8 @@ type ChoreStatusFilter =
   | ""
   | "completed"
   | "needs_approval"
-  | "open";
+  | "open"
+  | "recurring";
 const MAX_CHORE_ARCHIVE = 5000;
 type CompletionWindowRange = {
   startMillis: number;
@@ -207,6 +221,13 @@ function normalizeDescription(value: string) {
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
+}
+
+function parseNewSkillEnabled(value: unknown) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  return true;
 }
 
 function normalizeAssigneeIds(value: unknown) {
@@ -372,6 +393,10 @@ function normalizeChoreDoc(doc: {
     updatedAt: readTimestamp(doc.fields, "updatedAt") || undefined,
     coinValue: normalizeCoinValue(readInteger(doc.fields, "coinValue")),
     requireApproval: readBoolean(doc.fields, "requireApproval"),
+    newSkillEnabled:
+      doc.fields && Object.prototype.hasOwnProperty.call(doc.fields, "newSkillEnabled")
+        ? readBoolean(doc.fields, "newSkillEnabled")
+        : true,
     recurrenceType: normalizeRecurrenceConfig({
       recurrenceType: readString(doc.fields, "recurrenceType"),
       recurrenceInterval: readInteger(doc.fields, "recurrenceInterval"),
@@ -380,6 +405,13 @@ function normalizeChoreDoc(doc: {
     recurrenceInterval: readInteger(doc.fields, "recurrenceInterval") || undefined,
     recurrenceUnit:
       (readString(doc.fields, "recurrenceUnit") as ChoreRecurrenceUnit | "") || undefined,
+    responsibilityPillar:
+      normalizeResponsibilityPillar(readString(doc.fields, "responsibilityPillar")) || undefined,
+    routineAssignmentId: readString(doc.fields, "routineAssignmentId") || undefined,
+    routineId: readString(doc.fields, "routineId") || undefined,
+    routineName: readString(doc.fields, "routineName") || undefined,
+    routineStepOrder: readInteger(doc.fields, "routineStepOrder") || undefined,
+    routineStepCount: readInteger(doc.fields, "routineStepCount") || undefined,
     deleted: readBoolean(doc.fields, "deleted"),
     createdAt: readTimestamp(doc.fields, "createdAt") || undefined,
   };
@@ -497,7 +529,8 @@ function parseStatusFilter(value: string | null): ChoreStatusFilter {
   if (
     value === "completed" ||
     value === "needs_approval" ||
-    value === "open"
+    value === "open" ||
+    value === "recurring"
   ) {
     return value;
   }
@@ -1149,6 +1182,9 @@ export async function GET(request: NextRequest) {
             if (statusFilter === "open") {
               return doc.status === "Open";
             }
+            if (statusFilter === "recurring") {
+              return doc.recurrenceType !== "none";
+            }
             return true;
           })
           .filter((doc) => {
@@ -1279,6 +1315,12 @@ export async function GET(request: NextRequest) {
             recurrenceType: doc.recurrenceType,
             recurrenceInterval: doc.recurrenceInterval,
             recurrenceUnit: doc.recurrenceUnit,
+            responsibilityPillar: doc.responsibilityPillar,
+            routineAssignmentId: doc.routineAssignmentId,
+            routineId: doc.routineId,
+            routineName: doc.routineName,
+            routineStepOrder: doc.routineStepOrder,
+            routineStepCount: doc.routineStepCount,
             createdAt: doc.createdAt,
           }));
 
@@ -1482,6 +1524,8 @@ export async function POST(request: NextRequest) {
   const requestedChoreType =
     typeof body.choreType === "string" ? normalizeChoreType(body.choreType, "normal") : "normal";
   const requireApproval = parseRequireApproval(body.requireApproval);
+  const newSkillEnabled = parseNewSkillEnabled(body.newSkillEnabled);
+  const responsibilityPillar = normalizeResponsibilityPillar(body.responsibilityPillar);
   const recurrence = normalizeRecurrenceConfig({
     recurrenceType: body.recurrenceType,
     recurrenceInterval: body.recurrenceInterval,
@@ -1606,9 +1650,11 @@ export async function POST(request: NextRequest) {
                 dueDate: stringField(dueDate),
                 coinValue: integerField(finalCoinValue),
                 requireApproval: boolField(finalRequireApproval),
+                newSkillEnabled: boolField(requestedChoreType === "see_and_do" ? false : newSkillEnabled),
                 recurrenceType: stringField(recurrence.recurrenceType),
                 recurrenceInterval: integerField(recurrence.recurrenceInterval ?? 0),
                 recurrenceUnit: stringField(recurrence.recurrenceUnit ?? ""),
+                responsibilityPillar: stringField(responsibilityPillar),
                 deleted: boolField(false),
                 createdBy: stringField(session.uid),
                 createdAt: timestampField(now),

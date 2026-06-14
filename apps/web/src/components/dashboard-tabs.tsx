@@ -10,7 +10,7 @@ type DashboardTabsProps = {
   visible: boolean;
 };
 
-type DashboardTabId = "chores" | "store" | "achievements" | "quests";
+type DashboardTabId = "chores" | "routines" | "store" | "achievements" | "quests";
 type DashboardTab = AppTabItem<DashboardTabId> & { icon: ReactNode };
 
 function useDashboardTabs() {
@@ -37,6 +37,30 @@ function useDashboardTabs() {
           stroke="#16a34a"
           strokeLinecap="round"
           strokeLinejoin="round"
+          strokeWidth="1.8"
+        />
+      </svg>
+      ),
+    },
+    {
+      id: "routines",
+      label: t("dashboard.tabs.routines"),
+      href: "/routines",
+      icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M7 4.75h10a1.5 1.5 0 0 1 1.5 1.5v11.5a1.5 1.5 0 0 1-1.5 1.5H7a1.5 1.5 0 0 1-1.5-1.5V6.25A1.5 1.5 0 0 1 7 4.75Z"
+          fill="#bbf7d0"
+          stroke="#15803d"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+        />
+        <path
+          d="M8.5 9h7M8.5 12h7M8.5 15h4.5"
+          fill="none"
+          stroke="#15803d"
+          strokeLinecap="round"
           strokeWidth="1.8"
         />
       </svg>
