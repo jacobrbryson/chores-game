@@ -1,5 +1,4 @@
 import Link from "next/link";
-import pillarsWorkflowImage from "../../public/pillars-workflow.png";
 import {
   APP_STATS,
   MarketingCta,
@@ -135,8 +134,10 @@ export function MarketingPillarsPage() {
           </div>
           <div className="marketing-hero-side">
             <MarketingImageFrame
-              src={pillarsWorkflowImage}
+              src="/pillars-workflow.png"
               alt="Family Chores Responsibility Pillars workflow."
+              width={1536}
+              height={1024}
               priority
               className="marketing-image-hero"
             />

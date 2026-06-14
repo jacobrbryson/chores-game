@@ -1,5 +1,4 @@
 import Link from "next/link";
-import routinesWorkflowImage from "../../public/routines-workflow.png";
 import {
   APP_STATS,
   MarketingCta,
@@ -149,8 +148,10 @@ export function MarketingRoutinesPage() {
           </div>
           <div className="marketing-hero-side">
             <MarketingImageFrame
-              src={routinesWorkflowImage}
+              src="/routines-workflow.png"
               alt="Family Chores routine workflow."
+              width={1536}
+              height={1024}
               priority
               className="marketing-image-hero"
             />
