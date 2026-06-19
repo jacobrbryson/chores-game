@@ -21,6 +21,7 @@ import { SupportPrivacyPanel } from "@/components/support-privacy-panel";
 import { SupportStaleInvitesPanel } from "@/components/support-stale-invites-panel";
 import { SupportDuplicateChildrenPanel } from "@/components/support-duplicate-children-panel";
 import { SupportResponsibilityPanel } from "@/components/support-responsibility-panel";
+import { SupportOperationsPanel } from "@/components/support-operations-panel";
 import type { SupportDashboardMetrics } from "@/lib/support/dashboard-metrics";
 
 type SupportUser = {
@@ -191,6 +192,11 @@ const MODULE_COPY: Record<SupportModuleId, { title: string; subtitle: string }> 
     title: "Responsibility",
     subtitle:
       "Manage Responsibility Pillars: XP configuration, suggested chores, the community routine library, and analytics.",
+  },
+  operations: {
+    title: "Operations",
+    subtitle:
+      "Detect app slowness, database pagination risks, slow queries, API errors, and background job failures before they reach users.",
   },
 };
 
@@ -664,7 +670,9 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
     <SupportConsoleShell activeModule={module} title={copy.title} subtitle={copy.subtitle} actions={actions}>
       {error ? <Alert>{error}</Alert> : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
-      {loading ? <LoadingSkeleton /> : null}
+      {loading && module !== "operations" ? <LoadingSkeleton /> : null}
+
+      {module === "operations" ? <SupportOperationsPanel /> : null}
 
       {!loading && payload && module === "dashboard" ? (
         <>

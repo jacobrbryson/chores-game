@@ -3,6 +3,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
+import {
+  CustomRecurrenceDialog,
+  customRecurrenceSummary,
+} from "@/components/custom-recurrence-dialog";
 import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
 import {
@@ -13,7 +17,7 @@ import {
 } from "@/components/routine-steps-editor";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import {
-  DEFAULT_RECURRENCE_INTERVAL,
+  type ChoreRecurrenceWeekday,
   type ChoreRecurrenceType,
   type ChoreRecurrenceUnit,
 } from "@/lib/chores/recurrence";
@@ -82,10 +86,16 @@ export function AssignRoutineDialog({
   const [updateRoutine, setUpdateRoutine] = useState(false);
   const [assigneeId, setAssigneeId] = useState(defaultAssigneeId ?? "");
   const [recurrenceType, setRecurrenceType] = useState<ChoreRecurrenceType>("none");
-  const [recurrenceInterval, setRecurrenceInterval] = useState(
-    String(DEFAULT_RECURRENCE_INTERVAL),
-  );
+  const [recurrenceInterval, setRecurrenceInterval] = useState("1");
   const [recurrenceUnit, setRecurrenceUnit] = useState<ChoreRecurrenceUnit>("day");
+  const [recurrenceDays, setRecurrenceDays] = useState<ChoreRecurrenceWeekday[]>([]);
+  const [customRecurrenceOpen, setCustomRecurrenceOpen] = useState(false);
+  const [previousRecurrence, setPreviousRecurrence] = useState<{
+    type: ChoreRecurrenceType;
+    interval: string;
+    unit: ChoreRecurrenceUnit;
+    days: ChoreRecurrenceWeekday[];
+  } | null>(null);
   const [bonusCoins, setBonusCoins] = useState("0");
   const [creatingNew, setCreatingNew] = useState(false);
   const [newRoutinePillar, setNewRoutinePillar] = useState<ResponsibilityPillar | "">("");
@@ -139,8 +149,11 @@ export function AssignRoutineDialog({
     setUpdateRoutine(false);
     setAssigneeId(defaultAssigneeId ?? "");
     setRecurrenceType("none");
-    setRecurrenceInterval(String(DEFAULT_RECURRENCE_INTERVAL));
+    setRecurrenceInterval("1");
     setRecurrenceUnit("day");
+    setRecurrenceDays([]);
+    setCustomRecurrenceOpen(false);
+    setPreviousRecurrence(null);
     setBonusCoins("0");
     setCreatingNew(false);
     setNewRoutinePillar("");
@@ -220,15 +233,6 @@ export function AssignRoutineDialog({
     [t],
   );
 
-  const recurrenceUnitOptions = useMemo<TailwindSelectOption<ChoreRecurrenceUnit>[]>(
-    () => [
-      { value: "day", label: t("chores.recurrence.unitDays") },
-      { value: "week", label: t("chores.recurrence.unitWeeks") },
-      { value: "month", label: t("chores.recurrence.unitMonths") },
-    ],
-    [t],
-  );
-
   const pillarOptions = useMemo(
     () => responsibilityPillarSelectOptions(t),
     [t],
@@ -240,6 +244,50 @@ export function AssignRoutineDialog({
   function markStepsModified(next: RoutineEditableStep[]) {
     setSteps(next);
     setStepsModified(true);
+  }
+
+  function selectRecurrenceType(value: ChoreRecurrenceType) {
+    if (value === "custom") {
+      setPreviousRecurrence({
+        type: recurrenceType,
+        interval: recurrenceInterval,
+        unit: recurrenceUnit,
+        days: recurrenceDays,
+      });
+      setRecurrenceType("custom");
+      if (recurrenceType !== "custom") {
+        setRecurrenceInterval("1");
+        setRecurrenceUnit("week");
+        setRecurrenceDays([]);
+      }
+      setCustomRecurrenceOpen(true);
+      return;
+    }
+    setRecurrenceType(value);
+  }
+
+  function cancelCustomRecurrence() {
+    if (previousRecurrence && previousRecurrence.type !== "custom") {
+      setRecurrenceType(previousRecurrence.type);
+      setRecurrenceInterval(previousRecurrence.interval);
+      setRecurrenceUnit(previousRecurrence.unit);
+      setRecurrenceDays(previousRecurrence.days);
+    }
+    setPreviousRecurrence(null);
+    setCustomRecurrenceOpen(false);
+  }
+
+  function saveCustomRecurrence(next: {
+    interval: string;
+    unit: ChoreRecurrenceUnit;
+    days: ChoreRecurrenceWeekday[];
+  }) {
+    setRecurrenceType("custom");
+    setRecurrenceInterval(next.interval);
+    setRecurrenceUnit(next.unit);
+    setRecurrenceDays(next.days);
+    setPreviousRecurrence(null);
+    setCustomRecurrenceOpen(false);
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -324,8 +372,9 @@ export function AssignRoutineDialog({
           recurrenceType,
           ...(recurrenceType === "custom"
             ? {
-                recurrenceInterval: Number(recurrenceInterval) || DEFAULT_RECURRENCE_INTERVAL,
+                recurrenceInterval: Number(recurrenceInterval) || 1,
                 recurrenceUnit,
+                recurrenceDays,
               }
             : {}),
           steps: trimmedSteps,
@@ -353,7 +402,8 @@ export function AssignRoutineDialog({
     !selectedRoutineId && (creatingNew || (search.trim() !== "" && !exactMatch));
 
   return (
-    <ModalShell open={open} onRequestClose={() => onOpenChange(false)}>
+    <>
+      <ModalShell open={open} onRequestClose={() => onOpenChange(false)}>
       <form
         onSubmit={handleSubmit}
         className="flex w-full max-w-xl flex-col gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
@@ -476,7 +526,7 @@ export function AssignRoutineDialog({
         ) : null}
 
         {/* Who gets the routine and how often it repeats. */}
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-slate-700">
               {t("responsibility.assignDialog.playerLabel")}
@@ -498,58 +548,34 @@ export function AssignRoutineDialog({
             <TailwindSelect
               ariaLabel={t("responsibility.assignDialog.recurrenceLabel")}
               value={recurrenceType}
-              onChange={(value) => setRecurrenceType(value as ChoreRecurrenceType)}
+              onChange={(value) => selectRecurrenceType(value as ChoreRecurrenceType)}
               options={recurrenceOptions}
               className="w-full"
               buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
               menuClassName="border-slate-300"
             />
           </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-slate-700">
-              {t("responsibility.routines.bonusCoinsLabel")}
-            </span>
-            <input
-              type="number"
-              min={0}
-              max={1000}
-              step={1}
-              value={bonusCoins}
-              onChange={(event) => setBonusCoins(event.target.value)}
-              className="h-10 w-full rounded-md border border-slate-300 px-3 text-slate-800"
-            />
-          </label>
         </div>
 
         {recurrenceType === "custom" ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-slate-700">
-                {t("chores.recurrence.intervalLabel")}
-              </span>
-              <input
-                type="number"
-                min={1}
-                max={365}
-                value={recurrenceInterval}
-                onChange={(event) => setRecurrenceInterval(event.target.value)}
-                className="h-10 w-full rounded-md border border-slate-300 px-3 text-slate-800"
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-slate-700">
-                {t("chores.recurrence.unitLabel")}
-              </span>
-              <TailwindSelect
-                ariaLabel={t("chores.recurrence.unitLabel")}
-                value={recurrenceUnit}
-                onChange={(value) => setRecurrenceUnit(value as ChoreRecurrenceUnit)}
-                options={recurrenceUnitOptions}
-                className="w-full"
-                buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
-                menuClassName="border-slate-300"
-              />
-            </label>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+            <span className="text-sm font-medium text-slate-700">
+              {customRecurrenceSummary(recurrenceInterval, recurrenceUnit, recurrenceDays, t)}
+            </span>
+            <Button
+              type="button"
+              className="btn btn-secondary shrink-0"
+              onClick={() => {
+                setPreviousRecurrence({
+                  type: recurrenceType,
+                  interval: recurrenceInterval,
+                  unit: recurrenceUnit,
+                  days: recurrenceDays,
+                });
+                setCustomRecurrenceOpen(true);
+              }}>
+              {t("chores.recurrence.editCustom")}
+            </Button>
           </div>
         ) : null}
 
@@ -593,6 +619,21 @@ export function AssignRoutineDialog({
             ) : null}
           </div>
 
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium text-slate-700">
+            {t("responsibility.routines.bonusCoinsLabel")}
+          </span>
+          <input
+            type="number"
+            min={0}
+            max={1000}
+            step={1}
+            value={bonusCoins}
+            onChange={(event) => setBonusCoins(event.target.value)}
+            className="h-10 w-full rounded-md border border-slate-300 px-3 text-slate-800"
+          />
+        </label>
+
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
           <Button
             type="button"
@@ -608,6 +649,15 @@ export function AssignRoutineDialog({
           </Button>
         </div>
       </form>
-    </ModalShell>
+      </ModalShell>
+      <CustomRecurrenceDialog
+        open={customRecurrenceOpen}
+        interval={recurrenceInterval}
+        unit={recurrenceUnit}
+        days={recurrenceDays}
+        onCancel={cancelCustomRecurrence}
+        onSave={saveCustomRecurrence}
+      />
+    </>
   );
 }

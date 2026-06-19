@@ -22,8 +22,10 @@ import {
 } from "./chore-status-permissions";
 import type {
   ChoreRecurrenceType,
+  ChoreRecurrenceWeekday,
   ChoreRecurrenceUnit,
 } from "@/lib/chores/recurrence";
+import { recurrenceShortLabel } from "@/lib/chores/recurrence";
 import type { ChoreType } from "@/lib/chores/types";
 import { parseCompletionWindow } from "@/lib/preferences/completion-window";
 import {
@@ -68,6 +70,7 @@ type ChoreRow = {
   recurrenceType?: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: ChoreRecurrenceUnit;
+  recurrenceDays?: ChoreRecurrenceWeekday[];
   routineAssignmentId?: string;
   routineId?: string;
   routineName?: string;
@@ -283,7 +286,8 @@ type ChoreStatusQuickFilter =
   | "all"
   | "completed"
   | "needs_approval"
-  | "open";
+  | "open"
+  | "future";
 
 type SavedView = {
   id: string;
@@ -308,7 +312,8 @@ function parseStatusQuickFilter(value: string | null): ChoreStatusQuickFilter {
     value === "all" ||
     value === "completed" ||
     value === "needs_approval" ||
-    value === "open"
+    value === "open" ||
+    value === "future"
   ) {
     return value;
   }
@@ -940,8 +945,11 @@ export default function ChoresPage() {
       for (const assigneeId of assigneeIdFilters) {
         params.append("assigneeId", assigneeId);
       }
-      if (statusFilter && statusFilter !== "all") {
-        params.set("status", statusFilter);
+      // "future" is a client-side refinement of the Open status: it reuses the
+      // server's open filter and adds a dueFrom floor of tomorrow below.
+      const effectiveStatusFilter = statusFilter === "future" ? "open" : statusFilter;
+      if (effectiveStatusFilter && effectiveStatusFilter !== "all") {
+        params.set("status", effectiveStatusFilter);
       }
       params.set("tzOffsetMinutes", String(completionFilterTimezoneOffset));
       if (completedWindowFilter) {
@@ -967,6 +975,11 @@ export default function ChoresPage() {
       }
       if (columnFilters.dueFrom) {
         params.set("dueFrom", columnFilters.dueFrom);
+      } else if (statusFilter === "future") {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const localTomorrow = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+        params.set("dueFrom", localTomorrow);
       }
       if (columnFilters.dueTo) {
         params.set("dueTo", columnFilters.dueTo);
@@ -1306,6 +1319,12 @@ export default function ChoresPage() {
         onSelect: () => { setActiveViewId(null); applyRouteFilters({ status: "open" }); },
       },
       {
+        id: "future",
+        label: t("choresPage.filters.future"),
+        active: statusFilter === "future",
+        onSelect: () => { setActiveViewId(null); applyRouteFilters({ status: "future" }); },
+      },
+      {
         id: "all",
         label: t("choresPage.filters.all"),
         active: statusFilter === "all" || statusFilter === "",
@@ -1522,9 +1541,12 @@ export default function ChoresPage() {
         return "-";
       }
       if (type === "custom") {
-        const interval = Math.max(1, chore.recurrenceInterval ?? 1);
-        const unit = chore.recurrenceUnit ?? "day";
-        return t("choresPage.recurrence.custom", { interval, unit });
+        return recurrenceShortLabel({
+          recurrenceType: "custom",
+          recurrenceInterval: chore.recurrenceInterval,
+          recurrenceUnit: chore.recurrenceUnit,
+          recurrenceDays: chore.recurrenceDays,
+        });
       }
       return t(`choresPage.recurrence.${type}`);
     },
@@ -1971,6 +1993,7 @@ export default function ChoresPage() {
                     recurrenceType: editingChore.recurrenceType,
                     recurrenceInterval: editingChore.recurrenceInterval,
                     recurrenceUnit: editingChore.recurrenceUnit,
+                    recurrenceDays: editingChore.recurrenceDays,
                   }
                 : undefined
             }

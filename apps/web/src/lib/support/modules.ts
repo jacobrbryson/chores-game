@@ -8,7 +8,8 @@ export type SupportModuleId =
   | "quests"
   | "content"
   | "seo"
-  | "responsibility";
+  | "responsibility"
+  | "operations";
 
 export const SUPPORT_MODULES: Array<{ id: SupportModuleId; label: string; href: string }> = [
   { id: "dashboard", label: "Dashboard", href: "/support/dashboard" },
@@ -21,6 +22,7 @@ export const SUPPORT_MODULES: Array<{ id: SupportModuleId; label: string; href: 
   { id: "content", label: "Content", href: "/support/content" },
   { id: "seo", label: "SEO", href: "/support/seo" },
   { id: "responsibility", label: "Responsibility", href: "/support/responsibility" },
+  { id: "operations", label: "Operations", href: "/support/operations" },
 ];
 
 export function isSupportModule(value: string): value is SupportModuleId {

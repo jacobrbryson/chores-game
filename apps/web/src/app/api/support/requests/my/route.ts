@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
+import { getAuthenticatedSessionIdentity } from "@/lib/auth/session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import {
   documentIdFromName,
@@ -90,6 +91,12 @@ export async function GET(request: NextRequest) {
   if (!session.firebaseIdToken && !session.firebaseRefreshToken) {
     return jsonReauthRequired();
   }
+  // Operate as the authenticated (signed-in) admin, not the currently-viewed
+  // profile, so the Firestore token uid matches the `createdByUid` filter.
+  const actor = getAuthenticatedSessionIdentity(session);
+  if (actor.role !== "admin") {
+    return NextResponse.json({ error: "admin_required" }, { status: 403 });
+  }
 
   const page = parsePositiveInt(request.nextUrl.searchParams.get("page"), 1);
   const pageSize = Math.min(
@@ -101,7 +108,7 @@ export async function GET(request: NextRequest) {
     const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
-        const familyId = await getPrimaryFamilyId(session.uid, idToken);
+        const familyId = await getPrimaryFamilyId(actor.uid, idToken);
         if (!familyId) {
           return { noFamily: true, requests: [] as SupportRequest[], total: 0 };
         }
@@ -115,7 +122,7 @@ export async function GET(request: NextRequest) {
               fieldFilter: {
                 field: { fieldPath: "createdByUid" },
                 op: "EQUAL",
-                value: { stringValue: session.uid },
+                value: { stringValue: actor.uid },
               },
             },
             limit: MAX_FETCH,

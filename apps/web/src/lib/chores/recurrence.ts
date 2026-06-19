@@ -1,6 +1,7 @@
 export const DEFAULT_CHORE_COIN_VALUE = 10;
 export const MAX_CHORE_COIN_VALUE = 1000;
 export const DEFAULT_RECURRENCE_INTERVAL = 2;
+export const RECURRENCE_WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 export type ChoreRecurrenceType =
   | "none"
@@ -11,11 +12,13 @@ export type ChoreRecurrenceType =
   | "custom";
 
 export type ChoreRecurrenceUnit = "day" | "week" | "month";
+export type ChoreRecurrenceWeekday = (typeof RECURRENCE_WEEKDAYS)[number];
 
 export type ChoreRecurrenceConfig = {
   recurrenceType: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: ChoreRecurrenceUnit;
+  recurrenceDays?: ChoreRecurrenceWeekday[];
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -92,19 +95,35 @@ export function parseRecurrenceInterval(value: unknown) {
   return Math.max(1, Math.min(365, normalized));
 }
 
+export function parseRecurrenceDays(value: unknown): ChoreRecurrenceWeekday[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<ChoreRecurrenceWeekday>();
+  for (const entry of value) {
+    if (RECURRENCE_WEEKDAYS.includes(entry as ChoreRecurrenceWeekday)) {
+      seen.add(entry as ChoreRecurrenceWeekday);
+    }
+  }
+  return RECURRENCE_WEEKDAYS.filter((day) => seen.has(day));
+}
+
 export function normalizeRecurrenceConfig(input: {
   recurrenceType?: unknown;
   recurrenceInterval?: unknown;
   recurrenceUnit?: unknown;
+  recurrenceDays?: unknown;
 }): ChoreRecurrenceConfig {
   const recurrenceType = parseRecurrenceType(input.recurrenceType);
   if (recurrenceType !== "custom") {
     return { recurrenceType };
   }
+  const recurrenceUnit = parseRecurrenceUnit(input.recurrenceUnit);
   return {
     recurrenceType,
     recurrenceInterval: parseRecurrenceInterval(input.recurrenceInterval),
-    recurrenceUnit: parseRecurrenceUnit(input.recurrenceUnit),
+    recurrenceUnit,
+    recurrenceDays: recurrenceUnit === "week" ? parseRecurrenceDays(input.recurrenceDays) : [],
   };
 }
 
@@ -126,6 +145,12 @@ export function recurrenceLabel(config: ChoreRecurrenceConfig) {
   }
   const interval = Math.max(1, config.recurrenceInterval ?? DEFAULT_RECURRENCE_INTERVAL);
   const unit = config.recurrenceUnit ?? "day";
+  if (unit === "week" && config.recurrenceDays?.length) {
+    const dayLabel = recurrenceDaysLabel(config.recurrenceDays);
+    return interval === 1
+      ? `Repeats every ${dayLabel}`
+      : `Repeats every ${interval} weeks on ${dayLabel}`;
+  }
   const unitLabel =
     interval === 1
       ? unit
@@ -154,11 +179,43 @@ export function recurrenceShortLabel(config: ChoreRecurrenceConfig) {
   }
   const interval = Math.max(1, config.recurrenceInterval ?? DEFAULT_RECURRENCE_INTERVAL);
   const unit = config.recurrenceUnit ?? "day";
+  if (unit === "week" && config.recurrenceDays?.length) {
+    const dayLabel = recurrenceDaysLabel(config.recurrenceDays);
+    return interval === 1 ? `Every ${dayLabel}` : `Every ${interval} weeks on ${dayLabel}`;
+  }
   if (interval === 1) {
     return unit === "day" ? "Daily" : unit === "week" ? "Weekly" : "Monthly";
   }
   const unitLabel = unit === "day" ? "days" : unit === "week" ? "weeks" : "months";
   return `Every ${interval} ${unitLabel}`;
+}
+
+const WEEKDAY_LONG_LABELS: Record<ChoreRecurrenceWeekday, string> = {
+  sun: "Sunday",
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+};
+
+export function recurrenceDaysLabel(days: ChoreRecurrenceWeekday[]) {
+  const normalized = parseRecurrenceDays(days);
+  if (normalized.length === 0) {
+    return "";
+  }
+  if (normalized.length === 7) {
+    return "day";
+  }
+  if (normalized.length === 1) {
+    return WEEKDAY_LONG_LABELS[normalized[0] ?? "sun"];
+  }
+  if (normalized.length === 2) {
+    return normalized.map((day) => WEEKDAY_LONG_LABELS[day]).join(" and ");
+  }
+  const labels = normalized.map((day) => WEEKDAY_LONG_LABELS[day]);
+  return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
 }
 
 function addMonths(baseDate: Date, months: number) {
@@ -178,6 +235,31 @@ function toUtcDate(value: string) {
   }
   const parsed = new Date(`${value}T00:00:00.000Z`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function addDays(baseDate: Date, days: number) {
+  return new Date(baseDate.getTime() + days * MS_PER_DAY);
+}
+
+function startOfUtcWeek(baseDate: Date) {
+  const start = new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), baseDate.getUTCDate()));
+  start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+  return start;
+}
+
+function nextWeeklyDayDueDate(baseDate: Date, interval: number, days: ChoreRecurrenceWeekday[]) {
+  const dayIndexes = parseRecurrenceDays(days).map((day) => RECURRENCE_WEEKDAYS.indexOf(day));
+  if (dayIndexes.length === 0) {
+    return addDays(baseDate, interval * 7);
+  }
+  const currentDay = baseDate.getUTCDay();
+  const nextSameWeekDay = dayIndexes.find((dayIndex) => dayIndex > currentDay);
+  if (nextSameWeekDay !== undefined) {
+    const weekStart = startOfUtcWeek(baseDate);
+    return addDays(weekStart, nextSameWeekDay);
+  }
+  const weekStart = startOfUtcWeek(baseDate);
+  return addDays(weekStart, interval * 7 + dayIndexes[0]);
 }
 
 export function nextRecurringDueDate(
@@ -208,9 +290,9 @@ export function nextRecurringDueDate(
     const interval = Math.max(1, config.recurrenceInterval ?? DEFAULT_RECURRENCE_INTERVAL);
     const unit = config.recurrenceUnit ?? "day";
     if (unit === "day") {
-      nextDate = new Date(baseDate.getTime() + interval * MS_PER_DAY);
+      nextDate = addDays(baseDate, interval);
     } else if (unit === "week") {
-      nextDate = new Date(baseDate.getTime() + interval * 7 * MS_PER_DAY);
+      nextDate = nextWeeklyDayDueDate(baseDate, interval, config.recurrenceDays ?? []);
     } else {
       nextDate = addMonths(baseDate, interval);
     }

@@ -13,6 +13,7 @@ import { formatDateTime } from "@/components/profile/profile-page.utils";
 import { dispatchAppLocaleChanged, useLocale } from "@/components/locale-provider";
 import { ProfileFamilySummarySection } from "@/components/profile/profile-family-summary-section";
 import { ResponsibilityProgressCard } from "@/components/responsibility-progress-card";
+import { ProfileAthenaChildCard } from "@/components/profile/profile-athena-child-card";
 
 type FamilyMemberProfileClientProps = {
   memberId: string;
@@ -419,6 +420,12 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
               progress API returns 403 for non-admin viewers looking at other
               members, and the card renders nothing on failure. */}
           <ResponsibilityProgressCard memberId={profile.member.uid || profile.member.id} />
+
+          {/* Per-child Athena enablement. Self-hides unless the viewer is an
+              admin and the family has connected Athena from the parent profile. */}
+          {profile.member.role === "player" ? (
+            <ProfileAthenaChildCard playerId={profile.member.id} displayName={profile.member.name} />
+          ) : null}
 
           <ProfileFamilySummarySection
             summary={profile}

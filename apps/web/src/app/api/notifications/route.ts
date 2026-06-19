@@ -15,6 +15,7 @@ import {
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
+import { recordOperationMetric } from "@/lib/observability/metrics";
 
 type MarkSeenBody = {
   ids?: unknown;
@@ -342,6 +343,7 @@ export async function GET(request: NextRequest) {
   const sortBy = parseSortBy(request.nextUrl.searchParams.get("sortBy"));
   const sortDir = parseSortDir(request.nextUrl.searchParams.get("sortDir"));
 
+  const operationStartedAt = Date.now();
   try {
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
@@ -445,11 +447,35 @@ export async function GET(request: NextRequest) {
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);
     }
+    const notificationsPagination = "pagination" in data ? data.pagination : undefined;
+    void recordOperationMetric({
+      area: "notifications",
+      operation: summaryMode ? "unseen_count" : "list",
+      durationMs: Date.now() - operationStartedAt,
+      status: "ok",
+      resultCount: data.notifications.length,
+      requestedLimit: summaryMode ? undefined : pageSize,
+      hasNextPage: notificationsPagination
+        ? notificationsPagination.page < notificationsPagination.totalPages
+        : false,
+      cursorConsumed: true,
+      userId: session.uid,
+      metadata: { unseenCount: data.unseenCount, summaryMode },
+    });
     return response;
   } catch (error) {
     const reason =
       error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
     console.error("[NOTIFICATIONS_GET_ERROR]", reason);
+    void recordOperationMetric({
+      area: "notifications",
+      operation: summaryMode ? "unseen_count" : "list",
+      durationMs: Date.now() - operationStartedAt,
+      status: "error",
+      errorCode: reason,
+      requestedLimit: summaryMode ? undefined : pageSize,
+      userId: session.uid,
+    });
     return mapCommonFirestoreErrors(reason, "notifications_unavailable");
   }
 }

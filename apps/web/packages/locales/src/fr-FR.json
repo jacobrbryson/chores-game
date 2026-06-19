@@ -39,7 +39,8 @@
       "retry": "Réessayer",
       "save": "Enregistrer",
       "start": "Commencer",
-      "saving": "Enregistrement…"
+      "saving": "Enregistrement…",
+      "done": "Terminer"
     },
     "labels": {
       "default": "par défaut",
@@ -454,7 +455,8 @@
       "needsApproval": "A approuver",
       "completed": "Terminees",
       "open": "Actives",
-      "recurring": "Récurrentes"
+      "recurring": "Récurrentes",
+      "future": "À venir"
     },
     "sort": {
       "title": "Titre",
@@ -1440,7 +1442,37 @@
       "unitLabel": "Unité",
       "unitDays": "Jours",
       "unitWeeks": "Semaines",
-      "unitMonths": "Mois"
+      "unitMonths": "Mois",
+      "unitDay": "Jour",
+      "unitWeek": "Semaine",
+      "unitMonth": "Mois",
+      "customTitle": "Recurrence personnalisee",
+      "repeatEvery": "Repeter tous les",
+      "everySummary": "Tous les {count} {unit}",
+      "editCustom": "Modifier la recurrence",
+      "repeatOn": "Repeter le",
+      "everyWeekdaySummary": "Tous les {days}",
+      "everyIntervalWeeksOnSummary": "Toutes les {count} semaines le {days}",
+      "weekdaysLabel": "jour de semaine",
+      "daysLabel": "jour",
+      "weekdays": {
+        "sun": "dimanche",
+        "mon": "lundi",
+        "tue": "mardi",
+        "wed": "mercredi",
+        "thu": "jeudi",
+        "fri": "vendredi",
+        "sat": "samedi"
+      },
+      "weekdaysShort": {
+        "sun": "D",
+        "mon": "L",
+        "tue": "M",
+        "wed": "M",
+        "thu": "J",
+        "fri": "V",
+        "sat": "S"
+      }
     }
   },
   "responsibility": {

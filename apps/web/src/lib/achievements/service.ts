@@ -8,6 +8,7 @@ import {
   readBoolean,
   readInteger,
   readString,
+  readStringArray,
   stringField,
   timestampField,
   type FirestoreValue,
@@ -301,6 +302,9 @@ export async function computeCompletionDerivedMaximums(params: {
       }
     }
   }
+  // Chore assignee fields mix uids, member-doc ids, and emails with inconsistent
+  // casing, so match case-insensitively against a normalized alias set.
+  const normalizedAliases = new Set(Array.from(aliases, (alias) => alias.trim().toLowerCase()));
 
   const perDay = new Map<string, number>();
   const perWeek = new Map<string, number>();
@@ -322,14 +326,31 @@ export async function computeCompletionDerivedMaximums(params: {
     }
     const dayKey = completedAt.slice(0, 10);
     const weekKey = weekKeyFromIso(completedAt);
-    const assigneeId = readString(chore.fields, "assigneeId").trim().toLowerCase();
-    if (assigneeId) {
+    // Group, family, and multi-assignee chores store an empty singular
+    // assigneeId, so collect every assignee alias on the chore (singular field
+    // plus the assigneeIds array) rather than the singular field alone.
+    const choreAssigneeScope = readString(chore.fields, "assigneeScope");
+    const choreAssigneeAliases = new Set<string>();
+    const singularAssigneeId = readString(chore.fields, "assigneeId").trim();
+    if (singularAssigneeId) {
+      choreAssigneeAliases.add(singularAssigneeId);
+    }
+    for (const alias of readStringArray(chore.fields, "assigneeIds")) {
+      const trimmed = alias.trim();
+      if (trimmed) {
+        choreAssigneeAliases.add(trimmed);
+      }
+    }
+    for (const alias of choreAssigneeAliases) {
       const currentSet = completedDayForAllAssignees.get(dayKey) ?? new Set<string>();
-      currentSet.add(assigneeId);
+      currentSet.add(alias.toLowerCase());
       completedDayForAllAssignees.set(dayKey, currentSet);
     }
 
-    const belongsToUser = aliases.has(assigneeId) || aliases.has(readString(chore.fields, "assigneeId"));
+    // Family-scope chores belong to every active member, including this user.
+    const belongsToUser =
+      choreAssigneeScope === "family" ||
+      Array.from(choreAssigneeAliases).some((alias) => normalizedAliases.has(alias.toLowerCase()));
     if (!belongsToUser) {
       continue;
     }

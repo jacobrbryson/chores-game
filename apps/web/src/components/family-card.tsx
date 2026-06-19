@@ -143,6 +143,7 @@ export function FamilyCard() {
           recurrenceType?: FamilySnapshotChore["recurrenceType"];
           recurrenceInterval?: number;
           recurrenceUnit?: FamilySnapshotChore["recurrenceUnit"];
+          recurrenceDays?: FamilySnapshotChore["recurrenceDays"];
           createdAt?: string;
         };
       };
@@ -175,6 +176,7 @@ export function FamilyCard() {
           recurrenceType: chore.recurrenceType,
         recurrenceInterval: chore.recurrenceInterval,
         recurrenceUnit: chore.recurrenceUnit,
+        recurrenceDays: Array.isArray(chore.recurrenceDays) ? chore.recurrenceDays : [],
         createdAt: chore.createdAt,
         source: chore.source,
         status: toFamilySnapshotStatus(chore.status),

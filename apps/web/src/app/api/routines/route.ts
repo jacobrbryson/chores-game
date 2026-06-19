@@ -24,6 +24,7 @@ import {
 } from "@/lib/family/access";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
 import { emitFamilyActivity } from "@/lib/notifications/events";
+import { recordOperationMetric } from "@/lib/observability/metrics";
 import { normalizeResponsibilityPillar } from "@/lib/responsibility/types";
 import {
   MAX_ROUTINE_DESCRIPTION_LENGTH,
@@ -61,6 +62,8 @@ export async function GET(request: NextRequest) {
     return jsonReauthRequired();
   }
 
+  const operationStartedAt = Date.now();
+  const ROUTINES_READ_CAP = 500;
   try {
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
@@ -70,7 +73,7 @@ export async function GET(request: NextRequest) {
         }
         const viewerRole = await getViewerRole(familyId, session.uid, idToken);
         const [routineDocs, memberDocs] = await Promise.all([
-          listAllDocuments(`families/${familyId}/routines`, idToken, { cap: 500 }),
+          listAllDocuments(`families/${familyId}/routines`, idToken, { cap: ROUTINES_READ_CAP }),
           viewerRole === "admin"
             ? listDocuments(`families/${familyId}/members`, idToken, 200)
             : Promise.resolve([]),
@@ -88,7 +91,7 @@ export async function GET(request: NextRequest) {
             name: readString(doc.fields, "name") || "Family member",
             role: readString(doc.fields, "role") === "admin" ? "admin" : "player",
           }));
-        return { kind: "ok" as const, routines, members, viewerRole };
+        return { kind: "ok" as const, routines, members, viewerRole, routineDocCount: routineDocs.length, familyId };
       });
 
     if (data.kind === "family_not_found") {
@@ -102,11 +105,32 @@ export async function GET(request: NextRequest) {
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);
     }
+    void recordOperationMetric({
+      area: "routines",
+      operation: "list",
+      durationMs: Date.now() - operationStartedAt,
+      status: "ok",
+      resultCount: data.routineDocCount,
+      requestedLimit: ROUTINES_READ_CAP,
+      hasNextPage: data.routineDocCount >= ROUTINES_READ_CAP,
+      cursorConsumed: false,
+      familyId: data.familyId,
+      userId: session.uid,
+    });
     return response;
   } catch (error) {
     const reason =
       error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
     console.error("[ROUTINES_GET_ERROR]", reason);
+    void recordOperationMetric({
+      area: "routines",
+      operation: "list",
+      durationMs: Date.now() - operationStartedAt,
+      status: "error",
+      errorCode: reason,
+      requestedLimit: ROUTINES_READ_CAP,
+      userId: session.uid,
+    });
     return mapCommonFirestoreErrors(reason, "routines_unavailable");
   }
 }

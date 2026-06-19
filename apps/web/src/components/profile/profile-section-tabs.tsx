@@ -13,16 +13,21 @@ export type ProfileSectionTabId =
 type ProfileSectionTabsProps = {
   activeTab: ProfileSectionTabId;
   onChange: (tabId: ProfileSectionTabId) => void;
+  // Bug/feature requests are an admin-account feature; hidden from player and
+  // switched (acting-as-a-child) profiles.
+  showRequests?: boolean;
 };
 
-export function ProfileSectionTabs({ activeTab, onChange }: ProfileSectionTabsProps) {
+export function ProfileSectionTabs({ activeTab, onChange, showRequests = true }: ProfileSectionTabsProps) {
   const { t } = useLocale();
   const tabs: AppTabItem<ProfileSectionTabId>[] = [
     { id: "general", label: t("profile.tabs.general") },
     { id: "inventory", label: t("profile.tabs.inventory") },
     { id: "notifications", label: t("profile.tabs.notifications") },
     { id: "integrations", label: t("profile.tabs.integrations") },
-    { id: "requests", label: t("profile.tabs.requests") },
+    ...(showRequests
+      ? [{ id: "requests" as const, label: t("profile.tabs.requests") }]
+      : []),
   ];
 
   return <AppTabs ariaLabel={t("nav.profile")} tabs={tabs} activeTab={activeTab} onChange={onChange} />;

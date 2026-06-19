@@ -33,6 +33,7 @@
       "close": "Close",
       "continue": "Continue",
       "delete": "Delete",
+      "done": "Done",
       "edit": "Edit",
       "loading": "Loading...",
       "remove": "Remove",
@@ -447,7 +448,8 @@
       "needsApproval": "Needs Approval",
       "completed": "Completed",
       "open": "Active",
-      "recurring": "Recurring"
+      "recurring": "Recurring",
+      "future": "Upcoming"
     },
     "sort": {
       "title": "Title",
@@ -1534,11 +1536,41 @@
       "weekly": "Weekly",
       "monthly": "Monthly",
       "custom": "Custom",
+      "customTitle": "Custom recurrence",
+      "repeatEvery": "Repeat every",
       "intervalLabel": "Repeat every",
       "unitLabel": "Unit",
       "unitDays": "Days",
       "unitWeeks": "Weeks",
-      "unitMonths": "Months"
+      "unitMonths": "Months",
+      "unitDay": "Day",
+      "unitWeek": "Week",
+      "unitMonth": "Month",
+      "everySummary": "Every {count} {unit}",
+      "editCustom": "Edit custom recurrence",
+      "repeatOn": "Repeat on",
+      "everyWeekdaySummary": "Every {days}",
+      "everyIntervalWeeksOnSummary": "Every {count} weeks on {days}",
+      "weekdaysLabel": "weekday",
+      "daysLabel": "day",
+      "weekdays": {
+        "sun": "Sunday",
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday"
+      },
+      "weekdaysShort": {
+        "sun": "S",
+        "mon": "M",
+        "tue": "T",
+        "wed": "W",
+        "thu": "T",
+        "fri": "F",
+        "sat": "S"
+      }
     }
   }
 }

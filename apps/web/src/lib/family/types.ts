@@ -1,6 +1,7 @@
 import type { AppLocale } from "@packages/locales";
 import type {
   ChoreRecurrenceType,
+  ChoreRecurrenceWeekday,
   ChoreRecurrenceUnit,
 } from "@/lib/chores/recurrence";
 import type { ChoreType } from "@/lib/chores/types";
@@ -74,6 +75,7 @@ export type FamilySnapshotChore = {
   recurrenceType?: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: ChoreRecurrenceUnit;
+  recurrenceDays?: ChoreRecurrenceWeekday[];
   // Which Responsibility Pillar this chore develops; drives the pillar chip
   // on dashboard rows. Optional — most chores may have no pillar.
   responsibilityPillar?: ResponsibilityPillar;

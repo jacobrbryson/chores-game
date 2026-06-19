@@ -13,6 +13,7 @@ describe("public API OpenAPI spec", () => {
       "/api/v1/me",
       "/api/v1/players",
       "/api/v1/players/{playerId}/coins",
+      "/api/v1/players/{playerId}/chores",
       "/api/v1/players/{playerId}/chores/today",
       "/api/v1/players/{playerId}/achievements/recent",
     ]) {

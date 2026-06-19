@@ -179,6 +179,7 @@ service cloud.firestore {
         && request.resource.data.recurrenceType is string
         && request.resource.data.recurrenceInterval is int
         && request.resource.data.recurrenceUnit is string
+        && request.resource.data.recurrenceDays is list
         && request.resource.data.recurrenceParentChoreId is string
         && request.resource.data.createdAt is timestamp
         && request.resource.data.sortOrder is int
@@ -193,7 +194,11 @@ service cloud.firestore {
         && get(parentPath).data.requireApproval == request.resource.data.requireApproval
         && get(parentPath).data.recurrenceType == request.resource.data.recurrenceType
         && get(parentPath).data.recurrenceInterval == request.resource.data.recurrenceInterval
-        && get(parentPath).data.recurrenceUnit == request.resource.data.recurrenceUnit;
+        && get(parentPath).data.recurrenceUnit == request.resource.data.recurrenceUnit
+        && (
+          get(parentPath).data.recurrenceDays == request.resource.data.recurrenceDays
+          || (!("recurrenceDays" in get(parentPath).data) && request.resource.data.recurrenceDays == [])
+        );
     }
 
     function canPlayerCreateSeeAndDoChore(familyId) {
@@ -219,6 +224,7 @@ service cloud.firestore {
         && request.resource.data.recurrenceType == "none"
         && request.resource.data.recurrenceInterval is int
         && request.resource.data.recurrenceUnit is string
+        && request.resource.data.recurrenceDays is list
         && request.resource.data.createdAt is timestamp
         && request.resource.data.sortOrder is int;
     }
@@ -1290,12 +1296,13 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // User-submitted bug reports / feature requests. Authors can read only
-      // their own; broad family reads are denied here (operator/admin tooling
-      // uses server-side credentials). No client updates/deletes.
+      // Admin-submitted bug reports / feature requests. This is a parent/admin
+      // feature: only family admins can create or read their own requests
+      // (the client hides the tab from player profiles). Operator tooling reads
+      // and manages every request via server-side service-account credentials.
       match /supportRequests/{supportRequestId} {
-        allow read: if isSignedIn() && resource.data.createdByUid == request.auth.uid;
-        allow create: if isFamilyMember(familyId)
+        allow read: if isFamilyAdmin(familyId) && resource.data.createdByUid == request.auth.uid;
+        allow create: if isFamilyAdmin(familyId)
           && request.resource.data.familyId == familyId
           && request.resource.data.createdByUid == request.auth.uid
           && request.resource.data.type in ["bug", "feature"]
@@ -1306,32 +1313,24 @@ service cloud.firestore {
           && request.resource.data.status == "new"
           && request.resource.data.deleted == false
           && request.resource.data.createdAt is timestamp
-          && request.resource.data.updatedAt is timestamp
-          && (
-            (
-              request.resource.data.type == "bug"
-              && request.resource.data.severity in ["low", "medium", "high"]
-            )
-            || (
-              request.resource.data.type == "feature"
-              && !("severity" in request.resource.data)
-            )
-          );
+          && request.resource.data.updatedAt is timestamp;
         // Safe self-service for the author. Editing (subject/description/severity)
         // is allowed only while the request is still open ("new"/legacy
-        // "submitted"); cancelling (setting cancelledByUser, which hides it from
-        // the user's own list) is allowed in any status. Status/type are immutable
-        // here, and the author can never delete — only a support operator can
+        // "submitted") and leaves the status untouched; cancelling is allowed in
+        // any status and moves the request to the terminal "cancelled" status
+        // (setting cancelledByUser/cancelledAt/closedAt) so the support console
+        // reflects the cancellation instead of showing it as actionable. Type is
+        // immutable, and the author can never delete — only a support operator can
         // actually delete a request (via server-side admin credentials).
-        allow update: if isSignedIn()
+        allow update: if isFamilyAdmin(familyId)
           && resource.data.createdByUid == request.auth.uid
           && request.resource.data.createdByUid == resource.data.createdByUid
           && request.resource.data.type == resource.data.type
-          && request.resource.data.status == resource.data.status
           && request.resource.data.updatedAt is timestamp
           && (
             (
               (resource.data.status == "new" || resource.data.status == "submitted")
+              && request.resource.data.status == resource.data.status
               && request.resource.data.diff(resource.data).changedKeys().hasOnly([
                 "subject",
                 "description",
@@ -1342,25 +1341,19 @@ service cloud.firestore {
               && request.resource.data.subject.size() > 0
               && request.resource.data.description is string
               && request.resource.data.description.size() > 0
-              && (
-                (
-                  resource.data.type == "bug"
-                  && request.resource.data.severity in ["low", "medium", "high"]
-                )
-                || (
-                  resource.data.type == "feature"
-                  && !("severity" in request.resource.data)
-                )
-              )
             )
             || (
-              request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              request.resource.data.status == "cancelled"
+              && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+                "status",
                 "cancelledByUser",
                 "cancelledAt",
+                "closedAt",
                 "updatedAt"
               ])
               && request.resource.data.cancelledByUser == true
               && request.resource.data.cancelledAt is timestamp
+              && request.resource.data.closedAt is timestamp
             )
           );
         allow delete: if false;
@@ -1432,6 +1425,13 @@ service cloud.firestore {
     }
 
     match /communityAwards/{communityAwardId} {
+      allow read, write: if false;
+    }
+
+    // Operation/observability metrics are written and read exclusively through
+    // admin/service-account credentials (see apps/web/src/lib/observability).
+    // Clients must never touch them.
+    match /operationMetrics/{metricId} {
       allow read, write: if false;
     }
 

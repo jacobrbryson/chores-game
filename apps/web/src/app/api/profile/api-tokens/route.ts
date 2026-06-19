@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import {
+  buildApiUsageTrend,
   createApiToken,
   getClientIp,
   listApiAuditForUser,
@@ -19,14 +20,15 @@ export async function GET(request: NextRequest) {
   if (!session?.uid) {
     return unauthorized();
   }
-  const [tokens, auditEvents] = await Promise.all([
-    listApiTokensForUser(session.uid),
-    listApiAuditForUser(session.uid, 25),
-  ]);
+  const tokens = await listApiTokensForUser(session.uid, { status: "active" });
+  const auditEvents = await listApiAuditForUser(session.uid, 300, {
+    tokenIds: tokens.map((token) => token.id),
+  });
   return NextResponse.json({
     scopes: ["read:profile", "read:players", "read:coins", "read:chores", "read:achievements"],
     tokens: tokens.map(serializeApiToken),
-    auditEvents,
+    usageTrend: buildApiUsageTrend({ auditEvents, tokens }),
+    auditEvents: auditEvents.slice(0, 25),
   });
 }
 

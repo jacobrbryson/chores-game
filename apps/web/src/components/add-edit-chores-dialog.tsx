@@ -5,14 +5,18 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
+import {
+  CustomRecurrenceDialog,
+  customRecurrenceSummary,
+} from "@/components/custom-recurrence-dialog";
 import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import {
   DEFAULT_CHORE_COIN_VALUE,
-  DEFAULT_RECURRENCE_INTERVAL,
   MAX_CHORE_COIN_VALUE,
+  type ChoreRecurrenceWeekday,
   type ChoreRecurrenceType,
   type ChoreRecurrenceUnit,
 } from "@/lib/chores/recurrence";
@@ -51,6 +55,7 @@ type EditableChore = {
   recurrenceType?: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: ChoreRecurrenceUnit;
+  recurrenceDays?: ChoreRecurrenceWeekday[];
   responsibilityPillar?: ResponsibilityPillar;
 };
 
@@ -77,6 +82,7 @@ export type AddEditChoreSavedResult = {
     recurrenceType: ChoreRecurrenceType;
     recurrenceInterval?: number;
     recurrenceUnit?: ChoreRecurrenceUnit;
+    recurrenceDays?: ChoreRecurrenceWeekday[];
     responsibilityPillar?: ResponsibilityPillar;
   };
   error?: string;
@@ -134,7 +140,11 @@ function writeFamilySummaryCache(
 }
 
 function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function normalizeError(error: unknown) {
@@ -258,13 +268,19 @@ export function AddEditChoresDialog({
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [coinValue, setCoinValue] = useState(String(DEFAULT_CHORE_COIN_VALUE));
   const [requireApproval, setRequireApproval] = useState(false);
-  const [newSkillEnabled, setNewSkillEnabled] = useState(true);
+  const [newSkillEnabled, setNewSkillEnabled] = useState(false);
   const [responsibilityPillar, setResponsibilityPillar] = useState<ResponsibilityPillar | "">("");
   const [recurrenceType, setRecurrenceType] = useState<ChoreRecurrenceType>("none");
-  const [recurrenceInterval, setRecurrenceInterval] = useState(
-    String(DEFAULT_RECURRENCE_INTERVAL),
-  );
+  const [recurrenceInterval, setRecurrenceInterval] = useState("1");
   const [recurrenceUnit, setRecurrenceUnit] = useState<ChoreRecurrenceUnit>("day");
+  const [recurrenceDays, setRecurrenceDays] = useState<ChoreRecurrenceWeekday[]>([]);
+  const [customRecurrenceOpen, setCustomRecurrenceOpen] = useState(false);
+  const [previousRecurrence, setPreviousRecurrence] = useState<{
+    type: ChoreRecurrenceType;
+    interval: string;
+    unit: ChoreRecurrenceUnit;
+    days: ChoreRecurrenceWeekday[];
+  } | null>(null);
   const [showAdditionalOptions, setShowAdditionalOptions] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -294,14 +310,6 @@ export function AddEditChoresDialog({
     ],
     [t],
   );
-  const customRecurrenceUnitOptions: TailwindSelectOption<ChoreRecurrenceUnit>[] = useMemo(
-    () => [
-      { value: "day", label: t("choreDialog.recurrence.days") },
-      { value: "week", label: t("choreDialog.recurrence.weeks") },
-      { value: "month", label: t("choreDialog.recurrence.months") },
-    ],
-    [t],
-  );
   const pillarSelectOptions = useMemo<TailwindSelectOption<ResponsibilityPillar | "">[]>(
     () => responsibilityPillarSelectOptions(t),
     [t],
@@ -312,6 +320,50 @@ export function AddEditChoresDialog({
       setInternalOpen(next);
     }
     onOpenChange?.(next);
+  }
+
+  function selectRecurrenceType(value: ChoreRecurrenceType) {
+    if (value === "custom") {
+      setPreviousRecurrence({
+        type: recurrenceType,
+        interval: recurrenceInterval,
+        unit: recurrenceUnit,
+        days: recurrenceDays,
+      });
+      setRecurrenceType("custom");
+      if (recurrenceType !== "custom") {
+        setRecurrenceInterval("1");
+        setRecurrenceUnit("week");
+        setRecurrenceDays([]);
+      }
+      setCustomRecurrenceOpen(true);
+      return;
+    }
+    setRecurrenceType(value);
+  }
+
+  function cancelCustomRecurrence() {
+    if (previousRecurrence && previousRecurrence.type !== "custom") {
+      setRecurrenceType(previousRecurrence.type);
+      setRecurrenceInterval(previousRecurrence.interval);
+      setRecurrenceUnit(previousRecurrence.unit);
+      setRecurrenceDays(previousRecurrence.days);
+    }
+    setPreviousRecurrence(null);
+    setCustomRecurrenceOpen(false);
+  }
+
+  function saveCustomRecurrence(next: {
+    interval: string;
+    unit: ChoreRecurrenceUnit;
+    days: ChoreRecurrenceWeekday[];
+  }) {
+    setRecurrenceType("custom");
+    setRecurrenceInterval(next.interval);
+    setRecurrenceUnit(next.unit);
+    setRecurrenceDays(next.days);
+    setPreviousRecurrence(null);
+    setCustomRecurrenceOpen(false);
   }
 
   const assigneeOptions = useMemo(
@@ -562,11 +614,12 @@ export function AddEditChoresDialog({
         : readLastCoinValueFromStorage() || String(DEFAULT_CHORE_COIN_VALUE),
     );
     setRequireApproval(Boolean(chore?.requireApproval));
-    setNewSkillEnabled(chore?.newSkillEnabled ?? true);
+    setNewSkillEnabled(chore ? chore.newSkillEnabled ?? true : false);
     setResponsibilityPillar(chore?.responsibilityPillar ?? "");
     setRecurrenceType(chore?.recurrenceType ?? "none");
-    setRecurrenceInterval(String(chore?.recurrenceInterval ?? DEFAULT_RECURRENCE_INTERVAL));
+    setRecurrenceInterval(String(chore?.recurrenceInterval ?? 1));
     setRecurrenceUnit(chore?.recurrenceUnit ?? "day");
+    setRecurrenceDays(chore?.recurrenceDays ?? []);
     setShowAdditionalOptions(preferredOpen);
   }
 
@@ -754,7 +807,7 @@ export function AddEditChoresDialog({
         ? newSkillEnabled
         : isEditMode
           ? chore?.newSkillEnabled ?? true
-          : true;
+          : false;
     const resolvedRecurrenceType = isSeeAndDoMode
       ? "none"
       : showAdditionalOptions
@@ -773,7 +826,7 @@ export function AddEditChoresDialog({
       resolvedRecurrenceType === "custom"
         ? showAdditionalOptions
           ? Math.trunc(parsedRecurrenceInterval)
-          : chore?.recurrenceInterval ?? DEFAULT_RECURRENCE_INTERVAL
+          : chore?.recurrenceInterval ?? 1
         : undefined;
     const resolvedRecurrenceUnit =
       resolvedRecurrenceType === "custom"
@@ -781,6 +834,12 @@ export function AddEditChoresDialog({
           ? recurrenceUnit
           : chore?.recurrenceUnit ?? "day"
         : undefined;
+    const resolvedRecurrenceDays =
+      resolvedRecurrenceType === "custom" && resolvedRecurrenceUnit === "week"
+        ? showAdditionalOptions
+          ? recurrenceDays
+          : chore?.recurrenceDays ?? []
+        : [];
     const resolvedCategories = resolvedCategoryIds
       .map((categoryId) => categories.find((category) => category.id === categoryId))
       .filter((category): category is FamilyCategory => Boolean(category));
@@ -806,11 +865,12 @@ export function AddEditChoresDialog({
       setCategoryIds([]);
       setCoinValue(String(DEFAULT_CHORE_COIN_VALUE));
       setRequireApproval(false);
-      setNewSkillEnabled(true);
+      setNewSkillEnabled(false);
       setResponsibilityPillar("");
       setRecurrenceType("none");
-      setRecurrenceInterval(String(DEFAULT_RECURRENCE_INTERVAL));
+      setRecurrenceInterval("1");
       setRecurrenceUnit("day");
+      setRecurrenceDays([]);
       setShowAdditionalOptions(false);
       if (onSaved) {
         await onSaved({
@@ -842,6 +902,7 @@ export function AddEditChoresDialog({
             recurrenceType: resolvedRecurrenceType,
             recurrenceInterval: resolvedRecurrenceInterval,
             recurrenceUnit: resolvedRecurrenceUnit,
+            recurrenceDays: resolvedRecurrenceDays,
             responsibilityPillar: resolvedResponsibilityPillar || undefined,
           },
         });
@@ -875,6 +936,7 @@ export function AddEditChoresDialog({
                   recurrenceType: resolvedRecurrenceType,
                   recurrenceInterval: resolvedRecurrenceInterval,
                   recurrenceUnit: resolvedRecurrenceUnit,
+                  recurrenceDays: resolvedRecurrenceDays,
                   responsibilityPillar: resolvedResponsibilityPillar,
                   choreType: isSeeAndDoMode ? "see_and_do" : hasMultipleAssignees ? "group" : "normal",
                 }
@@ -897,6 +959,7 @@ export function AddEditChoresDialog({
                   recurrenceType: resolvedRecurrenceType,
                   recurrenceInterval: resolvedRecurrenceInterval,
                   recurrenceUnit: resolvedRecurrenceUnit,
+                  recurrenceDays: resolvedRecurrenceDays,
                   responsibilityPillar: resolvedResponsibilityPillar,
                 },
           ),
@@ -941,10 +1004,11 @@ export function AddEditChoresDialog({
         setCategoryIds([]);
         setCoinValue(String(DEFAULT_CHORE_COIN_VALUE));
         setRequireApproval(false);
-        setNewSkillEnabled(true);
+        setNewSkillEnabled(false);
         setRecurrenceType("none");
-        setRecurrenceInterval(String(DEFAULT_RECURRENCE_INTERVAL));
+        setRecurrenceInterval("1");
         setRecurrenceUnit("day");
+        setRecurrenceDays([]);
         setShowAdditionalOptions(false);
       }
       if (onSaved) {
@@ -1117,6 +1181,7 @@ export function AddEditChoresDialog({
               ) : null}
 
               {!isSeeAndDoMode ? (
+              <div className="grid gap-3 md:grid-cols-2">
               <label className="flex w-full flex-col gap-1.5">
                 <span className="text-sm font-medium text-slate-700">{t("choreDialog.assigneeLabel")}</span>
                 <TailwindMultiSelect
@@ -1149,9 +1214,6 @@ export function AddEditChoresDialog({
                   </Alert>
                 ) : null}
               </label>
-              ) : null}
-
-              {!isSeeAndDoMode ? (
               <label className="flex w-full flex-col gap-1.5">
                 <span className="text-sm font-medium text-slate-700">{t("choreDialog.coinValueLabel")}</span>
                 <input
@@ -1164,6 +1226,7 @@ export function AddEditChoresDialog({
                   className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800"
                 />
               </label>
+              </div>
               ) : null}
 
               {!isSeeAndDoMode ? (
@@ -1185,153 +1248,139 @@ export function AddEditChoresDialog({
                 className={`add-chores-advanced${showAdditionalOptions ? " is-open" : ""}`}
                 aria-hidden={!showAdditionalOptions}>
                 <div className="add-chores-advanced-inner">
-                  <label className="flex w-full flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">{t("choreDialog.dueDateLabel")}</span>
-                    <input
-                      type="date"
-                      value={dueDate}
-                      disabled={!showAdditionalOptions}
-                      onChange={(event) => setDueDate(event.target.value)}
-                      className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800"
-                    />
-                  </label>
-
-                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+                  <div className="grid gap-3 md:grid-cols-2">
                     <label className="flex w-full flex-col gap-1.5">
-                      <span className="text-sm font-medium text-slate-700">{t("choreDialog.recurrenceLabel")}</span>
+                      <span className="text-sm font-medium text-slate-700">{t("choreDialog.dueDateLabel")}</span>
+                      <input
+                        type="date"
+                        value={dueDate}
+                        disabled={!showAdditionalOptions}
+                        onChange={(event) => setDueDate(event.target.value)}
+                        className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800"
+                      />
+                    </label>
+
+                    <div className="flex w-full flex-col gap-1.5">
+                      <label className="flex w-full flex-col gap-1.5">
+                        <span className="text-sm font-medium text-slate-700">{t("choreDialog.recurrenceLabel")}</span>
+                        <TailwindSelect
+                          ariaLabel={t("choreDialog.recurrenceLabel")}
+                          value={recurrenceType}
+                          onChange={(value) => selectRecurrenceType(value as ChoreRecurrenceType)}
+                          options={recurrenceOptions}
+                          className="w-full"
+                          buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                          menuClassName="border-slate-300"
+                          disabled={!showAdditionalOptions}
+                        />
+                      </label>
+                      {recurrenceType === "custom" ? (
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-sm font-medium text-slate-700">
+                            {customRecurrenceSummary(recurrenceInterval, recurrenceUnit, recurrenceDays, t)}
+                          </span>
+                          <Button
+                            type="button"
+                            className="btn btn-secondary self-start"
+                            disabled={!showAdditionalOptions}
+                            onClick={() => {
+                              setPreviousRecurrence({
+                                type: recurrenceType,
+                                interval: recurrenceInterval,
+                                unit: recurrenceUnit,
+                                days: recurrenceDays,
+                              });
+                              setCustomRecurrenceOpen(true);
+                            }}>
+                            {t("chores.recurrence.editCustom")}
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="flex w-full flex-col gap-1.5">
+                      <span className="text-sm font-medium text-slate-700">{t("responsibility.choreDialog.label")}</span>
                       <TailwindSelect
-                        ariaLabel={t("choreDialog.recurrenceLabel")}
-                        value={recurrenceType}
-                        onChange={(value) => setRecurrenceType(value as ChoreRecurrenceType)}
-                        options={recurrenceOptions}
+                        ariaLabel={t("responsibility.choreDialog.label")}
+                        value={responsibilityPillar}
+                        onChange={(value) => setResponsibilityPillar(value as ResponsibilityPillar | "")}
+                        options={pillarSelectOptions}
                         className="w-full"
                         buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                         menuClassName="border-slate-300"
                         disabled={!showAdditionalOptions}
                       />
+                      <span className="text-xs text-slate-500">{t("responsibility.choreDialog.hint")}</span>
                     </label>
-                    {recurrenceType === "custom" ? (
-                      <div className="grid gap-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)]">
-                        <label className="flex w-full flex-col gap-1.5">
-                          <span className="text-sm font-medium text-slate-700">{t("choreDialog.everyLabel")}</span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={365}
-                            step={1}
-                            value={recurrenceInterval}
-                            disabled={!showAdditionalOptions}
-                            onChange={(event) => setRecurrenceInterval(event.target.value)}
-                            className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800"
-                          />
-                        </label>
-                        <label className="flex w-full flex-col gap-1.5">
-                          <span className="text-sm font-medium text-slate-700">{t("choreDialog.unitLabel")}</span>
-                          <TailwindSelect
-                            ariaLabel={t("choreDialog.unitLabel")}
-                            value={recurrenceUnit}
-                            onChange={(value) => setRecurrenceUnit(value as ChoreRecurrenceUnit)}
-                            options={customRecurrenceUnitOptions}
-                            className="w-full"
-                            buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
-                            menuClassName="border-slate-300"
-                            disabled={!showAdditionalOptions}
-                          />
-                        </label>
-                      </div>
-                    ) : null}
+
+                    <label className="flex w-full flex-col gap-1.5">
+                      <span className="text-sm font-medium text-slate-700">{t("choreDialog.categoriesLabel")}</span>
+                      <TailwindMultiSelect
+                        ariaLabel={t("choreDialog.categoriesLabel")}
+                        values={categoryIds}
+                        onChange={setCategoryIds}
+                        options={categorySelectOptions}
+                        disabled={!showAdditionalOptions}
+                        placeholder={
+                          categorySelectOptions.length > 0 ? t("choreDialog.categoriesPlaceholder") : t("choreDialog.noCategories")
+                        }
+                        className="w-full"
+                        buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                        menuClassName="border-slate-300"
+                        emptyState={
+                          <span className="inline-flex items-center gap-2">
+                            <span>{t("choreDialog.noCategories")}</span>
+                            <Link
+                              href="/family"
+                              className="font-semibold text-[#1f69b7] underline"
+                              onClick={() => setDialogOpen(false)}>
+                              {t("choreDialog.manageCategories")}
+                            </Link>
+                          </span>
+                        }
+                      />
+                    </label>
                   </div>
 
-                  <label className="flex w-full flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">{t("responsibility.choreDialog.label")}</span>
-                    <TailwindSelect
-                      ariaLabel={t("responsibility.choreDialog.label")}
-                      value={responsibilityPillar}
-                      onChange={(value) => setResponsibilityPillar(value as ResponsibilityPillar | "")}
-                      options={pillarSelectOptions}
-                      className="w-full"
-                      buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
-                      menuClassName="border-slate-300"
-                      disabled={!showAdditionalOptions}
-                    />
-                    <span className="text-xs text-slate-500">{t("responsibility.choreDialog.hint")}</span>
-                  </label>
-
-                  <label className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
-                    <input
-                      type="checkbox"
-                      checked={hasMultipleAssignees ? true : requireApproval}
-                      disabled={!showAdditionalOptions || hasMultipleAssignees}
-                      onChange={(event) => setRequireApproval(event.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#1f69b7]"
-                    />
-                    <span className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-slate-700">{t("choreDialog.requireApprovalLabel")}</span>
-                      <span className="text-xs text-slate-500">
-                        {hasMultipleAssignees
-                          ? t("choreDialog.requireApprovalMultiHint")
-                          : t("choreDialog.requireApprovalHint")}
-                      </span>
-                    </span>
-                  </label>
-
-                  <label className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
-                    <input
-                      type="checkbox"
-                      checked={newSkillEnabled}
-                      disabled={!showAdditionalOptions}
-                      onChange={(event) => setNewSkillEnabled(event.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#1f69b7]"
-                    />
-                    <span className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-slate-700">
-                        {t("choreDialog.newSkillLabel")}
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        {t("choreDialog.newSkillHint")}
-                      </span>
-                    </span>
-                  </label>
-
-                  <label className="flex w-full flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">{t("choreDialog.categoriesLabel")}</span>
-                    <TailwindMultiSelect
-                      ariaLabel={t("choreDialog.categoriesLabel")}
-                      values={categoryIds}
-                      onChange={setCategoryIds}
-                      options={categorySelectOptions}
-                      disabled={!showAdditionalOptions}
-                      placeholder={
-                        categorySelectOptions.length > 0 ? t("choreDialog.categoriesPlaceholder") : t("choreDialog.noCategories")
-                      }
-                      className="w-full"
-                      buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
-                      menuClassName="border-slate-300"
-                      emptyState={
-                        <span className="inline-flex items-center gap-2">
-                          <span>{t("choreDialog.noCategories")}</span>
-                          <Link
-                            href="/family"
-                            className="font-semibold text-[#1f69b7] underline"
-                            onClick={() => setDialogOpen(false)}>
-                            {t("choreDialog.manageCategories")}
-                          </Link>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+                      <input
+                        type="checkbox"
+                        checked={hasMultipleAssignees ? true : requireApproval}
+                        disabled={!showAdditionalOptions || hasMultipleAssignees}
+                        onChange={(event) => setRequireApproval(event.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#1f69b7]"
+                      />
+                      <span className="flex flex-col gap-1">
+                        <span className="text-sm font-medium text-slate-700">{t("choreDialog.requireApprovalLabel")}</span>
+                        <span className="text-xs text-slate-500">
+                          {hasMultipleAssignees
+                            ? t("choreDialog.requireApprovalMultiHint")
+                            : t("choreDialog.requireApprovalHint")}
                         </span>
-                      }
-                    />
-                  </label>
+                      </span>
+                    </label>
 
-                  <label className="flex w-full flex-col gap-1.5">
-                    <span className="text-sm font-medium text-slate-700">{t("choreDialog.detailsLabel")}</span>
-                    <textarea
-                      rows={4}
-                      value={details}
-                      disabled={!showAdditionalOptions}
-                      onChange={(event) => setDetails(event.target.value)}
-                      placeholder={t("choreDialog.detailsPlaceholder")}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 placeholder:text-slate-400"
-                    />
-                  </label>
+                    <label className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+                      <input
+                        type="checkbox"
+                        checked={newSkillEnabled}
+                        disabled={!showAdditionalOptions}
+                        onChange={(event) => setNewSkillEnabled(event.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#1f69b7]"
+                      />
+                      <span className="flex flex-col gap-1">
+                        <span className="text-sm font-medium text-slate-700">
+                          {t("choreDialog.newSkillLabel")}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {t("choreDialog.newSkillHint")}
+                        </span>
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </div>
               ) : null}
@@ -1366,6 +1415,15 @@ export function AddEditChoresDialog({
             </form>
         </div>
       </ModalShell>
+      <CustomRecurrenceDialog
+        open={customRecurrenceOpen}
+        interval={recurrenceInterval}
+        unit={recurrenceUnit}
+        days={recurrenceDays}
+        anchorDate={dueDate}
+        onCancel={cancelCustomRecurrence}
+        onSave={saveCustomRecurrence}
+      />
       {descriptionSuggestionMenuNode}
     </>
   );

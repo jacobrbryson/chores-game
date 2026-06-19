@@ -3,16 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
+import { ModalShell } from "@/components/modal-shell";
 
 type ApiTokenSummary = {
   id: string;
   name: string;
   status: "active" | "disabled" | "deleted";
-  tokenPrefix: string;
   scopes: string[];
   createdAt: string;
   lastUsedAt: string | null;
-  lastUsedEndpoint: string | null;
   lastErrorAt: string | null;
   lastErrorCode: string | null;
   usage: {
@@ -36,10 +35,23 @@ type ApiAuditSummary = {
 type ApiAccessPayload = {
   scopes: string[];
   tokens: ApiTokenSummary[];
+  usageTrend: Array<{ day: string; count: number }>;
   auditEvents: ApiAuditSummary[];
 };
 
 const DEFAULT_SCOPES = ["read:profile", "read:players", "read:coins"];
+
+const SCOPE_LABELS: Record<string, string> = {
+  "read:profile": "Profile",
+  "read:players": "Players",
+  "read:coins": "Coin balances",
+  "read:chores": "Chores",
+  "read:achievements": "Achievements",
+};
+
+function scopeLabel(scope: string) {
+  return SCOPE_LABELS[scope] ?? scope;
+}
 
 function formatDateTime(value: string | null) {
   if (!value) {
@@ -52,6 +64,37 @@ function formatDateTime(value: string | null) {
   return parsed.toLocaleString();
 }
 
+const STATUS_STYLES: Record<ApiTokenSummary["status"], string> = {
+  active: "bg-emerald-100 text-emerald-700 ring-emerald-600/20",
+  disabled: "bg-amber-100 text-amber-700 ring-amber-600/20",
+  deleted: "bg-slate-200 text-slate-500 ring-slate-500/20",
+};
+
+function StatusBadge({ status }: { status: ApiTokenSummary["status"] }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ring-inset ${STATUS_STYLES[status]}`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${
+          status === "active" ? "bg-emerald-500" : status === "disabled" ? "bg-amber-500" : "bg-slate-400"
+        }`}
+      />
+      {status}
+    </span>
+  );
+}
+
+function statusCodeTone(statusCode: number) {
+  if (statusCode >= 500) {
+    return "bg-red-100 text-red-700";
+  }
+  if (statusCode >= 400) {
+    return "bg-amber-100 text-amber-700";
+  }
+  return "bg-emerald-100 text-emerald-700";
+}
+
 export function ProfileApiAccessCard() {
   const [payload, setPayload] = useState<ApiAccessPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,6 +104,7 @@ export function ProfileApiAccessCard() {
   const [rawToken, setRawToken] = useState("");
   const [pendingAction, setPendingAction] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   const loadApiAccess = useCallback(async () => {
     setLoading(true);
@@ -85,18 +129,26 @@ export function ProfileApiAccessCard() {
   }, [loadApiAccess]);
 
   const sevenDayTrend = useMemo(() => {
-    const events = payload?.auditEvents ?? [];
-    const days = Array.from({ length: 7 }, (_, index) => {
+    if (payload?.usageTrend?.length) {
+      return payload.usageTrend;
+    }
+    return Array.from({ length: 7 }, (_, index) => {
       const date = new Date();
       date.setDate(date.getDate() - (6 - index));
-      return date.toISOString().slice(0, 10);
+      return { day: date.toISOString().slice(0, 10), count: 0 };
     });
-    return days.map((day) => ({
-      day,
-      count: events.filter((event) => event.eventType === "token.used" && event.createdAt.slice(0, 10) === day).length,
-    }));
-  }, [payload?.auditEvents]);
+  }, [payload?.usageTrend]);
 
+  const trendMax = useMemo(
+    () => Math.max(1, ...sevenDayTrend.map((entry) => entry.count)),
+    [sevenDayTrend],
+  );
+  const trendTotal = useMemo(
+    () => sevenDayTrend.reduce((sum, entry) => sum + entry.count, 0),
+    [sevenDayTrend],
+  );
+
+  const availableScopes = payload?.scopes ?? DEFAULT_SCOPES;
   const hasTokens = (payload?.tokens.length ?? 0) > 0;
 
   function toggleScope(scope: string) {
@@ -126,6 +178,7 @@ export function ProfileApiAccessCard() {
       }
       setRawToken(body.rawToken || "");
       setTokenName("");
+      setCreateOpen(false);
       await loadApiAccess();
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "api_token_create_failed");
@@ -167,130 +220,203 @@ export function ProfileApiAccessCard() {
       return;
     }
     await navigator.clipboard.writeText(rawToken);
-    setCopyStatus("Copied.");
+    setCopyStatus("Copied!");
     window.setTimeout(() => setCopyStatus(""), 2000);
   }
 
   return (
     <section aria-label="Developer API access">
       <article className="profile-page-google-card">
-        <div className="family-page-card-header">
-          <div>
-            <h2>Developer API</h2>
-            <p className="small family-page-subhead">
-              Create scoped bearer tokens for assistants and automations. Tokens are limited to 1,000 requests per day.
-            </p>
+        {/* Header */}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-sm">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+            </span>
+            <div>
+              <h2>Developer API</h2>
+              <p className="small family-page-subhead !mb-0 max-w-prose">
+                Create scoped, read-only bearer tokens for assistants and automations. Each token is capped at 1,000
+                requests per day.
+              </p>
+            </div>
           </div>
-          <a className="menu-action-link" href="/docs/api">
-            API docs
-          </a>
+          <div className="flex flex-wrap items-center gap-2">
+            <a className="menu-action-link" href="/docs/api">
+              <span className="menu-action-link-label">
+                <svg className="menu-action-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                </svg>
+                API docs
+              </span>
+            </a>
+            <Button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setRawToken("");
+                setCreateOpen(true);
+              }}
+            >
+              New token
+            </Button>
+          </div>
         </div>
 
         {error ? <Alert>API access error: {error}</Alert> : null}
+
+        {/* One-time token reveal */}
         {rawToken ? (
-          <Alert>
-            Copy this token now. It will not be shown again.
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <code className="min-w-0 flex-1 overflow-x-auto rounded-md bg-slate-900 px-3 py-2 text-xs text-white">
+          <div className="rounded-xl border border-emerald-300 bg-gradient-to-b from-emerald-50 to-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-emerald-800">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              <p className="m-0 text-sm font-semibold">Token created — copy it now</p>
+            </div>
+            <p className="small mt-1 mb-3 text-emerald-700/90">
+              This is the only time the full token will be shown. Store it in your assistant or automation platform.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-slate-900 px-3 py-2.5 font-mono text-xs text-emerald-200">
                 {rawToken}
               </code>
-              <Button type="button" className="btn btn-secondary" onClick={copyRawToken}>
-                {copyStatus || "Copy"}
+              <Button type="button" className="btn btn-primary" onClick={copyRawToken}>
+                {copyStatus || "Copy token"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="flex items-center gap-2 py-2 text-slate-500">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-sky-500" />
+            <p className="small m-0">Loading API tokens…</p>
+          </div>
+        ) : null}
+
+        {/* Empty state */}
+        {!loading && !hasTokens ? (
+          <Alert tone="info">
+            <p className="m-0 font-semibold">No tokens yet</p>
+            <p className="small mt-1">
+              Tokens are read-only, limited by your existing family permissions, capped at 1,000 requests per day, and
+              every request is audited and rate-limited.
+            </p>
+            <div className="mt-3 flex flex-col gap-3">
+              <div className="rounded-lg bg-white/60 p-3">
+                <p className="small m-0 font-semibold text-slate-700">“Hey Google, how many coins do I have?”</p>
+                <p className="small m-0 mt-1 text-slate-600">
+                  Create a token with <code>read:players</code> and <code>read:coins</code>, then call{" "}
+                  <code>GET /api/v1/players</code> to find the player and{" "}
+                  <code>GET /api/v1/players/{`{playerId}`}/coins</code> to read the balance.
+                </p>
+              </div>
+              <div className="rounded-lg bg-white/60 p-3">
+                <p className="small m-0 font-semibold text-slate-700">“What chore should I work on next?”</p>
+                <p className="small m-0 mt-1 text-slate-600">
+                  Add <code>read:chores</code> and call{" "}
+                  <code>GET /api/v1/players/{`{playerId}`}/chores/today</code>, then let your assistant pick the next
+                  open chore.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <Button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setRawToken("");
+                  setCreateOpen(true);
+                }}
+              >
+                Create your first token
               </Button>
             </div>
           </Alert>
         ) : null}
 
-        <div className="grid gap-3">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-slate-700">Token label</span>
-            <input
-              value={tokenName}
-              onChange={(event) => setTokenName(event.target.value)}
-              className="h-10 rounded-md border border-slate-300 px-3 py-2 text-slate-800"
-              placeholder="Home assistant"
-            />
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {(payload?.scopes ?? DEFAULT_SCOPES).map((scope) => (
-              <label key={scope} className="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5 text-sm">
-                <input
-                  type="checkbox"
-                  checked={selectedScopes.includes(scope)}
-                  onChange={() => toggleScope(scope)}
-                />
-                {scope}
-              </label>
-            ))}
-          </div>
-          <div>
-            <Button
-              type="button"
-              className="btn btn-primary"
-              disabled={pendingAction === "create" || !tokenName.trim() || selectedScopes.length === 0}
-              onClick={createToken}
-            >
-              {pendingAction === "create" ? "Creating..." : "Create token"}
-            </Button>
-          </div>
-        </div>
-
-        {loading ? <p className="small mt-6">Loading API tokens...</p> : null}
-
-        {!loading && !hasTokens ? (
-          <Alert tone="info" className="mt-6">
-            This token can only read the scopes you select here, such as your profile, visible players, coin balances,
-            today's chores, and recent achievements. Tokens are read-only, limited by your existing family permissions,
-            capped at 1,000 requests per day, and every request is audited and rate-limited.
-            <div className="mt-3 grid gap-2">
-              <p className="small">
-                To support prompts like "Hey Google, how many coins do I have?", create a token with at least
-                `read:players` and `read:coins`, then have your assistant call `GET /api/v1/players` to find the visible
-                player and `GET /api/v1/players/{`playerId`}/coins` to read the balance.
-              </p>
-              <p className="small">
-                For "What chore should I work on next?", add `read:chores` and call
-                `GET /api/v1/players/{`playerId`}/chores/today`, then let your assistant choose the next open chore from
-                that list. The raw token is only shown once after creation, so you would store it in the assistant or
-                automation platform that makes those API calls.
-              </p>
-            </div>
-          </Alert>
-        ) : null}
-
+        {/* Existing tokens */}
         {hasTokens ? (
-          <>
-            <div className="mt-6 grid gap-3">
-              <h3>Existing tokens</h3>
-              {(payload?.tokens ?? []).map((token) => (
-                <div key={token.id} className="rounded-xl border border-slate-200 bg-white/80 p-4">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <h4>{token.name}</h4>
-                      <p className="small">
-                        {token.tokenPrefix} · {token.status} · created {formatDateTime(token.createdAt)}
-                      </p>
-                      <p className="small">
-                        Used today: {token.usage.usedToday}/{token.usage.limit} · remaining: {token.usage.remainingToday}
-                      </p>
-                      <p className="small">
-                        Last used: {formatDateTime(token.lastUsedAt)}
-                        {token.lastUsedEndpoint ? ` at ${token.lastUsedEndpoint}` : ""}
-                      </p>
-                      {token.lastErrorCode ? (
-                        <p className="small">
-                          Last error: {token.lastErrorCode} at {formatDateTime(token.lastErrorAt)}
-                        </p>
+          <div className="flex flex-col gap-3">
+            <h3 className="m-0 text-sm font-semibold text-slate-800">
+              Your tokens
+              <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                {payload?.tokens.length}
+              </span>
+            </h3>
+            {(payload?.tokens ?? []).map((token) => {
+              const usagePct = token.usage.limit
+                ? Math.min(100, Math.round((token.usage.usedToday / token.usage.limit) * 100))
+                : 0;
+              const usageTone =
+                usagePct >= 90 ? "bg-red-500" : usagePct >= 70 ? "bg-amber-500" : "bg-sky-500";
+              return (
+                <div
+                  key={token.id}
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300"
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="m-0 text-base font-semibold text-slate-900">{token.name}</h4>
+                        <StatusBadge status={token.status} />
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-500">
+                        <span className="small">created {formatDateTime(token.createdAt)}</span>
+                      </div>
+
+                      {token.scopes.length ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {token.scopes.map((scope) => (
+                            <span
+                              key={scope}
+                              className="rounded-full bg-sky-50 px-2 py-0.5 font-mono text-[0.7rem] text-sky-700 ring-1 ring-inset ring-sky-600/10"
+                            >
+                              {scope}
+                            </span>
+                          ))}
+                        </div>
                       ) : null}
+
+                      {/* Usage meter */}
+                      <div className="mt-3 max-w-xs">
+                        <div className="flex items-center justify-between text-xs text-slate-500">
+                          <span>Today’s usage</span>
+                          <span className="font-medium text-slate-700">
+                            {token.usage.usedToday.toLocaleString()} / {token.usage.limit.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                          <div className={`h-full rounded-full ${usageTone} transition-all`} style={{ width: `${usagePct}%` }} />
+                        </div>
+                        <p className="small m-0 mt-1 text-slate-400">
+                          {token.usage.remainingToday.toLocaleString()} remaining · resets {formatDateTime(token.usage.resetAt)}
+                        </p>
+                      </div>
+
+                      <div className="mt-2 flex flex-col gap-0.5">
+                        <p className="small m-0 text-slate-500">Last used: {formatDateTime(token.lastUsedAt)}</p>
+                        {token.lastErrorCode ? (
+                          <p className="small m-0 text-red-600">
+                            Last error: {token.lastErrorCode} at {formatDateTime(token.lastErrorAt)}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+
+                    <div className="flex flex-row flex-wrap gap-2 md:flex-col md:items-stretch">
                       <Button
                         type="button"
                         className="btn btn-secondary"
                         disabled={token.status !== "active" || Boolean(pendingAction)}
                         onClick={() => updateToken(token.id, "disable")}
                       >
-                        Disable
+                        {pendingAction === `disable:${token.id}` ? "Disabling…" : "Disable"}
                       </Button>
                       <Button
                         type="button"
@@ -298,36 +424,170 @@ export function ProfileApiAccessCard() {
                         disabled={token.status === "deleted" || Boolean(pendingAction)}
                         onClick={() => updateToken(token.id, "regenerate")}
                       >
-                        Re-issue
+                        {pendingAction === `regenerate:${token.id}` ? "Re-issuing…" : "Re-issue"}
                       </Button>
                       <Button
                         type="button"
-                        className="btn btn-secondary"
+                        className="btn btn-secondary !text-red-600"
                         disabled={token.status === "deleted" || Boolean(pendingAction)}
                         onClick={() => updateToken(token.id, "delete")}
                       >
-                        Delete
+                        {pendingAction === `delete:${token.id}` ? "Deleting…" : "Delete"}
                       </Button>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
 
-            <div className="mt-6 grid gap-3">
-              <h3>Usage and audit trail</h3>
-              <p className="small">
-                7-day successful request trend: {sevenDayTrend.map((entry) => `${entry.day.slice(5)}: ${entry.count}`).join(" · ")}
-              </p>
-              {(payload?.auditEvents ?? []).slice(0, 10).map((event) => (
-                <p key={event.id} className="small">
-                  {formatDateTime(event.createdAt)} · {event.eventType} · {event.method} {event.endpoint} · {event.statusCode}
-                </p>
-              ))}
+            {/* Usage & audit */}
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="m-0 text-sm font-semibold text-slate-800">Usage &amp; audit trail</h3>
+                <span className="small text-slate-500">{trendTotal.toLocaleString()} successful calls · last 7 days</span>
+              </div>
+
+              {/* Mini bar chart */}
+              <div className="mt-4 flex items-end justify-between gap-2" style={{ height: "84px" }}>
+                {sevenDayTrend.map((entry) => {
+                  const heightPct = Math.round((entry.count / trendMax) * 100);
+                  return (
+                    <div key={entry.day} className="flex flex-1 flex-col items-center gap-1">
+                      <div className="flex w-full flex-1 items-end">
+                        <div
+                          className="w-full rounded-t bg-gradient-to-t from-sky-500 to-indigo-400 transition-all"
+                          style={{ height: `${Math.max(heightPct, entry.count > 0 ? 8 : 2)}%`, minHeight: "2px" }}
+                          title={`${entry.day}: ${entry.count}`}
+                        />
+                      </div>
+                      <span className="text-[0.65rem] tabular-nums text-slate-400">{entry.day.slice(5)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Recent events */}
+              <div className="mt-4 overflow-hidden rounded-lg border border-slate-100">
+                {(payload?.auditEvents ?? []).length === 0 ? (
+                  <p className="small m-0 px-3 py-4 text-center text-slate-400">No recent API activity.</p>
+                ) : (
+                  (payload?.auditEvents ?? []).slice(0, 10).map((event, index) => (
+                    <div
+                      key={event.id}
+                      className={`flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-xs ${
+                        index % 2 ? "bg-slate-50/60" : "bg-white"
+                      }`}
+                    >
+                      <span className={`rounded px-1.5 py-0.5 font-semibold tabular-nums ${statusCodeTone(event.statusCode)}`}>
+                        {event.statusCode}
+                      </span>
+                      <span className="font-mono font-semibold text-slate-500">{event.method}</span>
+                      <span className="min-w-0 flex-1 truncate font-mono text-slate-600">{event.endpoint}</span>
+                      <span className="text-slate-400">{formatDateTime(event.createdAt)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          </>
+          </div>
         ) : null}
       </article>
+
+      {/* Create token modal */}
+      <ModalShell open={createOpen} onRequestClose={() => (pendingAction ? undefined : setCreateOpen(false))}>
+        <section className="flex flex-col gap-4 p-1" aria-label="Create API token">
+          <header className="modal-dialog-title-row">
+            <h3 className="m-0">Create a new token</h3>
+            <Button
+              type="button"
+              className="modal-close-button"
+              onClick={() => setCreateOpen(false)}
+              disabled={Boolean(pendingAction)}
+              aria-label="Close dialog"
+              title="Close dialog"
+            >
+              X
+            </Button>
+          </header>
+
+          <p className="small m-0 text-slate-600">
+            Tokens are read-only, scoped to your family permissions, and capped at 1,000 requests per day. The full
+            token is shown only once after creation.
+          </p>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-slate-700">Token label</span>
+            <input
+              value={tokenName}
+              onChange={(event) => setTokenName(event.target.value)}
+              className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-slate-800 shadow-sm outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+              placeholder="e.g. Home assistant"
+              autoFocus
+            />
+          </label>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-slate-700">Scopes</span>
+            <div className="flex flex-wrap gap-2">
+              {availableScopes.map((scope) => {
+                const checked = selectedScopes.includes(scope);
+                return (
+                  <button
+                    key={scope}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={checked}
+                    onClick={() => toggleScope(scope)}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                      checked
+                        ? "border-sky-500 bg-sky-50 text-sky-800 shadow-sm"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-4 w-4 items-center justify-center rounded-full border ${
+                        checked ? "border-sky-500 bg-sky-500 text-white" : "border-slate-300 bg-white"
+                      }`}
+                    >
+                      {checked ? (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      ) : null}
+                    </span>
+                    {scopeLabel(scope)}
+                    <code className="font-mono text-[0.7rem] text-slate-400">{scope}</code>
+                  </button>
+                );
+              })}
+            </div>
+            {selectedScopes.length === 0 ? (
+              <span className="small text-slate-500">Select at least one scope.</span>
+            ) : null}
+          </div>
+
+          {error ? <Alert>Could not create token: {error}</Alert> : null}
+
+          <div className="modal-dialog-title-row mt-1 justify-end gap-2">
+            <Button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setCreateOpen(false)}
+              disabled={Boolean(pendingAction)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="btn btn-primary"
+              disabled={pendingAction === "create" || !tokenName.trim() || selectedScopes.length === 0}
+              onClick={createToken}
+            >
+              {pendingAction === "create" ? "Creating…" : "Create token"}
+            </Button>
+          </div>
+        </section>
+      </ModalShell>
     </section>
   );
 }

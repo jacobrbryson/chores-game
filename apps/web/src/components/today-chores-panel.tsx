@@ -1334,6 +1334,7 @@ export function TodayChoresPanel({
             recurrenceType: pendingChore.recurrenceType,
             recurrenceInterval: pendingChore.recurrenceInterval,
             recurrenceUnit: pendingChore.recurrenceUnit,
+            recurrenceDays: pendingChore.recurrenceDays,
             source: "manual",
             createdAt: new Date().toISOString(),
           },

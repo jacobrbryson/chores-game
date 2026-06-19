@@ -154,6 +154,99 @@ export function buildPublicApiOpenApiSpec(origin = "http://localhost:3000") {
           },
         },
       },
+      "/api/v1/players/{playerId}/chores": {
+        get: {
+          summary: "Query a player's chores",
+          description:
+            "Required scope: read:chores. Flexible chore query for assistant questions like " +
+            '"What chores did I complete last week?", "What is still left to do today?", ' +
+            '"What chores will I have tomorrow?", and "What Vivacity chores do I have?". ' +
+            "Combine `range`/`from`/`to`, `status`, and `category` filters.",
+          parameters: [
+            { name: "playerId", in: "path", required: true, schema: { type: "string" } },
+            {
+              name: "range",
+              in: "query",
+              required: false,
+              description: "Convenience window. Ignored when `from`/`to` are supplied.",
+              schema: {
+                type: "string",
+                enum: ["today", "tomorrow", "yesterday", "this-week", "last-week", "upcoming", "all"],
+              },
+            },
+            {
+              name: "from",
+              in: "query",
+              required: false,
+              description: "Inclusive lower bound (YYYY-MM-DD). Overrides `range`.",
+              schema: { type: "string", format: "date" },
+            },
+            {
+              name: "to",
+              in: "query",
+              required: false,
+              description: "Inclusive upper bound (YYYY-MM-DD). Overrides `range`.",
+              schema: { type: "string", format: "date" },
+            },
+            {
+              name: "status",
+              in: "query",
+              required: false,
+              description: "Filter by completion state. Defaults to all.",
+              schema: { type: "string", enum: ["open", "completed", "all"] },
+            },
+            {
+              name: "category",
+              in: "query",
+              required: false,
+              description: "Case-insensitive category name filter (e.g. Vivacity).",
+              schema: { type: "string" },
+            },
+            {
+              name: "includeRecurring",
+              in: "query",
+              required: false,
+              description:
+                "Project future occurrences of recurring chores into the window. Defaults on for future-facing ranges.",
+              schema: { type: "boolean" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Chores matching the query, scoped to the player.",
+              headers,
+              content: {
+                "application/json": {
+                  example: {
+                    playerId: "123",
+                    displayName: "Pip",
+                    range: { from: "2026-06-08", to: "2026-06-14" },
+                    statusFilter: "completed",
+                    category: null,
+                    chores: [
+                      {
+                        id: "chore_1",
+                        title: "Feed the dog",
+                        status: "Approved",
+                        completed: true,
+                        dueDate: "2026-06-10",
+                        completedAt: "2026-06-10T17:00:00.000Z",
+                        coinValue: 5,
+                        requireApproval: true,
+                        categories: [{ id: "cat_1", name: "Vivacity", color: "#22c55e" }],
+                        responsibilityPillar: "self_care",
+                        recurrence: "Daily",
+                        projected: false,
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            ...errors,
+          },
+        },
+      },
       "/api/v1/players/{playerId}/chores/today": {
         get: {
           summary: "Get today's chores for a player",

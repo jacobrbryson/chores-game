@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeScopes, serializeApiToken } from "@/lib/public-api/tokens";
+import { buildApiUsageTrend, normalizeScopes, serializeApiToken } from "@/lib/public-api/tokens";
 import { PUBLIC_API_DAILY_LIMIT, type ApiTokenRecord } from "@/lib/public-api/types";
 
 function token(overrides: Partial<ApiTokenRecord> = {}): ApiTokenRecord {
@@ -51,5 +51,32 @@ describe("public API token helpers", () => {
     expect(serialized.usage.limit).toBe(PUBLIC_API_DAILY_LIMIT);
     expect(serialized.usage.usedToday).toBe(999);
     expect(serialized.usage.remainingToday).toBe(1);
+  });
+
+  it("builds the usage trend from audit history and today's token usage counter", () => {
+    const trend = buildApiUsageTrend({
+      now: new Date("2026-06-16T15:00:00.000Z"),
+      tokens: [token({ id: "active-token", usageDay: "2026-06-16", usageCountToday: 4 })],
+      auditEvents: [
+        {
+          apiTokenId: "active-token",
+          eventType: "token.used",
+          createdAt: "2026-06-15T12:00:00.000Z",
+        },
+        {
+          apiTokenId: "active-token",
+          eventType: "token.used",
+          createdAt: "2026-06-16T12:00:00.000Z",
+        },
+        {
+          apiTokenId: "active-token",
+          eventType: "token.created",
+          createdAt: "2026-06-15T12:05:00.000Z",
+        },
+      ],
+    });
+
+    expect(trend.at(-2)).toEqual({ day: "2026-06-15", count: 1 });
+    expect(trend.at(-1)).toEqual({ day: "2026-06-16", count: 4 });
   });
 });

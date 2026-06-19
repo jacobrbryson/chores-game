@@ -7,6 +7,7 @@ import { Button } from "@/components/button";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { ProfileAdminNotificationsCard } from "@/components/profile/profile-admin-notifications-card";
 import { ProfileApiAccessCard } from "@/components/profile/profile-api-access-card";
+import { ProfileAthenaCard } from "@/components/profile/profile-athena-card";
 import { ProfileCustomizationModals } from "@/components/profile/profile-customization-modals";
 import { ProfileDetailsSection } from "@/components/profile/profile-details-section";
 import {
@@ -70,6 +71,13 @@ const PROFILE_TAB_IDS: readonly ProfileSectionTabId[] = [
   "integrations",
   "requests",
 ];
+
+// Tabs available to player profiles and to admins acting as a switched-in
+// child. Bug/feature requests are an admin-account feature, so they are
+// excluded here and only added back for non-switched admins.
+const PLAYER_PROFILE_TAB_IDS: readonly ProfileSectionTabId[] = PROFILE_TAB_IDS.filter(
+  (tabId) => tabId !== "requests",
+);
 
 function normalizeTaskListIds(taskListIds: string[]) {
   return Array.from(
@@ -148,10 +156,11 @@ export function ProfilePageClient({
   const [selectedLocale, setSelectedLocale] = useState<AppLocale>(locale);
   const [localePending, setLocalePending] = useState(false);
   const [localeError, setLocaleError] = useState("");
+  const canSeeRequests = role === "admin" && !isSwitched;
   const [activeTab, setActiveTab] = usePersistedTab<ProfileSectionTabId>({
     storageKey: "profile-page-active-tab",
     defaultTab: "general",
-    validTabs: PROFILE_TAB_IDS,
+    validTabs: canSeeRequests ? PROFILE_TAB_IDS : PLAYER_PROFILE_TAB_IDS,
     urlParamKey: "tab",
   });
 
@@ -887,7 +896,7 @@ export function ProfilePageClient({
       {error ? <Alert>Could not load profile settings: {error}</Alert> : null}
       <section className="app-tab-panel">
         <div className="app-tab-panel-header flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
-          <ProfileSectionTabs activeTab={activeTab} onChange={setActiveTab} />
+          <ProfileSectionTabs activeTab={activeTab} onChange={setActiveTab} showRequests={canSeeRequests} />
         </div>
         <div className="app-tab-panel-body p-5">
       {activeTab === "general" ? (
@@ -1070,6 +1079,7 @@ export function ProfilePageClient({
           }}
         />
       )}
+        {!isSwitched ? <ProfileAthenaCard /> : null}
         {!isSwitched ? <ProfileApiAccessCard /> : null}
         </div>
       ) : null}
@@ -1120,7 +1130,7 @@ export function ProfilePageClient({
         )
       ) : null}
 
-      {activeTab === "requests" ? <MyRequestsList /> : null}
+      {activeTab === "requests" && canSeeRequests ? <MyRequestsList /> : null}
 
         </div>
       </section>

@@ -220,6 +220,10 @@ The `supportRequests` collection is the single source of truth for all user-subm
 - Support manages content; the SEO dashboard reports metadata, readiness, sitemap, and lifecycle health.
 
 ## Recent Decisions (2026-02-15)
+- Custom weekly recurrence update (2026-06-15):
+  - Chores and routine assignments can store `recurrenceDays` (`sun` through `sat`) alongside the existing custom recurrence interval/unit.
+  - Weekly custom recurrence supports schedules like every Tuesday, weekdays, and every other Tuesday; recurring spawns copy the weekday list from the source chore/assignment.
+  - `recurrenceDays` is family-scoped scheduling metadata for chores/routine assignments (`FAMILY_PRIVATE`); no new collection is introduced.
 - Localization baseline update (2026-05-30):
   - Shared locale infrastructure now lives in `packages/locales` and is consumed by both web and mobile.
   - Supported locales start with `fr-FR`, `en-US`, and `es-US`.

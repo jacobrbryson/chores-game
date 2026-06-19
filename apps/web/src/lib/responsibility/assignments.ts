@@ -2,11 +2,16 @@ import {
   readBoolean,
   readInteger,
   readString,
+  readStringArray,
   readTimestamp,
   documentIdFromName,
   type FirestoreValue,
 } from "@/lib/firestore/rest";
-import type { ChoreRecurrenceType, ChoreRecurrenceUnit } from "@/lib/chores/recurrence";
+import type {
+  ChoreRecurrenceType,
+  ChoreRecurrenceUnit,
+  ChoreRecurrenceWeekday,
+} from "@/lib/chores/recurrence";
 import {
   normalizeResponsibilityPillar,
   type ResponsibilityPillar,
@@ -64,6 +69,7 @@ export type RoutineAssignment = {
   recurrenceType: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: ChoreRecurrenceUnit;
+  recurrenceDays?: ChoreRecurrenceWeekday[];
   createdAt?: string;
   completedAt?: string;
 };
@@ -133,6 +139,7 @@ export function routineAssignmentFromDoc(doc: {
     recurrenceInterval: readInteger(doc.fields, "recurrenceInterval") || undefined,
     recurrenceUnit:
       (readString(doc.fields, "recurrenceUnit") as ChoreRecurrenceUnit | "") || undefined,
+    recurrenceDays: readStringArray(doc.fields, "recurrenceDays") as ChoreRecurrenceWeekday[],
     createdAt: readTimestamp(doc.fields, "createdAt") || undefined,
     completedAt: readTimestamp(doc.fields, "completedAt") || undefined,
   };

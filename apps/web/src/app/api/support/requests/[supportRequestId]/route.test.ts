@@ -59,6 +59,7 @@ import { DELETE, GET, PATCH } from "@/app/api/support/requests/[supportRequestId
 
 const session = {
   uid: "u1",
+  role: "admin",
   email: "support@example.com",
   name: "Support User",
   firebaseIdToken: "id-token",

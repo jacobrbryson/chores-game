@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
+import { getAuthenticatedSessionIdentity } from "@/lib/auth/session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import {
   boolField,
@@ -44,6 +45,10 @@ function jsonReauthRequired() {
     },
     { status: 401 },
   );
+}
+
+function jsonAdminRequired() {
+  return NextResponse.json({ error: "admin_required" }, { status: 403 });
 }
 
 function jsonFirestoreForbidden() {
@@ -141,6 +146,14 @@ export async function POST(request: NextRequest) {
   if (!session.firebaseIdToken && !session.firebaseRefreshToken) {
     return jsonReauthRequired();
   }
+  // Support requests are an admin-account feature. We always act as the
+  // authenticated (signed-in) identity rather than the currently-viewed
+  // profile, so the Firestore token uid matches `createdByUid` even when an
+  // admin has switched into a child profile or kiosk mode.
+  const actor = getAuthenticatedSessionIdentity(session);
+  if (actor.role !== "admin") {
+    return jsonAdminRequired();
+  }
 
   let body: SupportRequestInput;
   try {
@@ -164,7 +177,7 @@ export async function POST(request: NextRequest) {
     const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
-        const familyId = await getPrimaryFamilyId(session.uid, idToken);
+        const familyId = await getPrimaryFamilyId(actor.uid, idToken);
         if (!familyId) {
           return { kind: "family_not_found" as const };
         }
@@ -172,7 +185,7 @@ export async function POST(request: NextRequest) {
         const limit = await checkRateLimit({
           action: "support_request",
           familyId,
-          uid: session.uid,
+          uid: actor.uid,
           idToken,
         });
         if (!limit.allowed) {
@@ -184,10 +197,10 @@ export async function POST(request: NextRequest) {
         const fields: Record<string, FirestoreValue> = {
           id: stringField(supportRequestId),
           familyId: stringField(familyId),
-          createdByUid: stringField(session.uid),
-          createdByMemberId: stringField(session.memberId || session.uid),
-          createdByDisplayName: stringField(session.name ?? ""),
-          createdByEmail: stringField(session.email ?? ""),
+          createdByUid: stringField(actor.uid),
+          createdByMemberId: stringField(actor.memberId || actor.uid),
+          createdByDisplayName: stringField(actor.name ?? ""),
+          createdByEmail: stringField(actor.email ?? ""),
           type: stringField(input.type),
           subject: stringField(input.subject),
           description: stringField(input.description),
@@ -235,7 +248,7 @@ export async function POST(request: NextRequest) {
           await consumeRateLimit({
             action: "support_request",
             familyId,
-            uid: session.uid,
+            uid: actor.uid,
             idToken,
           });
         } catch (error) {
@@ -252,10 +265,10 @@ export async function POST(request: NextRequest) {
           source: "support",
           requestId: supportRequestId,
           actor: {
-            uid: session.uid,
-            email: session.email,
-            name: session.name,
-            role: session.role,
+            uid: actor.uid,
+            email: actor.email,
+            name: actor.name,
+            role: actor.role,
           },
           next: {
             supportRequestId,
@@ -275,9 +288,9 @@ export async function POST(request: NextRequest) {
           severity: input.severity,
           importance: input.importance,
           category: input.category,
-          createdByUid: session.uid,
-          createdByDisplayName: session.name ?? "",
-          createdByEmail: session.email ?? "",
+          createdByUid: actor.uid,
+          createdByDisplayName: actor.name ?? "",
+          createdByEmail: actor.email ?? "",
           allowContact: input.allowContact,
           notifyOnStatusChange: input.notifyOnStatusChange,
           pageUrl: input.pageUrl,

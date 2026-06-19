@@ -1,5 +1,93 @@
 [
   {
+    "id": "support-requests-admin-only-fix",
+    "date": "2026-06-18",
+    "type": "Bug Fix",
+    "subject": "Bug & feature requests work for parents on shared profiles",
+    "description": "Submitting and viewing your bug reports and feature requests no longer fails with a permissions error when you've switched into a child's profile or are using Kiosk Mode. Requests are now tied to your signed-in parent account, and the Requests tab is shown only on admin profiles.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "routine-recurrence-same-day-fix",
+    "date": "2026-06-18",
+    "type": "Bug Fix",
+    "subject": "Recurring routines no longer restart the same day",
+    "description": "Completing a recurring routine that was due on an earlier day no longer immediately spawns another occurrence due today. The next occurrence is now scheduled from the completion date — so a daily routine always waits until tomorrow — matching how recurring chores already behave.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "chore-form-layout-refresh",
+    "date": "2026-06-18",
+    "type": "Feature",
+    "subject": "Streamlined add/edit chore form",
+    "description": "The add/edit chore form now pairs related fields side by side on wider screens — Assignee with Coin Value, Due Date with Recurrence, Responsibility Pillar with Categories, and Require Parent Approval with New Skill Bonus — for a more compact layout. The separate Additional Details field has been removed.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "chore-due-date-evening-fix",
+    "date": "2026-06-18",
+    "type": "Bug Fix",
+    "subject": "Evening chores now default to today",
+    "description": "Creating a chore in the evening no longer defaults its due date to tomorrow. The default due date now follows your local calendar day instead of UTC, so a chore added after 8 PM is correctly due today.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "chores-upcoming-filter",
+    "date": "2026-06-18",
+    "type": "Feature",
+    "subject": "Filter chores by upcoming",
+    "description": "The Chores page has a new \"Upcoming\" filter that shows active chores and routines scheduled to start in the future (due tomorrow or later). It's an easy way to find a chore that doesn't begin until a later date — handy when you want to move it up to today.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "achievements-group-family-chore-credit",
+    "date": "2026-06-18",
+    "type": "Bug Fix",
+    "subject": "Achievements count shared chores",
+    "description": "Completing a chore that's shared with the whole family or assigned to more than one person now counts toward your achievements. Streaks, \"chores in a day/week\", category explorer, teamwork, and Bounce Back progress for every assignee on the chore — previously these only tracked chores assigned to a single person.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "public-api-player-chores-query",
+    "date": "2026-06-18",
+    "type": "Feature",
+    "subject": "Query player chores over the API",
+    "description": "The public API has a new read-only endpoint, GET /api/v1/players/{playerId}/chores, so connected assistants like Athena can answer questions such as \"What chores did I complete last week?\", \"What's still left to do today?\", \"What chores will I have tomorrow?\", and \"What Vivacity chores do I have?\". Results can be filtered by date range, completion status, and category, and future occurrences of recurring chores are projected for upcoming windows. It uses the existing read:chores scope.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "developer-api-active-token-filter",
+    "date": "2026-06-18",
+    "type": "Bug Fix",
+    "subject": "Developer API shows active tokens",
+    "description": "The Developer API panel now loads active API tokens and their recent activity, keeps today's usage chart in sync with current requests, and hides token prefixes and raw endpoint paths from token cards.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "mobile-sign-in-header-fit",
+    "date": "2026-06-18",
+    "type": "Bug Fix",
+    "subject": "Mobile sign-in header fit",
+    "description": "The logged-out mobile header now keeps the Google sign-in button beside the Family Chores brand, so the header no longer grows over the homepage hero.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "developer-api-redesign",
+    "date": "2026-06-18",
+    "type": "Feature",
+    "subject": "Refreshed Developer API panel",
+    "description": "The Developer API section in your profile has a cleaner, easier-to-read design. Creating a token now happens in a focused dialog, your tokens and usage history fill the full width of the page, scopes are selectable pills, each token shows a live daily-usage meter and its scopes at a glance, and there's a 7-day usage chart plus a color-coded audit trail of recent API calls.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "custom-recurrence-picker",
+    "date": "2026-06-18",
+    "type": "Feature",
+    "subject": "Custom recurrence picker",
+    "description": "Parents can now open a dedicated Custom recurrence picker when setting chores or assigning routines, including weekly schedules like every Tuesday, weekdays, or every other Tuesday.",
+    "image": "/routines-workflow.png"
+  },
+  {
     "id": "see-and-do-preassigned-coins",
     "date": "2026-06-12",
     "type": "Bug Fix",

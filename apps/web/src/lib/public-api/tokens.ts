@@ -184,11 +184,15 @@ export async function resolveUserFamilyForApiToken(input: {
   return { familyId, familyName, viewerRole, viewerMemberId };
 }
 
-export async function listApiTokensForUser(userId: string) {
+export async function listApiTokensForUser(
+  userId: string,
+  options: { status?: ApiTokenRecord["status"] } = {},
+) {
   const docs = await adminListDocuments(TOKEN_COLLECTION, 200);
   return docs
     .map(readToken)
     .filter((token) => token.userId === userId)
+    .filter((token) => (options.status ? token.status === options.status : true))
     .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
 }
 
@@ -196,6 +200,24 @@ export async function getTokenByIdForUser(tokenId: string, userId: string) {
   const doc = await adminGetDocument(`${TOKEN_COLLECTION}/${tokenId}`);
   const token = readToken(doc);
   return token.userId === userId ? token : null;
+}
+
+/**
+ * Fetch a token by id without scoping to a user. For server-side integration
+ * flows (e.g. revoking the token minted for Athena) where the acting admin may
+ * differ from the user who originally created it. Returns null if missing.
+ */
+export async function getApiTokenById(tokenId: string) {
+  try {
+    const doc = await adminGetDocument(`${TOKEN_COLLECTION}/${tokenId}`);
+    return readToken(doc);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (reason.includes("FIRESTORE_ADMIN_HTTP_404") || reason.includes("FIRESTORE_HTTP_404")) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function createApiToken(input: {
@@ -434,12 +456,22 @@ export async function recordApiAudit(input: {
   });
 }
 
-export async function listApiAuditForUser(userId: string, limit = 20) {
+export async function listApiAuditForUser(
+  userId: string,
+  limit = 20,
+  options: { tokenIds?: string[] } = {},
+) {
+  const tokenIdFilter = options.tokenIds ? new Set(options.tokenIds) : null;
+  if (tokenIdFilter && tokenIdFilter.size === 0) {
+    return [];
+  }
   const docs = await adminListDocuments(AUDIT_COLLECTION, 300);
   return docs
     .filter((doc) => readString(doc.fields, "userId") === userId)
+    .filter((doc) => (tokenIdFilter ? tokenIdFilter.has(readString(doc.fields, "apiTokenId")) : true))
     .map((doc) => ({
       id: documentIdFromName(doc.name),
+      apiTokenId: readString(doc.fields, "apiTokenId"),
       eventType: readString(doc.fields, "eventType"),
       endpoint: readString(doc.fields, "endpoint"),
       method: readString(doc.fields, "method"),
@@ -449,6 +481,43 @@ export async function listApiAuditForUser(userId: string, limit = 20) {
     }))
     .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
     .slice(0, Math.max(1, limit));
+}
+
+export function buildApiUsageTrend(input: {
+  auditEvents: Array<{ eventType: string; apiTokenId?: string; createdAt: string }>;
+  tokens: ApiTokenRecord[];
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const today = utcDay(now);
+  const tokenIds = new Set(input.tokens.map((token) => token.id));
+  const trend = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (6 - index)));
+    return { day: utcDay(date), count: 0 };
+  });
+  const countsByDay = new Map(trend.map((entry) => [entry.day, 0]));
+
+  for (const event of input.auditEvents) {
+    const eventDay = event.createdAt.slice(0, 10);
+    if (
+      event.eventType === "token.used" &&
+      eventDay !== today &&
+      countsByDay.has(eventDay) &&
+      (!event.apiTokenId || tokenIds.has(event.apiTokenId))
+    ) {
+      countsByDay.set(eventDay, (countsByDay.get(eventDay) ?? 0) + 1);
+    }
+  }
+
+  countsByDay.set(
+    today,
+    input.tokens.reduce(
+      (sum, token) => sum + (token.usageDay === today ? Math.max(0, token.usageCountToday) : 0),
+      0,
+    ),
+  );
+
+  return trend.map((entry) => ({ ...entry, count: countsByDay.get(entry.day) ?? 0 }));
 }
 
 export function serializeApiToken(token: ApiTokenRecord) {

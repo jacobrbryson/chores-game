@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
+import { getAuthenticatedSessionIdentity } from "@/lib/auth/session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { isSupportAdmin } from "@/lib/support/access";
 import {
@@ -397,13 +398,17 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if (!session.firebaseIdToken && !session.firebaseRefreshToken) {
     return jsonReauthRequired();
   }
+  const actor = getAuthenticatedSessionIdentity(session);
+  if (actor.role !== "admin") {
+    return NextResponse.json({ error: "admin_required" }, { status: 403 });
+  }
 
   const body = rawBody as SupportRequestInput;
   try {
     const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
-        const loaded = await loadOwnRequest(session.uid, supportRequestId, idToken, {
+        const loaded = await loadOwnRequest(actor.uid, supportRequestId, idToken, {
           requireOpen: true,
         });
         if (loaded.kind !== "ok") {
@@ -469,6 +474,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   if (!session.firebaseIdToken && !session.firebaseRefreshToken) {
     return jsonReauthRequired();
   }
+  const actor = getAuthenticatedSessionIdentity(session);
+  if (actor.role !== "admin") {
+    return NextResponse.json({ error: "admin_required" }, { status: 403 });
+  }
   const { supportRequestId } = await context.params;
   if (!supportRequestId) {
     return NextResponse.json({ error: "request_id_required" }, { status: 400 });
@@ -478,7 +487,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
-        const loaded = await loadOwnRequest(session.uid, supportRequestId, idToken, {
+        const loaded = await loadOwnRequest(actor.uid, supportRequestId, idToken, {
           requireOpen: false,
         });
         if (loaded.kind !== "ok") {

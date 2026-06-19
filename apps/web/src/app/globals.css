@@ -142,6 +142,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  min-width: 0;
 }
 
 .top-nav-auth {
@@ -1032,6 +1033,11 @@ body {
   min-height: 40px;
   max-width: 100%;
   overflow: visible;
+}
+
+.nav-google-signin {
+  width: 200px;
+  flex: 0 0 200px;
 }
 
 .google-signin-wrap .g_id_signin {
@@ -7699,18 +7705,6 @@ a.family-award-claim-card:focus-visible {
     padding-right: 12px;
   }
 
-  .top-nav-brand-row {
-    display: flex;
-    justify-content: center;
-    text-align: center;
-    transform-origin: top center;
-  }
-
-  .top-nav-guest-layout {
-    flex-direction: column;
-    justify-content: center;
-  }
-
   .brand {
     width: auto;
     gap: 10px;
@@ -7824,6 +7818,11 @@ a.family-award-claim-card:focus-visible {
 
   .google-signin-wrap {
     width: 100%;
+  }
+
+  .nav-google-signin {
+    width: 200px;
+    flex-basis: 200px;
   }
 
   .google-signin-wrap .g_id_signin {
@@ -8358,7 +8357,7 @@ a.family-award-claim-card:focus-visible {
   }
 
   .top-nav-guest {
-    padding: 14px 0 18px;
+    padding: 8px 10px;
   }
 
   .top-nav-controls {
@@ -8371,18 +8370,37 @@ a.family-award-claim-card:focus-visible {
   }
 
   .top-nav-guest-layout {
-    gap: 12px;
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .top-nav-brand-row .brand {
+    justify-content: flex-start;
+  }
+
+  .top-nav-brand-row .brand-copy {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .top-nav-brand-row .brand-title {
+    font-size: 1rem;
+  }
+
+  .top-nav-brand-row .brand-tagline {
+    display: none;
   }
 
   .nav-links-guest {
-    width: min(100%, 248px);
-    justify-content: center;
-    justify-self: center;
+    width: auto;
+    justify-content: flex-end;
+    justify-self: end;
   }
 
   .nav-links-guest .google-signin-wrap {
-    width: min(248px, calc(100vw - 32px));
-    justify-content: center;
+    width: 200px;
+    justify-content: flex-end;
   }
 
   .nav-links-guest .google-signin-wrap .g_id_signin {
@@ -9251,6 +9269,20 @@ a.family-award-claim-card:focus-visible {
 
 .profile-owned-items-card {
   margin-top: 0.95rem;
+}
+
+@media (max-width: 380px) {
+  .top-nav-brand-row .brand-icon {
+    display: none;
+  }
+
+  .top-nav-brand-row .brand-title {
+    font-size: 0.9rem;
+  }
+
+  .top-nav-brand-row .brand-tagline {
+    display: none;
+  }
 }
 
 .profile-family-summary-stack .profile-owned-items-card {

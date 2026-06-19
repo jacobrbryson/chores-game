@@ -77,7 +77,8 @@ function doc(
 const session = {
   uid: "user-1",
   memberId: "member-1",
-  email: "kid@example.com",
+  role: "admin",
+  email: "parent@example.com",
   firebaseIdToken: "id-token",
   firebaseRefreshToken: "refresh-token",
 };

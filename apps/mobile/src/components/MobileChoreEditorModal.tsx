@@ -8,6 +8,9 @@ import { Badge, Button } from "@/components/ui";
 
 type ChoreRecurrenceType = "none" | "daily" | "weekly" | "monthly" | "custom";
 type RecurrenceUnit = "day" | "week" | "month";
+type RecurrenceWeekday = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
+
+const RECURRENCE_WEEKDAYS: RecurrenceWeekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 export type MobileChoreEditorSubmitPayload = {
   description: string;
@@ -22,6 +25,7 @@ export type MobileChoreEditorSubmitPayload = {
   recurrenceType: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: RecurrenceUnit;
+  recurrenceDays?: RecurrenceWeekday[];
 };
 
 type Props = {
@@ -39,12 +43,90 @@ type Props = {
 };
 
 function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function normalizeDateInput(value: string) {
   const trimmed = value.trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : todayIsoDate();
+}
+
+function recurrenceSummary(
+  intervalValue: string,
+  unit: RecurrenceUnit,
+  days: RecurrenceWeekday[],
+  t: (key: string, params?: Record<string, string>) => string,
+) {
+  const parsed = Number(intervalValue);
+  const interval = Number.isFinite(parsed) ? Math.max(1, Math.trunc(parsed)) : 1;
+  const selectedDays = normalizeRecurrenceDays(days);
+  if (unit === "week" && selectedDays.length > 0) {
+    const dayLabel = selectedDays.map((day) => t(`chores.recurrence.weekdays.${day}`)).join(", ");
+    return interval === 1
+      ? t("chores.recurrence.everyWeekdaySummary", { days: dayLabel })
+      : t("chores.recurrence.everyIntervalWeeksOnSummary", {
+          count: String(interval),
+          days: dayLabel,
+        });
+  }
+  if (interval === 1) {
+    return unit === "day"
+      ? t("chores.recurrence.daily")
+      : unit === "week"
+        ? t("chores.recurrence.weekly")
+        : t("chores.recurrence.monthly");
+  }
+  const unitLabel =
+    unit === "day"
+      ? t("chores.recurrence.unitDays").toLowerCase()
+      : unit === "week"
+        ? t("chores.recurrence.unitWeeks").toLowerCase()
+        : t("chores.recurrence.unitMonths").toLowerCase();
+  return t("chores.recurrence.everySummary", {
+    count: String(interval),
+    unit: unitLabel,
+  });
+}
+
+function normalizeRecurrenceDays(days: RecurrenceWeekday[]) {
+  const selected = new Set(days);
+  return RECURRENCE_WEEKDAYS.filter((day) => selected.has(day));
+}
+
+function normalizeRecurrenceIntervalInput(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) {
+    return "";
+  }
+  const parsed = Number(digits);
+  if (!Number.isFinite(parsed)) {
+    return "1";
+  }
+  return String(Math.max(1, Math.min(365, Math.trunc(parsed))));
+}
+
+function isSingularRecurrenceInterval(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && Math.trunc(parsed) === 1;
+}
+
+function recurrenceUnitOptionLabel(
+  unit: RecurrenceUnit,
+  intervalValue: string,
+  t: (key: string, params?: Record<string, string>) => string,
+) {
+  const singular = isSingularRecurrenceInterval(intervalValue);
+  if (unit === "day") {
+    return t(singular ? "chores.recurrence.unitDay" : "chores.recurrence.unitDays");
+  }
+  if (unit === "week") {
+    return t(singular ? "chores.recurrence.unitWeek" : "chores.recurrence.unitWeeks");
+  }
+  return t(singular ? "chores.recurrence.unitMonth" : "chores.recurrence.unitMonths");
 }
 
 export function MobileChoreEditorModal({
@@ -71,6 +153,11 @@ export function MobileChoreEditorModal({
   const [recurrenceType, setRecurrenceType] = useState<ChoreRecurrenceType>("none");
   const [recurrenceInterval, setRecurrenceInterval] = useState("1");
   const [recurrenceUnit, setRecurrenceUnit] = useState<RecurrenceUnit>("day");
+  const [recurrenceDays, setRecurrenceDays] = useState<RecurrenceWeekday[]>([]);
+  const [customRecurrenceOpen, setCustomRecurrenceOpen] = useState(false);
+  const [draftRecurrenceInterval, setDraftRecurrenceInterval] = useState("1");
+  const [draftRecurrenceUnit, setDraftRecurrenceUnit] = useState<RecurrenceUnit>("day");
+  const [draftRecurrenceDays, setDraftRecurrenceDays] = useState<RecurrenceWeekday[]>(["mon"]);
   const [showAdditionalOptions, setShowAdditionalOptions] = useState(false);
   const [error, setError] = useState("");
 
@@ -116,6 +203,12 @@ export function MobileChoreEditorModal({
     setRecurrenceType((chore?.recurrenceType as ChoreRecurrenceType | undefined) ?? "none");
     setRecurrenceInterval(String(chore?.recurrenceInterval ?? 1));
     setRecurrenceUnit((chore?.recurrenceUnit as RecurrenceUnit | undefined) ?? "day");
+    setRecurrenceDays(
+      Array.isArray(chore?.recurrenceDays)
+        ? normalizeRecurrenceDays(chore.recurrenceDays as RecurrenceWeekday[])
+        : [],
+    );
+    setCustomRecurrenceOpen(false);
     setError("");
   }, [activeMembers, chore, defaultAssigneeIds, mode, open]);
 
@@ -137,6 +230,36 @@ export function MobileChoreEditorModal({
     setSelectedCategoryIds((current) =>
       current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId],
     );
+  }
+
+  function selectRecurrence(value: ChoreRecurrenceType) {
+    setRecurrenceType(value);
+    if (value === "custom") {
+      const isAlreadyCustom = recurrenceType === "custom";
+      setDraftRecurrenceInterval(isAlreadyCustom ? recurrenceInterval : "1");
+      setDraftRecurrenceUnit(isAlreadyCustom ? recurrenceUnit : "week");
+      setDraftRecurrenceDays(recurrenceDays.length ? recurrenceDays : ["mon"]);
+      setCustomRecurrenceOpen(true);
+    }
+  }
+
+  function saveCustomRecurrence() {
+    const parsed = Number(draftRecurrenceInterval);
+    const normalized = Number.isFinite(parsed) ? Math.max(1, Math.min(365, Math.trunc(parsed))) : 1;
+    setRecurrenceType("custom");
+    setRecurrenceInterval(String(normalized));
+    setRecurrenceUnit(draftRecurrenceUnit);
+    setRecurrenceDays(draftRecurrenceUnit === "week" ? draftRecurrenceDays : []);
+    setCustomRecurrenceOpen(false);
+  }
+
+  function toggleDraftRecurrenceDay(day: RecurrenceWeekday) {
+    setDraftRecurrenceDays((current) => {
+      if (current.includes(day)) {
+        return current.length === 1 ? current : current.filter((entry) => entry !== day);
+      }
+      return normalizeRecurrenceDays([...current, day]);
+    });
   }
 
   async function handleSubmit() {
@@ -173,6 +296,7 @@ export function MobileChoreEditorModal({
       recurrenceType,
       recurrenceInterval: recurrenceType === "custom" ? parsedRecurrenceInterval : undefined,
       recurrenceUnit: recurrenceType === "custom" ? recurrenceUnit : undefined,
+      recurrenceDays: recurrenceType === "custom" && recurrenceUnit === "week" ? recurrenceDays : [],
     };
 
     setError("");
@@ -296,10 +420,10 @@ export function MobileChoreEditorModal({
                       <Text style={styles.label}>{t("choreDialog.recurrenceLabel")}</Text>
                       <View style={styles.chipRow}>
                         {(["none", "daily", "weekly", "monthly", "custom"] as ChoreRecurrenceType[]).map((value) => (
-                          <Pressable key={value} onPress={() => setRecurrenceType(value)} style={[styles.chip, recurrenceType === value ? styles.chipActive : null]}>
+                          <Pressable key={value} onPress={() => selectRecurrence(value)} style={[styles.chip, recurrenceType === value ? styles.chipActive : null]}>
                             <Text style={[styles.chipText, recurrenceType === value ? styles.chipTextActive : null]}>
                               {value === "none"
-                                ? t("choreDialog.recurrence.instant")
+                                ? t("choreDialog.recurrence.none")
                                 : value === "daily"
                                   ? t("choreDialog.recurrence.daily")
                                   : value === "weekly"
@@ -312,27 +436,11 @@ export function MobileChoreEditorModal({
                         ))}
                       </View>
                       {recurrenceType === "custom" ? (
-                        <View style={styles.inlineFields}>
-                          <TextInput
-                            value={recurrenceInterval}
-                            onChangeText={setRecurrenceInterval}
-                            placeholder="1"
-                            keyboardType="number-pad"
-                            style={[styles.input, styles.inlineInput]}
-                          />
-                          <View style={styles.chipRow}>
-                            {(["day", "week", "month"] as RecurrenceUnit[]).map((value) => (
-                              <Pressable key={value} onPress={() => setRecurrenceUnit(value)} style={[styles.chip, recurrenceUnit === value ? styles.chipActive : null]}>
-                                <Text style={[styles.chipText, recurrenceUnit === value ? styles.chipTextActive : null]}>
-                                  {value === "day"
-                                    ? t("choreDialog.recurrence.days")
-                                    : value === "week"
-                                      ? t("choreDialog.recurrence.weeks")
-                                      : t("choreDialog.recurrence.months")}
-                                </Text>
-                              </Pressable>
-                            ))}
-                          </View>
+                        <View style={styles.customRecurrenceSummary}>
+                          <Text style={styles.helperText}>
+                            {recurrenceSummary(recurrenceInterval, recurrenceUnit, recurrenceDays, t)}
+                          </Text>
+                          <Button label={t("chores.recurrence.editCustom")} variant="secondary" onPress={() => selectRecurrence("custom")} />
                         </View>
                       ) : null}
                     </View>
@@ -351,6 +459,63 @@ export function MobileChoreEditorModal({
           )}
         </View>
       </View>
+      <Modal visible={customRecurrenceOpen} transparent animationType="fade" onRequestClose={() => setCustomRecurrenceOpen(false)}>
+        <View style={styles.customBackdrop}>
+          <View style={styles.customSheet}>
+            <Text style={styles.title}>{t("chores.recurrence.customTitle")}</Text>
+            <View style={styles.field}>
+              <Text style={styles.label}>{t("chores.recurrence.repeatEvery")}</Text>
+              <View style={styles.inlineFields}>
+                <TextInput
+                  value={draftRecurrenceInterval}
+                  onBlur={() => {
+                    if (!draftRecurrenceInterval) {
+                      setDraftRecurrenceInterval("1");
+                    }
+                  }}
+                  onChangeText={(value) => setDraftRecurrenceInterval(normalizeRecurrenceIntervalInput(value))}
+                  placeholder="1"
+                  keyboardType="number-pad"
+                  style={[styles.input, styles.inlineInput]}
+                />
+                <View style={styles.chipRow}>
+                  {(["day", "week", "month"] as RecurrenceUnit[]).map((value) => (
+                    <Pressable key={value} onPress={() => setDraftRecurrenceUnit(value)} style={[styles.chip, draftRecurrenceUnit === value ? styles.chipActive : null]}>
+                      <Text style={[styles.chipText, draftRecurrenceUnit === value ? styles.chipTextActive : null]}>
+                        {recurrenceUnitOptionLabel(value, draftRecurrenceInterval, t)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+              {draftRecurrenceUnit === "week" ? (
+                <View style={styles.field}>
+                  <Text style={styles.label}>{t("chores.recurrence.repeatOn")}</Text>
+                  <View style={styles.chipRow}>
+                    {RECURRENCE_WEEKDAYS.map((day) => {
+                      const selected = draftRecurrenceDays.includes(day);
+                      return (
+                        <Pressable key={day} onPress={() => toggleDraftRecurrenceDay(day)} style={[styles.dayChip, selected ? styles.chipActive : null]}>
+                          <Text style={[styles.chipText, selected ? styles.chipTextActive : null]}>
+                            {t(`chores.recurrence.weekdaysShort.${day}`)}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+              <Text style={styles.helperText}>
+                {recurrenceSummary(draftRecurrenceInterval, draftRecurrenceUnit, draftRecurrenceDays, t)}
+              </Text>
+            </View>
+            <View style={styles.actions}>
+              <Button label={t("common.actions.cancel")} variant="secondary" onPress={() => setCustomRecurrenceOpen(false)} />
+              <Button label={t("common.actions.done")} onPress={saveCustomRecurrence} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -371,11 +536,15 @@ const styles = StyleSheet.create({
   additionalOptionsIcon: { color: colors.brandStrong, fontSize: typography.h3, fontWeight: "900", lineHeight: 20 },
   additionalOptionsText: { color: colors.brandStrong, fontSize: typography.small, fontWeight: "800" },
   chip: { minHeight: 38, borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
+  dayChip: { width: 38, height: 38, borderWidth: 1, borderColor: colors.line, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
   chipActive: { borderColor: colors.brandStrong, backgroundColor: colors.brandStrong },
   chipText: { color: colors.text, fontSize: typography.small, fontWeight: "800" },
   chipTextActive: { color: "#fff" },
   inlineFields: { gap: spacing.sm },
   inlineInput: { maxWidth: 96 },
+  customRecurrenceSummary: { gap: spacing.xs, alignItems: "flex-start" },
+  customBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.38)", justifyContent: "center", padding: spacing.lg },
+  customSheet: { borderRadius: radius.lg, backgroundColor: "#fff", padding: spacing.lg, gap: spacing.md },
   actions: { gap: spacing.sm },
   errorText: { color: colors.danger, fontSize: typography.small, fontWeight: "700" },
   loadingState: { minHeight: 120, alignItems: "center", justifyContent: "center" },

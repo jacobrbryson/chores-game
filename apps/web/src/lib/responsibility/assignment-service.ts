@@ -9,6 +9,7 @@ import {
   readBoolean,
   readInteger,
   readString,
+  readStringArray,
   readTimestamp,
   stringArrayField,
   stringField,
@@ -116,6 +117,7 @@ function routineStepChoreFields(input: {
     recurrenceType: stringField("none"),
     recurrenceInterval: integerField(0),
     recurrenceUnit: stringField(""),
+    recurrenceDays: stringArrayField([]),
     responsibilityPillar: stringField(input.routine.pillar),
     // Steps award the configured routine-step XP instead of the default chore
     // XP (the chore XP hook honors this override field).
@@ -207,6 +209,7 @@ export async function materializeRoutineAssignment(
       recurrenceType: stringField(recurrence.recurrenceType),
       recurrenceInterval: integerField(recurrence.recurrenceInterval ?? 0),
       recurrenceUnit: stringField(recurrence.recurrenceUnit ?? ""),
+      recurrenceDays: stringArrayField(recurrence.recurrenceDays ?? []),
       createdAt: timestampField(now),
       updatedAt: timestampField(now),
     },
@@ -412,9 +415,15 @@ async function finalizeRoutineCompletion(input: {
       recurrenceType: assignment.recurrenceType,
       recurrenceInterval: assignment.recurrenceInterval,
       recurrenceUnit: assignment.recurrenceUnit,
+      recurrenceDays: assignment.recurrenceDays,
     };
     const today = now.slice(0, 10);
-    const nextDueDate = nextRecurringDueDate(assignment.dueDate, recurrence, today);
+    // Advance from the completion date, not the assignment's (possibly stale)
+    // dueDate, mirroring how recurring chores clone on completion
+    // (see complete.ts). Basing on assignment.dueDate spawns a same-day
+    // occurrence whenever a routine is completed late: e.g. a daily routine
+    // due yesterday + 1 day = today.
+    const nextDueDate = nextRecurringDueDate(today, recurrence, today);
     try {
       await materializeRoutineAssignment({
         familyId,

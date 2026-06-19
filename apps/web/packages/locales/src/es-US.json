@@ -39,7 +39,8 @@
       "retry": "Intentar de nuevo",
       "save": "Guardar",
       "start": "Comenzar",
-      "saving": "Guardando…"
+      "saving": "Guardando…",
+      "done": "Listo"
     },
     "labels": {
       "default": "predeterminado",
@@ -454,7 +455,8 @@
       "needsApproval": "Necesitan aprobacion",
       "completed": "Completadas",
       "open": "Activas",
-      "recurring": "Recurrentes"
+      "recurring": "Recurrentes",
+      "future": "Proximas"
     },
     "sort": {
       "title": "Titulo",
@@ -1440,7 +1442,37 @@
       "unitLabel": "Unidad",
       "unitDays": "Días",
       "unitWeeks": "Semanas",
-      "unitMonths": "Meses"
+      "unitMonths": "Meses",
+      "unitDay": "Dia",
+      "unitWeek": "Semana",
+      "unitMonth": "Mes",
+      "customTitle": "Recurrencia personalizada",
+      "repeatEvery": "Repetir cada",
+      "everySummary": "Cada {count} {unit}",
+      "editCustom": "Editar repeticion personalizada",
+      "repeatOn": "Repetir el",
+      "everyWeekdaySummary": "Cada {days}",
+      "everyIntervalWeeksOnSummary": "Cada {count} semanas el {days}",
+      "weekdaysLabel": "dia de semana",
+      "daysLabel": "dia",
+      "weekdays": {
+        "sun": "domingo",
+        "mon": "lunes",
+        "tue": "martes",
+        "wed": "miercoles",
+        "thu": "jueves",
+        "fri": "viernes",
+        "sat": "sabado"
+      },
+      "weekdaysShort": {
+        "sun": "D",
+        "mon": "L",
+        "tue": "M",
+        "wed": "M",
+        "thu": "J",
+        "fri": "V",
+        "sat": "S"
+      }
     }
   },
   "responsibility": {

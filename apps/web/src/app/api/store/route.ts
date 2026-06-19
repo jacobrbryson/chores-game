@@ -43,6 +43,7 @@ import { emitFamilyActivity } from "@/lib/notifications/events";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { trackAchievementEvent } from "@/lib/achievements/service";
 import { buildOwnedItemsSummary } from "@/lib/items/owned-items";
+import { recordOperationMetric } from "@/lib/observability/metrics";
 
 type StoreActionBody = {
   action?: unknown;
@@ -483,6 +484,7 @@ export async function GET(request: NextRequest) {
 
   const brief = request.nextUrl.searchParams.get("brief") === "1";
 
+  const operationStartedAt = Date.now();
   try {
     const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
@@ -524,11 +526,26 @@ export async function GET(request: NextRequest) {
     if (shouldSetSessionCookie) {
       setSessionUserCookie(response, nextSession);
     }
+    void recordOperationMetric({
+      area: "store",
+      operation: brief ? "summary_brief" : "summary",
+      durationMs: Date.now() - operationStartedAt,
+      status: "ok",
+      userId: session.uid,
+    });
     return response;
   } catch (error) {
     const reason =
       error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
     console.error("[STORE_GET_ERROR]", reason);
+    void recordOperationMetric({
+      area: "store",
+      operation: brief ? "summary_brief" : "summary",
+      durationMs: Date.now() - operationStartedAt,
+      status: "error",
+      errorCode: reason,
+      userId: session.uid,
+    });
     return mapCommonFirestoreErrors(reason, "store_unavailable");
   }
 }

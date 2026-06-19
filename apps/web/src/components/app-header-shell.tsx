@@ -63,7 +63,13 @@ export function AppHeaderShell({
             </div>
             <div className="nav-links nav-links-guest">
               {googleClientId && gsiLoginUri ? (
-                <GoogleSignInButton mode="gsi" clientId={googleClientId} loginUri={gsiLoginUri} />
+                <GoogleSignInButton
+                  mode="gsi"
+                  clientId={googleClientId}
+                  loginUri={gsiLoginUri}
+                  width={200}
+                  wrapperClassName="google-signin-wrap nav-google-signin"
+                />
               ) : (
                 <p className="small nav-config-note">
                   Google sign-in is not configured. Set `NEXT_PUBLIC_APP_URL` and Google client IDs.

@@ -326,6 +326,7 @@ export type MobileFamilyChore = {
   recurrenceType?: string;
   recurrenceInterval?: number;
   recurrenceUnit?: string;
+  recurrenceDays?: string[];
   source?: "manual" | "google_tasks";
   createdAt?: string;
   // Routine linkage: set when this chore is a materialized step of a routine
@@ -801,6 +802,9 @@ export async function fetchMobileChore(choreId: string): Promise<MobileChoreDeta
     recurrenceType: typeof chore.recurrenceType === "string" ? chore.recurrenceType : undefined,
     recurrenceInterval: typeof chore.recurrenceInterval === "number" ? chore.recurrenceInterval : undefined,
     recurrenceUnit: typeof chore.recurrenceUnit === "string" ? chore.recurrenceUnit : undefined,
+    recurrenceDays: Array.isArray(chore.recurrenceDays)
+      ? chore.recurrenceDays.filter((value: unknown) => typeof value === "string")
+      : [],
     source: chore.source === "google_tasks" ? "google_tasks" : "manual",
     createdAt: typeof chore.createdAt === "string" ? chore.createdAt : undefined,
   };

@@ -19,6 +19,7 @@ import {
   mapNotificationKindToFeedType,
   type FeedEventType,
 } from "@/lib/feed/feed-events";
+import { recordOperationMetric } from "@/lib/observability/metrics";
 
 const MAX_PAGE_SIZE = 50;
 const DEFAULT_PAGE_SIZE = 20;
@@ -206,6 +207,7 @@ export async function GET(request: NextRequest) {
   const requestedLimit = parsePositiveInt(searchParams.get("limit"), DEFAULT_PAGE_SIZE);
   const pageSize = Math.min(MAX_PAGE_SIZE, requestedLimit);
 
+  const operationStartedAt = Date.now();
   try {
     const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
       session,
@@ -295,10 +297,31 @@ export async function GET(request: NextRequest) {
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);
     }
+    void recordOperationMetric({
+      area: "feed",
+      operation: "list",
+      durationMs: Date.now() - operationStartedAt,
+      status: "ok",
+      resultCount: data.items.length,
+      requestedLimit: pageSize,
+      hasNextPage: data.pagination.hasMore,
+      cursorConsumed: true,
+      userId: session.uid,
+      metadata: { page: data.pagination.page, total: data.pagination.total },
+    });
     return response;
   } catch (error) {
     const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
     console.error("[FEED_GET_ERROR]", reason);
+    void recordOperationMetric({
+      area: "feed",
+      operation: "list",
+      durationMs: Date.now() - operationStartedAt,
+      status: "error",
+      errorCode: reason,
+      requestedLimit: pageSize,
+      userId: session.uid,
+    });
     return mapCommonFirestoreErrors(reason);
   }
 }

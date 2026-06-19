@@ -92,9 +92,9 @@ function makeRequest(body: unknown, headers: Record<string, string> = {}) {
 const session = {
   uid: "user-1",
   memberId: "member-1",
-  role: "player",
-  name: "Kid One",
-  email: "kid@example.com",
+  role: "admin",
+  name: "Parent One",
+  email: "parent@example.com",
   firebaseIdToken: "id-token",
   firebaseRefreshToken: "refresh-token",
 };
@@ -166,6 +166,35 @@ describe("POST /api/support/requests", () => {
     const res = await POST(makeRequest({ type: "feature", subject: "x", description: "y" }));
     expect(res.status).toBe(401);
     expect((await res.json()).error).toBe("reauth_required");
+  });
+
+  it("rejects non-admin (player / switched-in child) acting identities", async () => {
+    mockGetSessionFromRequest.mockReturnValue({ ...session, role: "player" });
+    const res = await POST(makeRequest({ type: "feature", subject: "x", description: "y" }));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("admin_required");
+    expect(mockCreateOrReplaceDocument).not.toHaveBeenCalled();
+  });
+
+  it("acts as the authenticated admin even while switched into a child profile", async () => {
+    // Switched session: current identity is the child, but the preserved
+    // auth* identity (and Firebase token) belong to the parent admin.
+    mockGetSessionFromRequest.mockReturnValue({
+      ...session,
+      uid: "child-1",
+      memberId: "child-member-1",
+      role: "player",
+      authUid: "user-1",
+      authMemberId: "member-1",
+      authRole: "admin",
+      authName: "Parent One",
+      authEmail: "parent@example.com",
+    });
+    const res = await POST(makeRequest({ type: "feature", subject: "x", description: "y" }));
+    expect(res.status).toBe(201);
+    const [, fields] = mockCreateOrReplaceDocument.mock.calls[0];
+    expect(fields.createdByUid).toEqual({ stringValue: "user-1" });
+    expect(fields.createdByMemberId).toEqual({ stringValue: "member-1" });
   });
 
   it("rejects an invalid type", async () => {

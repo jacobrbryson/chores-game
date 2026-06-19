@@ -19,7 +19,6 @@ export default function robots(): MetadataRoute.Robots {
           "/community/",
           "/docs/",
           "/family/",
-          "/my-requests/",
           "/notifications/",
           "/onboarding/",
           "/profile/",

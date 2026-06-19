@@ -36,6 +36,7 @@ type AssignRoutineBody = {
   recurrenceType?: unknown;
   recurrenceInterval?: unknown;
   recurrenceUnit?: unknown;
+  recurrenceDays?: unknown;
   completionBonusCoins?: unknown;
   // The (possibly customized) step list for this assignment. Optional — when
   // omitted, the saved template steps are used as-is.
@@ -91,6 +92,7 @@ export async function POST(
     recurrenceType: body.recurrenceType,
     recurrenceInterval: body.recurrenceInterval,
     recurrenceUnit: body.recurrenceUnit,
+    recurrenceDays: body.recurrenceDays,
   });
   const updateRoutine = body.updateRoutine === true;
   const customCompletionBonusCoins =

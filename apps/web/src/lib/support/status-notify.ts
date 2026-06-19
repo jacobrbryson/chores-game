@@ -85,6 +85,25 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
+// Accent colors for the "new status" badge, mirroring the in-app status tones.
+// Each entry is [text, background, border]. Anything unmapped falls back to slate.
+const STATUS_BADGE_COLORS: Partial<Record<SupportRequestStatus, [string, string, string]>> = {
+  planned: ["#3730a3", "#eef2ff", "#c7d2fe"],
+  in_progress: ["#1d4ed8", "#eff6ff", "#bfdbfe"],
+  released: ["#166534", "#f0fdf4", "#bbf7d0"],
+  done: ["#166534", "#f0fdf4", "#bbf7d0"],
+  needs_info: ["#9a3412", "#fff7ed", "#fed7aa"],
+  declined: ["#9f1239", "#fff1f2", "#fecdd3"],
+  duplicate: ["#9f1239", "#fff1f2", "#fecdd3"],
+  cancelled: ["#9f1239", "#fff1f2", "#fecdd3"],
+  closed: ["#334155", "#f1f5f9", "#e2e8f0"],
+};
+
+function renderStatusBadge(status: SupportRequestStatus) {
+  const [text, background, border] = STATUS_BADGE_COLORS[status] ?? ["#334155", "#f1f5f9", "#e2e8f0"];
+  return `<span style="display:inline-block;padding:4px 12px;border-radius:999px;font-size:13px;font-weight:700;color:${text};background:${background};border:1px solid ${border};">${escapeHtml(statusLabel(status))}</span>`;
+}
+
 async function sendReporterEmail(input: StatusChangeNotifyInput) {
   if (!input.reporterEmail) {
     return;
@@ -93,6 +112,8 @@ async function sendReporterEmail(input: StatusChangeNotifyInput) {
   const origin = getCanonicalAppOrigin();
   const summary = buildSummaryLine(input);
   const link = `${origin}/support`;
+  const heroImageUrl = `${origin}/emails/updated-feature.png`;
+  const typeLabel = input.type.charAt(0).toUpperCase() + input.type.slice(1);
 
   const textLines = [
     summary,
@@ -105,11 +126,41 @@ async function sendReporterEmail(input: StatusChangeNotifyInput) {
   }
   textLines.push("", `View your requests: ${link}`);
 
-  const html = `<!doctype html><html><body style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;">
-  <p style="font-size:16px;margin:0 0 12px;">${escapeHtml(summary)}</p>
-  ${input.publicMessage ? `<p style="white-space:pre-wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">${escapeHtml(input.publicMessage)}</p>` : ""}
-  <p style="margin-top:16px;"><a href="${escapeHtml(link)}" style="color:#2563eb;">View your requests &rarr;</a></p>
-  </body></html>`;
+  const html = `<!doctype html>
+<html lang="en">
+  <body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
+    <div style="max-width:640px;margin:0 auto;padding:24px;">
+      <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#0f766e,#1d4ed8);padding:28px 24px;color:#ffffff;">
+          <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.88;">Family Chores</div>
+          <h1 style="margin:10px 0 8px;font-size:28px;line-height:1.2;">${escapeHtml(typeLabel)} update</h1>
+          <p style="margin:0;font-size:16px;line-height:1.5;">${escapeHtml(summary)}</p>
+        </div>
+        <img src="${escapeHtml(heroImageUrl)}" width="592" alt="" style="display:block;width:100%;max-width:100%;height:auto;border:0;" />
+        <div style="padding:24px;">
+          <div style="padding:16px;border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0;">
+            <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#475569;">Status</div>
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:10px;border-collapse:collapse;"><tr>
+              <td style="vertical-align:middle;color:#94a3b8;font-size:13px;text-decoration:line-through;">${escapeHtml(statusLabel(input.previousStatus))}</td>
+              <td style="vertical-align:middle;padding:0 10px;color:#94a3b8;font-size:16px;">&rarr;</td>
+              <td style="vertical-align:middle;">${renderStatusBadge(input.nextStatus)}</td>
+            </tr></table>
+          </div>
+          ${input.publicMessage ? `<div style="margin-top:22px;padding:16px;border-radius:16px;background:#fff7ed;border:1px solid #fed7aa;">
+            <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#9a3412;">A note from the team</div>
+            <p style="margin:8px 0 0;line-height:1.6;color:#7c2d12;white-space:pre-wrap;">${escapeHtml(input.publicMessage)}</p>
+          </div>` : ""}
+          <div style="margin-top:24px;">
+            <a href="${escapeHtml(link)}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:999px;font-weight:700;">View your requests</a>
+          </div>
+        </div>
+        <div style="padding:18px 24px;border-top:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:13px;line-height:1.6;">
+          <div>Family Chores · Support</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>`;
 
   await provider.send({
     to: [input.reporterEmail],

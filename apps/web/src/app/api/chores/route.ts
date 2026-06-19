@@ -30,6 +30,7 @@ import { GOOGLE_TASKS_CHORE_SOURCE, syncGoogleTasksForUser } from "@/lib/google/
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
 import {
   type ChoreRecurrenceType,
+  type ChoreRecurrenceWeekday,
   type ChoreRecurrenceUnit,
   normalizeCoinValue,
   normalizeRecurrenceConfig,
@@ -52,6 +53,22 @@ import {
   normalizeResponsibilityPillar,
   type ResponsibilityPillar,
 } from "@/lib/responsibility/types";
+import { recordOperationMetric } from "@/lib/observability/metrics";
+import {
+  jsonReauthRequired,
+  jsonUnauthorized,
+  mapCommonFirestoreErrors,
+} from "@/lib/chores/http-responses";
+import {
+  asDateOrToday,
+  normalizeAssigneeIds,
+  normalizeDescription,
+  normalizeEmail,
+  parseNewSkillEnabled,
+  readOptionalSortOrder,
+} from "@/lib/chores/input";
+import { getPrimaryFamilyId, getViewerRole, isRequesterAssignee } from "@/lib/chores/access";
+import { countActiveChoresForAssignee, getFamilyMemberName } from "@/lib/chores/assignees";
 
 type CreateChoresBody = {
   description?: unknown;
@@ -69,6 +86,7 @@ type CreateChoresBody = {
   recurrenceType?: unknown;
   recurrenceInterval?: unknown;
   recurrenceUnit?: unknown;
+  recurrenceDays?: unknown;
   responsibilityPillar?: unknown;
 };
 
@@ -102,6 +120,7 @@ type ChoreRow = {
   recurrenceType: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: ChoreRecurrenceUnit;
+  recurrenceDays?: ChoreRecurrenceWeekday[];
   responsibilityPillar?: ResponsibilityPillar;
   routineAssignmentId?: string;
   routineId?: string;
@@ -151,114 +170,12 @@ type CompletionWindowRange = {
 const MINUTE_MILLIS = 60 * 1000;
 const MAX_TIMEZONE_OFFSET_MINUTES = 14 * 60;
 
-function jsonUnauthorized() {
-  return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-}
-
-function jsonReauthRequired() {
-  return NextResponse.json(
-    {
-      error: "reauth_required",
-      message: "Please sign out and sign in again to refresh your session.",
-    },
-    { status: 401 },
-  );
-}
-
-function jsonFirestoreForbidden() {
-  return NextResponse.json(
-    {
-      error: "firestore_forbidden",
-      message:
-        "Authenticated user does not have access to Firestore documents under current rules.",
-    },
-    { status: 403 },
-  );
-}
-
 function toUnixMillis(value?: string) {
   if (!value) {
     return 0;
   }
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function readOptionalSortOrder(
-  fields: Record<string, FirestoreValue> | undefined,
-) {
-  const value = fields?.sortOrder;
-  if (!value) {
-    return undefined;
-  }
-  const raw =
-    "integerValue" in value
-      ? value.integerValue
-      : "stringValue" in value
-        ? value.stringValue
-        : "";
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed)) {
-    return undefined;
-  }
-  const normalized = Math.floor(parsed);
-  if (normalized < 0) {
-    return undefined;
-  }
-  return normalized;
-}
-
-function asDateOrToday(value: unknown) {
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return value;
-  }
-  return new Date().toISOString().slice(0, 10);
-}
-
-function normalizeDescription(value: string) {
-  return value.trim().replace(/\s+/g, " ");
-}
-
-function normalizeEmail(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function parseNewSkillEnabled(value: unknown) {
-  if (typeof value === "boolean") {
-    return value;
-  }
-  return true;
-}
-
-function normalizeAssigneeIds(value: unknown) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const seen = new Set<string>();
-  const normalized: string[] = [];
-  for (const entry of value) {
-    if (typeof entry !== "string") {
-      continue;
-    }
-    const trimmed = entry.trim();
-    if (!trimmed || seen.has(trimmed)) {
-      continue;
-    }
-    seen.add(trimmed);
-    normalized.push(trimmed);
-  }
-  return normalized;
-}
-
-function isRequesterAssignee(assigneeId: string, uid: string, memberId: string, email: string) {
-  if (!assigneeId) {
-    return false;
-  }
-  if (assigneeId === uid || assigneeId === memberId) {
-    return true;
-  }
-  const normalizedEmail = normalizeEmail(email);
-  return Boolean(normalizedEmail) && normalizeEmail(assigneeId) === normalizedEmail;
 }
 
 function usageKey(value: string) {
@@ -269,59 +186,6 @@ function usageKey(value: string) {
     .replace(/\s+/g, "-")
     .slice(0, 80);
   return key || "misc";
-}
-
-async function getPrimaryFamilyId(uid: string, idToken: string) {
-  const userDoc = await getDocument(`users/${uid}`, idToken);
-  return readStringArray(userDoc.fields, "familyIds")[0] ?? "";
-}
-
-async function getFamilyMemberName(
-  familyId: string,
-  memberId: string,
-  idToken: string,
-) {
-  try {
-    const memberDoc = await getDocument(`families/${familyId}/members/${memberId}`, idToken);
-    return readString(memberDoc.fields, "name") || UNKNOWN_ASSIGNEE_NAME;
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "";
-    if (reason.includes("FIRESTORE_HTTP_404")) {
-      return UNKNOWN_ASSIGNEE_NAME;
-    }
-    throw error;
-  }
-}
-
-async function getViewerRole(
-  familyId: string,
-  uid: string,
-  idToken: string,
-): Promise<ViewerRole> {
-  try {
-    const memberDoc = await getDocument(`families/${familyId}/members/${uid}`, idToken);
-    if (readBoolean(memberDoc.fields, "deleted")) {
-      return "player";
-    }
-    return readString(memberDoc.fields, "role") === "admin" ? "admin" : "player";
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "";
-    if (!reason.includes("FIRESTORE_HTTP_404")) {
-      throw error;
-    }
-  }
-
-  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 200);
-  const memberByUid = memberDocs.find((doc) => {
-    if (readBoolean(doc.fields, "deleted")) {
-      return false;
-    }
-    return readString(doc.fields, "uid") === uid;
-  });
-  if (!memberByUid) {
-    return "player";
-  }
-  return readString(memberByUid.fields, "role") === "admin" ? "admin" : "player";
 }
 
 async function incrementUsageCount(
@@ -366,6 +230,12 @@ function normalizeChoreDoc(doc: {
   const source = sourceField === GOOGLE_TASKS_CHORE_SOURCE ? "google_tasks" : "manual";
   const assigneeIds = readStringArray(doc.fields, "assigneeIds");
   const assigneeScope = readString(doc.fields, "assigneeScope");
+  const recurrence = normalizeRecurrenceConfig({
+    recurrenceType: readString(doc.fields, "recurrenceType"),
+    recurrenceInterval: readInteger(doc.fields, "recurrenceInterval"),
+    recurrenceUnit: readString(doc.fields, "recurrenceUnit"),
+    recurrenceDays: readStringArray(doc.fields, "recurrenceDays"),
+  });
   return {
     id: documentIdFromName(doc.name),
     title,
@@ -397,14 +267,10 @@ function normalizeChoreDoc(doc: {
       doc.fields && Object.prototype.hasOwnProperty.call(doc.fields, "newSkillEnabled")
         ? readBoolean(doc.fields, "newSkillEnabled")
         : true,
-    recurrenceType: normalizeRecurrenceConfig({
-      recurrenceType: readString(doc.fields, "recurrenceType"),
-      recurrenceInterval: readInteger(doc.fields, "recurrenceInterval"),
-      recurrenceUnit: readString(doc.fields, "recurrenceUnit"),
-    }).recurrenceType,
-    recurrenceInterval: readInteger(doc.fields, "recurrenceInterval") || undefined,
-    recurrenceUnit:
-      (readString(doc.fields, "recurrenceUnit") as ChoreRecurrenceUnit | "") || undefined,
+    recurrenceType: recurrence.recurrenceType,
+    recurrenceInterval: recurrence.recurrenceInterval,
+    recurrenceUnit: recurrence.recurrenceUnit,
+    recurrenceDays: recurrence.recurrenceDays,
     responsibilityPillar:
       normalizeResponsibilityPillar(readString(doc.fields, "responsibilityPillar")) || undefined,
     routineAssignmentId: readString(doc.fields, "routineAssignmentId") || undefined,
@@ -415,19 +281,6 @@ function normalizeChoreDoc(doc: {
     deleted: readBoolean(doc.fields, "deleted"),
     createdAt: readTimestamp(doc.fields, "createdAt") || undefined,
   };
-}
-
-function mapCommonFirestoreErrors(reason: string) {
-  if (reason.includes("FIRESTORE_HTTP_401")) {
-    return jsonReauthRequired();
-  }
-  if (reason.includes("FIREBASE_REFRESH_FAILED")) {
-    return jsonReauthRequired();
-  }
-  if (reason.includes("FIRESTORE_HTTP_403")) {
-    return jsonFirestoreForbidden();
-  }
-  return null;
 }
 
 function parsePositiveInt(value: string | null, fallback: number) {
@@ -457,29 +310,6 @@ function paginate<T>(rows: T[], page: number, pageSize: number) {
     page: safePage,
     pageSize,
   };
-}
-
-async function countActiveChoresForAssignee(
-  familyId: string,
-  assigneeId: string,
-  idToken: string,
-) {
-  if (!assigneeId) {
-    return 0;
-  }
-  const docs = await listAllDocuments(`families/${familyId}/chores`, idToken, {
-    cap: MAX_CHORE_ARCHIVE,
-  });
-  return docs.filter((doc) => {
-    if (readBoolean(doc.fields, "deleted")) {
-      return false;
-    }
-    const status = readString(doc.fields, "status");
-    if (status !== "Open") {
-      return false;
-    }
-    return readString(doc.fields, "assigneeId") === assigneeId;
-  }).length;
 }
 
 function parseSortBy(value: string | null): ChoreSortBy {
@@ -1046,6 +876,7 @@ export async function GET(request: NextRequest) {
   const completionWindowRange = completionWindow
     ? getCompletionWindowRange(completionWindow, timezoneOffsetMinutes)
     : null;
+  const operationStartedAt = Date.now();
   try {
     const { data, session: refreshedSession, refreshed } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
@@ -1315,6 +1146,7 @@ export async function GET(request: NextRequest) {
             recurrenceType: doc.recurrenceType,
             recurrenceInterval: doc.recurrenceInterval,
             recurrenceUnit: doc.recurrenceUnit,
+            recurrenceDays: doc.recurrenceDays,
             responsibilityPillar: doc.responsibilityPillar,
             routineAssignmentId: doc.routineAssignmentId,
             routineId: doc.routineId,
@@ -1354,11 +1186,40 @@ export async function GET(request: NextRequest) {
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);
     }
+    const choresPagination = "pagination" in data ? data.pagination : undefined;
+    void recordOperationMetric({
+      area: "chores",
+      operation: "list",
+      durationMs: Date.now() - operationStartedAt,
+      status: "ok",
+      resultCount: data.chores.length,
+      requestedLimit: pageSize,
+      // The route returns full pagination metadata to its caller, so the cursor
+      // is "consumed"; risk here is driven by result_count === page_size.
+      hasNextPage: choresPagination ? choresPagination.page < choresPagination.totalPages : false,
+      cursorConsumed: true,
+      familyId: data.familyId,
+      userId: session.uid,
+      metadata: {
+        page: choresPagination?.page ?? 1,
+        totalPages: choresPagination?.totalPages ?? 1,
+        total: choresPagination?.total ?? data.chores.length,
+      },
+    });
     return response;
   } catch (error) {
     const reason =
       error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
     console.error("[CHORES_LIST_ERROR]", reason);
+    void recordOperationMetric({
+      area: "chores",
+      operation: "list",
+      durationMs: Date.now() - operationStartedAt,
+      status: "error",
+      errorCode: reason,
+      requestedLimit: pageSize,
+      userId: session.uid,
+    });
     const mapped = mapCommonFirestoreErrors(reason);
     if (mapped) {
       return mapped;
@@ -1530,6 +1391,7 @@ export async function POST(request: NextRequest) {
     recurrenceType: body.recurrenceType,
     recurrenceInterval: body.recurrenceInterval,
     recurrenceUnit: body.recurrenceUnit,
+    recurrenceDays: body.recurrenceDays,
   });
   const descriptionFromSingle =
     typeof body.description === "string" ? normalizeDescription(body.description) : "";
@@ -1567,6 +1429,7 @@ export async function POST(request: NextRequest) {
           familyId,
           session.memberId || session.uid,
           idToken,
+          UNKNOWN_ASSIGNEE_NAME,
         );
 
         const [existingDocs, categories] = await Promise.all([
@@ -1614,7 +1477,7 @@ export async function POST(request: NextRequest) {
               : finalSingleAssigneeId
                 ? resolvedForPlayer
                   ? requesterMemberName
-                  : await getFamilyMemberName(familyId, finalSingleAssigneeId, idToken)
+                  : await getFamilyMemberName(familyId, finalSingleAssigneeId, idToken, UNKNOWN_ASSIGNEE_NAME)
                 : UNKNOWN_ASSIGNEE_NAME;
         if (finalSingleAssigneeId) {
           const activeChoreCount = await countActiveChoresForAssignee(
@@ -1654,6 +1517,7 @@ export async function POST(request: NextRequest) {
                 recurrenceType: stringField(recurrence.recurrenceType),
                 recurrenceInterval: integerField(recurrence.recurrenceInterval ?? 0),
                 recurrenceUnit: stringField(recurrence.recurrenceUnit ?? ""),
+                recurrenceDays: stringArrayField(recurrence.recurrenceDays ?? []),
                 responsibilityPillar: stringField(responsibilityPillar),
                 deleted: boolField(false),
                 createdBy: stringField(session.uid),

@@ -15,6 +15,7 @@ import {
   RoutineBadgeIcon,
   RoutineProgressDialog,
 } from "@/components/routine-progress-dialog";
+import { recurrenceShortLabel } from "@/lib/chores/recurrence";
 import type { FamilySnapshotChore } from "@/lib/family/types";
 import { RESPONSIBILITY_PILLAR_EMOJI } from "@/lib/responsibility/types";
 import { shouldHideChoreCoinValue } from "@packages/core";
@@ -226,22 +227,12 @@ export function TodayChoreCard({
       return t("dashboard.recurrenceInstant");
     }
     if (type === "custom") {
-      const interval = Math.max(1, chore.recurrenceInterval ?? 2);
-      const unit = chore.recurrenceUnit ?? "day";
-      if (interval === 1) {
-        return unit === "day"
-          ? t("dashboard.recurrenceDaily")
-          : unit === "week"
-            ? t("dashboard.recurrenceWeekly")
-            : t("dashboard.recurrenceMonthly");
-      }
-      const unitLabel =
-        unit === "day"
-          ? t("dashboard.recurrenceUnitDays")
-          : unit === "week"
-            ? t("dashboard.recurrenceUnitWeeks")
-            : t("dashboard.recurrenceUnitMonths");
-      return t("dashboard.recurrenceEvery", { count: String(interval), unit: unitLabel });
+      return recurrenceShortLabel({
+        recurrenceType: "custom",
+        recurrenceInterval: chore.recurrenceInterval,
+        recurrenceUnit: chore.recurrenceUnit,
+        recurrenceDays: chore.recurrenceDays,
+      });
     }
     return t("dashboard.recurrenceCustom");
   }
@@ -347,6 +338,7 @@ export function TodayChoreCard({
           recurrenceType: chore.recurrenceType,
           recurrenceInterval: chore.recurrenceInterval,
           recurrenceUnit: chore.recurrenceUnit,
+          recurrenceDays: chore.recurrenceDays,
         }}
         onSaved={onEdited}
         open={editDialogOpen}

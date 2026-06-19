@@ -117,7 +117,7 @@ describe("PATCH /api/chores/[choreId] complete payout", () => {
     });
 
     mockGetDocument.mockImplementation(async (path: string) => {
-      if (path === "users/admin-uid") {
+      if (path === "users/admin-uid" || path === "users/player-uid") {
         return { fields: { familyIds: ["family-1"] } };
       }
       if (path === "families/family-1/chores/chore-1") {
@@ -226,7 +226,7 @@ describe("PATCH /api/chores/[choreId] complete payout", () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockSyncGoogleTasksForUser.mockRejectedValueOnce(new Error("fetch failed"));
     mockGetDocument.mockImplementation(async (path: string) => {
-      if (path === "users/admin-uid") {
+      if (path === "users/admin-uid" || path === "users/player-uid") {
         return { fields: { familyIds: ["family-1"] } };
       }
       if (path === "families/family-1/chores/chore-1") {
@@ -292,7 +292,7 @@ describe("PATCH /api/chores/[choreId] complete payout", () => {
 
   it("auto-approves and pays out when an admin completes an approval-required chore", async () => {
     mockGetDocument.mockImplementation(async (path: string) => {
-      if (path === "users/admin-uid") {
+      if (path === "users/admin-uid" || path === "users/player-uid") {
         return { fields: { familyIds: ["family-1"] } };
       }
       if (path === "families/family-1/chores/chore-1") {

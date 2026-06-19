@@ -841,6 +841,7 @@ export async function GET(request: NextRequest) {
                 recurrenceType: readString(doc.fields, "recurrenceType"),
                 recurrenceInterval: readInteger(doc.fields, "recurrenceInterval"),
                 recurrenceUnit: readString(doc.fields, "recurrenceUnit"),
+                recurrenceDays: readStringArray(doc.fields, "recurrenceDays"),
               }),
               source:
                 readString(doc.fields, "source") === "google_tasks"
@@ -902,6 +903,7 @@ export async function GET(request: NextRequest) {
               recurrenceType: chore.recurrence.recurrenceType,
               recurrenceInterval: chore.recurrence.recurrenceInterval,
               recurrenceUnit: chore.recurrence.recurrenceUnit,
+              recurrenceDays: chore.recurrence.recurrenceDays,
               newSkillBonusEligible: chore.newSkillBonusEligible,
               newSkillBonusAmount: chore.newSkillBonusEligible
                 ? NEW_SKILL_BONUS_AMOUNT
