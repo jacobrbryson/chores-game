@@ -2515,6 +2515,314 @@ textarea:disabled {
   flex: 0 0 auto;
 }
 
+/* --- Athena-powered ghost chores --------------------------------------- */
+.ghost-suggestions-athena .ghost-suggestions-divider span {
+  color: #7c3aed;
+}
+
+.ghost-athena-tagline {
+  margin: -2px 0 6px;
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.ghost-chore-badge-athena {
+  color: #6d28d9;
+  background: linear-gradient(135deg, #ede9fe, #f5d0fe);
+}
+
+.ghost-chore-type-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #475569;
+  background: #eef2f7;
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.ghost-chore-meta-row {
+  margin-top: 2px;
+}
+
+.ghost-chore-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.ghost-chore-pill-easy {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+.ghost-chore-pill-medium {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+
+.ghost-chore-pill-hard {
+  color: #9f1239;
+  background: #ffe4e6;
+  border-color: #fecdd3;
+}
+
+.ghost-chore-pill-review {
+  color: #6d28d9;
+  background: #ede9fe;
+  border-color: #ddd6fe;
+}
+
+.ghost-chore-reason {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.ghost-chore-safety {
+  margin: 0;
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  padding: 6px 8px;
+  line-height: 1.4;
+}
+
+/* --- Athena thinking + reveal experience -------------------------------- */
+.athena-thinking-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 16px 18px;
+  text-align: center;
+}
+
+.athena-thinking-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 120px;
+}
+
+/* Avatar: glowing, breathing orb with a sparkle face. */
+.athena-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.athena-avatar-core {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #fff;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #8b5cf6, #d946ef);
+  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.35);
+}
+
+.athena-avatar-core svg {
+  width: 46%;
+  height: 46%;
+}
+
+.athena-avatar-glow {
+  position: absolute;
+  inset: -18%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(217, 70, 239, 0.45), rgba(139, 92, 246, 0) 70%);
+  z-index: 0;
+}
+
+.athena-avatar.is-thinking .athena-avatar-core {
+  animation: athena-breathe 3.2s ease-in-out infinite;
+}
+
+.athena-avatar.is-thinking .athena-avatar-glow {
+  animation: athena-glow-pulse 3.2s ease-in-out infinite;
+}
+
+.athena-avatar.is-thinking .athena-avatar-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: athena-blink 4.5s ease-in-out infinite;
+}
+
+.athena-avatar.is-celebrating .athena-avatar-core {
+  animation: athena-celebrate 0.9s ease-in-out;
+}
+
+@keyframes athena-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+@keyframes athena-glow-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.12); }
+}
+
+@keyframes athena-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.1); }
+}
+
+@keyframes athena-celebrate {
+  0% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(1.15) rotate(-6deg); }
+  60% { transform: scale(1.05) rotate(5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* Floating responsibility tokens (coins, stars, badges, pillar icons). */
+.athena-floaters {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.athena-floater {
+  position: absolute;
+  bottom: -10%;
+  left: calc((100% - 24px) * (var(--i) / (var(--n) - 1)));
+  font-size: 18px;
+  opacity: 0;
+  animation: athena-float-up 4.2s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.5s);
+}
+
+@keyframes athena-float-up {
+  0% { opacity: 0; transform: translateY(0) scale(0.8); }
+  15% { opacity: 0.9; }
+  80% { opacity: 0.5; }
+  100% { opacity: 0; transform: translateY(-120px) translateX(8px) scale(1.05) rotate(12deg); }
+}
+
+.athena-thought {
+  margin: 0;
+  min-height: 1.4em;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #6d28d9;
+}
+
+.athena-thought-animate {
+  animation: athena-thought-in 0.5s ease-out;
+}
+
+@keyframes athena-thought-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Reveal: Athena reacts, then cards arrive one at a time. */
+.athena-reveal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.athena-reveal-headline {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #6d28d9;
+  animation: athena-thought-in 0.4s ease-out;
+}
+
+.athena-reveal-animate {
+  animation: athena-card-reveal 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  position: relative;
+}
+
+.athena-reveal-animate::after {
+  content: "✨";
+  position: absolute;
+  top: -6px;
+  right: 8px;
+  font-size: 14px;
+  opacity: 0;
+  animation: athena-sparkle 0.9s ease-out 0.2s;
+}
+
+@keyframes athena-card-reveal {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes athena-sparkle {
+  0% { opacity: 0; transform: scale(0.4) rotate(-20deg); }
+  40% { opacity: 1; transform: scale(1.2) rotate(10deg); }
+  100% { opacity: 0; transform: scale(0.9) rotate(0deg); }
+}
+
+/* Empty / failure: Athena's encouraging voice. */
+.athena-fallback {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f5f3ff, #fdf4ff);
+  border: 1px solid #ede9fe;
+}
+
+.athena-fallback-animate {
+  animation: athena-thought-in 0.45s ease-out;
+}
+
+.athena-fallback-message {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #5b21b6;
+  line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .athena-avatar.is-thinking .athena-avatar-core,
+  .athena-avatar.is-thinking .athena-avatar-glow,
+  .athena-avatar.is-thinking .athena-avatar-eye,
+  .athena-avatar.is-celebrating .athena-avatar-core,
+  .athena-floater,
+  .athena-thought-animate,
+  .athena-reveal-headline,
+  .athena-reveal-animate,
+  .athena-reveal-animate::after,
+  .athena-fallback-animate {
+    animation: none;
+  }
+  .athena-floaters {
+    display: none;
+  }
+}
+
 .dashboard-onboarding-head {
   display: flex;
   align-items: flex-start;

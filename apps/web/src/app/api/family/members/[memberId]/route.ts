@@ -8,11 +8,14 @@ import {
   boolField,
   createOrReplaceDocument,
   getDocument,
+  integerField,
   patchDocument,
   stringField,
+  readInteger,
   readString,
   readStringArray,
   timestampField,
+  type FirestoreValue,
 } from "@/lib/firestore/rest";
 
 function jsonUnauthorized() {
@@ -62,10 +65,30 @@ export async function PATCH(
     return NextResponse.json({ error: "member_id_required" }, { status: 400 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { locale?: unknown };
-  const nextLocale = normalizeLocale(typeof body.locale === "string" ? body.locale : "");
-  if (!nextLocale) {
+  const body = (await request.json().catch(() => ({}))) as { locale?: unknown; birthYear?: unknown };
+
+  // Locale update (optional). When `locale` is present it must be valid.
+  const localeRequested = typeof body.locale === "string" && body.locale.length > 0;
+  const nextLocale = localeRequested ? normalizeLocale(body.locale as string) : null;
+  if (localeRequested && !nextLocale) {
     return NextResponse.json({ error: "invalid_locale" }, { status: 400 });
+  }
+
+  // Birth-year update (optional). `null` clears it; a number must be a plausible
+  // year. We deliberately store only the YEAR, never a full date of birth.
+  const birthYearRequested = Object.prototype.hasOwnProperty.call(body, "birthYear");
+  let nextBirthYear: number | null = null; // null => clear
+  if (birthYearRequested && body.birthYear !== null) {
+    const year = Number(body.birthYear);
+    const currentYear = new Date().getUTCFullYear();
+    if (!Number.isInteger(year) || year < 1900 || year > currentYear) {
+      return NextResponse.json({ error: "invalid_birth_year" }, { status: 400 });
+    }
+    nextBirthYear = year;
+  }
+
+  if (!localeRequested && !birthYearRequested) {
+    return NextResponse.json({ error: "nothing_to_update" }, { status: 400 });
   }
 
   try {
@@ -81,58 +104,88 @@ export async function PATCH(
           idToken,
         ).catch(async () => getDocument(`families/${familyId}/members/${session.uid}`, idToken));
         const requesterRole = readString(requesterMemberDoc.fields, "role");
+        const isAdmin = requesterRole === "admin";
         const targetDoc = await getDocument(`families/${familyId}/members/${memberId}`, idToken);
         const targetUid = readString(targetDoc.fields, "uid").trim();
         const currentLocale = readString(targetDoc.fields, "locale").trim();
+        const currentBirthYear = readInteger(targetDoc.fields, "birthYear");
         const isSelf = memberId === session.memberId || memberId === session.uid || targetUid === session.uid;
 
-        if (!isSelf && requesterRole !== "admin") {
+        // Locale: self or admin. Birth year: admin only (parents manage children).
+        if (localeRequested && !isSelf && !isAdmin) {
           return { kind: "not_allowed" as const };
         }
-        if (currentLocale === nextLocale) {
-          return { kind: "ok" as const, locale: nextLocale, targetUid };
+        if (birthYearRequested && !isAdmin) {
+          return { kind: "not_allowed" as const };
         }
 
         const now = new Date().toISOString();
-        await patchDocument(
-          `families/${familyId}/members/${memberId}`,
-          {
-            locale: stringField(nextLocale),
-            updatedAt: timestampField(now),
-          },
-          idToken,
-          ["locale", "updatedAt"],
-        );
-        if (targetUid) {
+        const memberPatch: Record<string, FirestoreValue> = {};
+        const memberMask: string[] = [];
+        let localeChanged = false;
+
+        if (nextLocale && currentLocale !== nextLocale) {
+          memberPatch.locale = stringField(nextLocale);
+          memberMask.push("locale");
+          localeChanged = true;
+        }
+        if (birthYearRequested) {
+          const desired = nextBirthYear ?? 0;
+          if (desired !== currentBirthYear) {
+            memberPatch.birthYear = integerField(desired);
+            memberMask.push("birthYear");
+          }
+        }
+
+        if (memberMask.length > 0) {
+          memberPatch.updatedAt = timestampField(now);
+          memberMask.push("updatedAt");
+          await patchDocument(`families/${familyId}/members/${memberId}`, memberPatch, idToken, memberMask);
+        }
+
+        if (localeChanged && targetUid) {
           await patchDocument(
             `users/${targetUid}`,
-            {
-              locale: stringField(nextLocale),
-              updatedAt: timestampField(now),
-            },
+            { locale: stringField(nextLocale!), updatedAt: timestampField(now) },
             idToken,
             ["locale", "updatedAt"],
           );
         }
-        if (!isSelf) {
+
+        if (localeChanged && !isSelf) {
           await writeAuditLogBestEffort({
             familyId,
             idToken,
             eventType: "member_locale_changed",
-            actor: {
-              uid: session.uid,
-              email: session.email,
-              name: session.name,
-              role: session.role,
-            },
+            actor: { uid: session.uid, email: session.email, name: session.name, role: session.role },
             userId: targetUid || memberId,
             source: "family_member_locale",
             previous: { locale: currentLocale || "" },
-            next: { locale: nextLocale },
+            next: { locale: nextLocale! },
             reason: "parent_changed_member_locale",
           });
         }
-        return { kind: "ok" as const, locale: nextLocale, targetUid };
+        if (memberMask.includes("birthYear")) {
+          await writeAuditLogBestEffort({
+            familyId,
+            idToken,
+            eventType: "member_birth_year_changed",
+            actor: { uid: session.uid, email: session.email, name: session.name, role: session.role },
+            userId: targetUid || memberId,
+            source: "family_member_birth_year",
+            previous: { birthYear: currentBirthYear || "" },
+            next: { birthYear: nextBirthYear ?? "" },
+            reason: "parent_changed_member_birth_year",
+          });
+        }
+
+        return {
+          kind: "ok" as const,
+          locale: localeChanged ? nextLocale ?? undefined : undefined,
+          localeChanged,
+          birthYear: birthYearRequested ? nextBirthYear : currentBirthYear || undefined,
+          targetUid,
+        };
       });
 
     if (data.kind === "family_not_found") {
@@ -143,10 +196,10 @@ export async function PATCH(
     }
 
     const nextSession =
-      data.targetUid && data.targetUid === session.uid
+      data.localeChanged && data.locale && data.targetUid && data.targetUid === session.uid
         ? { ...refreshedSession, locale: data.locale }
         : refreshedSession;
-    const response = NextResponse.json({ success: true, locale: data.locale });
+    const response = NextResponse.json({ success: true, locale: data.locale, birthYear: data.birthYear });
     if (refreshed || nextSession.locale !== refreshedSession.locale) {
       setSessionUserCookie(response, nextSession);
     }

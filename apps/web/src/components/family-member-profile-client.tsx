@@ -59,6 +59,7 @@ type FamilyMemberProfileResponse = {
     lastSignInAt?: string;
     avatarId?: string;
     avatarPhotoUrl?: string;
+    birthYear?: number;
   };
   theme: {
     name: string;
@@ -101,6 +102,9 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
   const [switchRequiresPinSetup, setSwitchRequiresPinSetup] = useState(false);
   const [localePending, setLocalePending] = useState(false);
   const [localeError, setLocaleError] = useState("");
+  const [birthYearInput, setBirthYearInput] = useState("");
+  const [birthYearPending, setBirthYearPending] = useState(false);
+  const [birthYearError, setBirthYearError] = useState("");
 
   const loadProfile = useCallback(async () => {
     setIsLoading(true);
@@ -126,6 +130,11 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
   useEffect(() => {
     void loadProfile();
   }, [loadProfile]);
+
+  // Keep the birth-year input in sync with the loaded value.
+  useEffect(() => {
+    setBirthYearInput(profile?.member.birthYear ? String(profile.member.birthYear) : "");
+  }, [profile?.member.birthYear]);
 
   const canManageThisMember = Boolean(
     profile &&
@@ -302,6 +311,47 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
     }
   }
 
+  async function onSaveBirthYear() {
+    if (!profile || birthYearPending) {
+      return;
+    }
+    const trimmed = birthYearInput.trim();
+    const nextBirthYear = trimmed === "" ? null : Number(trimmed);
+    if (nextBirthYear !== null && !Number.isInteger(nextBirthYear)) {
+      setBirthYearError(t("family.birthYearInvalid"));
+      return;
+    }
+    setBirthYearPending(true);
+    setBirthYearError("");
+    try {
+      const response = await fetch(`/api/family/members/${encodeURIComponent(profile.member.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ birthYear: nextBirthYear }),
+      });
+      const payload = (await response.json()) as { error?: string; birthYear?: number | null };
+      if (!response.ok) {
+        throw new Error(payload.error ?? `FAMILY_MEMBER_BIRTH_YEAR_HTTP_${response.status}`);
+      }
+      setProfile((current) =>
+        current
+          ? { ...current, member: { ...current.member, birthYear: nextBirthYear ?? undefined } }
+          : current,
+      );
+    } catch (errorValue) {
+      setBirthYearError(
+        t("family.birthYearError", { error: errorValue instanceof Error ? errorValue.message : "unknown" }),
+      );
+    } finally {
+      setBirthYearPending(false);
+    }
+  }
+
+  const derivedAge =
+    profile?.member.birthYear && profile.member.birthYear > 0
+      ? new Date().getUTCFullYear() - profile.member.birthYear
+      : null;
+
   return (
     <main className="family-page profile-page">
       {isLoading ? <p className="small">{t("family.memberProfileLoading")}</p> : null}
@@ -380,6 +430,40 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
                       {localeError ? <span className="profile-name-error">{localeError}</span> : null}
                     </dd>
                   </div>
+                  {profile.viewerRole === "admin" ? (
+                    <div>
+                      <dt>{t("family.birthYearLabel")}</dt>
+                      <dd>
+                        <div className="flex flex-col items-start gap-1.5 pb-1">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min={1900}
+                              max={new Date().getUTCFullYear()}
+                              className="h-10 w-[120px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+                              placeholder={t("family.birthYearPlaceholder")}
+                              aria-label={t("family.birthYearLabel")}
+                              value={birthYearInput}
+                              disabled={birthYearPending}
+                              onChange={(event) => setBirthYearInput(event.target.value)}
+                            />
+                            <Button
+                              type="button"
+                              className="btn btn-secondary h-10"
+                              disabled={birthYearPending || birthYearInput.trim() === (profile.member.birthYear ? String(profile.member.birthYear) : "")}
+                              onClick={() => void onSaveBirthYear()}>
+                              {birthYearPending ? t("family.birthYearSaving") : t("family.birthYearSave")}
+                            </Button>
+                          </div>
+                          <span className="small text-slate-500">
+                            {derivedAge !== null ? t("family.birthYearAge", { age: derivedAge }) : t("family.birthYearHelp")}
+                          </span>
+                          {birthYearError ? <span className="profile-name-error">{birthYearError}</span> : null}
+                        </div>
+                      </dd>
+                    </div>
+                  ) : null}
                   <div>
                     <dt>{t("family.statusColumn")}</dt>
                     <dd><EnumChip label={humanizeEnum(profile.member.status)} tone={profile.member.status === "active" ? "green" : "amber"} /></dd>

@@ -93,6 +93,11 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
   const [switching, setSwitching] = React.useState(false);
   const [completedIds, setCompletedIds] = React.useState<Record<string, true>>({});
   const [pendingIds, setPendingIds] = React.useState<Record<string, true>>({});
+  // Synchronous re-entrancy guard for completions. `pendingIds` is React state
+  // and isn't flushed before a fast double-tap re-fires onPress, which would
+  // submit the same chore twice (the second hits an already-completed chore and
+  // the server returns invalid_status_transition). A ref updates immediately.
+  const completingRef = React.useRef<Set<string>>(new Set());
 
   const [exitOpen, setExitOpen] = React.useState(false);
   const [pin, setPin] = React.useState("");
@@ -127,8 +132,15 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
     burstTimer.current = setTimeout(() => setCelebrating(false), CONFETTI_DURATION_MS + 100);
   }
 
-  const load = React.useCallback(async () => {
-    setLoading(true);
+  // `background` refreshes (WS activity, the 30s tick, app foreground) update the
+  // data silently: they must not toggle the full-screen spinner — that flashes
+  // the whole list and, via the all-done effect below, re-fires the celebration
+  // every refresh once a player is done.
+  const load = React.useCallback(async (options?: { background?: boolean }) => {
+    const background = options?.background ?? false;
+    if (!background) {
+      setLoading(true);
+    }
     setLoadError("");
     try {
       const [status, summary] = await Promise.all([
@@ -153,7 +165,24 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
         .filter((entry): entry is RosterMember => entry !== null);
       setMembers(summary.members);
       setRoster(rosterMembers);
-      setAllChores(summary.choresToday.filter((chore) => chore.status === "Open"));
+      const openChores = summary.choresToday.filter((chore) => chore.status === "Open");
+      setAllChores(openChores);
+      // Self-heal optimistic completions: once a chore is no longer Open
+      // server-side the completion landed, so drop its id. Chores still Open
+      // stay hidden to bridge the gap until the next refresh reflects them.
+      const openIds = new Set(openChores.map((chore) => chore.id));
+      setCompletedIds((current) => {
+        let changed = false;
+        const next: Record<string, true> = {};
+        for (const id of Object.keys(current)) {
+          if (openIds.has(id)) {
+            next[id] = true;
+          } else {
+            changed = true;
+          }
+        }
+        return changed ? next : current;
+      });
       setCoinsByMember(
         Object.fromEntries(summary.members.map((m) => [m.id, m.stats?.currentCoins ?? 0])),
       );
@@ -171,9 +200,15 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
       );
       setActiveId((current) => current || viewerMember?.id || rosterMembers[0]?.id || "");
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "kiosk_chores_unavailable");
+      // A failed background refresh keeps the cached kiosk state silently; only
+      // the initial load surfaces an error.
+      if (!background) {
+        setLoadError(error instanceof Error ? error.message : "kiosk_chores_unavailable");
+      }
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -186,7 +221,7 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
       clearTimeout(refreshTimer.current);
     }
     refreshTimer.current = setTimeout(() => {
-      void load().catch(() => {
+      void load({ background: true }).catch(() => {
         // Keep the cached kiosk state if a background refresh fails.
       });
     }, 120);
@@ -289,9 +324,10 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
   }
 
   async function onComplete(chore: MobileFamilyChore) {
-    if (pendingIds[chore.id] || switching) {
+    if (completingRef.current.has(chore.id) || switching) {
       return;
     }
+    completingRef.current.add(chore.id);
     setActionError("");
     setPendingIds((current) => ({ ...current, [chore.id]: true }));
     setCompletedIds((current) => ({ ...current, [chore.id]: true }));
@@ -306,18 +342,21 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
         }));
       }
     } catch (error) {
-      // Revert the optimistic removal.
-      setCompletedIds((current) => {
-        const next = { ...current };
-        delete next[chore.id];
-        return next;
-      });
-      setActionError(
-        t("kiosk.completeError", {
-          error: error instanceof Error ? error.message : "complete_chore_failed",
-        }),
-      );
+      const code = error instanceof Error ? error.message : "complete_chore_failed";
+      // A stale or duplicate tap can race the server: the chore is already
+      // completed, so the transition is rejected. That's effectively success —
+      // keep it hidden rather than reverting and showing a confusing error.
+      if (code !== "invalid_status_transition") {
+        // Revert the optimistic removal.
+        setCompletedIds((current) => {
+          const next = { ...current };
+          delete next[chore.id];
+          return next;
+        });
+        setActionError(t("kiosk.completeError", { error: code }));
+      }
     } finally {
+      completingRef.current.delete(chore.id);
       setPendingIds((current) => {
         const next = { ...current };
         delete next[chore.id];

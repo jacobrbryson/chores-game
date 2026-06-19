@@ -80,25 +80,44 @@ export function getDiscoverySectionCount(summary: MobileDiscoverySummary, sectio
   return 0;
 }
 
+export type MobileGhostAthenaMeta = {
+  difficulty: "easy" | "medium" | "hard";
+  estimatedMinutes: number | null;
+  suggestionType: "repeat" | "next_step" | "skill_building" | "novelty";
+  reason: string;
+  confidence: number;
+  requiresParentReview: boolean;
+  safetyNotes: string | null;
+  categoryLabel: string | null;
+  pillar: string | null;
+};
+
 export type MobileGhostSuggestion = {
   id: string;
   suggestedTitle: string;
   suggestedDescription: string;
   suggestedCoinValue: number;
   source: string;
+  athena?: MobileGhostAthenaMeta;
 };
 
 export async function fetchMobileGhostSuggestions(): Promise<{
   suggestions: MobileGhostSuggestion[];
   eligible: boolean;
+  viewerRole: "admin" | "player";
+  source: "athena" | "local";
 }> {
   const data = (await apiFetch("/chores/ghost-suggestions")) as {
     suggestions?: MobileGhostSuggestion[];
     eligible?: boolean;
+    viewerRole?: "admin" | "player";
+    source?: "athena" | "local";
   };
   return {
     suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
     eligible: Boolean(data.eligible),
+    viewerRole: data.viewerRole === "admin" ? "admin" : "player",
+    source: data.source === "athena" ? "athena" : "local",
   };
 }
 

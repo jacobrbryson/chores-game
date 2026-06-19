@@ -2185,6 +2185,7 @@ export function TodayChoresPanel({
               <GhostChoreEmptyStateSuggestions
                 assigneeId={selectedChoreMember?.id}
                 assigneeName={selectedChoreMember?.name}
+                viewerRole={viewerRole}
                 onAdded={onReload}
               />
             </div>

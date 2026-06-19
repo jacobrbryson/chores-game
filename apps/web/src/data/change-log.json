@@ -1,5 +1,29 @@
 [
   {
+    "id": "kiosk-mobile-complete-and-confetti-fix",
+    "date": "2026-06-19",
+    "type": "Bug Fix",
+    "subject": "Smoother Kiosk Mode on mobile",
+    "description": "Completing your last chore in Kiosk Mode on the mobile app no longer shows a spurious error when tapped quickly, and the \"All done!\" celebration now plays once instead of repeating. The shared-tablet screen also refreshes quietly in the background instead of flashing a loading spinner every few seconds.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "athena-thinking-experience",
+    "date": "2026-06-19",
+    "type": "Feature",
+    "subject": "Athena now “thinks” before sharing chore ideas",
+    "description": "While Athena prepares suggestions, you'll see a delightful new moment instead of a loading spinner: Athena's avatar gently glows and “thinks” about your family's progress, with encouraging messages that build as she works. When she's ready she celebrates and reveals her ideas one at a time, each with a friendly reason. If she can't find something new, or is briefly unavailable, she says so kindly and falls back to her saved suggestions. The whole experience respects reduced-motion settings and works on web and mobile.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "athena-ghost-chore-suggestions",
+    "date": "2026-06-19",
+    "type": "Feature",
+    "subject": "Smarter chore ideas powered by Athena",
+    "description": "When your family connects the Athena learning companion, the suggested \"ghost\" chores that appear when there's nothing left to do are now AI-personalized — age-aware, mindful of what's already been done, and each with a short reason, difficulty, and time estimate. If Athena isn't connected or is unavailable, the familiar built-in suggestions still appear. Parents can also set a child's birth year on their profile so suggestions fit their age, and every suggestion still needs a parent's OK before it becomes a real, paid chore.",
+    "image": "/file.svg"
+  },
+  {
     "id": "support-requests-admin-only-fix",
     "date": "2026-06-18",
     "type": "Bug Fix",

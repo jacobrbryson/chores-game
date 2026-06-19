@@ -6,6 +6,7 @@ import {
   getDocument,
   listDocuments,
   readBoolean,
+  readInteger,
   readString,
   readStringArray,
   readTimestamp,
@@ -27,6 +28,8 @@ export type FamilyResolvedMember = {
   avatarId?: string;
   avatarPhotoUrl?: string;
   selectedConfettiOptionId?: string;
+  /** Birth YEAR only (not full DOB) — used to derive an approximate age for age-aware suggestions. */
+  birthYear?: number;
   createdBy?: string;
   createdAt?: string;
 };
@@ -109,6 +112,7 @@ export async function listFamilyMembers(
       avatarPhotoUrl: readString(doc.fields, "avatarPhotoUrl") || undefined,
       selectedConfettiOptionId:
         readString(doc.fields, "selectedConfettiOptionId") || undefined,
+      birthYear: readInteger(doc.fields, "birthYear") > 0 ? readInteger(doc.fields, "birthYear") : undefined,
       createdBy: readString(doc.fields, "createdBy") || undefined,
       createdAt: readTimestamp(doc.fields, "createdAt") || undefined,
       deleted: readBoolean(doc.fields, "deleted"),

@@ -123,25 +123,8 @@ export function ProfileAthenaCard() {
   const canManage = Boolean(status?.canManage);
 
   return (
-    <section aria-label="Athena Learning Companion AI" className="relative">
-      {/* Coming Soon overlay — Athena integration is temporarily disabled */}
-      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-2xl bg-white/70 p-6 text-center backdrop-blur-sm">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/avatars/default/avatar-02.png"
-          alt=""
-          width={72}
-          height={72}
-          className="h-[72px] w-[72px] rounded-full shadow-md ring-2 ring-white"
-        />
-        <div>
-          <p className="m-0 text-base font-semibold text-slate-800">Coming Soon</p>
-          <p className="small m-0 mt-1 max-w-xs text-slate-600">
-            Athena Learning Companion AI isn&rsquo;t available just yet — check back soon!
-          </p>
-        </div>
-      </div>
-      <article aria-hidden="true" className="profile-page-google-card pointer-events-none select-none opacity-50">
+    <section aria-label="Athena Learning Companion AI">
+      <article className="profile-page-google-card">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">

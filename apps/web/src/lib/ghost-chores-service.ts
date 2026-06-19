@@ -33,6 +33,28 @@ import {
   type GhostChoreSuggestion,
   type GhostChoreSuggestionRecord,
 } from "@/lib/ghost-chores";
+import { recordOperationMetric } from "@/lib/observability/metrics";
+import { getAthenaConnection } from "@/lib/integrations/athena-store";
+import {
+  AthenaIntegrationError,
+  isAthenaConfigured,
+  rememberAthenaPreference,
+  suggestGhostChoresWithAthena,
+  type AthenaRememberSignal,
+} from "@/lib/integrations/athena";
+import {
+  athenaToGhostSuggestion,
+  parseAthenaGhostResponse,
+} from "@/lib/integrations/ghost-chore-schema";
+import { buildGhostChoreRequest, type BuildGhostContextInput } from "@/lib/ghost-chore-context";
+import {
+  findCachedSuggestion,
+  getGhostChoreCache,
+  isCacheFresh,
+  saveGhostChoreCache,
+} from "@/lib/ghost-chore-cache";
+
+export type GhostSuggestionSource = "athena" | "local";
 
 export type GhostViewerRole = "admin" | "player";
 
@@ -89,6 +111,8 @@ async function writeChoreFromSuggestion(input: {
   choreType: "normal" | "see_and_do";
   dueDate: string;
   suggestionId: string;
+  /** Which engine produced the original suggestion — retained for reporting. */
+  suggestionSource: GhostSuggestionSource;
   now: string;
 }) {
   const choreId = randomUUID();
@@ -112,6 +136,7 @@ async function writeChoreFromSuggestion(input: {
     createdBy: stringField(input.createdByUid),
     createdAt: timestampField(input.now),
     source: stringField("ghost_chore"),
+    suggestionSource: stringField(input.suggestionSource),
     ghostSuggestionId: stringField(input.suggestionId),
   });
   return choreId;
@@ -268,17 +293,326 @@ async function listGhostRecords(familyId: string): Promise<GhostChoreSuggestionR
   }
 }
 
+/** Best-effort analytics for the Athena ghost-chore lifecycle (never throws). */
+function trackGhostEvent(
+  operation:
+    | "ghost_suggestion_requested"
+    | "ghost_suggestion_shown"
+    | "ghost_suggestion_dismissed"
+    | "ghost_suggestion_edited"
+    | "ghost_suggestion_approved"
+    | "ghost_athena_fallback",
+  input: { familyId: string; source?: GhostSuggestionSource; resultCount?: number; errorCode?: string },
+) {
+  void recordOperationMetric({
+    area: "chores",
+    operation,
+    durationMs: 0,
+    familyId: input.familyId,
+    resultCount: input.resultCount,
+    errorCode: input.errorCode,
+    status: input.errorCode ? "error" : "ok",
+    metadata: { source: input.source ?? "local" },
+  });
+}
+
+/**
+ * On acceptance of an Athena suggestion, tell Athena so she can record a
+ * distilled, family-visible preference in the linked child's memory. Best-effort:
+ * never throws, never blocks the (already-created) chore. No-ops when Athena
+ * isn't connected/configured or the child has no linked Athena profile.
+ */
+async function rememberAthenaAcceptance(input: {
+  familyId: string;
+  playerId: string;
+  signal: AthenaRememberSignal;
+}): Promise<void> {
+  if (!input.playerId || !isAthenaConfigured()) {
+    return;
+  }
+  try {
+    const connection = await getAthenaConnection(input.familyId);
+    if (!connection?.connected || !connection.email) {
+      return;
+    }
+    const { remembered } = await rememberAthenaPreference({
+      email: connection.email,
+      playerId: input.playerId,
+      signal: input.signal,
+    });
+    void recordOperationMetric({
+      area: "chores",
+      operation: "ghost_athena_remember",
+      durationMs: 0,
+      familyId: input.familyId,
+      status: "ok",
+      metadata: { remembered },
+    });
+  } catch (error) {
+    console.warn("[GHOST_ATHENA_REMEMBER_SKIPPED]", {
+      familyId: input.familyId,
+      reason: error instanceof Error ? error.message.slice(0, 80) : "unknown",
+    });
+  }
+}
+
+/**
+ * Gather + sanitize the per-subject context Athena needs. Uses admin creds (same
+ * as the rest of this module). Returns the input for `buildGhostChoreRequest`
+ * plus the subject's role and the title keys we should never re-suggest.
+ */
+async function gatherAthenaSubjectData(
+  familyId: string,
+  subjectMemberId: string,
+): Promise<{ input: BuildGhostContextInput; excludeKeys: Set<string> } | null> {
+  let memberFields;
+  try {
+    const memberDoc = await adminGetDocument(`families/${familyId}/members/${subjectMemberId}`);
+    if (readBoolean(memberDoc.fields, "deleted")) return null;
+    memberFields = memberDoc.fields;
+  } catch (error) {
+    if (isNotFound(error)) return null;
+    throw error;
+  }
+
+  const subjectRole: GhostViewerRole = readString(memberFields, "role") === "admin" ? "admin" : "player";
+  const subjectUid = readString(memberFields, "uid").trim();
+  const subjectEmail = normalizeEmail(readString(memberFields, "email"));
+  const birthYearRaw = readInteger(memberFields, "birthYear");
+  const aliases = new Set<string>([subjectMemberId]);
+  if (subjectUid) aliases.add(subjectUid);
+  if (subjectEmail) aliases.add(subjectEmail);
+
+  const [choreDocs, categoryDocs, records, familyDoc] = await Promise.all([
+    adminListAllDocuments(`families/${familyId}/chores`, { cap: 500 }),
+    adminListDocuments(`families/${familyId}/categories`, 100).catch((e) => {
+      if (isNotFound(e)) return [];
+      throw e;
+    }),
+    listGhostRecords(familyId),
+    adminGetDocument(`families/${familyId}`).catch((e) => {
+      if (isNotFound(e)) return null;
+      throw e;
+    }),
+  ]);
+
+  const categoryNameById = new Map<string, string>();
+  for (const doc of categoryDocs) {
+    categoryNameById.set(documentIdFromName(doc.name), readString(doc.fields, "name"));
+  }
+  const categoryName = (ids: string[]) => {
+    for (const id of ids) {
+      const name = categoryNameById.get(id);
+      if (name) return name;
+    }
+    return undefined;
+  };
+
+  const now = new Date();
+  const recentCutoff = now.getTime() - 30 * 86_400_000;
+  const activeChores: BuildGhostContextInput["activeChores"] = [];
+  const recentlyCompleted: BuildGhostContextInput["recentlyCompleted"] = [];
+  const pastChores: BuildGhostContextInput["pastChores"] = [];
+  const excludeKeys = new Set<string>();
+  let totalChoresCompleted = 0;
+
+  for (const doc of choreDocs) {
+    if (readBoolean(doc.fields, "deleted")) continue;
+    const assigneeId = readString(doc.fields, "assigneeId");
+    const assigneeScope = readString(doc.fields, "assigneeScope");
+    const assigneeIds = readStringArray(doc.fields, "assigneeIds");
+    const assignedToSubject =
+      assigneeScope === "family" ||
+      (assigneeId && (aliases.has(assigneeId) || aliases.has(normalizeEmail(assigneeId)))) ||
+      assigneeIds.some((id) => aliases.has(id) || aliases.has(normalizeEmail(id)));
+    if (!assignedToSubject) continue;
+
+    const title = readString(doc.fields, "title");
+    if (!title) continue;
+    const chore = {
+      title,
+      coinValue: readInteger(doc.fields, "coinValue"),
+      category: categoryName(readStringArray(doc.fields, "categoryIds")),
+    };
+    const status = readString(doc.fields, "status");
+    excludeKeys.add(ghostSuggestionKey(title));
+    if (status === "Open") {
+      activeChores.push(chore);
+      continue;
+    }
+    if (status === "Approved" || status === "Submitted") {
+      if (status === "Approved") totalChoresCompleted += 1;
+      const completedAt =
+        readTimestamp(doc.fields, "approvedAt") || readTimestamp(doc.fields, "completedAt");
+      const completedMs = completedAt ? Date.parse(completedAt) : NaN;
+      if (Number.isFinite(completedMs) && completedMs >= recentCutoff) {
+        recentlyCompleted.push(chore);
+      } else {
+        pastChores.push(chore);
+      }
+    }
+  }
+
+  const suggestionActivity = { suggested: [] as Array<{ title: string }>, dismissed: [] as Array<{ title: string }>, accepted: [] as Array<{ title: string }> };
+  for (const record of records) {
+    const ownedBySubject = aliases.has(record.playerUid) || record.playerMemberId === subjectMemberId;
+    if (record.status === "converted") {
+      suggestionActivity.accepted.push({ title: record.suggestedTitle });
+      excludeKeys.add(ghostSuggestionKey(record.suggestedTitle));
+      continue;
+    }
+    if (!ownedBySubject) continue;
+    if (record.status === "dismissed") {
+      suggestionActivity.dismissed.push({ title: record.suggestedTitle });
+      excludeKeys.add(ghostSuggestionKey(record.suggestedTitle));
+    } else if (record.status === "requested") {
+      suggestionActivity.suggested.push({ title: record.suggestedTitle });
+      excludeKeys.add(ghostSuggestionKey(record.suggestedTitle));
+    }
+  }
+
+  let coinBalance: number | undefined;
+  if (subjectUid) {
+    try {
+      const userDoc = await adminGetDocument(`users/${subjectUid}`);
+      coinBalance = Math.max(0, readInteger(userDoc.fields, "walletBalance"));
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+    }
+  }
+
+  const startedAt =
+    readTimestamp(memberFields, "createdAt") ||
+    (familyDoc ? readTimestamp(familyDoc.fields, "createdAt") : "") ||
+    undefined;
+
+  return {
+    excludeKeys,
+    input: {
+      subject: {
+        id: subjectMemberId,
+        role: subjectRole,
+        displayName: readString(memberFields, "name") || undefined,
+        birthYear: birthYearRaw > 0 ? birthYearRaw : undefined,
+      },
+      startedAt,
+      totalChoresCompleted,
+      coinBalance,
+      activeChores,
+      recentlyCompleted,
+      pastChores,
+      suggestionActivity,
+      categories: Array.from(categoryNameById.values()).filter(Boolean),
+      familySettings: { requireApproval: true },
+      now,
+    },
+  };
+}
+
+/**
+ * Try to produce Athena-powered suggestions for a subject. Returns null when
+ * Athena is not connected/configured, errors, or yields nothing usable — the
+ * caller then falls back to the local engine. Serves a fresh cached batch within
+ * the TTL to rate-limit/cost-control the model.
+ */
+async function tryAthenaGhostSuggestions(input: {
+  familyId: string;
+  subjectMemberId: string;
+  limit: number;
+}): Promise<GhostChoreSuggestion[] | null> {
+  const { familyId, subjectMemberId, limit } = input;
+  // One concise diagnostic per fallback reason so a silent "no Athena suggestions"
+  // is debuggable from server logs. Never logs child PII — only the reason + ids.
+  const fallback = (reason: string) => {
+    console.warn("[GHOST_ATHENA_FALLBACK]", { familyId, subjectMemberId, reason });
+    return null;
+  };
+
+  if (!isAthenaConfigured()) return fallback("not_configured");
+
+  let connection;
+  try {
+    connection = await getAthenaConnection(familyId);
+  } catch (error) {
+    return fallback(`connection_read_error:${error instanceof Error ? error.message.slice(0, 80) : "unknown"}`);
+  }
+  if (!connection?.connected) return fallback("not_connected");
+
+  // Serve a fresh cached batch without re-calling the model.
+  try {
+    const cached = await getGhostChoreCache(familyId, subjectMemberId);
+    if (isCacheFresh(cached) && cached && cached.suggestions.length > 0) {
+      return cached.suggestions.slice(0, limit);
+    }
+  } catch {
+    // fall through to a live call
+  }
+
+  let gathered;
+  try {
+    gathered = await gatherAthenaSubjectData(familyId, subjectMemberId);
+  } catch (error) {
+    return fallback(`gather_error:${error instanceof Error ? error.message.slice(0, 80) : "unknown"}`);
+  }
+  if (!gathered) return fallback("subject_not_found");
+
+  try {
+    const payload = buildGhostChoreRequest({ ...gathered.input, count: Math.min(12, Math.max(limit, 6)) });
+    const raw = await suggestGhostChoresWithAthena({ payload: payload as unknown as Record<string, unknown> });
+    const { suggestions: athenaSuggestions, meta } = parseAthenaGhostResponse(raw, {
+      forceParentReview: gathered.input.subject.role !== "admin",
+    });
+    if (athenaSuggestions.length === 0) {
+      trackGhostEvent("ghost_athena_fallback", { familyId, errorCode: "empty_response" });
+      return fallback("empty_response");
+    }
+    const mapped = athenaSuggestions
+      .map(athenaToGhostSuggestion)
+      .filter((s) => !gathered.excludeKeys.has(ghostSuggestionKey(s.suggestedTitle)));
+    if (mapped.length === 0) {
+      trackGhostEvent("ghost_athena_fallback", { familyId, errorCode: "all_excluded" });
+      return fallback("all_excluded");
+    }
+    await saveGhostChoreCache(familyId, subjectMemberId, mapped, meta.modelVersion);
+    trackGhostEvent("ghost_suggestion_shown", { familyId, source: "athena", resultCount: mapped.length });
+    return mapped.slice(0, limit);
+  } catch (error) {
+    const errorCode = error instanceof AthenaIntegrationError ? error.code : "athena_error";
+    const detail = error instanceof Error ? error.message.slice(0, 100) : "unknown";
+    trackGhostEvent("ghost_athena_fallback", { familyId, errorCode });
+    return fallback(`request_error:${errorCode}:${detail}`);
+  }
+}
+
 /**
  * Build the ghost chore suggestions to show a viewer. Players only receive
  * suggestions when they have no open chores; admins always get a preview.
+ *
+ * When Athena is connected for the family it becomes the primary recommendation
+ * engine for the subject (the viewer, or an admin-selected member); on any
+ * failure, empty result, or when Athena is not connected we fall back to the
+ * deterministic local engine. `source` tells the caller which path produced the
+ * suggestions.
  */
 export async function getGhostSuggestionsForViewer(
   context: GhostViewerContext,
   limit?: number,
-): Promise<{ suggestions: GhostChoreSuggestion[]; hasOpenChores: boolean }> {
+  opts?: { subjectMemberId?: string },
+): Promise<{ suggestions: GhostChoreSuggestion[]; hasOpenChores: boolean; source: GhostSuggestionSource }> {
   const hasOpenChores = context.openChoreCount > 0;
   if (context.role === "player" && hasOpenChores) {
-    return { suggestions: [], hasOpenChores };
+    return { suggestions: [], hasOpenChores, source: "local" };
+  }
+
+  const subjectMemberId = (opts?.subjectMemberId || context.memberId || "").trim() || context.memberId;
+  const effectiveLimit = Math.max(1, Math.min(limit ?? 9, 20));
+
+  // Athena-first when connected; fall back to local on any miss.
+  const athena = subjectMemberId
+    ? await tryAthenaGhostSuggestions({ familyId: context.familyId, subjectMemberId, limit: effectiveLimit })
+    : null;
+  if (athena && athena.length > 0) {
+    return { suggestions: athena, hasOpenChores, source: "athena" };
   }
 
   const [familyChores, records] = await Promise.all([
@@ -303,7 +637,7 @@ export async function getGhostSuggestionsForViewer(
   }
 
   const suggestions = generateGhostSuggestions({ familyChores, excludeKeys, limit });
-  return { suggestions, hasOpenChores };
+  return { suggestions, hasOpenChores, source: "local" };
 }
 
 async function getGhostRecord(familyId: string, suggestionId: string): Promise<GhostChoreSuggestionRecord | null> {
@@ -315,6 +649,31 @@ async function getGhostRecord(familyId: string, suggestionId: string): Promise<G
     }
     throw error;
   }
+}
+
+/**
+ * Resolve a suggestion's full content by id for an action (request/dismiss/add).
+ * Athena suggestions aren't in the deterministic pool, so we check each candidate
+ * subject's short-TTL cache first, then fall back to the local pool. This keeps
+ * the lifecycle uniform across local and Athena suggestions.
+ */
+async function resolveGhostSuggestionWithCache(
+  familyId: string,
+  subjectCandidates: Array<string | undefined>,
+  suggestionId: string,
+  familyChores: FamilyChoreSeed[],
+): Promise<GhostChoreSuggestion | null> {
+  for (const sid of subjectCandidates) {
+    if (!sid) continue;
+    try {
+      const cache = await getGhostChoreCache(familyId, sid);
+      const found = findCachedSuggestion(cache, suggestionId);
+      if (found) return found;
+    } catch {
+      // best-effort; try the next candidate / the local pool
+    }
+  }
+  return resolveGhostSuggestion(suggestionId, familyChores);
 }
 
 export type GhostActionResult =
@@ -337,7 +696,12 @@ export async function requestGhostSuggestion(input: {
   }
 
   const familyChores = await listFamilyChoreSeeds(context.familyId);
-  const suggestion = resolveGhostSuggestion(suggestionId, familyChores);
+  const suggestion = await resolveGhostSuggestionWithCache(
+    context.familyId,
+    [context.memberId],
+    suggestionId,
+    familyChores,
+  );
   if (!suggestion) {
     return { ok: false, error: "not_found" };
   }
@@ -355,6 +719,10 @@ export async function requestGhostSuggestion(input: {
     downvotes: existing?.downvotes ?? 0,
   });
   await adminCreateOrReplaceDocument(`${ghostSuggestionsPath(context.familyId)}/${suggestionId}`, fields);
+  trackGhostEvent("ghost_suggestion_requested", {
+    familyId: context.familyId,
+    source: suggestion.source === "athena" ? "athena" : "local",
+  });
   return { ok: true, record: parseGhostSuggestionRecord({ name: `/${suggestionId}`, fields }) };
 }
 
@@ -362,11 +730,18 @@ export async function requestGhostSuggestion(input: {
 export async function dismissGhostSuggestion(input: {
   context: GhostViewerContext;
   suggestionId: string;
+  /** Subject the suggestion was generated for (admin acting on a child's cache). */
+  subjectMemberId?: string;
 }): Promise<GhostActionResult> {
   const { context, suggestionId } = input;
   const existing = await getGhostRecord(context.familyId, suggestionId);
   const familyChores = await listFamilyChoreSeeds(context.familyId);
-  const suggestion = resolveGhostSuggestion(suggestionId, familyChores);
+  const suggestion = await resolveGhostSuggestionWithCache(
+    context.familyId,
+    [input.subjectMemberId, context.memberId],
+    suggestionId,
+    familyChores,
+  );
   if (!suggestion) {
     return { ok: false, error: "not_found" };
   }
@@ -382,6 +757,10 @@ export async function dismissGhostSuggestion(input: {
     downvotes: (existing?.downvotes ?? 0) + 1,
   });
   await adminCreateOrReplaceDocument(`${ghostSuggestionsPath(context.familyId)}/${suggestionId}`, fields);
+  trackGhostEvent("ghost_suggestion_dismissed", {
+    familyId: context.familyId,
+    source: suggestion.source === "athena" ? "athena" : "local",
+  });
   return { ok: true, record: parseGhostSuggestionRecord({ name: `/${suggestionId}`, fields }) };
 }
 
@@ -403,7 +782,12 @@ export async function addGhostSuggestion(input: {
   const { context, suggestionId } = input;
   const existing = await getGhostRecord(context.familyId, suggestionId);
   const familyChores = await listFamilyChoreSeeds(context.familyId);
-  const suggestion = resolveGhostSuggestion(suggestionId, familyChores);
+  const suggestion = await resolveGhostSuggestionWithCache(
+    context.familyId,
+    [input.assigneeId, context.memberId],
+    suggestionId,
+    familyChores,
+  );
   if (!suggestion) {
     return { ok: false, error: "not_found" };
   }
@@ -432,6 +816,7 @@ export async function addGhostSuggestion(input: {
     choreType: isPlayer ? "see_and_do" : "normal",
     dueDate: now.slice(0, 10),
     suggestionId,
+    suggestionSource: suggestion.source === "athena" ? "athena" : "local",
     now,
   });
 
@@ -460,6 +845,25 @@ export async function addGhostSuggestion(input: {
     choreTitle: suggestion.suggestedTitle,
     relatedIds: [assigneeId].filter(Boolean),
   });
+
+  trackGhostEvent("ghost_suggestion_approved", {
+    familyId: context.familyId,
+    source: suggestion.source === "athena" ? "athena" : "local",
+  });
+
+  if (suggestion.source === "athena") {
+    await rememberAthenaAcceptance({
+      familyId: context.familyId,
+      playerId: assigneeId,
+      signal: {
+        suggestionType: suggestion.athena?.suggestionType,
+        pillar: suggestion.athena?.pillar ?? null,
+        category: suggestion.athena?.categoryLabel ?? null,
+        difficulty: suggestion.athena?.difficulty,
+        title: suggestion.suggestedTitle,
+      },
+    });
+  }
 
   return { ok: true, choreId };
 }
@@ -537,6 +941,7 @@ export async function approveGhostSuggestion(input: {
     choreType: "normal",
     dueDate,
     suggestionId: input.suggestionId,
+    suggestionSource: record.source === "athena" ? "athena" : "local",
     now,
   });
 
@@ -564,6 +969,33 @@ export async function approveGhostSuggestion(input: {
     choreTitle: title,
     relatedIds: [record.playerUid, assigneeId].filter(Boolean),
   });
+
+  const source: GhostSuggestionSource = record.source === "athena" ? "athena" : "local";
+  const edited =
+    (overrides.title !== undefined && overrides.title !== record.suggestedTitle) ||
+    (overrides.details !== undefined && overrides.details !== record.suggestedDescription) ||
+    (overrides.coinValue !== undefined && overrides.coinValue !== record.suggestedCoinValue) ||
+    overrides.categoryIds !== undefined ||
+    overrides.dueDate !== undefined ||
+    overrides.requireApproval !== undefined;
+  if (edited) {
+    trackGhostEvent("ghost_suggestion_edited", { familyId: input.familyId, source });
+  }
+  trackGhostEvent("ghost_suggestion_approved", { familyId: input.familyId, source });
+
+  if (record.source === "athena") {
+    await rememberAthenaAcceptance({
+      familyId: input.familyId,
+      playerId: assigneeId || record.playerMemberId,
+      signal: {
+        suggestionType: record.athenaSuggestionType || undefined,
+        pillar: record.athenaPillar || undefined,
+        category: record.athenaCategoryLabel || undefined,
+        difficulty: record.athenaDifficulty || undefined,
+        title,
+      },
+    });
+  }
 
   return { ok: true, choreId };
 }

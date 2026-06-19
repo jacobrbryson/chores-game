@@ -29,6 +29,14 @@ export const ATHENA_TOKEN_SCOPES = [
 export const ATHENA_TOKEN_NAME = "Athena Learning Companion AI";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+/**
+ * Generation endpoints (Gemini-backed) routinely take longer than the default,
+ * especially on a cold call with rich context. Give them real headroom so we
+ * don't abort a perfectly good response and fall back to local suggestions.
+ */
+const GENERATION_TIMEOUT_MS = 30_000;
+/** Fire-and-forget memory write — short timeout so it never delays the response much. */
+const REMEMBER_TIMEOUT_MS = 5_000;
 
 export type AthenaConfig = {
   proxyBaseUrl: string;
@@ -148,9 +156,10 @@ async function postAthena<T>(
   config: AthenaConfig,
   path: string,
   body: Record<string, unknown>,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<{ status: number; data: T }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
     response = await fetch(`${config.proxyBaseUrl}${path}`, {
@@ -342,6 +351,57 @@ export type AthenaSuggestChoresResult = {
   success: boolean;
   suggestions: AthenaChoreSuggestion[];
 };
+
+/**
+ * Ask Athena (Gemini) for STRUCTURED ghost-chore suggestions. Server-to-server,
+ * authorized by the partner secret. The whole `payload` is the sanitized context
+ * (see `GhostChoreSuggestRequest`); the raw response is returned untyped so the
+ * caller can validate/clamp it with `parseAthenaGhostResponse` before use.
+ */
+export async function suggestGhostChoresWithAthena(input: {
+  payload: Record<string, unknown>;
+  config?: AthenaConfig;
+}): Promise<unknown> {
+  const config = input.config ?? getAthenaConfig();
+  const { data } = await postAthena<unknown>(
+    config,
+    "/api/v1/integrations/family-chores/suggest-ghost-chores",
+    input.payload,
+    GENERATION_TIMEOUT_MS,
+  );
+  return data;
+}
+
+export type AthenaRememberSignal = {
+  suggestionType?: string;
+  pillar?: string | null;
+  category?: string | null;
+  difficulty?: string;
+  title?: string;
+};
+
+/**
+ * Tell Athena that the family accepted an Athena chore suggestion, so she can
+ * record a distilled, family-visible preference in the linked child's memory.
+ * Best-effort and idempotent on Athena's side; a short timeout keeps it from
+ * delaying the chore-creation response. No-ops gracefully when the child has no
+ * linked Athena profile.
+ */
+export async function rememberAthenaPreference(input: {
+  email: string;
+  playerId: string;
+  signal: AthenaRememberSignal;
+  config?: AthenaConfig;
+}): Promise<{ remembered: boolean }> {
+  const config = input.config ?? getAthenaConfig();
+  const { data } = await postAthena<{ remembered?: boolean }>(
+    config,
+    "/api/v1/integrations/family-chores/remember",
+    { email: input.email, playerId: input.playerId, signal: input.signal },
+    REMEMBER_TIMEOUT_MS,
+  );
+  return { remembered: Boolean(data?.remembered) };
+}
 
 /** Ask Athena (Gemini) for age-appropriate chore ideas. Stateless, read-only. */
 export async function suggestChoresWithAthena(input: {

@@ -130,3 +130,7 @@ env:
     secret: NEWSLETTER_INTERNAL_SECRET
     availability:
       - RUNTIME
+  - variable: SUPPORT_ADMIN_EMAILS
+    secret: SUPPORT_ADMIN_EMAILS
+    availability:
+      - RUNTIME

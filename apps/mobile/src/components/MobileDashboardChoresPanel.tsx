@@ -439,6 +439,7 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
           <MobileGhostChores
             assigneeId={selectedMember?.id}
             assigneeName={selectedMember?.name}
+            viewerRole={viewerRole}
             onAdded={() => load({ silent: true })}
           />
         </>

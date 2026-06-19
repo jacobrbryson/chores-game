@@ -26,8 +26,25 @@ import {
  * and safety rules can be unit-tested in isolation.
  */
 
-export const GHOST_CHORE_SOURCES = ["builtin_template", "family_history", "recent_chore"] as const;
+export const GHOST_CHORE_SOURCES = ["builtin_template", "family_history", "recent_chore", "athena"] as const;
 export type GhostChoreSource = (typeof GHOST_CHORE_SOURCES)[number];
+
+/**
+ * Extra metadata present only on Athena-generated suggestions. Kept optional so
+ * the deterministic/local suggestions and the persisted record shape are
+ * unchanged; this rides along on the in-memory suggestion for richer UI.
+ */
+export type GhostChoreAthenaMeta = {
+  difficulty: "easy" | "medium" | "hard";
+  estimatedMinutes: number | null;
+  suggestionType: "repeat" | "next_step" | "skill_building" | "novelty";
+  reason: string;
+  confidence: number;
+  requiresParentReview: boolean;
+  safetyNotes: string | null;
+  categoryLabel: string | null;
+  pillar: string | null;
+};
 
 export const GHOST_CHORE_STATUSES = [
   "suggested",
@@ -50,6 +67,8 @@ export type GhostChoreSuggestion = {
   suggestedCoinValue: number;
   suggestedCategoryIds: string[];
   source: GhostChoreSource;
+  /** Present only when `source === "athena"`. */
+  athena?: GhostChoreAthenaMeta;
 };
 
 /** A persisted request/dismissal record at families/{familyId}/ghostChoreSuggestions/{id}. */
@@ -64,6 +83,15 @@ export type GhostChoreSuggestionRecord = {
   suggestedCategoryIds: string[];
   source: GhostChoreSource;
   status: GhostChoreStatus;
+  /**
+   * Athena signal fields, persisted only for Athena-sourced suggestions so the
+   * approve path can pass a rich preference signal back to Athena's memory.
+   * Empty string when absent/local.
+   */
+  athenaSuggestionType: string;
+  athenaPillar: string;
+  athenaDifficulty: string;
+  athenaCategoryLabel: string;
   requestedAt: string;
   requestedByUid: string;
   reviewedAt: string;
@@ -271,6 +299,10 @@ export function parseGhostSuggestionRecord(doc: FirestoreDocument): GhostChoreSu
     suggestedCategoryIds: readStringArray(fields, "suggestedCategoryIds"),
     source: isGhostChoreSource(source) ? source : "builtin_template",
     status: isGhostChoreStatus(status) ? status : "suggested",
+    athenaSuggestionType: readString(fields, "athenaSuggestionType"),
+    athenaPillar: readString(fields, "athenaPillar"),
+    athenaDifficulty: readString(fields, "athenaDifficulty"),
+    athenaCategoryLabel: readString(fields, "athenaCategoryLabel"),
     requestedAt: readTimestamp(fields, "requestedAt"),
     requestedByUid: readString(fields, "requestedByUid"),
     reviewedAt: readTimestamp(fields, "reviewedAt"),
@@ -309,6 +341,10 @@ export function buildGhostSuggestionFields(input: {
     suggestedCategoryIds: stringArrayField(input.suggestion.suggestedCategoryIds),
     source: stringField(input.suggestion.source),
     status: stringField(input.status),
+    athenaSuggestionType: stringField(input.suggestion.athena?.suggestionType ?? ""),
+    athenaPillar: stringField(input.suggestion.athena?.pillar ?? ""),
+    athenaDifficulty: stringField(input.suggestion.athena?.difficulty ?? ""),
+    athenaCategoryLabel: stringField(input.suggestion.athena?.categoryLabel ?? ""),
     requestedAt: isRequest ? timestampField(input.now) : nullField(),
     requestedByUid: stringField(isRequest ? input.requestedByUid ?? input.playerUid : ""),
     reviewedAt: input.status === "converted" ? timestampField(input.now) : nullField(),
