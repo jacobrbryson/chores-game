@@ -1,5 +1,93 @@
 [
   {
+    "id": "responsibility-earned-identities-level-gate",
+    "date": "2026-06-23",
+    "type": "Bug Fix",
+    "subject": "Responsibility titles now match earned levels",
+    "description": "Responsibility Pillar titles now start at level 2 instead of level 1. The earned identities section only shows titles a child has actually unlocked, so early XP in other pillars no longer clutters the list.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "instant-chore-completion-celebration",
+    "date": "2026-06-23",
+    "type": "Bug Fix",
+    "subject": "Chore celebrations now start right away",
+    "description": "The chore completion celebration now appears right away, stays visible long enough to read, includes a dismiss button, shows Responsibility Pillar progress when XP is awarded, and calls out New Skill bonuses with a special headline.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "completion-pillar-progress-celebration",
+    "date": "2026-06-23",
+    "type": "Feature",
+    "subject": "Chore completions now show Responsibility progress",
+    "description": "When a completed chore adds Responsibility XP, the Done celebration now shows the pillar, level, XP gain, and progress toward the next title so kids can see exactly how their work helped them grow.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "kiosk-mode-parent-profiles",
+    "date": "2026-06-23",
+    "type": "Feature",
+    "subject": "Kiosk Mode can include parents too",
+    "description": "Kiosk Mode now lets families include parent profiles in the shared-tablet roster, so parents with their own chores can use the same focused checklist while parent controls stay locked until Kiosk Mode is exited.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "dashboard-progress-avatar-shortcut",
+    "date": "2026-06-23",
+    "type": "Feature",
+    "subject": "Dashboard avatars now open Responsibility Progress",
+    "description": "The dashboard chore list now lets you tap a child's avatar to open their Responsibility Progress without leaving the page, replacing the separate Family Growth card. The approval card's caught-up message also keeps its close button neatly inline on mobile.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "routine-steps-one-at-a-time",
+    "date": "2026-06-23",
+    "type": "Bug Fix",
+    "subject": "Routines now reveal one step at a time, everywhere",
+    "description": "Routine chores are meant to surface a single next step instead of dumping every step into the list at once. The mobile app now collapses routine steps the same way the web dashboard does, so your child only sees the step they're on. Google Tasks sync was also creating every routine step as a separate task all at once — it now pushes only the current step, then the next one appears after each step is finished, keeping your Google Tasks list tidy.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "responsibility-identity-everywhere",
+    "date": "2026-06-23",
+    "type": "Feature",
+    "subject": "Responsibility titles now show up across the whole app",
+    "description": "The identities your kids earn no longer live only on the Pillars page. Player dashboards now feature a \"Your Journey\" card showing the title they hold and how close they are to the next one, with one tap to the full Pillars view. Profiles lead with each child's earned titles, and the profile/kiosk switcher shows title chips under each name so picking a profile feels like choosing a character. Parents get a new \"Family Growth\" section on the dashboard summarizing every child's top title at a glance, and unlocking a new title now posts a distinct, celebratory card in the family activity feed that stays in your history.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "responsibility-identity-titles",
+    "date": "2026-06-23",
+    "type": "Feature",
+    "subject": "Responsibility Pillars now grant titles your kids grow into",
+    "description": "Each Responsibility Pillar now turns progress into an identity instead of just a number. As children build XP, their level unlocks titles like Helper → Housekeeper → Chore Master for Home Care, with a matching ladder of seven titles for every pillar. The Responsibility Progress card leads with each child's current title, the next title, and how close they are to it, plus a strip of the identities they've already earned. When a chore completion grows a pillar, kids see a quick celebration showing their title and progress bar climbing — and when they reach a brand-new title, it's marked with confetti and announced in the family activity feed so parents can celebrate the moment too.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "weekly-email-athena-callout",
+    "date": "2026-06-20",
+    "type": "Feature",
+    "subject": "Weekly highlights email now invites you to link Athena",
+    "description": "The weekly family highlights email features a new callout for the Athena Learning Companion. Families who haven't connected yet get a one-tap link to pair their account, with a reminder of what Athena unlocks: smarter, more personalized chore suggestions for each child, and the ability for kids to ask Athena how many coins they have and which chore to work on next. Once you're connected, the callout disappears so the recap stays focused on your week.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "parent-approval-inbox",
+    "date": "2026-06-20",
+    "type": "Feature",
+    "subject": "New Approval Inbox makes reviewing finished chores effortless",
+    "description": "Parents now have one obvious place to celebrate and approve completed chores. A new card at the top of your dashboard shows how many chores are waiting, who finished them, and lets you approve a whole day's worth in a couple of taps. The dedicated Approval Inbox groups chores by child, shows each chore's coins, pillar, and completion time, and walks you through awarding coins for See & Do chores so nothing is approved at zero by mistake. A live count in the navigation means you'll never have to hunt for approvals again.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "mobile-server-unreachable-handling",
+    "date": "2026-06-20",
+    "type": "Bug Fix",
+    "subject": "Mobile app no longer freezes when it can't reach the server",
+    "description": "If the mobile app can't connect to Family Chores — for example on a weak or dropped network — it now shows a clear \"Can't reach the server\" message with a Try Again button instead of getting stuck on \"Checking session…\" or freezing during Google sign-in. Requests now time out gracefully rather than hanging indefinitely.",
+    "image": "/file.svg"
+  },
+  {
     "id": "kiosk-mobile-complete-and-confetti-fix",
     "date": "2026-06-19",
     "type": "Bug Fix",

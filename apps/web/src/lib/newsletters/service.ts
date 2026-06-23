@@ -29,7 +29,6 @@ import type {
 import { getPreviousWeeklyWindow } from "@/lib/newsletters/window";
 import { resolveAvatarSrc } from "@/lib/avatar/resolve";
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
-import { getChangeLogEntries } from "@/lib/change-log";
 
 function formatDateLabel(iso: string, locale: string) {
   return new Intl.DateTimeFormat(locale, {
@@ -63,20 +62,12 @@ function resolveHelperAvatarUrl(input: {
 function buildProTip(input: {
   locale: NewsletterRecipient["locale"];
   familyLocale: NewsletterRecipient["locale"];
-  pendingApprovals: number;
-  choresCompleted: number;
 }) {
   const t = createTranslator({
     locale: input.locale,
     familyLocale: input.familyLocale,
   });
-  if (input.pendingApprovals > 0) {
-    return t("newsletter.weekly.tips.pendingApprovals");
-  }
-  if (input.choresCompleted === 0) {
-    return t("newsletter.weekly.tips.kickstart");
-  }
-  return t("newsletter.weekly.tips.praise");
+  return t("newsletter.weekly.tips.birthYear");
 }
 
 function sendRecordFields(record: NewsletterSendRecord) {
@@ -149,16 +140,6 @@ export async function buildWeeklyFamilyHighlightsPreview(input: {
   });
   const locale = input.recipientLocale ?? family.recipients[0]?.locale ?? family.familyLocale;
   const appOrigin = getCanonicalAppOrigin();
-  // Curated set of feature dates to highlight in the "New this week" section.
-  // We intentionally hand-pick dates rather than surface every Feature in the
-  // window, which would flood the recap with minor releases.
-  const HIGHLIGHTED_ENHANCEMENT_DATES = new Set(["2026-06-08", "2026-06-10"]);
-  const recentEnhancements = getChangeLogEntries()
-    .filter(
-      (entry) =>
-        entry.type === "Feature" && HIGHLIGHTED_ENHANCEMENT_DATES.has(entry.date),
-    )
-    .map((entry) => ({ title: entry.subject, description: entry.description }));
   const rendered = renderEmailTemplate({
     templateId: "weekly-family-highlights",
     locale,
@@ -187,12 +168,11 @@ export async function buildWeeklyFamilyHighlightsPreview(input: {
       }),
       mostActiveHelperAvatarColor: resolveMemberPrimaryColor(metrics.mostActiveHelperPrimaryColor),
       recentHighlights: metrics.recentHighlights,
-      recentEnhancements,
+      athenaLinkUrl: `${appOrigin}/profile?tab=integrations`,
+      athenaIconUrl: `${appOrigin}/email/athena-glyph.png`,
       proTip: buildProTip({
         locale,
         familyLocale: family.familyLocale,
-        pendingApprovals: metrics.pendingApprovals,
-        choresCompleted: metrics.choresCompleted,
       }),
     },
   });

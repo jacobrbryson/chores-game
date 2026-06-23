@@ -122,6 +122,7 @@ type ChoreRow = {
   recurrenceUnit?: ChoreRecurrenceUnit;
   recurrenceDays?: ChoreRecurrenceWeekday[];
   responsibilityPillar?: ResponsibilityPillar;
+  isGhost: boolean;
   routineAssignmentId?: string;
   routineId?: string;
   routineName?: string;
@@ -273,6 +274,12 @@ function normalizeChoreDoc(doc: {
     recurrenceDays: recurrence.recurrenceDays,
     responsibilityPillar:
       normalizeResponsibilityPillar(readString(doc.fields, "responsibilityPillar")) || undefined,
+    // Ghost chores (AI-suggested) carry a "ghost_chore" source and a
+    // ghostSuggestionId, but the `source` field above collapses to manual; expose
+    // an explicit flag so the Approval Inbox can label them as Ghost Chores.
+    isGhost:
+      readString(doc.fields, "source") === "ghost_chore" ||
+      Boolean(readString(doc.fields, "ghostSuggestionId")),
     routineAssignmentId: readString(doc.fields, "routineAssignmentId") || undefined,
     routineId: readString(doc.fields, "routineId") || undefined,
     routineName: readString(doc.fields, "routineName") || undefined,
@@ -1143,6 +1150,7 @@ export async function GET(request: NextRequest) {
                 : undefined,
             coinValue: doc.coinValue,
             requireApproval: doc.requireApproval,
+            isGhost: doc.isGhost,
             recurrenceType: doc.recurrenceType,
             recurrenceInterval: doc.recurrenceInterval,
             recurrenceUnit: doc.recurrenceUnit,

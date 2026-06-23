@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useLocale } from "@/components/locale-provider";
-import { responsibilityPillarLabel } from "@/lib/responsibility/labels";
+import {
+  responsibilityPillarLabel,
+  responsibilityTitleLabel,
+} from "@/lib/responsibility/labels";
+import { hasEarnedIdentity } from "@/lib/responsibility/identity";
 import {
   RESPONSIBILITY_PILLAR_EMOJI,
   type ResponsibilityPillar,
@@ -15,6 +19,9 @@ type PillarProgress = {
   currentLevelFloorXp: number;
   nextLevelXp: number | null;
   progressFraction: number;
+  titleTier: number;
+  nextTitleTier: number | null;
+  titleProgressFraction: number;
 };
 
 type ProgressSummary = {
@@ -86,24 +93,24 @@ export function ResponsibilityProgressCard({ memberId }: { memberId?: string }) 
         <p className="text-sm text-slate-500">{t("common.actions.loading")}</p>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg bg-slate-50 p-3 text-center">
+          <div className="responsibility-progress-stats">
+            <div className="flex min-h-20 flex-col items-center justify-center rounded-lg bg-slate-50 p-3 text-center">
               <p className="text-lg font-semibold text-slate-800">{progress.totalXp}</p>
               <p className="text-xs text-slate-500">{t("responsibility.progress.totalXp")}</p>
             </div>
-            <div className="rounded-lg bg-slate-50 p-3 text-center">
+            <div className="flex min-h-20 flex-col items-center justify-center rounded-lg bg-slate-50 p-3 text-center">
               <p className="text-lg font-semibold text-slate-800">{progress.skillsLearned}</p>
               <p className="text-xs text-slate-500">
                 {t("responsibility.progress.skillsLearned")}
               </p>
             </div>
-            <div className="rounded-lg bg-slate-50 p-3 text-center">
+            <div className="flex min-h-20 flex-col items-center justify-center rounded-lg bg-slate-50 p-3 text-center">
               <p className="text-lg font-semibold text-slate-800">{progress.routinesCompleted}</p>
               <p className="text-xs text-slate-500">
                 {t("responsibility.progress.routinesCompleted")}
               </p>
             </div>
-            <div className="rounded-lg bg-slate-50 p-3 text-center">
+            <div className="flex min-h-20 flex-col items-center justify-center rounded-lg bg-slate-50 p-3 text-center">
               <p className="text-lg font-semibold text-slate-800">
                 {progress.mostActivePillar
                   ? RESPONSIBILITY_PILLAR_EMOJI[progress.mostActivePillar]
@@ -126,21 +133,61 @@ export function ResponsibilityProgressCard({ memberId }: { memberId?: string }) 
             </p>
           ) : null}
 
-          <ul className="flex flex-col gap-3">
+          {progress.pillars.some(hasEarnedIdentity) ? (
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium text-slate-500">
+                {t("responsibility.identity.earnedIdentities")}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {progress.pillars
+                  .filter(hasEarnedIdentity)
+                  .map((entry) => (
+                    <span
+                      key={entry.pillar}
+                      className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      <span aria-hidden="true">{RESPONSIBILITY_PILLAR_EMOJI[entry.pillar]}</span>
+                      {responsibilityTitleLabel(entry.pillar, entry.titleTier, t)}
+                    </span>
+                  ))}
+              </div>
+            </div>
+          ) : null}
+
+          <ul className="flex flex-col gap-4">
             {progress.pillars.map((entry) => {
-              const percent = Math.round(entry.progressFraction * 100);
+              const percent = Math.round(entry.titleProgressFraction * 100);
+              const nextTitle =
+                entry.nextTitleTier !== null
+                  ? responsibilityTitleLabel(entry.pillar, entry.nextTitleTier, t)
+                  : "";
               return (
                 <li key={entry.pillar} className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-slate-700">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-medium text-slate-600">
                       {responsibilityPillarLabel(entry.pillar, t)}
                     </span>
-                    <span className="text-xs text-slate-500">
-                      {t("responsibility.progress.level").replace("{level}", String(entry.level))}
-                      {" · "}
-                      {entry.xp} XP
+                    <span className="inline-flex items-center gap-2">
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                        <span className="sr-only">
+                          {t("responsibility.progress.level").replace("{level}", String(entry.level))}
+                        </span>
+                        {entry.level}
+                      </span>
+                      <span className="text-[11px] text-slate-400">{entry.xp} XP</span>
                     </span>
                   </div>
+                  {nextTitle ? (
+                    <p className="text-xs font-medium text-slate-500">
+                      {t("responsibility.identity.progressToNext", {
+                        percent: String(percent),
+                        title: nextTitle,
+                      })}
+                    </p>
+                  ) : (
+                    <p className="text-xs font-medium text-amber-600">
+                      {t("responsibility.identity.topTitle")}
+                    </p>
+                  )}
                   <div
                     className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100"
                     role="progressbar"

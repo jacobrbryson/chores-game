@@ -18,6 +18,8 @@ import {
 } from "@/lib/firestore/rest";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
+import { trackEvent } from "@/lib/analytics/service";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { buildKioskActivityMetadata } from "@/lib/auth/kiosk";
 import { GOOGLE_TASKS_CHORE_SOURCE } from "@/lib/google/tasks-sync";
 import {
@@ -28,6 +30,7 @@ import {
 } from "@/lib/chores/recurrence";
 import { normalizeChoreType } from "@/lib/chores/types";
 import { normalizeResponsibilityPillar } from "@/lib/responsibility/types";
+import { titleNameEn } from "@/lib/responsibility/titles";
 import { readChoreCategoryIds } from "@/lib/family/categories";
 import { canonicalRecurringChoreId } from "@/lib/chores/skill-bonus";
 import { awardChoreResponsibilityXpBestEffort } from "@/lib/responsibility/service";
@@ -284,6 +287,8 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
       choreFields: existingChoreDoc.fields,
       paidPlayerUids: await resolvePaidPlayerUids(familyId, payoutByAssignee, idToken),
       newSkillPlayerUids: newSkillBonus.playerUids,
+      // Celebrate the completing actor's identity (in Kiosk this is the child).
+      celebrationPlayerUid: session.uid,
     });
   }
   const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
@@ -339,6 +344,26 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
     newSkillBonusAwarded: newSkillBonus.awarded,
     newSkillBonusAmount: newSkillBonus.totalCoins,
   });
+  // Responsibility Identity: when this completion unlocked a new title for the
+  // completing child, announce it as its own celebratory feed line (reusing the
+  // chore_completed kind — no new ActivityKind/WS type needed).
+  if (responsibilityXp.title?.unlocked && responsibilityXp.title.pillar) {
+    const titleName = titleNameEn(responsibilityXp.title.pillar, responsibilityXp.title.tier);
+    await emitFamilyActivityBestEffort({
+      familyId,
+      idToken,
+      kind: "identity_title_unlocked",
+      actorUid: session.uid,
+      actorEmail: session.email,
+      actorName,
+      title: "New title unlocked",
+      message: `🎉 ${actorName} became a ${titleName}!`,
+      relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
+      source: kioskActivity.source,
+      authenticatedUid: kioskActivity.authenticatedUid,
+      completedForPlayerId: kioskActivity.completedForPlayerId,
+    });
+  }
   // Credit achievements to every assignee on the chore. Group, family, and
   // multi-assignee chores store an empty singular assigneeId, so resolving a
   // single uid (assigneeUid) would silently skip all completion-driven
@@ -378,6 +403,47 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
       },
       metricMaximums: derivedMaximums,
       consumeRejectionFlagOnComplete: true,
+    });
+  }
+  // Analytics: best-effort, observational, never blocks the transition. trackEvent
+  // swallows its own failures. Emits the chore completion plus a coins_earned
+  // event when a payout actually landed and identity_title_unlocked on a new
+  // title, so feature-adoption questions are answerable without new code later.
+  await trackEvent({
+    event: ANALYTICS_EVENTS.chore_completed,
+    familyId,
+    userId: session.uid,
+    role: requester.role,
+    metadata: {
+      choreId,
+      status: nextStatus,
+      requireApproval: completionNeedsApproval,
+      coinValue: approvedCoinValue,
+      source: choreSource || "manual",
+      choreType,
+      recurring: choreRecurrence.recurrenceType !== "none",
+      routineStep: Boolean(choreRoutineAssignmentId),
+    },
+  });
+  if (payoutApplied && approvedCoinValue > 0) {
+    await trackEvent({
+      event: ANALYTICS_EVENTS.coins_earned,
+      familyId,
+      userId: session.uid,
+      role: requester.role,
+      metadata: { choreId, coins: approvedCoinValue, source: "chore_completion" },
+    });
+  }
+  if (responsibilityXp.title?.unlocked && responsibilityXp.title.pillar) {
+    await trackEvent({
+      event: ANALYTICS_EVENTS.identity_title_unlocked,
+      familyId,
+      userId: session.uid,
+      role: requester.role,
+      metadata: {
+        pillar: responsibilityXp.title.pillar,
+        tier: responsibilityXp.title.tier,
+      },
     });
   }
   return {

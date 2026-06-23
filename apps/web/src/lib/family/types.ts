@@ -79,6 +79,20 @@ export type FamilySnapshotChore = {
   // Which Responsibility Pillar this chore develops; drives the pillar chip
   // on dashboard rows. Optional — most chores may have no pillar.
   responsibilityPillar?: ResponsibilityPillar;
+  responsibilityProgress?: {
+    playerId: string;
+    pillar: ResponsibilityPillar;
+    xpBefore: number;
+    xpAfter: number;
+    levelBefore: number;
+    levelAfter: number;
+    tier: number;
+    nextTier: number | null;
+    prevFraction: number;
+    newFraction: number;
+    unlocked: boolean;
+    xpAwarded: number;
+  };
   // New Skill Bonus: true when the assigned child has never completed this chore
   // (by recurring-root identity) before, so the dashboard shows a "+5 New Skill"
   // badge. Only set for single-assignee chores; omitted for multi/family chores.

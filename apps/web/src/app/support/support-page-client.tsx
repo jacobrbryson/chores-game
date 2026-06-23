@@ -22,6 +22,8 @@ import { SupportStaleInvitesPanel } from "@/components/support-stale-invites-pan
 import { SupportDuplicateChildrenPanel } from "@/components/support-duplicate-children-panel";
 import { SupportResponsibilityPanel } from "@/components/support-responsibility-panel";
 import { SupportOperationsPanel } from "@/components/support-operations-panel";
+import { SupportAnalyticsPanel } from "@/components/support-analytics-panel";
+import { SupportFamilyHealthPanel } from "@/components/support-family-health-panel";
 import type { SupportDashboardMetrics } from "@/lib/support/dashboard-metrics";
 
 type SupportUser = {
@@ -197,6 +199,11 @@ const MODULE_COPY: Record<SupportModuleId, { title: string; subtitle: string }> 
     title: "Operations",
     subtitle:
       "Detect app slowness, database pagination risks, slow queries, API errors, and background job failures before they reach users.",
+  },
+  analytics: {
+    title: "Analytics",
+    subtitle:
+      "Family health scoring (thriving / at risk / inactive) plus the centralized analytics event pipeline validation view.",
   },
 };
 
@@ -670,9 +677,16 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
     <SupportConsoleShell activeModule={module} title={copy.title} subtitle={copy.subtitle} actions={actions}>
       {error ? <Alert>{error}</Alert> : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
-      {loading && module !== "operations" ? <LoadingSkeleton /> : null}
+      {loading && module !== "operations" && module !== "analytics" ? <LoadingSkeleton /> : null}
 
       {module === "operations" ? <SupportOperationsPanel /> : null}
+
+      {module === "analytics" ? (
+        <>
+          <SupportFamilyHealthPanel />
+          <SupportAnalyticsPanel />
+        </>
+      ) : null}
 
       {!loading && payload && module === "dashboard" ? (
         <>

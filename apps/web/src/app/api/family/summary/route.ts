@@ -43,7 +43,11 @@ import {
   skillBonusEligibilityKey,
 } from "@/lib/chores/skill-bonus";
 import { normalizeChoreType } from "@/lib/chores/types";
-import { normalizeResponsibilityPillar } from "@/lib/responsibility/types";
+import { loadResponsibilityConfig } from "@/lib/responsibility/config";
+import { levelForXp } from "@/lib/responsibility/levels";
+import { pillarXpFieldName } from "@/lib/responsibility/service";
+import { titleProgressForPillar, titleUnlockTier } from "@/lib/responsibility/titles";
+import { normalizeResponsibilityPillar, type ResponsibilityPillar } from "@/lib/responsibility/types";
 import { DEFAULT_LOCALE, resolveAppLocale } from "@/lib/locale";
 
 export const dynamic = "force-dynamic";
@@ -165,6 +169,64 @@ function createEmptyMemberStats() {
     lifetimeChoresCompleted: 0,
     lifetimeCoinsEarned: 0,
     currentCoins: 0,
+  };
+}
+
+type ResponsibilityProgressProjection = NonNullable<
+  FamilySummaryResponse["choresToday"][number]["responsibilityProgress"]
+>;
+
+function resolveSingleAssigneeUid(
+  chore: {
+    assigneeId?: string;
+    assigneeIds?: string[];
+    assigneeScope?: "single" | "multiple" | "family";
+  },
+  memberUidByAlias: Map<string, string>,
+) {
+  if (chore.assigneeScope === "family" || (chore.assigneeIds?.length ?? 0) > 1) {
+    return "";
+  }
+  const assigneeId =
+    chore.assigneeIds && chore.assigneeIds.length === 1
+      ? chore.assigneeIds[0]
+      : chore.assigneeId || "";
+  return memberUidByAlias.get(assigneeId) || memberUidByAlias.get(normalizeEmail(assigneeId)) || "";
+}
+
+function buildResponsibilityProgressProjection(input: {
+  playerId: string;
+  pillar: ResponsibilityPillar | undefined;
+  progressFields: Record<string, FirestoreValue> | undefined;
+  choreXpAwarded: number;
+  newSkillXpAwarded: number;
+  levelThresholds: number[];
+}): ResponsibilityProgressProjection | undefined {
+  const { playerId, pillar, progressFields, choreXpAwarded, newSkillXpAwarded, levelThresholds } = input;
+  if (!playerId || !pillar) {
+    return undefined;
+  }
+  const xpAwarded = Math.max(0, choreXpAwarded + newSkillXpAwarded);
+  if (xpAwarded <= 0) {
+    return undefined;
+  }
+  const xpBefore = Math.max(0, readInteger(progressFields, pillarXpFieldName(pillar)));
+  const xpAfter = xpBefore + xpAwarded;
+  const beforeTitle = titleProgressForPillar({ xp: xpBefore, thresholds: levelThresholds });
+  const afterTitle = titleProgressForPillar({ xp: xpAfter, thresholds: levelThresholds });
+  return {
+    playerId,
+    pillar,
+    xpBefore,
+    xpAfter,
+    levelBefore: levelForXp(xpBefore, levelThresholds),
+    levelAfter: levelForXp(xpAfter, levelThresholds),
+    tier: afterTitle.tier,
+    nextTier: afterTitle.nextTier,
+    prevFraction: beforeTitle.titleProgressFraction,
+    newFraction: afterTitle.titleProgressFraction,
+    unlocked: titleUnlockTier(xpBefore, xpAfter, levelThresholds) !== null,
+    xpAwarded,
   };
 }
 
@@ -499,6 +561,7 @@ export async function GET(request: NextRequest) {
           ReturnType<typeof createEmptyMemberStats>
         >();
         const memberStatsKeyByAlias = new Map<string, string>();
+        const memberUidByAlias = new Map<string, string>();
         const memberUserDocByUid = new Map<
           string,
           Awaited<ReturnType<typeof getDocument>> | null
@@ -510,9 +573,15 @@ export async function GET(request: NextRequest) {
           memberStatsKeyByAlias.set(member.id, statsKey);
           if (member.uid) {
             memberStatsKeyByAlias.set(member.uid, statsKey);
+            memberUidByAlias.set(member.id, member.uid);
+            memberUidByAlias.set(member.uid, member.uid);
           }
           if (member.email) {
-            memberStatsKeyByAlias.set(normalizeEmail(member.email), statsKey);
+            const normalizedMemberEmail = normalizeEmail(member.email);
+            memberStatsKeyByAlias.set(normalizedMemberEmail, statsKey);
+            if (member.uid) {
+              memberUidByAlias.set(normalizedMemberEmail, member.uid);
+            }
           }
         }
 
@@ -641,6 +710,30 @@ export async function GET(request: NextRequest) {
             if (member.avatarPhotoUrl) {
               assigneeAvatarPhotoByAlias.set(normalizedEmail, member.avatarPhotoUrl);
             }
+          }
+        }
+        const responsibilityConfig = await loadResponsibilityConfig();
+        const responsibilityProgressFieldsByPlayer = new Map<
+          string,
+          Record<string, FirestoreValue> | undefined
+        >();
+        try {
+          const progressDocs = await listAllDocuments(
+            `families/${familyId}/responsibilityProgress`,
+            idToken,
+            { cap: 200 },
+          );
+          for (const progressDoc of progressDocs) {
+            const playerId =
+              readString(progressDoc.fields, "playerId") || documentIdFromName(progressDoc.name);
+            if (playerId) {
+              responsibilityProgressFieldsByPlayer.set(playerId, progressDoc.fields);
+            }
+          }
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "";
+          if (!reason.includes("FIRESTORE_HTTP_404")) {
+            throw error;
           }
         }
         if (viewerMember?.status === "invited") {
@@ -852,6 +945,7 @@ export async function GET(request: NextRequest) {
               responsibilityPillar:
                 normalizeResponsibilityPillar(readString(doc.fields, "responsibilityPillar")) ||
                 undefined,
+              responsibilityXpReward: readInteger(doc.fields, "responsibilityXpReward"),
               routineAssignmentId: readString(doc.fields, "routineAssignmentId") || undefined,
               routineId: readString(doc.fields, "routineId") || undefined,
               routineName: readString(doc.fields, "routineName") || undefined,
@@ -878,51 +972,69 @@ export async function GET(request: NextRequest) {
                 !isAfterLocalToday(chore.dueDate, timezoneOffsetMinutes),
             )
             .sort(compareBySortOrderOrOldest)
-            .map((chore) => ({
-              id: chore.id,
-              title: chore.title,
-              choreType: chore.choreType,
-              sortOrder: chore.sortOrder,
-              createdAt: chore.createdAt,
-              assigneeId: chore.assigneeId,
-              assigneeIds: chore.assigneeIds,
-              assigneeScope: chore.assigneeScope,
-              assigneeName: chore.assigneeName,
-              assigneePrimaryColor: chore.assigneePrimaryColor,
-              assigneeAvatarId: chore.assigneeAvatarId,
-              assigneeAvatarPhotoUrl: chore.assigneeAvatarPhotoUrl,
-              dueDate: chore.dueDate,
-              details: chore.details,
-              actionHref: chore.actionHref,
-              actionLabel: chore.actionLabel,
-              categoryIds: chore.categoryIds,
-              categories: resolveChoreCategories(chore.categoryIds, categoryMap),
-              coinValue: chore.coinValue,
-              requireApproval: chore.requireApproval,
-              newSkillEnabled: chore.newSkillEnabled,
-              recurrenceType: chore.recurrence.recurrenceType,
-              recurrenceInterval: chore.recurrence.recurrenceInterval,
-              recurrenceUnit: chore.recurrence.recurrenceUnit,
-              recurrenceDays: chore.recurrence.recurrenceDays,
-              newSkillBonusEligible: chore.newSkillBonusEligible,
-              newSkillBonusAmount: chore.newSkillBonusEligible
-                ? NEW_SKILL_BONUS_AMOUNT
-                : undefined,
-              responsibilityPillar: chore.responsibilityPillar,
-              routineAssignmentId: chore.routineAssignmentId,
-              routineId: chore.routineId,
-              routineName: chore.routineName,
-              routineStepOrder: chore.routineStepOrder,
-              routineStepCount: chore.routineStepCount,
-              source: chore.source,
-              status:
-                chore.status === "Open" ||
-                chore.status === "Submitted" ||
-                chore.status === "Approved" ||
-                chore.status === "Rejected"
-                  ? chore.status
-                  : "Unknown",
-            })),
+            .map((chore) => {
+              const progressPlayerId = resolveSingleAssigneeUid(chore, memberUidByAlias);
+              const responsibilityProgress = buildResponsibilityProgressProjection({
+                playerId: progressPlayerId,
+                pillar: chore.responsibilityPillar,
+                progressFields:
+                  responsibilityProgressFieldsByPlayer.get(progressPlayerId),
+                choreXpAwarded:
+                  chore.responsibilityXpReward >= 0
+                    ? chore.responsibilityXpReward
+                    : responsibilityConfig.xpValues.choreCompletionXp,
+                newSkillXpAwarded: chore.newSkillBonusEligible
+                  ? responsibilityConfig.xpValues.newSkillBonusXp
+                  : 0,
+                levelThresholds: responsibilityConfig.levelThresholds,
+              });
+              return {
+                id: chore.id,
+                title: chore.title,
+                choreType: chore.choreType,
+                sortOrder: chore.sortOrder,
+                createdAt: chore.createdAt,
+                assigneeId: chore.assigneeId,
+                assigneeIds: chore.assigneeIds,
+                assigneeScope: chore.assigneeScope,
+                assigneeName: chore.assigneeName,
+                assigneePrimaryColor: chore.assigneePrimaryColor,
+                assigneeAvatarId: chore.assigneeAvatarId,
+                assigneeAvatarPhotoUrl: chore.assigneeAvatarPhotoUrl,
+                dueDate: chore.dueDate,
+                details: chore.details,
+                actionHref: chore.actionHref,
+                actionLabel: chore.actionLabel,
+                categoryIds: chore.categoryIds,
+                categories: resolveChoreCategories(chore.categoryIds, categoryMap),
+                coinValue: chore.coinValue,
+                requireApproval: chore.requireApproval,
+                newSkillEnabled: chore.newSkillEnabled,
+                recurrenceType: chore.recurrence.recurrenceType,
+                recurrenceInterval: chore.recurrence.recurrenceInterval,
+                recurrenceUnit: chore.recurrence.recurrenceUnit,
+                recurrenceDays: chore.recurrence.recurrenceDays,
+                newSkillBonusEligible: chore.newSkillBonusEligible,
+                newSkillBonusAmount: chore.newSkillBonusEligible
+                  ? NEW_SKILL_BONUS_AMOUNT
+                  : undefined,
+                responsibilityPillar: chore.responsibilityPillar,
+                responsibilityProgress,
+                routineAssignmentId: chore.routineAssignmentId,
+                routineId: chore.routineId,
+                routineName: chore.routineName,
+                routineStepOrder: chore.routineStepOrder,
+                routineStepCount: chore.routineStepCount,
+                source: chore.source,
+                status:
+                  chore.status === "Open" ||
+                  chore.status === "Submitted" ||
+                  chore.status === "Approved" ||
+                  chore.status === "Rejected"
+                    ? chore.status
+                    : "Unknown",
+              };
+            }),
           pendingInvite: null,
         } satisfies FamilySummaryResponse;
       });

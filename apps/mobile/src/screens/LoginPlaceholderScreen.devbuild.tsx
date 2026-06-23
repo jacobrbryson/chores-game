@@ -9,7 +9,7 @@ import {
 } from "@react-native-google-signin/google-signin";
 import { GoogleSignInActionButton } from "@/components/GoogleSignInActionButton";
 import { MobileLoginLayout } from "@/components/MobileLoginLayout";
-import { signInWithGoogleIdToken } from "@/lib/api";
+import { ServerUnreachableError, signInWithGoogleIdToken } from "@/lib/api";
 
 type Props = {
   onSignedIn?: () => void;
@@ -65,7 +65,9 @@ export function LoginPlaceholderScreen({ onSignedIn }: Props) {
       await signInWithGoogleIdToken(idToken);
       onSignedIn?.();
     } catch (nextError) {
-      if (isErrorWithCode(nextError)) {
+      if (nextError instanceof ServerUnreachableError) {
+        setError("Couldn't reach the server. Check your internet connection and try again.");
+      } else if (isErrorWithCode(nextError)) {
         switch (nextError.code) {
           case statusCodes.IN_PROGRESS:
             setError("Google sign-in is already in progress.");

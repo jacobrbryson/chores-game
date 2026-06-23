@@ -13,6 +13,16 @@ export function responsibilityPillarLabel(
   return `${RESPONSIBILITY_PILLAR_EMOJI[pillar]} ${t(`responsibility.pillars.${pillar}`)}`;
 }
 
+// Localized identity title name for a pillar + 0-based title tier. Title names
+// live under the `responsibility.titles.<pillar>.<tier>` locale keys.
+export function responsibilityTitleLabel(
+  pillar: ResponsibilityPillar,
+  tier: number,
+  t: (key: string) => string,
+) {
+  return t(`responsibility.titles.${pillar}.${tier}`);
+}
+
 export function responsibilityPillarSelectOptions(t: (key: string) => string) {
   return [
     { value: "" as const, label: t("responsibility.noPillar") },

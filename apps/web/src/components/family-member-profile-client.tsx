@@ -13,6 +13,7 @@ import { formatDateTime } from "@/components/profile/profile-page.utils";
 import { dispatchAppLocaleChanged, useLocale } from "@/components/locale-provider";
 import { ProfileFamilySummarySection } from "@/components/profile/profile-family-summary-section";
 import { ResponsibilityProgressCard } from "@/components/responsibility-progress-card";
+import { ProfileIdentityCard } from "@/components/profile-identity-card";
 import { ProfileAthenaChildCard } from "@/components/profile/profile-athena-child-card";
 
 type FamilyMemberProfileClientProps = {
@@ -503,6 +504,7 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
           {/* Responsibility report card for this member. Self-hiding: the
               progress API returns 403 for non-admin viewers looking at other
               members, and the card renders nothing on failure. */}
+          <ProfileIdentityCard memberId={profile.member.uid || profile.member.id} />
           <ResponsibilityProgressCard memberId={profile.member.uid || profile.member.id} />
 
           {/* Per-child Athena enablement. Self-hides unless the viewer is an

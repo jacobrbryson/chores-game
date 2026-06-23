@@ -17,6 +17,7 @@ import {
 import { ProfileGoogleLinkCard } from "@/components/profile/profile-google-link-card";
 import { ProfileNewsletterPreferencesCard } from "@/components/profile/profile-newsletter-preferences-card";
 import { ResponsibilityProgressCard } from "@/components/responsibility-progress-card";
+import { ProfileIdentityCard } from "@/components/profile-identity-card";
 import { MyRequestsList } from "@/components/my-requests-list";
 import {
   ProfileSectionTabs,
@@ -956,6 +957,7 @@ export function ProfilePageClient({
             setConfettiDialogOpen(true);
           }}
           />
+          <ProfileIdentityCard />
           <ResponsibilityProgressCard />
           <ProfileFamilySummarySection
             summary={familySummary}

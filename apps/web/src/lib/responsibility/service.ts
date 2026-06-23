@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import {
   createOrReplaceDocument,
+  documentIdFromName,
   getDocument,
   integerField,
+  listAllDocuments,
   readInteger,
   readString,
   readTimestamp,
@@ -11,7 +13,9 @@ import {
   type FirestoreValue,
 } from "@/lib/firestore/rest";
 import { loadResponsibilityConfig } from "@/lib/responsibility/config";
-import { levelProgressForXp } from "@/lib/responsibility/levels";
+import { levelForXp, levelProgressForXp } from "@/lib/responsibility/levels";
+import { titleProgressForPillar, titleUnlockTier } from "@/lib/responsibility/titles";
+import type { PillarIdentity } from "@/lib/responsibility/identity";
 import {
   RESPONSIBILITY_PILLARS,
   normalizeResponsibilityPillar,
@@ -42,6 +46,13 @@ export type ResponsibilityXpAward = {
   routineId?: string;
 };
 
+// The awarded pillar's cumulative XP immediately before and after this award,
+// used by callers to detect title-tier transitions for celebrations.
+export type ResponsibilityXpAwardResult = {
+  pillarXpBefore: number;
+  pillarXpAfter: number;
+};
+
 // Writes one XP event and folds it into the player's aggregate document.
 // XP is additive and event-driven: the aggregate is read-modify-write per
 // award, which matches how wallet payouts already behave in this codebase
@@ -51,10 +62,10 @@ export async function recordResponsibilityXpAward(input: {
   familyId: string;
   idToken: string;
   award: ResponsibilityXpAward;
-}): Promise<void> {
+}): Promise<ResponsibilityXpAwardResult | null> {
   const { familyId, idToken, award } = input;
   if (!familyId || !award.playerId || award.xpAwarded <= 0) {
-    return;
+    return null;
   }
   const now = new Date().toISOString();
   const eventId = randomUUID();
@@ -89,10 +100,16 @@ export async function recordResponsibilityXpAward(input: {
     updatedAt: timestampField(now),
     lastEventAt: timestampField(now),
   };
+  let pillarXpBefore = 0;
+  let pillarXpAfter = 0;
   for (const pillar of RESPONSIBILITY_PILLARS) {
     const fieldName = pillarXpFieldName(pillar);
     const current = readInteger(existingFields, fieldName);
     const next = pillar === award.pillar ? current + award.xpAwarded : current;
+    if (pillar === award.pillar) {
+      pillarXpBefore = current;
+      pillarXpAfter = next;
+    }
     fields[fieldName] = integerField(next);
   }
   fields.totalXp = integerField(readInteger(existingFields, "totalXp") + award.xpAwarded);
@@ -109,18 +126,21 @@ export async function recordResponsibilityXpAward(input: {
     readString(existingFields, "routineCompletionsJson"),
   );
   await createOrReplaceDocument(progressPath, fields, idToken);
+  return { pillarXpBefore, pillarXpAfter };
 }
 
 // Best-effort variant for completion/approval hot paths: XP must never break
-// an existing chore workflow, so failures are logged and swallowed.
+// an existing chore workflow, so failures are logged and swallowed. Returns
+// whether the award succeeded plus the awarded pillar's before/after XP (for
+// title-transition detection); `result` is null when nothing was written.
 export async function recordResponsibilityXpAwardBestEffort(input: {
   familyId: string;
   idToken: string;
   award: ResponsibilityXpAward;
-}): Promise<boolean> {
+}): Promise<{ ok: boolean; result: ResponsibilityXpAwardResult | null }> {
   try {
-    await recordResponsibilityXpAward(input);
-    return true;
+    const result = await recordResponsibilityXpAward(input);
+    return { ok: true, result };
   } catch (error) {
     const reason = error instanceof Error && error.message ? error.message.slice(0, 200) : "unknown";
     console.error("[RESPONSIBILITY_XP_AWARD_ERROR]", {
@@ -129,14 +149,35 @@ export async function recordResponsibilityXpAwardBestEffort(input: {
       eventType: input.award.eventType,
       reason,
     });
-    return false;
+    return { ok: false, result: null };
   }
 }
+
+// Responsibility Identity snapshot for the player whose completion is being
+// celebrated (the dashboard shows their pillar title growing). Computed only
+// when a `celebrationPlayerUid` is supplied and that player earned pillar XP.
+export type ChoreTitleOutcome = {
+  pillar: ResponsibilityPillar;
+  xpBefore: number;
+  xpAfter: number;
+  levelBefore: number;
+  levelAfter: number;
+  // Title tier after the award and the next tier (null at the top).
+  tier: number;
+  nextTier: number | null;
+  // Title-band progress fractions before and after this completion, so the UI
+  // can animate the bar growing.
+  prevFraction: number;
+  newFraction: number;
+  // True when this completion crossed into a new title tier.
+  unlocked: boolean;
+};
 
 export type ChoreXpOutcome = {
   pillar: ResponsibilityPillar | "";
   choreXpAwarded: number;
   newSkillXpAwarded: number;
+  title?: ChoreTitleOutcome;
 };
 
 const EMPTY_CHORE_XP_OUTCOME: ChoreXpOutcome = {
@@ -156,8 +197,19 @@ export async function awardChoreResponsibilityXpBestEffort(input: {
   choreFields: Record<string, FirestoreValue> | undefined;
   paidPlayerUids: string[];
   newSkillPlayerUids: string[];
+  // When set, the title progress/unlock for this player is captured into the
+  // outcome so the dashboard can celebrate the completing child's identity.
+  celebrationPlayerUid?: string;
 }): Promise<ChoreXpOutcome> {
-  const { familyId, idToken, choreId, choreFields, paidPlayerUids, newSkillPlayerUids } = input;
+  const {
+    familyId,
+    idToken,
+    choreId,
+    choreFields,
+    paidPlayerUids,
+    newSkillPlayerUids,
+    celebrationPlayerUid,
+  } = input;
   const pillar = normalizeResponsibilityPillar(readString(choreFields, "responsibilityPillar"));
   if (!pillar) {
     return EMPTY_CHORE_XP_OUTCOME;
@@ -172,6 +224,20 @@ export async function awardChoreResponsibilityXpBestEffort(input: {
   const choreXp = overrideXp >= 0 ? overrideXp : config.xpValues.choreCompletionXp;
   let choreXpAwarded = 0;
   let newSkillXpAwarded = 0;
+  // Track the celebration player's first "before" and last "after" pillar XP
+  // across all of their awards (chore XP + any new-skill bonus) so the title
+  // transition reflects the whole completion.
+  let celebXpBefore: number | null = null;
+  let celebXpAfter: number | null = null;
+  const captureCeleb = (playerId: string, result: ResponsibilityXpAwardResult | null) => {
+    if (!result || playerId !== celebrationPlayerUid) {
+      return;
+    }
+    if (celebXpBefore === null) {
+      celebXpBefore = result.pillarXpBefore;
+    }
+    celebXpAfter = result.pillarXpAfter;
+  };
   const seen = new Set<string>();
   for (const playerId of paidPlayerUids) {
     if (!playerId || seen.has(playerId)) {
@@ -179,7 +245,7 @@ export async function awardChoreResponsibilityXpBestEffort(input: {
     }
     seen.add(playerId);
     if (choreXp > 0) {
-      const ok = await recordResponsibilityXpAwardBestEffort({
+      const { ok, result } = await recordResponsibilityXpAwardBestEffort({
         familyId,
         idToken,
         award: { playerId, pillar, xpAwarded: choreXp, eventType: "chore_completed", choreId },
@@ -187,6 +253,7 @@ export async function awardChoreResponsibilityXpBestEffort(input: {
       if (ok) {
         choreXpAwarded += choreXp;
       }
+      captureCeleb(playerId, result);
     }
   }
   const newSkillXp = config.xpValues.newSkillBonusXp;
@@ -194,7 +261,7 @@ export async function awardChoreResponsibilityXpBestEffort(input: {
     if (!playerId || newSkillXp <= 0) {
       continue;
     }
-    const ok = await recordResponsibilityXpAwardBestEffort({
+    const { ok, result } = await recordResponsibilityXpAwardBestEffort({
       familyId,
       idToken,
       award: { playerId, pillar, xpAwarded: newSkillXp, eventType: "new_skill_bonus", choreId },
@@ -202,8 +269,27 @@ export async function awardChoreResponsibilityXpBestEffort(input: {
     if (ok) {
       newSkillXpAwarded += newSkillXp;
     }
+    captureCeleb(playerId, result);
   }
-  return { pillar, choreXpAwarded, newSkillXpAwarded };
+  let title: ChoreTitleOutcome | undefined;
+  if (celebXpBefore !== null && celebXpAfter !== null && celebXpAfter !== celebXpBefore) {
+    const before = titleProgressForPillar({ xp: celebXpBefore, thresholds: config.levelThresholds });
+    const after = titleProgressForPillar({ xp: celebXpAfter, thresholds: config.levelThresholds });
+    title = {
+      pillar,
+      xpBefore: celebXpBefore,
+      xpAfter: celebXpAfter,
+      levelBefore: levelForXp(celebXpBefore, config.levelThresholds),
+      levelAfter: levelForXp(celebXpAfter, config.levelThresholds),
+      tier: after.tier,
+      nextTier: after.nextTier,
+      prevFraction: before.tier === after.tier ? before.titleProgressFraction : 0,
+      newFraction: after.titleProgressFraction,
+      unlocked:
+        titleUnlockTier(celebXpBefore, celebXpAfter, config.levelThresholds) !== null,
+    };
+  }
+  return { pillar, choreXpAwarded, newSkillXpAwarded, title };
 }
 
 // Per-routine completion stats stored on the player's progress document as a
@@ -351,6 +437,7 @@ export async function getResponsibilityProgress(input: {
       mostActivePillar = pillar;
     }
     const progress = levelProgressForXp(xp, config.levelThresholds);
+    const title = titleProgressForPillar({ xp, thresholds: config.levelThresholds });
     return {
       pillar,
       xp,
@@ -358,6 +445,9 @@ export async function getResponsibilityProgress(input: {
       currentLevelFloorXp: progress.currentLevelFloorXp,
       nextLevelXp: progress.nextLevelXp,
       progressFraction: progress.progressFraction,
+      titleTier: title.tier,
+      nextTitleTier: title.nextTier,
+      titleProgressFraction: title.titleProgressFraction,
     };
   });
   return {
@@ -371,4 +461,58 @@ export async function getResponsibilityProgress(input: {
     ),
     pillars,
   };
+}
+
+// Derives the earned pillar identities from one progress doc's fields.
+// Shared shaping for the family-wide identities endpoint; the per-pillar title
+// derivation mirrors getResponsibilityProgress.
+function pillarIdentitiesFromFields(
+  fields: Record<string, FirestoreValue> | undefined,
+  thresholds: number[],
+): PillarIdentity[] {
+  const identities: PillarIdentity[] = [];
+  for (const pillar of RESPONSIBILITY_PILLARS) {
+    const xp = Math.max(0, readInteger(fields, pillarXpFieldName(pillar)));
+    const level = levelForXp(xp, thresholds);
+    if (level <= 1) {
+      continue;
+    }
+    const title = titleProgressForPillar({ xp, thresholds });
+    identities.push({
+      pillar,
+      level,
+      xp,
+      titleTier: title.tier,
+      nextTitleTier: title.nextTier,
+      titleProgressFraction: title.titleProgressFraction,
+    });
+  }
+  return identities;
+}
+
+// Batch-reads every family member's responsibility identities in one collection
+// scan (instead of one progress read per member). Returns a map keyed by player
+// uid (the progress doc id) → earned pillar identities, for the V2 family
+// recognition surfaces (profile/kiosk selection chips, parent Family Growth).
+export async function getFamilyResponsibilityIdentities(input: {
+  familyId: string;
+  idToken: string;
+}): Promise<Record<string, PillarIdentity[]>> {
+  const { familyId, idToken } = input;
+  const config = await loadResponsibilityConfig();
+  const docs = await listAllDocuments(`families/${familyId}/${PROGRESS_COLLECTION}`, idToken, {
+    cap: 200,
+  });
+  const byPlayer: Record<string, PillarIdentity[]> = {};
+  for (const doc of docs) {
+    const playerUid = readString(doc.fields, "playerId") || documentIdFromName(doc.name);
+    if (!playerUid) {
+      continue;
+    }
+    const identities = pillarIdentitiesFromFields(doc.fields, config.levelThresholds);
+    if (identities.length > 0) {
+      byPlayer[playerUid] = identities;
+    }
+  }
+  return byPlayer;
 }

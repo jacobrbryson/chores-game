@@ -8,6 +8,7 @@ import {
   fetchDiscoverySummary,
   getDiscoverySectionCount,
   markDiscoverySeen,
+  ServerUnreachableError,
   type MobileDiscoverySummary,
 } from "@/lib/api";
 import { MobileLocaleProvider, useMobileLocale } from "@/lib/locale";
@@ -20,7 +21,7 @@ import { MobileKioskScreen } from "@/screens/MobileKioskScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { QuestsScreen } from "@/screens/QuestsScreen";
 import { RewardsScreen } from "@/screens/RewardsScreen";
-import { MainNavigation } from "@/components/ui";
+import { Button, MainNavigation } from "@/components/ui";
 
 type TabKey = MainNavigationItemId | "profile" | "login" | "all-chores";
 
@@ -68,7 +69,9 @@ function AppContent({
 }) {
   const { t } = useMobileLocale();
   const [tab, setTab] = useState<TabKey>("dashboard");
-  const [authState, setAuthState] = useState<"checking" | "authenticated" | "unauthenticated">("checking");
+  const [authState, setAuthState] = useState<
+    "checking" | "authenticated" | "unauthenticated" | "unreachable"
+  >("checking");
   const [sessionMe, setSessionMe] = useState<SessionMe | null>(null);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [coinBalance, setCoinBalance] = useState(0);
@@ -93,13 +96,16 @@ function AppContent({
         setCoinBalance(typeof nextSession.balance === "number" ? nextSession.balance : 0);
         setAuthState("authenticated");
       })
-      .catch(() => {
+      .catch((error) => {
         if (cancelled) return;
         setSessionMe(null);
         onLocaleChange(DEFAULT_LOCALE);
         setAvatarUrl("");
         setCoinBalance(0);
-        setAuthState("unauthenticated");
+        // A dead connection is not the same as "not signed in" — show a retry
+        // screen rather than dropping the user onto the login form, where the
+        // sign-in request would just hang against the same unreachable backend.
+        setAuthState(error instanceof ServerUnreachableError ? "unreachable" : "unauthenticated");
       });
     return {
       promise,
@@ -194,6 +200,29 @@ function AppContent({
     );
   }
 
+  if (authState === "unreachable") {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.checkingWrap}>
+            <Text style={styles.checkingTitle}>{t("mobile.serverUnreachableTitle")}</Text>
+            <Text style={styles.checkingBody}>{t("mobile.serverUnreachableBody")}</Text>
+            <View style={styles.retryButton}>
+              <Button
+                label={t("mobile.serverUnreachableRetry")}
+                onPress={() => {
+                  setAuthState("checking");
+                  const sessionRequest = refreshSession();
+                  void sessionRequest.promise;
+                }}
+              />
+            </View>
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
+
   // While Kiosk Mode is active the session identity is the active player; take
   // over the whole app with a focused shared-tablet screen (no parent tabs),
   // mirroring the web /kiosk page.
@@ -268,4 +297,5 @@ const styles = StyleSheet.create({
   },
   checkingTitle: { fontSize: typography.h3, fontWeight: "800", color: colors.text },
   checkingBody: { fontSize: typography.body, color: colors.muted, textAlign: "center" },
+  retryButton: { marginTop: spacing.md, alignSelf: "stretch" },
 });

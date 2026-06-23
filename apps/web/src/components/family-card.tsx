@@ -269,7 +269,7 @@ export function FamilyCard() {
         if (event.choreId) {
           removeTodayChore(event.choreId);
         }
-      } else if (event.choreId) {
+      } else if (!shouldReloadFamilySummary(event.type) && event.choreId) {
         void refreshTodayChoreFromApi(event.choreId);
       }
       if (typeof window !== "undefined") {

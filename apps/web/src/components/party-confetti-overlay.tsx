@@ -11,6 +11,7 @@ import {
 	writeStoredConfettiOptionId,
 } from "@/lib/confetti/party";
 import { findConfettiOptionById } from "@/lib/store/catalog";
+import { useLocale } from "@/components/locale-provider";
 
 type PartyConfettiOverlayProps = {
 	defaultDurationMs?: number;
@@ -61,6 +62,8 @@ type ConfettiBurst = {
 type AllDoneGraphic = {
 	id: string;
 	colors: [string, string, string];
+	title?: string;
+	progress?: NonNullable<PartyConfettiTriggerDetail["allDoneProgress"]>;
 };
 
 const STORE_BRIEF_PATH = "/api/store?brief=1";
@@ -222,6 +225,7 @@ export function PartyConfettiOverlay({
 	defaultDurationMs = 900,
 	maxDurationMs = 1000,
 }: PartyConfettiOverlayProps) {
+	const { t } = useLocale();
 	const [selectedOptionId, setSelectedOptionId] = useState(readStoredConfettiOptionId);
 	const [bursts, setBursts] = useState<ConfettiBurst[]>([]);
 	const [allDoneGraphic, setAllDoneGraphic] = useState<AllDoneGraphic | null>(null);
@@ -399,6 +403,8 @@ export function PartyConfettiOverlay({
 				setAllDoneGraphic({
 					id: graphicId,
 					colors,
+					title: detail.allDoneTitle,
+					progress: detail.allDoneProgress,
 				});
 				if (allDoneTimeoutRef.current) {
 					clearTimeout(allDoneTimeoutRef.current);
@@ -407,7 +413,7 @@ export function PartyConfettiOverlay({
 					setAllDoneGraphic((current) =>
 						current?.id === graphicId ? null : current,
 					);
-				}, 1500);
+				}, 3000);
 			}
 		},
 		[defaultDurationMs, maxDurationMs],
@@ -457,14 +463,14 @@ export function PartyConfettiOverlay({
 		};
 	}, []);
 
-	if (bursts.length === 0) {
+	if (bursts.length === 0 && !allDoneGraphic) {
 		return null;
 	}
 
 	return (
-		<div className="party-confetti-layer" aria-hidden="true">
+		<div className="party-confetti-layer">
 			{bursts.map((burst) => (
-				<div key={burst.id} className="party-confetti-burst">
+				<div key={burst.id} className="party-confetti-burst" aria-hidden="true">
 					<span
 						className="party-confetti-glow"
 						style={
@@ -501,9 +507,13 @@ export function PartyConfettiOverlay({
 				</div>
 			))}
 			{allDoneGraphic ? (
-				<div className="party-all-done-overlay">
+				<div
+					className={`party-all-done-overlay${
+						allDoneGraphic.progress ? " party-all-done-overlay-with-progress" : ""
+					}`}>
 					<div
 						className="party-all-done-burst"
+						aria-hidden="true"
 						style={
 							{
 								"--all-done-color-a": allDoneGraphic.colors[0],
@@ -512,7 +522,62 @@ export function PartyConfettiOverlay({
 							} as CSSProperties
 						}
 					/>
-					<p className="party-all-done-text">All Done!</p>
+					<p className="party-all-done-text">
+						{allDoneGraphic.title || t("dashboard.allDonePopupTitle")}
+					</p>
+					{allDoneGraphic.progress ? (
+						<div className="party-all-done-progress" role="status" aria-live="polite">
+							<p className="party-all-done-pillar">
+								{allDoneGraphic.progress.pillarLabel}
+							</p>
+							<div className="party-all-done-title-row">
+								{allDoneGraphic.progress.currentTitle ? (
+									<span className="party-all-done-title">
+										{allDoneGraphic.progress.currentTitle}
+									</span>
+								) : null}
+								<span className="party-all-done-level">
+									{allDoneGraphic.progress.levelLabel}
+								</span>
+							</div>
+							<p className="party-all-done-progress-label">
+								{allDoneGraphic.progress.progressLabel}
+							</p>
+							<div
+								className="party-all-done-progress-track"
+								role="progressbar"
+								aria-valuemin={0}
+								aria-valuemax={100}
+								aria-valuenow={Math.round(allDoneGraphic.progress.percent)}>
+								<span
+									className="party-all-done-progress-bar"
+									style={{
+										width: `${Math.max(
+											2,
+											Math.min(100, allDoneGraphic.progress.percent),
+										)}%`,
+									}}
+								/>
+							</div>
+							{allDoneGraphic.progress.xpLabel ? (
+								<p className="party-all-done-xp">
+									{allDoneGraphic.progress.xpLabel}
+								</p>
+							) : null}
+						</div>
+					) : null}
+					<button
+						type="button"
+						className="party-all-done-dismiss"
+						onClick={() => {
+							if (allDoneTimeoutRef.current) {
+								clearTimeout(allDoneTimeoutRef.current);
+								allDoneTimeoutRef.current = null;
+							}
+							setAllDoneGraphic(null);
+						}}>
+						{t("common.actions.dismiss")}
+					</button>
 				</div>
 			) : null}
 		</div>

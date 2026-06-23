@@ -67,6 +67,7 @@
       "close": "Cerrar",
       "continue": "Continuar",
       "delete": "Eliminar",
+      "dismiss": "Descartar",
       "done": "Listo",
       "edit": "Editar",
       "loading": "Cargando...",
@@ -105,21 +106,21 @@
   "kiosk": {
     "badge": "Modo Quiosco",
     "selectPlayerTitle": "¿Quién va a hacer tareas?",
-    "selectPlayerBody": "Elige un jugador para ver sus tareas. Este modo de tableta compartida sirve solo para completar tareas.",
-    "loadingPlayers": "Cargando jugadores…",
-    "noPlayers": "No se encontraron perfiles de jugador en esta familia.",
+    "selectPlayerBody": "Elige un miembro de la familia para ver sus tareas. Este modo de tableta compartida sirve solo para completar tareas.",
+    "loadingPlayers": "Cargando miembros de la familia…",
+    "noPlayers": "No se encontraron miembros activos en esta familia.",
     "noFamily": "El Modo Quiosco solo está disponible para miembros de una familia.",
     "loadError": "No se pudo cargar el Modo Quiosco: {error}",
     "enterTitle": "Iniciar Modo Quiosco como {name}",
-    "enterBody": "El Modo Quiosco muestra solo las tareas de este jugador. Los controles de los padres quedan bloqueados hasta que salgas.",
+    "enterBody": "El modo kiosco muestra solo las tareas de esta persona. Los controles para padres permanecen bloqueados hasta que salgas.",
     "enterAction": "Iniciar Modo Quiosco",
     "startError": "No se pudo iniciar el Modo Quiosco: {error}",
     "pinLabel": "PIN",
     "checking": "Comprobando…",
-    "switchPlayer": "Cambiar jugador",
+    "switchPlayer": "Cambiar persona",
     "switchTitle": "Cambiar a {name}",
-    "switchBody": "Introduce el PIN para cambiar el jugador activo.",
-    "switchError": "No se pudo cambiar de jugador: {error}",
+    "switchBody": "Introduce el PIN para cambiar la persona activa.",
+    "switchError": "No se pudo cambiar de persona: {error}",
     "exit": "Salir del Modo Quiosco",
     "exitTitle": "Salir del Modo Quiosco",
     "exitBody": "Introduce el PIN para salir del Modo Quiosco y volver a la cuenta con sesión iniciada.",
@@ -129,7 +130,9 @@
     "completeError": "No se pudo completar la tarea: {error}",
     "loadingChores": "Cargando tareas…",
     "allDoneTitle": "¡Todo listo! 🎉",
-    "allDoneBody": "No quedan tareas por ahora."
+    "allDoneBody": "No quedan tareas por ahora.",
+    "allDonePopupTitle": "¡Todo listo!",
+    "newSkillPopupTitle": "¡Nueva habilidad!"
   },
   "footer": {
     "ariaLabel": "Pie del sitio",
@@ -316,6 +319,8 @@
     "newSkillBadge": "Nueva habilidad +{amount}",
     "newSkillBonusTooltip": "¡Primera vez! Gana {amount} monedas de bonificación por aprender una nueva habilidad.",
     "newSkillCelebration": "¡Nueva habilidad aprendida! +{amount} monedas de bonificación.",
+    "allDonePopupTitle": "¡Todo listo!",
+    "newSkillPopupTitle": "¡Nueva habilidad!",
     "recurringShowFrequency": "Tarea recurrente. Haz clic para mostrar la frecuencia.",
     "recurringHideFrequency": "Tarea recurrente. Haz clic para ocultar la frecuencia.",
     "recurrenceDaily": "Diaria",
@@ -375,14 +380,16 @@
     "loadingMore": "Cargando...",
     "actions": {
       "viewChore": "Ver tarea",
-      "viewReward": "Ver recompensa"
+      "viewReward": "Ver recompensa",
+      "reviewApproval": "Revisar aprobación"
     },
     "events": {
       "chore_created": "Nueva tarea añadida",
       "chore_completed": "Tarea completada",
       "chore_approved": "Tarea aprobada",
       "chore_rejected": "La tarea necesita otro intento",
-      "reward_claimed": "Recompensa canjeada"
+      "reward_claimed": "Recompensa canjeada",
+      "title_unlocked": "Nuevo título obtenido"
     }
   },
   "choreDialog": {
@@ -796,7 +803,19 @@
       "tips": {
         "pendingApprovals": "Tienes tareas esperando aprobacion. Revisarlas rapido ayuda a que las monedas y el impulso lleguen mientras la semana sigue fresca.",
         "kickstart": "Prueba agregar una tarea pequena y recurrente para cada nino. Las victorias constantes hacen que el resumen semanal sea mas valioso.",
-        "praise": "Menciona una victoria especifica de esta semana cuando vuelvas a abrir la app. El reconocimiento concreto ayuda a mantener la rutina."
+        "praise": "Menciona una victoria especifica de esta semana cuando vuelvas a abrir la app. El reconocimiento concreto ayuda a mantener la rutina.",
+        "birthYear": "Indica el ano de nacimiento de tu hijo en su perfil para que las sugerencias de tareas se adapten a su edad."
+      },
+      "athena": {
+        "eyebrow": "Nuevo · Companero de aprendizaje Athena",
+        "title": "Vincula tu cuenta con Athena",
+        "intro": "Conecta Family Chores con Athena, el companero de aprendizaje con IA de tus hijos, para una semana mas inteligente.",
+        "benefits": {
+          "suggestions": "Sugerencias de tareas mas inteligentes y personalizadas para cada nino.",
+          "coins": "Los ninos pueden preguntarle a Athena cuantas monedas tienen.",
+          "nextChore": "Athena les dice en que tarea trabajar a continuacion."
+        },
+        "cta": "Vincular mi cuenta"
       }
     }
   },
@@ -1373,7 +1392,10 @@
   },
   "mobile": {
     "checkingSessionTitle": "Verificando sesion...",
-    "checkingSessionBody": "Espera mientras verificamos tu inicio de sesion de Family Chores."
+    "checkingSessionBody": "Espera mientras verificamos tu inicio de sesion de Family Chores.",
+    "serverUnreachableTitle": "No se puede conectar al servidor",
+    "serverUnreachableBody": "No pudimos conectarnos a Family Chores. Verifica tu conexion a internet e intentalo de nuevo.",
+    "serverUnreachableRetry": "Intentar de nuevo"
   },
   "onboarding": {
     "saving": "Guardando...",
@@ -1570,6 +1592,62 @@
       "level": "Nivel {level}",
       "mostCompletedRoutine": "Rutina más completada: {name} ({count}×)"
     },
+    "titles": {
+      "home_care": {
+        "0": "Ayudante",
+        "1": "Encargado del hogar",
+        "2": "Maestro de tareas",
+        "3": "Guardián del hogar",
+        "4": "Héroe del hogar",
+        "5": "Administrador del hogar",
+        "6": "Maestro del hogar"
+      },
+      "self_care": {
+        "0": "Iniciador",
+        "1": "Niño independiente",
+        "2": "Pro del autocuidado",
+        "3": "Experto en autonomía",
+        "4": "Campeón del autodominio",
+        "5": "Héroe del crecimiento personal",
+        "6": "Maestro de sí mismo"
+      },
+      "organization": {
+        "0": "Organizador",
+        "1": "Planificador",
+        "2": "Coordinador",
+        "3": "Experto en eficiencia",
+        "4": "Maestro organizador",
+        "5": "Campeón de la logística",
+        "6": "Guardián del orden"
+      },
+      "family_contribution": {
+        "0": "Colaborador",
+        "1": "Jugador de equipo",
+        "2": "Ayudante familiar",
+        "3": "Campeón de la familia",
+        "4": "Pilar de la familia",
+        "5": "Líder familiar",
+        "6": "Héroe de la familia"
+      },
+      "life_skills": {
+        "0": "Aprendiz",
+        "1": "Solucionador de problemas",
+        "2": "Explorador",
+        "3": "Experto en habilidades para la vida",
+        "4": "Adulto capaz",
+        "5": "Constructor de comunidad",
+        "6": "Maestro de habilidades para la vida"
+      }
+    },
+    "identity": {
+      "earnedIdentities": "Identidades obtenidas",
+      "progressToNext": "{percent}% para {title}",
+      "titleUnlocked": "Nuevo título desbloqueado",
+      "topTitle": "¡Título máximo alcanzado!",
+      "journeyTitle": "Tu camino",
+      "familyGrowth": "Crecimiento familiar",
+      "familyGrowthSubtitle": "En quién se están convirtiendo tus hijos."
+    },
     "routineBadgeTooltip": "Parte de la rutina \"{name}\" — toca para ver el progreso",
     "assignDialog": {
       "title": "Asignar una rutina",
@@ -1613,6 +1691,69 @@
       "pillar": "Pilar de responsabilidad:",
       "bonusXp": "Bono por completar: +{xp} XP",
       "bonusCoins": "Bono por completar: +{coins} monedas"
+    }
+  },
+  "approvals": {
+    "familyBucket": "Familia",
+    "actions": {
+      "review": "Revisar",
+      "approveAll": "Aprobar todo",
+      "approve": "Aprobar",
+      "approveWithEllipsis": "Aprobar…",
+      "approving": "Aprobando…",
+      "reject": "Rechazar",
+      "rejecting": "Rechazando…",
+      "reviewIndividually": "Revisar individualmente",
+      "dismiss": "Descartar"
+    },
+    "card": {
+      "pendingTitleOne": "{count} tarea lista para aprobar",
+      "pendingTitleOther": "{count} tareas listas para aprobar",
+      "childCompletedOne": "{name} completó {count} tarea",
+      "childCompletedOther": "{name} completó {count} tareas",
+      "emptyTitle": "Todas las tareas revisadas",
+      "emptyBody": "¡Buen trabajo manteniendo a tu familia en marcha!",
+      "approvedTitleOne": "{count} tarea aprobada",
+      "approvedTitleOther": "{count} tareas aprobadas",
+      "childEarned": "{name} ganó"
+    },
+    "page": {
+      "title": "Bandeja de aprobaciones",
+      "waitingOne": "{count} tarea esperando revisión",
+      "waitingOther": "{count} tareas esperando revisión",
+      "loading": "Cargando aprobaciones…"
+    },
+    "group": {
+      "countOne": "{count} tarea",
+      "countOther": "{count} tareas"
+    },
+    "review": {
+      "justNow": "ahora mismo"
+    },
+    "choreType": {
+      "standard": "Estándar",
+      "routine": "Rutina",
+      "see_and_do": "Ver y hacer",
+      "ghost": "Tarea fantasma"
+    },
+    "coinModal": {
+      "title": "Aprobar y otorgar monedas",
+      "completedBy": "{name} completó:",
+      "prompt": "¿Cuántas monedas se deben otorgar?",
+      "remaining": "{count} por revisar"
+    },
+    "rejectModal": {
+      "title": "Rechazar tarea",
+      "prompt": "¿Devolver \"{title}\" para otro intento?",
+      "feedback": "Comentarios (opcional)",
+      "feedbackPlaceholder": "Diles qué corregir…"
+    },
+    "empty": {
+      "title": "¡Estás al día!",
+      "body": "Ninguna tarea necesita aprobación por ahora."
+    },
+    "errors": {
+      "generic": "Algo salió mal. Inténtalo de nuevo."
     }
   }
 }

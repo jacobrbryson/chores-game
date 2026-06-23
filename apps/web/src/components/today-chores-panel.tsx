@@ -40,6 +40,11 @@ import {
 } from "@packages/core";
 import { getDashboardChorePage } from "@/lib/ui/chore-dashboard";
 import { collapseRoutineChores } from "@/lib/responsibility/routine-chores";
+import {
+  buildAllDoneProgressPayload,
+  IdentityTitleCelebration,
+  type IdentityTitleCelebrationData,
+} from "@/components/identity-title-celebration";
 import { AssignRoutineDialog } from "@/components/assign-routine-dialog";
 import type { FamilySnapshotChore, FamilySnapshotMember } from "@/lib/family/types";
 import {
@@ -623,6 +628,9 @@ export function TodayChoresPanel({
   const completionHideTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [newSkillCelebration, setNewSkillCelebration] = useState<{ amount: number } | null>(null);
   const newSkillCelebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [identityCelebration, setIdentityCelebration] =
+    useState<IdentityTitleCelebrationData | null>(null);
+  const identityCelebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingApprovalAssigneeIds = useMemo(
     () => (pendingApproveChore ? getApprovalAssigneeIds(pendingApproveChore, members) : []),
     [members, pendingApproveChore],
@@ -758,6 +766,10 @@ export function TodayChoresPanel({
         clearTimeout(newSkillCelebrationTimerRef.current);
         newSkillCelebrationTimerRef.current = null;
       }
+      if (identityCelebrationTimerRef.current) {
+        clearTimeout(identityCelebrationTimerRef.current);
+        identityCelebrationTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -816,17 +828,28 @@ export function TodayChoresPanel({
   const memberByAlias = useMemo(() => {
     const map = new Map<string, FamilySnapshotMember>();
     for (const member of members) {
-      map.set(member.id, member);
+      map.set(normalizeAssigneeAlias(member.id), member);
       if (member.uid) {
-        map.set(member.uid, member);
+        map.set(normalizeAssigneeAlias(member.uid), member);
       }
-      const normalizedEmail = member.email.trim().toLowerCase();
+      const normalizedEmail = normalizeAssigneeAlias(member.email);
       if (normalizedEmail) {
         map.set(normalizedEmail, member);
       }
     }
     return map;
   }, [members]);
+  const getProgressMemberIdForChore = (chore: FamilySnapshotChore) => {
+    if (chore.assigneeScope === "family" || (chore.assigneeIds?.length ?? 0) > 1) {
+      return "";
+    }
+    const assigneeId =
+      chore.assigneeIds && chore.assigneeIds.length === 1
+        ? chore.assigneeIds[0]
+        : chore.assigneeId || "";
+    const member = memberByAlias.get(normalizeAssigneeAlias(assigneeId));
+    return member?.uid || member?.id || assigneeId;
+  };
   const pendingCreateChores = useMemo(
     () => Object.values(pendingCreateChoresByRequestId),
     [pendingCreateChoresByRequestId],
@@ -1496,6 +1519,33 @@ export function TodayChoresPanel({
     setChoreActionError("");
     setBusyActionsById((current) => ({ ...current, [choreId]: "complete" }));
     setExitingChoreIds((current) => ({ ...current, [choreId]: true }));
+    const immediateIdentityData = chore?.responsibilityProgress
+      ? ({
+          pillar: chore.responsibilityProgress.pillar,
+          xpBefore: chore.responsibilityProgress.xpBefore,
+          xpAfter: chore.responsibilityProgress.xpAfter,
+          levelBefore: chore.responsibilityProgress.levelBefore,
+          levelAfter: chore.responsibilityProgress.levelAfter,
+          tier: chore.responsibilityProgress.tier,
+          nextTier: chore.responsibilityProgress.nextTier,
+          prevFraction: chore.responsibilityProgress.prevFraction,
+          newFraction: chore.responsibilityProgress.newFraction,
+          unlocked: chore.responsibilityProgress.unlocked,
+          xpAwarded: chore.responsibilityProgress.xpAwarded,
+        } satisfies IdentityTitleCelebrationData)
+      : null;
+    triggerPartyConfetti({
+      intensity: 1.3,
+      sourceClientX: source?.clientX,
+      sourceClientY: source?.clientY,
+      showAllDone: true,
+      ...(chore?.newSkillBonusEligible
+        ? { allDoneTitle: t("dashboard.newSkillPopupTitle") }
+        : {}),
+      ...(immediateIdentityData
+        ? { allDoneProgress: buildAllDoneProgressPayload(immediateIdentityData, t) }
+        : {}),
+    });
     const existingTimer = completionHideTimersRef.current[choreId];
     if (existingTimer) {
       clearTimeout(existingTimer);
@@ -1509,12 +1559,6 @@ export function TodayChoresPanel({
       });
       delete completionHideTimersRef.current[choreId];
     }, CHORE_EXIT_ANIMATION_MS);
-    triggerPartyConfetti({
-      intensity: 1.3,
-      sourceClientX: source?.clientX,
-      sourceClientY: source?.clientY,
-      showAllDone: true,
-    });
     try {
       const response = await fetch(`/api/chores/${choreId}`, {
         method: "PATCH",
@@ -1526,7 +1570,17 @@ export function TodayChoresPanel({
         throw new Error(body.error ?? `COMPLETE_CHORE_HTTP_${response.status}`);
       }
       const completePayload = (await response.json().catch(() => null)) as
-        | { newSkillBonus?: { awarded?: boolean; totalCoins?: number } }
+        | {
+            newSkillBonus?: { awarded?: boolean; totalCoins?: number };
+            responsibilityXp?: {
+              choreXpAwarded?: number;
+              newSkillXpAwarded?: number;
+              title?: Omit<IdentityTitleCelebrationData, "xpAwarded">;
+            };
+            routineProgress?: {
+              completionBonusXpAwarded?: number;
+            };
+          }
         | null;
       if (completePayload?.newSkillBonus?.awarded) {
         setNewSkillCelebration({ amount: completePayload.newSkillBonus.totalCoins ?? 0 });
@@ -1543,6 +1597,33 @@ export function TodayChoresPanel({
           setNewSkillCelebration(null);
           newSkillCelebrationTimerRef.current = null;
         }, 4500);
+      }
+      const titlePayload = completePayload?.responsibilityXp?.title;
+      const xpAwarded =
+        (completePayload?.responsibilityXp?.choreXpAwarded ?? 0) +
+        (completePayload?.responsibilityXp?.newSkillXpAwarded ?? 0) +
+        (completePayload?.routineProgress?.completionBonusXpAwarded ?? 0);
+      const identityData = titlePayload ? { ...titlePayload, xpAwarded } : null;
+      if (identityData) {
+        triggerPartyConfetti({
+          intensity: 1.3,
+          sourceClientX: source?.clientX,
+          sourceClientY: source?.clientY,
+          showAllDone: false,
+        });
+      }
+      if (identityData) {
+        setIdentityCelebration(identityData);
+        if (identityCelebrationTimerRef.current) {
+          clearTimeout(identityCelebrationTimerRef.current);
+        }
+        identityCelebrationTimerRef.current = setTimeout(
+          () => {
+            setIdentityCelebration(null);
+            identityCelebrationTimerRef.current = null;
+          },
+          identityData.unlocked ? 5500 : 4000,
+        );
       }
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("wallet:refresh"));
@@ -2163,6 +2244,9 @@ export function TodayChoresPanel({
               </span>
             </div>
           ) : null}
+          {identityCelebration ? (
+            <IdentityTitleCelebration data={identityCelebration} />
+          ) : null}
           {visibleChores.length === 0 ? (
             <div className="dashboard-empty-state">
               <span className="dashboard-empty-state-icon" aria-hidden="true">
@@ -2192,85 +2276,89 @@ export function TodayChoresPanel({
           ) : (
             <div className="flex flex-col gap-3">
               <ul className="family-list">
-                {visibleChorePage.visibleItems.map((chore) => (
-                  <TodayChoreCard
-                    key={chore.id}
-                    chore={chore}
-                    isAdminViewer={viewerRole === "admin"}
-                    canManageActions={
-                      viewerRole === "admin" && !pendingCreateChoreIdSet.has(chore.id)
-                    }
-                    canComplete={
-                      !pendingCreateChoreIdSet.has(chore.id) &&
-                      (viewerRole === "admin" ||
-                        (chore.assigneeIds ?? []).some((id) =>
-                          viewerAssigneeIdSet.has(normalizeAssigneeAlias(id)),
-                        ) ||
-                        Boolean(chore.assigneeId && viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId))))
-                    }
-                    canReorder={canReorderChores && !reorderBusy}
-                    reorderDisabledReason={reorderDisabledReason}
-                    canMoveUp={(visibleChoreIndexById.get(chore.id) ?? -1) > 0}
-                    canMoveDown={
-                      (() => {
-                        const index = visibleChoreIndexById.get(chore.id) ?? -1;
-                        return index >= 0 && index < visibleChores.length - 1;
-                      })()
-                    }
-                    isDragging={draggingChoreId === chore.id}
-                    isDragOver={dragOverChoreId === chore.id}
-                    dropIndicatorPosition={
-                      dropIndicator?.choreId === chore.id ? dropIndicator.position : null
-                    }
-                    busyAction={
-                      busyActionsById[chore.id] ?? ""
-                    }
-                    disabled={
-                      Boolean(busyActionsById[chore.id]) ||
-                      reorderBusy ||
-                      pendingCreateChoreIdSet.has(chore.id)
-                    }
-                    isExiting={Boolean(exitingChoreIds[chore.id])}
-                    isCreatePending={pendingCreateChoreIdSet.has(chore.id)}
-                    onDelete={onDeleteChore}
-                    onDeleteRoutine={onDeleteRoutineAssignment}
-                    onComplete={onCompleteChore}
-                    onSkip={onSkipChore}
-                    onMoveUp={(choreId) => onStepReorder(choreId, -1)}
-                    onMoveDown={(choreId) => onStepReorder(choreId, 1)}
-                    onDragStart={(choreId) => {
-                      if (!canReorderChores || reorderBusy) {
-                        return;
+                {visibleChorePage.visibleItems.map((chore) => {
+                  const progressMemberId = getProgressMemberIdForChore(chore);
+                  return (
+                    <TodayChoreCard
+                      key={chore.id}
+                      chore={chore}
+                      isAdminViewer={viewerRole === "admin"}
+                      canManageActions={
+                        viewerRole === "admin" && !pendingCreateChoreIdSet.has(chore.id)
                       }
-                      setDraggingChoreId(choreId);
-                      setDragOverChoreId("");
-                      setDropIndicator(null);
-                    }}
-                    onDragOver={(choreId, position) => {
-                      if (!canReorderChores || reorderBusy || !draggingChoreId) {
-                        return;
+                      canComplete={
+                        !pendingCreateChoreIdSet.has(chore.id) &&
+                        (viewerRole === "admin" ||
+                          (chore.assigneeIds ?? []).some((id) =>
+                            viewerAssigneeIdSet.has(normalizeAssigneeAlias(id)),
+                          ) ||
+                          Boolean(chore.assigneeId && viewerAssigneeIdSet.has(normalizeAssigneeAlias(chore.assigneeId))))
                       }
-                      setDragOverChoreId(choreId);
-                      setDropIndicator((current) => {
-                        if (
-                          current &&
-                          current.choreId === choreId &&
-                          current.position === position
-                        ) {
-                          return current;
+                      canReorder={canReorderChores && !reorderBusy}
+                      reorderDisabledReason={reorderDisabledReason}
+                      canMoveUp={(visibleChoreIndexById.get(chore.id) ?? -1) > 0}
+                      canMoveDown={
+                        (() => {
+                          const index = visibleChoreIndexById.get(chore.id) ?? -1;
+                          return index >= 0 && index < visibleChores.length - 1;
+                        })()
+                      }
+                      isDragging={draggingChoreId === chore.id}
+                      isDragOver={dragOverChoreId === chore.id}
+                      dropIndicatorPosition={
+                        dropIndicator?.choreId === chore.id ? dropIndicator.position : null
+                      }
+                      busyAction={
+                        busyActionsById[chore.id] ?? ""
+                      }
+                      disabled={
+                        Boolean(busyActionsById[chore.id]) ||
+                        reorderBusy ||
+                        pendingCreateChoreIdSet.has(chore.id)
+                      }
+                      isExiting={Boolean(exitingChoreIds[chore.id])}
+                      isCreatePending={pendingCreateChoreIdSet.has(chore.id)}
+                      progressMemberId={progressMemberId}
+                      onDelete={onDeleteChore}
+                      onDeleteRoutine={onDeleteRoutineAssignment}
+                      onComplete={onCompleteChore}
+                      onSkip={onSkipChore}
+                      onMoveUp={(choreId) => onStepReorder(choreId, -1)}
+                      onMoveDown={(choreId) => onStepReorder(choreId, 1)}
+                      onDragStart={(choreId) => {
+                        if (!canReorderChores || reorderBusy) {
+                          return;
                         }
-                        return { choreId, position };
-                      });
-                    }}
-                    onDrop={onDropReorder}
-                    onDragEnd={() => {
-                      setDragOverChoreId("");
-                      setDraggingChoreId("");
-                      setDropIndicator(null);
-                    }}
-                    onEdited={onReload}
-                  />
-                ))}
+                        setDraggingChoreId(choreId);
+                        setDragOverChoreId("");
+                        setDropIndicator(null);
+                      }}
+                      onDragOver={(choreId, position) => {
+                        if (!canReorderChores || reorderBusy || !draggingChoreId) {
+                          return;
+                        }
+                        setDragOverChoreId(choreId);
+                        setDropIndicator((current) => {
+                          if (
+                            current &&
+                            current.choreId === choreId &&
+                            current.position === position
+                          ) {
+                            return current;
+                          }
+                          return { choreId, position };
+                        });
+                      }}
+                      onDrop={onDropReorder}
+                      onDragEnd={() => {
+                        setDragOverChoreId("");
+                        setDraggingChoreId("");
+                        setDropIndicator(null);
+                      }}
+                      onEdited={onReload}
+                    />
+                  );
+                })}
               </ul>
               {visibleChorePage.hasMore ? (
                 <Button

@@ -17,7 +17,7 @@ import {
 import { verifyKioskPin } from "@/lib/auth/kiosk";
 
 type StartBody = {
-  // Roster of player member ids approved for this shared tablet. `playerId`
+  // Roster of family member ids approved for this shared tablet. `playerId`
   // (single) is accepted for backwards compatibility.
   playerIds?: unknown;
   playerId?: unknown;
@@ -45,6 +45,16 @@ function normalizePlayerIds(body: StartBody): string[] {
   return result;
 }
 
+async function resolveKioskMemberIdentity(familyId: string, memberId: string, idToken: string) {
+  const rawIdentity = await resolveFamilyMemberSessionIdentity(familyId, memberId, idToken);
+  if (!rawIdentity) {
+    return null;
+  }
+  return rawIdentity.role === "player"
+    ? await ensureManagedChildProfile(familyId, memberId, idToken)
+    : rawIdentity;
+}
+
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 }
@@ -53,10 +63,10 @@ function jsonReauthRequired() {
   return NextResponse.json({ error: "reauth_required" }, { status: 401 });
 }
 
-// Enter Kiosk Mode for a selected player. Any authenticated family member may
-// do this (not just admins). The session identity is swapped to the player so
-// every downstream endpoint enforces player-level permissions server-side; the
-// authenticated account is preserved for exit and event attribution.
+// Enter Kiosk Mode for a selected family member. Any authenticated family member
+// may do this (not just admins). The session identity is pinned to player-level
+// permissions even when the selected profile is a parent; the authenticated
+// account is preserved for exit and event attribution.
 export async function POST(request: NextRequest) {
   const session = getSessionFromRequest(request);
   if (!session?.uid) {
@@ -66,7 +76,7 @@ export async function POST(request: NextRequest) {
     return jsonReauthRequired();
   }
   // A managed-child (account-switch) session cannot also enter kiosk mode, and
-  // an active kiosk session must "Switch Player" instead of starting again.
+  // an active kiosk session must switch within the approved roster instead of starting again.
   if (isKioskActive(session) || isSessionSwitched(session)) {
     return NextResponse.json({ error: "already_active" }, { status: 409 });
   }
@@ -98,22 +108,19 @@ export async function POST(request: NextRequest) {
         if (!familyId) {
           return { ok: false as const, reason: "family_not_found" as const };
         }
-        // Validate every selected member is a real player, and ensure the first
-        // is provisioned as the initial active profile. The whole selection
-        // becomes the approved roster.
+        // Validate every selected member is a real active family member. Player
+        // profiles are provisioned if needed; parent profiles use their linked
+        // member identity but still run with player-level kiosk permissions.
         const roster: string[] = [];
         for (const playerId of playerIds) {
-          const rawIdentity = await resolveFamilyMemberSessionIdentity(familyId, playerId, idToken);
-          if (!rawIdentity) {
+          const memberIdentity = await resolveKioskMemberIdentity(familyId, playerId, idToken);
+          if (!memberIdentity) {
             return { ok: false as const, reason: "player_not_found" as const };
-          }
-          if (rawIdentity.role !== "player") {
-            return { ok: false as const, reason: "player_only" as const };
           }
           roster.push(playerId);
         }
         const activeId = roster[0];
-        const memberIdentity = await ensureManagedChildProfile(familyId, activeId, idToken);
+        const memberIdentity = await resolveKioskMemberIdentity(familyId, activeId, idToken);
         if (!memberIdentity) {
           return { ok: false as const, reason: "player_not_found" as const };
         }
@@ -123,7 +130,7 @@ export async function POST(request: NextRequest) {
           identity: {
             uid: memberIdentity.uid,
             memberId: memberIdentity.memberId,
-            role: "player" as const,
+            role: memberIdentity.role,
             email: memberIdentity.email,
             name: memberIdentity.name,
             picture: memberIdentity.picture,
@@ -143,7 +150,7 @@ export async function POST(request: NextRequest) {
       if (data.reason === "player_not_found") {
         return NextResponse.json({ error: "player_not_found" }, { status: 404 });
       }
-      return NextResponse.json({ error: "player_only" }, { status: 400 });
+      return NextResponse.json({ error: "member_only" }, { status: 400 });
     }
 
     const response = NextResponse.json({ success: true });

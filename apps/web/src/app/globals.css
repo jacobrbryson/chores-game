@@ -2275,6 +2275,128 @@ textarea:disabled {
   background: linear-gradient(180deg, #ffffff, #f4f8ff);
 }
 
+/* Responsibility Identity: title-unlock events get a distinct, celebratory
+   "New title earned" treatment so they stand out from chore/routine activity. */
+.feed-card-title-unlocked {
+  border-color: #fcd34d;
+  background: linear-gradient(180deg, #fffbeb, #fef3c7);
+}
+
+.feed-card-title-unlocked .feed-card-title {
+  color: #b45309;
+}
+
+/* Responsibility Identity summary strip — shared across profile cards, the
+   kiosk/switch selection tiles, and the parent Family Growth section. */
+.identity-strip {
+  display: flex;
+  gap: 6px;
+}
+
+.identity-strip-rows {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.identity-strip-chips {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.identity-strip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.identity-strip-chips .identity-strip-item {
+  border-radius: 9999px;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+/* Dashboard "Your Journey" identity widget. */
+.identity-journey-card {
+  display: block;
+  border: 1px solid #c7d2fe;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: linear-gradient(180deg, #eef2ff, #ffffff);
+  text-decoration: none;
+  color: inherit;
+}
+
+.identity-journey-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.identity-journey-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6366f1;
+}
+
+.identity-journey-pillar {
+  font-size: 0.8125rem;
+  color: #475569;
+}
+
+.identity-journey-title {
+  margin-top: 4px;
+  font-size: 1.375rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.identity-journey-next {
+  margin-top: 2px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.identity-journey-next-top {
+  color: #b45309;
+}
+
+.identity-journey-bar {
+  margin-top: 10px;
+  height: 10px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: #e2e8f0;
+}
+
+.identity-journey-bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #818cf8, #6366f1);
+  transition: width 700ms ease-out;
+}
+
+.responsibility-progress-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .responsibility-progress-stats {
+    gap: 0.75rem;
+  }
+}
+
 .feed-card-icon {
   position: relative;
   flex: 0 0 auto;
@@ -3524,6 +3646,23 @@ textarea:disabled {
   will-change: transform;
 }
 
+.today-chore-avatar-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.today-chore-avatar-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, #ffffff);
+  outline-offset: 3px;
+}
+
 .today-chore-title-row {
   display: inline-flex;
   align-items: center;
@@ -3561,8 +3700,8 @@ textarea:disabled {
   user-select: none;
 }
 
-.today-chore-item:hover .today-chore-avatar,
-.today-chore-item:focus-within .today-chore-avatar {
+.today-chore-avatar-button:hover .today-chore-avatar,
+.today-chore-avatar-button:focus-visible .today-chore-avatar {
   transform: scale(1.05);
   box-shadow:
     0 0 0 2px color-mix(in srgb, #f59e0b 42%, #ffffff),
@@ -7683,9 +7822,17 @@ a.family-award-claim-card:focus-visible {
 .party-all-done-overlay {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  animation: party-all-done-overlay 1500ms ease-out forwards;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  animation: party-all-done-overlay 3000ms ease-out forwards;
+}
+
+.party-all-done-overlay-with-progress {
+  animation-duration: 3000ms;
 }
 
 .party-all-done-burst {
@@ -7699,7 +7846,12 @@ a.family-award-claim-card:focus-visible {
     radial-gradient(circle at 76% 30%, color-mix(in srgb, var(--all-done-color-c, #f472b6) 22%, transparent), transparent 56%),
     radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--all-done-color-a, #f59e0b) 20%, transparent), transparent 70%);
   filter: saturate(1.2) brightness(1.08);
-  animation: party-all-done-burst 1500ms ease-out forwards;
+  animation: party-all-done-burst 3000ms ease-out forwards;
+}
+
+.party-all-done-overlay-with-progress .party-all-done-burst,
+.party-all-done-overlay-with-progress .party-all-done-text {
+  animation-duration: 3000ms;
 }
 
 .party-all-done-text {
@@ -7718,7 +7870,114 @@ a.family-award-claim-card:focus-visible {
     0 12px 24px rgba(63, 21, 0, 0.45);
   -webkit-text-stroke: 3px #bf4d00;
   transform: rotate(-3deg) scale(0.78);
-  animation: party-all-done-text 1500ms cubic-bezier(0.18, 0.94, 0.25, 1) forwards;
+  animation: party-all-done-text 3000ms cubic-bezier(0.18, 0.94, 0.25, 1) forwards;
+}
+
+.party-all-done-progress {
+  width: min(92vw, 25rem);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
+  color: #0f172a;
+  padding: 0.85rem 1rem;
+  text-align: center;
+  transform: translateY(0.5rem) scale(0.96);
+  animation: party-all-done-progress 620ms 160ms cubic-bezier(0.18, 0.94, 0.25, 1) both;
+}
+
+.party-all-done-pillar {
+  margin: 0;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.party-all-done-title-row {
+  margin-top: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.party-all-done-title {
+  font-size: 1.08rem;
+  font-weight: 900;
+}
+
+.party-all-done-level {
+  border-radius: 999px;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 0.18rem 0.52rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.party-all-done-progress-label,
+.party-all-done-xp {
+  margin: 0.35rem 0 0;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.party-all-done-progress-track {
+  margin-top: 0.55rem;
+  height: 0.55rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.party-all-done-progress-bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #10b981, #f59e0b);
+  animation: party-all-done-progress-bar 840ms 220ms cubic-bezier(0.18, 0.94, 0.25, 1) both;
+  transform-origin: left center;
+}
+
+.party-all-done-dismiss {
+  pointer-events: auto;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #ffffff;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
+  cursor: pointer;
+}
+
+.party-all-done-dismiss:hover,
+.party-all-done-dismiss:focus-visible {
+  background: #0f172a;
+}
+
+@keyframes party-all-done-progress {
+  0% {
+    opacity: 0;
+    transform: translateY(1rem) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes party-all-done-progress-bar {
+  0% {
+    transform: scaleX(0.08);
+  }
+  100% {
+    transform: scaleX(1);
+  }
 }
 
 @keyframes party-confetti-flight {
@@ -11571,5 +11830,302 @@ a.family-award-claim-card:focus-visible {
   /* Stacked/wrapped layouts: drop the horizontal connector. */
   .mh2-journey-step:not(:last-child)::after {
     display: none;
+  }
+}
+
+/* ============================================================
+   Approval Inbox — dashboard card + /approvals page
+   ============================================================ */
+
+/* Dashboard card. Celebratory, not a warning — it leads the dashboard so a
+   parent immediately sees what their kids accomplished. */
+.approval-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin: 0 0 18px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, #ffffff);
+}
+
+.approval-card-pending {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--brand) 12%, #ffffff),
+    color-mix(in srgb, var(--accent) 14%, #ffffff)
+  );
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+
+.approval-card-empty,
+.approval-card-success {
+  background: color-mix(in srgb, #10b981 10%, #ffffff);
+  border-color: color-mix(in srgb, #10b981 30%, #ffffff);
+}
+
+.approval-card-body {
+  min-width: 0;
+}
+
+.approval-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+.approval-card-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  color: color-mix(in srgb, var(--foreground) 72%, transparent);
+}
+
+.approval-card-children {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.approval-card-child-line {
+  font-size: 0.9rem;
+  color: color-mix(in srgb, var(--foreground) 80%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.approval-card-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 700;
+  color: #b45309;
+}
+
+.approval-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Small dismiss control on the "caught up" / success states. */
+.approval-card-dismiss {
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
+  background: transparent;
+  color: color-mix(in srgb, var(--foreground) 60%, transparent);
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.approval-card-dismiss:hover {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+/* /approvals page */
+.approvals-page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 8px 0 48px;
+}
+
+.approvals-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 20px;
+}
+
+.approvals-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+.approvals-subtitle {
+  margin: 4px 0 0;
+  color: color-mix(in srgb, var(--foreground) 70%, transparent);
+}
+
+.approvals-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.approvals-success-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.approvals-loading {
+  color: color-mix(in srgb, var(--foreground) 65%, transparent);
+}
+
+.approvals-empty {
+  text-align: center;
+  padding: 48px 16px;
+}
+
+.approvals-empty-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.approvals-empty-body {
+  margin: 6px 0 0;
+  color: color-mix(in srgb, var(--foreground) 68%, transparent);
+}
+
+.approvals-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.approval-group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.approval-group-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+.approval-group-count {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--foreground) 60%, transparent);
+}
+
+.approval-review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.approval-review-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 12%, #ffffff);
+  background: #ffffff;
+}
+
+.approval-review-main {
+  min-width: 0;
+  flex: 1 1 260px;
+}
+
+.approval-review-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.approval-review-meta {
+  margin: 3px 0 0;
+  font-size: 0.82rem;
+  color: color-mix(in srgb, var(--foreground) 62%, transparent);
+}
+
+.approval-review-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 8px;
+}
+
+.approval-review-pillar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, #ffffff);
+  color: color-mix(in srgb, var(--foreground) 80%, transparent);
+}
+
+.approval-review-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #b45309;
+}
+
+.approval-review-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Deep-link from an approval notification row into the Approval Inbox. */
+.notifications-row-action {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--brand-strong, #1d4ed8);
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .approval-review-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .approval-card-pending {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .approval-card-actions,
+  .approval-review-actions,
+  .approvals-header-actions {
+    width: 100%;
+  }
+
+  .approval-card-actions .btn,
+  .approval-review-actions .btn,
+  .approvals-header-actions .btn {
+    flex: 1 1 0;
   }
 }

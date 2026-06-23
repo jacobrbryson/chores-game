@@ -130,6 +130,18 @@ env:
     secret: NEWSLETTER_INTERNAL_SECRET
     availability:
       - RUNTIME
+  - variable: ATHENA_PROXY_BASE_URL
+    secret: ATHENA_PROXY_BASE_URL
+    availability:
+      - RUNTIME
+  - variable: ATHENA_PARTNER_KEY
+    secret: ATHENA_PARTNER_KEY
+    availability:
+      - RUNTIME
+  - variable: FAMILY_CHORES_PUBLIC_API_BASE_URL
+    secret: FAMILY_CHORES_PUBLIC_API_BASE_URL
+    availability:
+      - RUNTIME
   - variable: SUPPORT_ADMIN_EMAILS
     secret: SUPPORT_ADMIN_EMAILS
     availability:

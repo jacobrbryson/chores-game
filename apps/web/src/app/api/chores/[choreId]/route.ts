@@ -347,6 +347,7 @@ export async function PATCH(
               pillar: xp.pillar,
               choreXpAwarded: xp.choreXpAwarded,
               newSkillXpAwarded: xp.newSkillXpAwarded,
+              ...(xp.title ? { title: xp.title } : {}),
             },
           }
         : undefined;

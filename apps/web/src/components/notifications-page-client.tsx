@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "@/components/alert";
@@ -303,7 +304,17 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
                 <tbody>
                   {items.map((item) => (
                     <tr key={item.id} className={item.seen ? "" : "notifications-row-unseen"}>
-                      <td>{item.title || t("notificationsPage.fallback.title")}</td>
+                      <td>
+                        {item.title || t("notificationsPage.fallback.title")}
+                        {/* A completed chore is reviewed in the Approval Inbox; surface a
+                            deep-link so approval notifications are actionable. The page
+                            redirects non-parents home, so the link is safe for everyone. */}
+                        {item.kind === "chore_completed" ? (
+                          <Link href="/approvals" className="notifications-row-action">
+                            {t("approvals.actions.review")}
+                          </Link>
+                        ) : null}
+                      </td>
                       <td>{item.message || t("notificationsPage.fallback.message")}</td>
                       <td>
                         <EnumChip

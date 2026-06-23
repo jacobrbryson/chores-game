@@ -13,7 +13,9 @@ import { KioskPinModal } from "@/components/kiosk-pin-modal";
 import { MenuActionButton } from "@/components/menu-action-button";
 import { MenuActionLink } from "@/components/menu-action-link";
 import { ModalShell } from "@/components/modal-shell";
+import { IdentitySummaryStrip } from "@/components/identity-summary-strip";
 import type { FamilySummaryResponse } from "@/lib/family/types";
+import type { PillarIdentity } from "@/lib/responsibility/identity";
 
 const PROFILE_AVATAR_STORAGE_KEY_PREFIX = "profile_avatar_cache_v1";
 
@@ -201,7 +203,7 @@ export function ProfileMenu({
   const [inFamily, setInFamily] = useState(false);
   const [kioskPinRequired, setKioskPinRequired] = useState(false);
   // "switch" = become one child (account-switch); "kiosk" = launch shared-tablet
-  // Kiosk Mode for a multi-selected roster of players.
+  // Kiosk Mode for a multi-selected roster of active family members.
   const [pickerMode, setPickerMode] = useState<"switch" | "kiosk">("switch");
   const [kioskSelectedIds, setKioskSelectedIds] = useState<string[]>([]);
   const [kioskPinModalOpen, setKioskPinModalOpen] = useState(false);
@@ -214,6 +216,10 @@ export function ProfileMenu({
   const [restoreError, setRestoreError] = useState("");
   const [switchPickerOpen, setSwitchPickerOpen] = useState(false);
   const [switchableMembers, setSwitchableMembers] = useState<SwitchableMember[]>([]);
+  const [switchViewerUid, setSwitchViewerUid] = useState("");
+  const [switchIdentitiesByUid, setSwitchIdentitiesByUid] = useState<
+    Record<string, PillarIdentity[]>
+  >({});
   const [switchMembersLoading, setSwitchMembersLoading] = useState(false);
   const [switchMembersError, setSwitchMembersError] = useState("");
   const [pendingSwitchMember, setPendingSwitchMember] = useState<SwitchableMember | null>(null);
@@ -327,15 +333,33 @@ export function ProfileMenu({
         throw new Error(payload.error ?? `FAMILY_SUMMARY_HTTP_${response.status}`);
       }
       const payload = (await response.json()) as FamilySummaryResponse;
+      setSwitchViewerUid(payload.viewerUid ?? "");
       const nextMembers = (Array.isArray(payload.members) ? payload.members : []).filter(
-        (member) =>
-          member.role === "player" &&
-          member.id !== payload.viewerUid &&
-          member.uid !== payload.viewerUid,
+        (member) => member.status === "active",
       );
       setSwitchableMembers(nextMembers);
+      // Identity chips under each name make the switcher feel like picking a
+      // character. Best-effort: a failure just shows names without titles.
+      try {
+        const identitiesResponse = await fetch("/api/responsibility/identities", {
+          cache: "no-store",
+        });
+        if (identitiesResponse.ok) {
+          const identitiesPayload = (await identitiesResponse.json()) as {
+            members?: Array<{ uid: string; identities: PillarIdentity[] }>;
+          };
+          const map: Record<string, PillarIdentity[]> = {};
+          for (const entry of identitiesPayload.members ?? []) {
+            map[entry.uid] = entry.identities;
+          }
+          setSwitchIdentitiesByUid(map);
+        }
+      } catch {
+        // Ignore identity-chip load errors in the switcher.
+      }
     } catch (errorValue) {
       setSwitchableMembers([]);
+      setSwitchViewerUid("");
       setSwitchMembersError(
         errorValue instanceof Error ? errorValue.message : "switchable_members_unavailable",
       );
@@ -596,6 +620,17 @@ export function ProfileMenu({
     setSwitchRequiresPinSetup(false);
   }
 
+  const displayedSwitchMembers = switchableMembers.filter((member) => {
+    if (pickerMode === "kiosk") {
+      return member.status === "active";
+    }
+    return (
+      member.role === "player" &&
+      member.id !== switchViewerUid &&
+      member.uid !== switchViewerUid
+    );
+  });
+
   return (
     <>
       <AppMenu
@@ -739,9 +774,9 @@ export function ProfileMenu({
             ) : null}
             {switchMembersLoading ? <p className="small">{t("profileMenu.loadingChildProfiles")}</p> : null}
             {!switchMembersLoading && !switchMembersError ? (
-              switchableMembers.length > 0 ? (
+              displayedSwitchMembers.length > 0 ? (
                 <div className="switch-member-list">
-                  {switchableMembers.map((member) => {
+                  {displayedSwitchMembers.map((member) => {
                     const selected = kioskSelectedIds.includes(member.id);
                     return (
                       <Button
@@ -772,11 +807,19 @@ export function ProfileMenu({
                           />
                           <span className="switch-member-option-copy">
                             <span className="switch-member-option-name">{member.name}</span>
-                            <span className="switch-member-option-meta">
-                              {member.status === "active"
-                                ? t("profileMenu.readyToSwitch")
-                                : t("profileMenu.invitePending")}
-                            </span>
+                            {member.uid && switchIdentitiesByUid[member.uid] ? (
+                              <IdentitySummaryStrip
+                                identities={switchIdentitiesByUid[member.uid]}
+                                limit={2}
+                                variant="chips"
+                              />
+                            ) : (
+                              <span className="switch-member-option-meta">
+                                {member.status === "active"
+                                  ? t("profileMenu.readyToSwitch")
+                                  : t("profileMenu.invitePending")}
+                              </span>
+                            )}
                           </span>
                           {pickerMode === "kiosk" ? (
                             <span className={`switch-member-check${selected ? " switch-member-check-on" : ""}`} aria-hidden="true">
@@ -789,7 +832,9 @@ export function ProfileMenu({
                   })}
                 </div>
               ) : (
-                <p className="small">{t("profileMenu.noChildProfiles")}</p>
+                <p className="small">
+                  {pickerMode === "kiosk" ? t("kiosk.noPlayers") : t("profileMenu.noChildProfiles")}
+                </p>
               )
             ) : null}
             <div className="family-modal-actions">

@@ -29,8 +29,9 @@ vi.mock("@/lib/firestore/admin", () => ({
 import { getGhostSuggestionsForViewer } from "@/lib/ghost-chores-service";
 import { getAthenaConnection } from "@/lib/integrations/athena-store";
 import { suggestGhostChoresWithAthena } from "@/lib/integrations/athena";
-import { saveGhostChoreCache } from "@/lib/ghost-chore-cache";
-import { adminGetDocument } from "@/lib/firestore/admin";
+import { getGhostChoreCache, isCacheFresh, saveGhostChoreCache } from "@/lib/ghost-chore-cache";
+import { adminGetDocument, adminListAllDocuments } from "@/lib/firestore/admin";
+import { ghostSuggestionKey } from "@/lib/ghost-chores";
 
 const FAMILY_ID = "fam1";
 const SUBJECT_ID = "child1";
@@ -135,5 +136,99 @@ describe("getGhostSuggestionsForViewer Athena integration", () => {
 
     const result = await getGhostSuggestionsForViewer(context, 6);
     expect(result.source).toBe("local");
+  });
+
+  it("does not re-serve a cached suggestion the subject already completed today", async () => {
+    vi.mocked(getAthenaConnection).mockResolvedValue({ connected: true } as never);
+
+    // The subject completed "Wipe the bathroom sink" today (status Approved).
+    vi.mocked(adminListAllDocuments).mockImplementation(async (path: string) => {
+      if (path.endsWith("/chores")) {
+        return [
+          {
+            name: `families/${FAMILY_ID}/chores/done1`,
+            fields: {
+              title: { stringValue: "Wipe the bathroom sink" },
+              status: { stringValue: "Approved" },
+              assigneeId: { stringValue: SUBJECT_ID },
+              approvedAt: { timestampValue: "2026-06-22T08:00:00Z" },
+              coinValue: { integerValue: "5" },
+              deleted: { booleanValue: false },
+            },
+          },
+        ] as never;
+      }
+      return [] as never;
+    });
+
+    // A fresh cached batch still contains that just-completed chore.
+    vi.mocked(isCacheFresh).mockReturnValue(true);
+    vi.mocked(getGhostChoreCache).mockResolvedValue({
+      suggestions: [
+        { id: "s1", source: "athena", suggestedTitle: "Wipe the bathroom sink" },
+      ] as never,
+      generatedAt: "2026-06-22T07:00:00Z",
+      modelVersion: "v1",
+    });
+    // If we have to regenerate, Athena returns nothing usable → forces local fallback,
+    // proving the stale cached suggestion was filtered out rather than served.
+    vi.mocked(suggestGhostChoresWithAthena).mockResolvedValue({ suggestions: [], meta: {} });
+
+    // As resolveGhostViewerContext does in production, the viewer context already
+    // marks the completed chore as owned so the local fallback excludes it too.
+    const completedContext = {
+      ...context,
+      ownedChoreKeys: new Set([ghostSuggestionKey("Wipe the bathroom sink")]),
+    };
+
+    const result = await getGhostSuggestionsForViewer(completedContext, 6);
+    const titles = result.suggestions.map((s) => s.suggestedTitle);
+    expect(titles).not.toContain("Wipe the bathroom sink");
+  });
+
+  it("local fallback excludes a child's just-completed chore when an admin suggests for them", async () => {
+    // Athena not connected → deterministic local fallback engine.
+    vi.mocked(getAthenaConnection).mockResolvedValue({ connected: false } as never);
+
+    const COMPLETED_TITLE = "Put away dishes and anything else you got out";
+    // The child completed this chore today (Approved) and has no open chores. It is
+    // a recent family chore, so the local seed pool would otherwise re-suggest it.
+    vi.mocked(adminListAllDocuments).mockImplementation(async (path: string) => {
+      if (path.endsWith("/chores")) {
+        return [
+          {
+            name: `families/${FAMILY_ID}/chores/done1`,
+            fields: {
+              title: { stringValue: COMPLETED_TITLE },
+              status: { stringValue: "Approved" },
+              assigneeId: { stringValue: "child9" },
+              coinValue: { integerValue: "10" },
+              createdAt: { timestampValue: "2026-06-22T06:00:00Z" },
+              deleted: { booleanValue: false },
+            },
+          },
+        ] as never;
+      }
+      return [] as never;
+    });
+    // The admin viewer's own context carries none of the child's chores.
+    vi.mocked(adminGetDocument).mockImplementation(async (path: string) => {
+      if (path.endsWith("/members/child9")) {
+        return {
+          name: path,
+          fields: { uid: { stringValue: "child9" }, email: { stringValue: "" }, deleted: { booleanValue: false } },
+        } as never;
+      }
+      if (path.includes("/members/")) return memberDoc() as never;
+      const err = new Error("FIRESTORE_ADMIN_HTTP_404");
+      throw err;
+    });
+
+    const adminContext = { ...context, role: "admin" as const };
+    const result = await getGhostSuggestionsForViewer(adminContext, 6, { subjectMemberId: "child9" });
+
+    expect(result.source).toBe("local");
+    const titles = result.suggestions.map((s) => s.suggestedTitle);
+    expect(titles).not.toContain(COMPLETED_TITLE);
   });
 });

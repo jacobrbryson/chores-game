@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppTabs, type AppTabItem } from "@/components/app-tabs";
+import { ApprovalInboxCard } from "@/components/approval-inbox-card";
 import { FamilyCard } from "@/components/family-card";
+import { IdentityJourneyWidget } from "@/components/identity-journey-widget";
 import { FamilyFeedPanel } from "@/components/family-feed-panel";
 import { ReacceptanceModal } from "@/components/reacceptance-modal";
 import { useLocale } from "@/components/locale-provider";
@@ -93,6 +95,10 @@ export function DashboardHome({ viewerKey }: DashboardHomeProps) {
           onAccepted={() => setReacceptanceDone(true)}
         />
       ) : null}
+      {/* Approval Inbox card sits above the tabs so pending approvals are the first
+          thing a parent sees. The card self-gates to admins and renders nothing for
+          children. */}
+      <ApprovalInboxCard />
       <div className="dashboard-home-tabs">
         <AppTabs
           ariaLabel={t("dashboard.tabs.ariaLabel")}
@@ -109,6 +115,10 @@ export function DashboardHome({ viewerKey }: DashboardHomeProps) {
         <FamilyFeedPanel />
       </div>
       <div hidden={activeTab !== "chores"}>
+        {/* Player "Your Journey" identity widget. Self-hides until a pillar has
+            XP; parent dashboard growth details are available from child avatars
+            in the chore list. */}
+        {onboardingStatus?.viewerRole === "player" ? <IdentityJourneyWidget /> : null}
         <FamilyCard />
       </div>
     </div>

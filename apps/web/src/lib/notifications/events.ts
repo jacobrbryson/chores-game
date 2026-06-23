@@ -24,7 +24,8 @@ type ActivityKind =
   | "routine_updated"
   | "routine_assigned"
   | "routine_step_completed"
-  | "routine_completed";
+  | "routine_completed"
+  | "identity_title_unlocked";
 
 type EmitFamilyActivityInput = {
   familyId: string;

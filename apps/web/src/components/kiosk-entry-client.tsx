@@ -6,13 +6,15 @@ import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { KioskPinModal } from "@/components/kiosk-pin-modal";
 import { useLocale } from "@/components/locale-provider";
+import { IdentitySummaryStrip } from "@/components/identity-summary-strip";
 import type { FamilySummaryResponse } from "@/lib/family/types";
+import type { PillarIdentity } from "@/lib/responsibility/identity";
 
 type KioskPlayer = FamilySummaryResponse["members"][number];
 
-// Player selector that starts Kiosk Mode (direct /kiosk visit; the profile-menu
-// "Switch To" dialog offers the same flow). Any authenticated family member may
-// use it; only player profiles are selectable, and multiple can be selected to
+// Family-member selector that starts Kiosk Mode (direct /kiosk visit; the
+// profile-menu "Switch To" dialog offers the same flow). Any authenticated
+// family member may use it, and multiple active profiles can be selected to
 // approve a shared-tablet roster. Starting swaps the session into a player-level
 // kiosk session via /api/kiosk/start.
 export function KioskEntryClient() {
@@ -22,6 +24,7 @@ export function KioskEntryClient() {
   const [inFamily, setInFamily] = useState(true);
   const [pinRequired, setPinRequired] = useState(false);
   const [players, setPlayers] = useState<KioskPlayer[]>([]);
+  const [identitiesByUid, setIdentitiesByUid] = useState<Record<string, PillarIdentity[]>>({});
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [pinModalOpen, setPinModalOpen] = useState(false);
   const [pin, setPin] = useState("");
@@ -34,9 +37,10 @@ export function KioskEntryClient() {
       setLoading(true);
       setLoadError("");
       try {
-        const [statusResponse, summaryResponse] = await Promise.all([
+        const [statusResponse, summaryResponse, identitiesResponse] = await Promise.all([
           fetch("/api/kiosk", { cache: "no-store" }),
           fetch("/api/family/summary", { cache: "no-store" }),
+          fetch("/api/responsibility/identities", { cache: "no-store" }),
         ]);
         if (statusResponse.ok) {
           const status = (await statusResponse.json()) as {
@@ -59,9 +63,21 @@ export function KioskEntryClient() {
           setInFamily(false);
         }
         const playerMembers = (Array.isArray(summary.members) ? summary.members : []).filter(
-          (member) => member.role === "player" && member.status === "active",
+          (member) => member.status === "active",
         );
         setPlayers(playerMembers);
+        if (identitiesResponse.ok) {
+          const identitiesPayload = (await identitiesResponse.json()) as {
+            members?: Array<{ uid: string; identities: PillarIdentity[] }>;
+          };
+          const map: Record<string, PillarIdentity[]> = {};
+          for (const entry of identitiesPayload.members ?? []) {
+            map[entry.uid] = entry.identities;
+          }
+          if (!cancelled) {
+            setIdentitiesByUid(map);
+          }
+        }
       } catch (error) {
         if (!cancelled) {
           setLoadError(error instanceof Error ? error.message : "kiosk_players_unavailable");
@@ -162,6 +178,13 @@ export function KioskEntryClient() {
                   referrerPolicy="no-referrer"
                 />
                 <span className="kiosk-player-option-name">{player.name}</span>
+                {player.uid && identitiesByUid[player.uid] ? (
+                  <IdentitySummaryStrip
+                    identities={identitiesByUid[player.uid]}
+                    limit={2}
+                    variant="chips"
+                  />
+                ) : null}
                 {selected ? (
                   <span className="kiosk-player-option-check" aria-hidden="true">✓</span>
                 ) : null}

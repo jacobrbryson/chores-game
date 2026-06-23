@@ -25,10 +25,19 @@ function jsonReauthRequired() {
   return NextResponse.json({ error: "reauth_required" }, { status: 401 });
 }
 
-// Switch the active kiosk player. No PIN is required because switching is
-// restricted to the roster of players that was approved (with the PIN) when
-// Kiosk Mode was started — a child cannot switch into a profile outside that
-// roster, and every roster member is player-level, so there is no escalation.
+async function resolveKioskMemberIdentity(familyId: string, memberId: string, idToken: string) {
+  const rawIdentity = await resolveFamilyMemberSessionIdentity(familyId, memberId, idToken);
+  if (!rawIdentity) {
+    return null;
+  }
+  return rawIdentity.role === "player"
+    ? await ensureManagedChildProfile(familyId, memberId, idToken)
+    : rawIdentity;
+}
+
+// Switch the active kiosk profile. No PIN is required because switching is
+// roster-limited. Kiosk profiles can be parents, but all kiosk profiles run
+// with player-level permissions, so there is no escalation.
 // Exiting Kiosk Mode (returning to the signed-in account) still requires the PIN.
 export async function POST(request: NextRequest) {
   const session = getSessionFromRequest(request);
@@ -68,14 +77,7 @@ export async function POST(request: NextRequest) {
         if (!familyId) {
           return { ok: false as const, reason: "family_not_found" as const };
         }
-        const rawIdentity = await resolveFamilyMemberSessionIdentity(familyId, playerId, idToken);
-        if (!rawIdentity) {
-          return { ok: false as const, reason: "player_not_found" as const };
-        }
-        if (rawIdentity.role !== "player") {
-          return { ok: false as const, reason: "player_only" as const };
-        }
-        const memberIdentity = await ensureManagedChildProfile(familyId, playerId, idToken);
+        const memberIdentity = await resolveKioskMemberIdentity(familyId, playerId, idToken);
         if (!memberIdentity) {
           return { ok: false as const, reason: "player_not_found" as const };
         }
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest) {
           identity: {
             uid: memberIdentity.uid,
             memberId: memberIdentity.memberId,
-            role: "player" as const,
+            role: memberIdentity.role,
             email: memberIdentity.email,
             name: memberIdentity.name,
             picture: memberIdentity.picture,
@@ -101,7 +103,7 @@ export async function POST(request: NextRequest) {
       if (data.reason === "player_not_found") {
         return NextResponse.json({ error: "player_not_found" }, { status: 404 });
       }
-      return NextResponse.json({ error: "player_only" }, { status: 400 });
+      return NextResponse.json({ error: "member_only" }, { status: 400 });
     }
 
     // Preserve the approved roster across the switch.

@@ -17,6 +17,15 @@ export type PartyConfettiTriggerDetail = {
 	sourceClientX?: number;
 	sourceClientY?: number;
 	showAllDone?: boolean;
+	allDoneTitle?: string;
+	allDoneProgress?: {
+		pillarLabel: string;
+		currentTitle?: string;
+		levelLabel: string;
+		progressLabel: string;
+		percent: number;
+		xpLabel?: string;
+	};
 };
 
 export type PartyConfettiSelectionDetail = {

@@ -247,6 +247,54 @@ export async function resolveGhostViewerContext(session: {
   };
 }
 
+/**
+ * Title keys of every non-deleted chore currently assigned to `subjectMemberId`,
+ * in ANY status (open, submitted, approved-today, skipped, repeating). The local
+ * fallback engine uses this to avoid re-suggesting a chore the subject already
+ * has — most importantly one they completed today as part of a daily routine —
+ * when an admin generates suggestions for a specific child. In that case the
+ * viewer context's owned/open keys describe the ADMIN's chores, not the child's,
+ * so without this the child's just-completed chores leak back in as "recent
+ * family chores". Mirrors the owned-key logic in resolveGhostViewerContext.
+ */
+async function listSubjectOwnedChoreKeys(
+  familyId: string,
+  subjectMemberId: string,
+): Promise<Set<string>> {
+  const keys = new Set<string>();
+  let memberFields;
+  try {
+    const memberDoc = await adminGetDocument(`families/${familyId}/members/${subjectMemberId}`);
+    if (readBoolean(memberDoc.fields, "deleted")) return keys;
+    memberFields = memberDoc.fields;
+  } catch (error) {
+    if (isNotFound(error)) return keys;
+    throw error;
+  }
+
+  const aliases = new Set<string>([subjectMemberId]);
+  const subjectUid = readString(memberFields, "uid").trim();
+  const subjectEmail = normalizeEmail(readString(memberFields, "email"));
+  if (subjectUid) aliases.add(subjectUid);
+  if (subjectEmail) aliases.add(subjectEmail);
+
+  const choreDocs = await adminListAllDocuments(`families/${familyId}/chores`, { cap: 500 });
+  for (const doc of choreDocs) {
+    if (readBoolean(doc.fields, "deleted")) continue;
+    const assigneeId = readString(doc.fields, "assigneeId");
+    const assigneeScope = readString(doc.fields, "assigneeScope");
+    const assigneeIds = readStringArray(doc.fields, "assigneeIds");
+    const assignedToSubject =
+      assigneeScope === "family" ||
+      (assigneeId && (aliases.has(assigneeId) || aliases.has(normalizeEmail(assigneeId)))) ||
+      assigneeIds.some((id) => aliases.has(id) || aliases.has(normalizeEmail(id)));
+    if (!assignedToSubject) continue;
+    const titleKey = ghostSuggestionKey(readString(doc.fields, "title"));
+    if (titleKey) keys.add(titleKey);
+  }
+  return keys;
+}
+
 /** Recent + commonly used family chores, newest first, distinct by title. */
 export async function listFamilyChoreSeeds(familyId: string): Promise<FamilyChoreSeed[]> {
   const choreDocs = await adminListAllDocuments(`families/${familyId}/chores`, { cap: 500 });
@@ -538,16 +586,10 @@ async function tryAthenaGhostSuggestions(input: {
   }
   if (!connection?.connected) return fallback("not_connected");
 
-  // Serve a fresh cached batch without re-calling the model.
-  try {
-    const cached = await getGhostChoreCache(familyId, subjectMemberId);
-    if (isCacheFresh(cached) && cached && cached.suggestions.length > 0) {
-      return cached.suggestions.slice(0, limit);
-    }
-  } catch {
-    // fall through to a live call
-  }
-
+  // Gather the subject's current chore context first. This only reads Firestore
+  // (it does not call the model), so doing it before the cache check preserves the
+  // model-call rate limiting while letting us re-filter a cached batch against
+  // what the subject now owns/completed.
   let gathered;
   try {
     gathered = await gatherAthenaSubjectData(familyId, subjectMemberId);
@@ -555,6 +597,26 @@ async function tryAthenaGhostSuggestions(input: {
     return fallback(`gather_error:${error instanceof Error ? error.message.slice(0, 80) : "unknown"}`);
   }
   if (!gathered) return fallback("subject_not_found");
+
+  // Serve a fresh cached batch without re-calling the model, but re-filter it
+  // against the subject's current exclude keys. The batch may have been cached
+  // (up to the TTL ago) before the subject added/completed one of its chores —
+  // most importantly a daily chore they finished today — and we must never
+  // re-suggest a chore they already own in any status. If filtering empties the
+  // batch, fall through to a fresh model call.
+  try {
+    const cached = await getGhostChoreCache(familyId, subjectMemberId);
+    if (isCacheFresh(cached) && cached && cached.suggestions.length > 0) {
+      const filtered = cached.suggestions.filter(
+        (s) => !gathered.excludeKeys.has(ghostSuggestionKey(s.suggestedTitle)),
+      );
+      if (filtered.length > 0) {
+        return filtered.slice(0, limit);
+      }
+    }
+  } catch {
+    // fall through to a live call
+  }
 
   try {
     const payload = buildGhostChoreRequest({ ...gathered.input, count: Math.min(12, Math.max(limit, 6)) });
@@ -615,12 +677,26 @@ export async function getGhostSuggestionsForViewer(
     return { suggestions: athena, hasOpenChores, source: "athena" };
   }
 
-  const [familyChores, records] = await Promise.all([
+  // When an admin generates suggestions for a specific child (the dashboard
+  // empty-state member selector), the viewer context describes the ADMIN's own
+  // chores. Pull the selected child's owned-chore keys too so we never re-suggest
+  // a chore they already have — most importantly one they completed today.
+  const subjectIsOtherMember = Boolean(
+    opts?.subjectMemberId && opts.subjectMemberId.trim() !== context.memberId,
+  );
+  const [familyChores, records, subjectOwnedKeys] = await Promise.all([
     listFamilyChoreSeeds(context.familyId),
     listGhostRecords(context.familyId),
+    subjectIsOtherMember
+      ? listSubjectOwnedChoreKeys(context.familyId, opts!.subjectMemberId!.trim())
+      : Promise.resolve(new Set<string>()),
   ]);
 
-  const excludeKeys = new Set<string>([...context.openChoreKeys, ...context.ownedChoreKeys]);
+  const excludeKeys = new Set<string>([
+    ...context.openChoreKeys,
+    ...context.ownedChoreKeys,
+    ...subjectOwnedKeys,
+  ]);
   for (const record of records) {
     // Hide a player's own dismissed/requested suggestions and any already-converted ones.
     const ownedByViewer = record.playerUid === context.aliases[0] || context.aliases.includes(record.playerUid);

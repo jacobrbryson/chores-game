@@ -31,12 +31,12 @@ export type SessionUser = {
   authPicture?: string;
   authLocale?: AppLocale;
   // Family Kiosk Mode: when true the session is operating as a shared-tablet
-  // kiosk. The current identity is always a player profile while the original
-  // signed-in account is preserved in the auth* fields. Kiosk sessions are
-  // always player-level regardless of the authenticated account's real role.
+  // kiosk. The current identity may represent any selected family member while
+  // the original signed-in account is preserved in the auth* fields. Kiosk
+  // sessions are always player-level regardless of the selected member's real role.
   kioskActive?: boolean;
-  // The pre-authorized roster of player member ids selected when Kiosk Mode was
-  // started. The active player may be switched freely among this roster without
+  // The pre-authorized roster of member ids selected when Kiosk Mode was
+  // started. The active profile may be switched freely among this roster without
   // a PIN (they were all approved up front); exiting still requires the PIN.
   kioskPlayerIds?: string[];
 };
@@ -156,8 +156,8 @@ export function normalizeKioskRoster(playerIds: Array<string | undefined>): stri
   return roster;
 }
 
-// Enter (or switch player within) Kiosk Mode. The current identity becomes the
-// selected player while the original signed-in account is preserved in the
+// Enter (or switch profile within) Kiosk Mode. The current identity becomes the
+// selected family member while the original signed-in account is preserved in the
 // auth* fields (switchSessionIdentity is idempotent: when already switched it
 // keeps the existing authenticated identity). Kiosk sessions are always marked
 // active so the UI can render kiosk chrome and server code can tag events. The
@@ -168,8 +168,8 @@ export function enterKioskSession(
   playerIdentity: SessionIdentity,
   playerIds: Array<string | undefined> = [],
 ): SessionUser {
-  // Use the explicitly approved roster (the active player is always already a
-  // member of it). Fall back to just the active player when no roster is given.
+  // Use the explicitly approved roster (the active profile is always already a
+  // member of it). Fall back to just the active profile when no roster is given.
   const normalized = normalizeKioskRoster(playerIds);
   const roster = normalized.length > 0 ? normalized : normalizeKioskRoster([playerIdentity.memberId]);
   return {

@@ -148,16 +148,27 @@ describe("POST /api/kiosk/start", () => {
     expect((await response.json()).error).toBe("invalid_pin");
   });
 
-  it("refuses to enter kiosk as a non-player member", async () => {
+  it("allows a parent profile in kiosk mode with player-level permissions", async () => {
     mockGetSession.mockReturnValue(parentSession);
     mockVerifyKioskPin.mockResolvedValue({ ok: true });
     mockGetPrimaryFamilyId.mockResolvedValue("fam-1");
-    mockResolveMember.mockResolvedValue({ ...child, role: "admin" });
+    mockResolveMember.mockResolvedValue({
+      uid: "other-admin-uid",
+      memberId: "other-admin",
+      role: "admin",
+      email: "other@example.com",
+      name: "Other Parent",
+      picture: "",
+      locale: "en-US",
+    });
 
     const { POST } = await import("./start/route");
     const response = await POST(jsonRequest({ playerId: "other-admin", pin: "1234" }));
-    expect(response.status).toBe(400);
-    expect((await response.json()).error).toBe("player_only");
+    expect(response.status).toBe(200);
+    const savedSession = mockSetCookie.mock.calls[0][1] as SessionUser;
+    expect(savedSession.uid).toBe("other-admin-uid");
+    expect(savedSession.role).toBe("player");
+    expect(savedSession.kioskPlayerIds).toEqual(["other-admin"]);
   });
 });
 
@@ -204,6 +215,32 @@ describe("POST /api/kiosk/switch", () => {
     expect(savedSession.role).toBe("player");
     // Roster is preserved across the switch.
     expect(savedSession.kioskPlayerIds).toEqual(expect.arrayContaining(["child-mid", "child2-mid"]));
+  });
+
+  it("switches to a roster parent without requiring a PIN and keeps player-level permissions", async () => {
+    const sessionWithParentRoster = enterKioskSession(parentSession, child, ["child-mid", "parent-mid"]);
+    mockGetSession.mockReturnValue(sessionWithParentRoster);
+    mockGetPrimaryFamilyId.mockResolvedValue("fam-1");
+    mockResolveMember.mockResolvedValue({
+      uid: "parent-uid",
+      memberId: "parent-mid",
+      role: "admin",
+      email: "parent@example.com",
+      name: "Parent",
+      picture: "",
+      locale: "en-US",
+    });
+
+    const { POST } = await import("./switch/route");
+    const response = await POST(jsonRequest({ playerId: "parent-mid" }));
+
+    expect(response.status).toBe(200);
+    expect(mockVerifyKioskPin).not.toHaveBeenCalled();
+    const savedSession = mockSetCookie.mock.calls[0][1] as SessionUser;
+    expect(savedSession.kioskActive).toBe(true);
+    expect(savedSession.uid).toBe("parent-uid");
+    expect(savedSession.role).toBe("player");
+    expect(savedSession.kioskPlayerIds).toEqual(expect.arrayContaining(["child-mid", "parent-mid"]));
   });
 });
 

@@ -67,6 +67,7 @@
       "close": "Fermer",
       "continue": "Continuer",
       "delete": "Supprimer",
+      "dismiss": "Ignorer",
       "edit": "Modifier",
       "loading": "Chargement...",
       "remove": "Retirer",
@@ -105,21 +106,21 @@
   "kiosk": {
     "badge": "Mode Kiosque",
     "selectPlayerTitle": "Qui fait des tâches ?",
-    "selectPlayerBody": "Choisis un joueur pour voir ses tâches. Ce mode tablette partagée sert uniquement à terminer des tâches.",
-    "loadingPlayers": "Chargement des joueurs…",
-    "noPlayers": "Aucun profil de joueur trouvé dans cette famille.",
+    "selectPlayerBody": "Choisissez un membre de la famille pour voir ses tâches. Ce mode tablette partagée sert uniquement à terminer des tâches.",
+    "loadingPlayers": "Chargement des membres de la famille…",
+    "noPlayers": "Aucun membre actif de la famille n'a été trouvé.",
     "noFamily": "Le Mode Kiosque est réservé aux membres d'une famille.",
     "loadError": "Impossible de charger le Mode Kiosque : {error}",
     "enterTitle": "Démarrer le Mode Kiosque en tant que {name}",
-    "enterBody": "Le Mode Kiosque n'affiche que les tâches de ce joueur. Les commandes des parents restent verrouillées jusqu'à la sortie.",
+    "enterBody": "Le mode Kiosque affiche uniquement les tâches de cette personne. Les contrôles parent restent verrouillés jusqu'à la sortie.",
     "enterAction": "Démarrer le Mode Kiosque",
     "startError": "Impossible de démarrer le Mode Kiosque : {error}",
     "pinLabel": "PIN",
     "checking": "Vérification…",
-    "switchPlayer": "Changer de joueur",
+    "switchPlayer": "Changer de personne",
     "switchTitle": "Passer à {name}",
-    "switchBody": "Saisis le PIN pour changer le joueur actif.",
-    "switchError": "Impossible de changer de joueur : {error}",
+    "switchBody": "Saisis le PIN pour changer la personne active.",
+    "switchError": "Impossible de changer de personne : {error}",
     "exit": "Quitter le Mode Kiosque",
     "exitTitle": "Quitter le Mode Kiosque",
     "exitBody": "Saisis le PIN pour quitter le Mode Kiosque et revenir au compte connecté.",
@@ -129,7 +130,9 @@
     "completeError": "Impossible de terminer la tâche : {error}",
     "loadingChores": "Chargement des tâches…",
     "allDoneTitle": "Tout est fait ! 🎉",
-    "allDoneBody": "Il ne reste aucune tâche pour le moment."
+    "allDoneBody": "Il ne reste aucune tâche pour le moment.",
+    "allDonePopupTitle": "Tout est fait !",
+    "newSkillPopupTitle": "Nouvelle compétence !"
   },
   "footer": {
     "ariaLabel": "Pied de page du site",
@@ -316,6 +319,8 @@
     "newSkillBadge": "Nouvelle compétence +{amount}",
     "newSkillBonusTooltip": "Première fois ! Gagne {amount} pièces bonus pour avoir appris une nouvelle compétence.",
     "newSkillCelebration": "Nouvelle compétence apprise ! +{amount} pièces bonus.",
+    "allDonePopupTitle": "Tout est fait !",
+    "newSkillPopupTitle": "Nouvelle compétence !",
     "recurringShowFrequency": "Tâche récurrente. Cliquez pour afficher la fréquence.",
     "recurringHideFrequency": "Tâche récurrente. Cliquez pour masquer la fréquence.",
     "recurrenceDaily": "Quotidienne",
@@ -375,14 +380,16 @@
     "loadingMore": "Chargement...",
     "actions": {
       "viewChore": "Voir la tâche",
-      "viewReward": "Voir la récompense"
+      "viewReward": "Voir la récompense",
+      "reviewApproval": "Examiner"
     },
     "events": {
       "chore_created": "Nouvelle tâche ajoutée",
       "chore_completed": "Tâche terminée",
       "chore_approved": "Tâche approuvée",
       "chore_rejected": "La tâche doit être refaite",
-      "reward_claimed": "Récompense échangée"
+      "reward_claimed": "Récompense échangée",
+      "title_unlocked": "Nouveau titre obtenu"
     }
   },
   "choreDialog": {
@@ -803,7 +810,19 @@
       "tips": {
         "pendingApprovals": "Des taches attendent votre approbation. Une verification rapide aide les pieces et l'elan a arriver pendant que la semaine est encore fraiche.",
         "kickstart": "Essayez d'ajouter une petite tache recurrente pour chaque enfant. Des victoires regulieres rendent le recapitulatif hebdomadaire plus utile.",
-        "praise": "Soulignez une victoire precise de cette semaine a votre prochaine visite dans l'application. Des encouragements precis aident la routine a durer."
+        "praise": "Soulignez une victoire precise de cette semaine a votre prochaine visite dans l'application. Des encouragements precis aident la routine a durer.",
+        "birthYear": "Indiquez l'annee de naissance de votre enfant dans son profil pour que les suggestions de taches soient adaptees a son age."
+      },
+      "athena": {
+        "eyebrow": "Nouveau · Compagnon d'apprentissage Athena",
+        "title": "Reliez votre compte a Athena",
+        "intro": "Connectez Family Chores a Athena, le compagnon d'apprentissage IA de vos enfants, pour une semaine plus intelligente.",
+        "benefits": {
+          "suggestions": "Des suggestions de taches plus intelligentes et personnalisees pour chaque enfant.",
+          "coins": "Les enfants peuvent demander a Athena combien de pieces ils ont.",
+          "nextChore": "Athena leur indique quelle tache faire ensuite."
+        },
+        "cta": "Relier mon compte"
       }
     }
   },
@@ -1380,7 +1399,10 @@
   },
   "mobile": {
     "checkingSessionTitle": "Vérification de la session...",
-    "checkingSessionBody": "Veuillez patienter pendant que nous vérifions votre connexion Family Chores."
+    "checkingSessionBody": "Veuillez patienter pendant que nous vérifions votre connexion Family Chores.",
+    "serverUnreachableTitle": "Impossible de joindre le serveur",
+    "serverUnreachableBody": "Nous n'avons pas pu nous connecter à Family Chores. Vérifiez votre connexion internet et réessayez.",
+    "serverUnreachableRetry": "Réessayer"
   },
   "onboarding": {
     "saving": "Enregistrement...",
@@ -1578,6 +1600,62 @@
       "level": "Niveau {level}",
       "mostCompletedRoutine": "Routine la plus accomplie : {name} ({count}×)"
     },
+    "titles": {
+      "home_care": {
+        "0": "Assistant",
+        "1": "Responsable du ménage",
+        "2": "Maître des tâches",
+        "3": "Gardien du foyer",
+        "4": "Héros du foyer",
+        "5": "Intendant du foyer",
+        "6": "Maître de maison"
+      },
+      "self_care": {
+        "0": "Autonome débutant",
+        "1": "Enfant indépendant",
+        "2": "Pro des soins personnels",
+        "3": "Expert en autonomie",
+        "4": "Champion de la maîtrise de soi",
+        "5": "Héros du développement personnel",
+        "6": "Maître de soi"
+      },
+      "organization": {
+        "0": "Organisateur",
+        "1": "Planificateur",
+        "2": "Coordinateur",
+        "3": "Expert en efficacité",
+        "4": "Maître organisateur",
+        "5": "Champion de la logistique",
+        "6": "Gardien de l'ordre"
+      },
+      "family_contribution": {
+        "0": "Contributeur",
+        "1": "Coéquipier",
+        "2": "Aide familial",
+        "3": "Champion de la famille",
+        "4": "Pilier de la famille",
+        "5": "Chef de famille",
+        "6": "Héros de la famille"
+      },
+      "life_skills": {
+        "0": "Apprenant",
+        "1": "Résolveur de problèmes",
+        "2": "Éclaireur",
+        "3": "Expert en compétences de vie",
+        "4": "Adulte capable",
+        "5": "Bâtisseur de communauté",
+        "6": "Maître des compétences de vie"
+      }
+    },
+    "identity": {
+      "earnedIdentities": "Identités obtenues",
+      "progressToNext": "{percent} % avant {title}",
+      "titleUnlocked": "Nouveau titre débloqué",
+      "topTitle": "Titre maximal atteint !",
+      "journeyTitle": "Ton parcours",
+      "familyGrowth": "Évolution de la famille",
+      "familyGrowthSubtitle": "Ce que vos enfants sont en train de devenir."
+    },
     "routineBadgeTooltip": "Fait partie de la routine « {name} » — touchez pour voir la progression",
     "assignDialog": {
       "title": "Assigner une routine",
@@ -1621,6 +1699,69 @@
       "pillar": "Pilier de responsabilité :",
       "bonusXp": "Bonus de fin : +{xp} XP",
       "bonusCoins": "Bonus de fin : +{coins} pièces"
+    }
+  },
+  "approvals": {
+    "familyBucket": "Famille",
+    "actions": {
+      "review": "Examiner",
+      "approveAll": "Tout approuver",
+      "approve": "Approuver",
+      "approveWithEllipsis": "Approuver…",
+      "approving": "Approbation…",
+      "reject": "Refuser",
+      "rejecting": "Refus…",
+      "reviewIndividually": "Examiner individuellement",
+      "dismiss": "Ignorer"
+    },
+    "card": {
+      "pendingTitleOne": "{count} tâche prête à approuver",
+      "pendingTitleOther": "{count} tâches prêtes à approuver",
+      "childCompletedOne": "{name} a terminé {count} tâche",
+      "childCompletedOther": "{name} a terminé {count} tâches",
+      "emptyTitle": "Toutes les tâches sont examinées",
+      "emptyBody": "Bravo pour avoir gardé votre famille en mouvement !",
+      "approvedTitleOne": "{count} tâche approuvée",
+      "approvedTitleOther": "{count} tâches approuvées",
+      "childEarned": "{name} a gagné"
+    },
+    "page": {
+      "title": "Boîte d'approbation",
+      "waitingOne": "{count} tâche en attente d'examen",
+      "waitingOther": "{count} tâches en attente d'examen",
+      "loading": "Chargement des approbations…"
+    },
+    "group": {
+      "countOne": "{count} tâche",
+      "countOther": "{count} tâches"
+    },
+    "review": {
+      "justNow": "à l'instant"
+    },
+    "choreType": {
+      "standard": "Standard",
+      "routine": "Routine",
+      "see_and_do": "Voir et faire",
+      "ghost": "Tâche fantôme"
+    },
+    "coinModal": {
+      "title": "Approuver et attribuer des pièces",
+      "completedBy": "{name} a terminé :",
+      "prompt": "Combien de pièces faut-il attribuer ?",
+      "remaining": "{count} à examiner"
+    },
+    "rejectModal": {
+      "title": "Refuser la tâche",
+      "prompt": "Renvoyer « {title} » pour une nouvelle tentative ?",
+      "feedback": "Commentaires (facultatif)",
+      "feedbackPlaceholder": "Dites-leur quoi corriger…"
+    },
+    "empty": {
+      "title": "Vous êtes à jour !",
+      "body": "Aucune tâche ne nécessite d'approbation pour le moment."
+    },
+    "errors": {
+      "generic": "Une erreur est survenue. Veuillez réessayer."
     }
   }
 }

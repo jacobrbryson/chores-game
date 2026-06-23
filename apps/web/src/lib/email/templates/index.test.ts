@@ -48,6 +48,21 @@ describe("renderEmailTemplate", () => {
     expect(rendered.text).toContain("Consejo de la semana");
   });
 
+  it("features the Athena link callout", () => {
+    const rendered = renderEmailTemplate({
+      templateId: "weekly-family-highlights",
+      locale: "en-US",
+      props: {
+        ...props,
+        athenaLinkUrl: "https://example.com/profile?tab=integrations",
+      },
+    });
+
+    expect(rendered.html).toContain("Link your account with Athena");
+    expect(rendered.html).toContain("https://example.com/profile?tab=integrations");
+    expect(rendered.text).toContain("Link your account");
+  });
+
   it("supports fallback-safe empty data without crashing", () => {
     const rendered = renderEmailTemplate({
       templateId: "weekly-family-highlights",

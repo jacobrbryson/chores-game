@@ -33,6 +33,7 @@ import {
 } from "@/lib/chores/recurrence";
 import type { RoutineStep } from "@/lib/responsibility/routines";
 import { loadResponsibilityConfig } from "@/lib/responsibility/config";
+import { titleNameEn, titleUnlockTier } from "@/lib/responsibility/titles";
 import {
   recordResponsibilityXpAwardBestEffort,
   recordRoutineCompletionStatsBestEffort,
@@ -307,8 +308,9 @@ async function finalizeRoutineCompletion(input: {
       ? assignment.completionBonusXp
       : config.xpValues.routineCompletionBonusXp;
   let completionBonusXpAwarded = 0;
+  let titleUnlock: { tier: number } | null = null;
   if (assignment.pillar && bonusXp > 0 && playerUid) {
-    const ok = await recordResponsibilityXpAwardBestEffort({
+    const { ok, result } = await recordResponsibilityXpAwardBestEffort({
       familyId,
       idToken,
       award: {
@@ -321,6 +323,16 @@ async function finalizeRoutineCompletion(input: {
     });
     if (ok) {
       completionBonusXpAwarded = bonusXp;
+    }
+    if (result) {
+      const unlockedTier = titleUnlockTier(
+        result.pillarXpBefore,
+        result.pillarXpAfter,
+        config.levelThresholds,
+      );
+      if (unlockedTier !== null) {
+        titleUnlock = { tier: unlockedTier };
+      }
     }
   }
 
@@ -406,6 +418,27 @@ async function finalizeRoutineCompletion(input: {
     familyId,
     occurredAt: now,
   });
+
+  // Responsibility Identity: when the completion bonus pushed the player into a
+  // new title tier, announce it as its own celebratory feed line (reusing the
+  // routine_completed kind so no new ActivityKind/WS type is needed).
+  if (titleUnlock && assignment.pillar) {
+    const titleName = titleNameEn(assignment.pillar, titleUnlock.tier);
+    await emitFamilyActivity({
+      familyId,
+      idToken,
+      kind: "identity_title_unlocked",
+      actorUid: actor.uid,
+      actorEmail: actor.email,
+      actorName: actor.name,
+      title: "New title unlocked",
+      message: `🎉 ${celebrationName} became a ${titleName}!`,
+      relatedIds: [playerUid, assignment.assigneeId],
+      source: kiosk?.source,
+      authenticatedUid: kiosk?.authenticatedUid,
+      completedForPlayerId: kiosk?.completedForPlayerId,
+    });
+  }
 
   // Recurring assignment: spawn the next occurrence with a fresh set of
   // step chores, exactly like recurring chores clone themselves on

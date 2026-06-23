@@ -67,6 +67,7 @@
       "close": "Close",
       "continue": "Continue",
       "delete": "Delete",
+      "dismiss": "Dismiss",
       "edit": "Edit",
       "loading": "Loading...",
       "remove": "Remove",
@@ -105,21 +106,21 @@
   "kiosk": {
     "badge": "Kiosk Mode",
     "selectPlayerTitle": "Who's doing chores?",
-    "selectPlayerBody": "Pick a player to see their chores. This shared tablet mode is for completing chores only.",
-    "loadingPlayers": "Loading players…",
-    "noPlayers": "No player profiles were found in this family.",
+    "selectPlayerBody": "Pick a family member to see their chores. This shared tablet mode is for completing chores only.",
+    "loadingPlayers": "Loading family members…",
+    "noPlayers": "No active family members were found in this family.",
     "noFamily": "Kiosk Mode is only available to members of a family.",
     "loadError": "Could not load Kiosk Mode: {error}",
     "enterTitle": "Start Kiosk Mode as {name}",
-    "enterBody": "Kiosk Mode shows only this player's chores. Parent controls stay locked until you exit.",
+    "enterBody": "Kiosk Mode shows only this person's chores. Parent controls stay locked until you exit.",
     "enterAction": "Start Kiosk Mode",
     "startError": "Could not start Kiosk Mode: {error}",
     "pinLabel": "PIN",
     "checking": "Checking…",
-    "switchPlayer": "Switch Player",
+    "switchPlayer": "Switch Person",
     "switchTitle": "Switch to {name}",
-    "switchBody": "Enter the PIN to switch the active player.",
-    "switchError": "Could not switch player: {error}",
+    "switchBody": "Enter the PIN to switch the active person.",
+    "switchError": "Could not switch person: {error}",
     "exit": "Exit Kiosk Mode",
     "exitTitle": "Exit Kiosk Mode",
     "exitBody": "Enter the PIN to leave Kiosk Mode and return to the signed-in account.",
@@ -129,7 +130,9 @@
     "completeError": "Could not complete chore: {error}",
     "loadingChores": "Loading chores…",
     "allDoneTitle": "All done! 🎉",
-    "allDoneBody": "There are no chores left right now."
+    "allDoneBody": "There are no chores left right now.",
+    "allDonePopupTitle": "All Done!",
+    "newSkillPopupTitle": "New Skill!"
   },
   "footer": {
     "ariaLabel": "Site footer",
@@ -316,6 +319,8 @@
     "newSkillBadge": "New Skill +{amount}",
     "newSkillBonusTooltip": "First time! Earn {amount} bonus coins for learning a new skill.",
     "newSkillCelebration": "New Skill Learned! +{amount} bonus coins.",
+    "allDonePopupTitle": "All Done!",
+    "newSkillPopupTitle": "New Skill!",
     "recurringShowFrequency": "Recurring chore. Click to show frequency.",
     "recurringHideFrequency": "Recurring chore. Click to hide frequency.",
     "recurrenceDaily": "Daily",
@@ -375,14 +380,16 @@
     "loadingMore": "Loading...",
     "actions": {
       "viewChore": "View chore",
-      "viewReward": "View reward"
+      "viewReward": "View reward",
+      "reviewApproval": "Review approval"
     },
     "events": {
       "chore_created": "New chore added",
       "chore_completed": "Chore completed",
       "chore_approved": "Chore approved",
       "chore_rejected": "Chore needs another try",
-      "reward_claimed": "Reward redeemed"
+      "reward_claimed": "Reward redeemed",
+      "title_unlocked": "New title earned"
     }
   },
   "choreDialog": {
@@ -803,7 +810,19 @@
       "tips": {
         "pendingApprovals": "You have chores waiting for approval. A quick review helps coins and momentum land while the week is still fresh.",
         "kickstart": "Try adding one small recurring chore for each child. Consistent wins make the weekly summary more rewarding.",
-        "praise": "Call out one specific win from this week when you open the app again. Specific praise helps the routine stick."
+        "praise": "Call out one specific win from this week when you open the app again. Specific praise helps the routine stick.",
+        "birthYear": "Set your child's birth year in their profile so chore suggestions are tailored to their age."
+      },
+      "athena": {
+        "eyebrow": "New · Athena Learning Companion",
+        "title": "Link your account with Athena",
+        "intro": "Connect Family Chores to Athena, your kids' AI learning companion, for a smarter week ahead.",
+        "benefits": {
+          "suggestions": "Smarter, more personalized chore suggestions for each child.",
+          "coins": "Kids can ask Athena how many coins they have.",
+          "nextChore": "Athena tells them which chore to work on next."
+        },
+        "cta": "Link your account"
       }
     }
   },
@@ -1380,7 +1399,10 @@
   },
   "mobile": {
     "checkingSessionTitle": "Checking session...",
-    "checkingSessionBody": "Please wait while we verify your Family Chores login."
+    "checkingSessionBody": "Please wait while we verify your Family Chores login.",
+    "serverUnreachableTitle": "Can't reach the server",
+    "serverUnreachableBody": "We couldn't connect to Family Chores. Check your internet connection and try again.",
+    "serverUnreachableRetry": "Try again"
   },
   "onboarding": {
     "saving": "Saving...",
@@ -1534,6 +1556,62 @@
       "level": "Level {level}",
       "mostCompletedRoutine": "Most completed routine: {name} ({count}×)"
     },
+    "titles": {
+      "home_care": {
+        "0": "Helper",
+        "1": "Housekeeper",
+        "2": "Chore Master",
+        "3": "Home Guardian",
+        "4": "Household Hero",
+        "5": "Steward of the Home",
+        "6": "Master Homemaker"
+      },
+      "self_care": {
+        "0": "Self Starter",
+        "1": "Independent Kid",
+        "2": "Self Care Pro",
+        "3": "Self Reliance Expert",
+        "4": "Self Mastery Champion",
+        "5": "Personal Growth Hero",
+        "6": "Master of Self"
+      },
+      "organization": {
+        "0": "Organizer",
+        "1": "Planner",
+        "2": "Coordinator",
+        "3": "Efficiency Expert",
+        "4": "Master Organizer",
+        "5": "Logistics Champion",
+        "6": "Order Keeper"
+      },
+      "family_contribution": {
+        "0": "Contributor",
+        "1": "Team Player",
+        "2": "Family Helper",
+        "3": "Family Champion",
+        "4": "Pillar of the Family",
+        "5": "Family Leader",
+        "6": "Family Hero"
+      },
+      "life_skills": {
+        "0": "Learner",
+        "1": "Problem Solver",
+        "2": "Pathfinder",
+        "3": "Life Skills Expert",
+        "4": "Capable Adult",
+        "5": "Community Builder",
+        "6": "Master of Life Skills"
+      }
+    },
+    "identity": {
+      "earnedIdentities": "Earned identities",
+      "progressToNext": "{percent}% to {title}",
+      "titleUnlocked": "New Title Unlocked",
+      "topTitle": "Top title reached!",
+      "journeyTitle": "Your Journey",
+      "familyGrowth": "Family Growth",
+      "familyGrowthSubtitle": "Who your kids are becoming."
+    },
     "routineBadgeTooltip": "Part of the \"{name}\" routine — tap to see progress",
     "assignDialog": {
       "title": "Assign a Routine",
@@ -1621,6 +1699,69 @@
         "fri": "F",
         "sat": "S"
       }
+    }
+  },
+  "approvals": {
+    "familyBucket": "Family",
+    "actions": {
+      "review": "Review",
+      "approveAll": "Approve All",
+      "approve": "Approve",
+      "approveWithEllipsis": "Approve…",
+      "approving": "Approving…",
+      "reject": "Reject",
+      "rejecting": "Rejecting…",
+      "reviewIndividually": "Review Individually",
+      "dismiss": "Dismiss"
+    },
+    "card": {
+      "pendingTitleOne": "{count} Chore Ready For Approval",
+      "pendingTitleOther": "{count} Chores Ready For Approval",
+      "childCompletedOne": "{name} completed {count} chore",
+      "childCompletedOther": "{name} completed {count} chores",
+      "emptyTitle": "All chores reviewed",
+      "emptyBody": "Great job keeping your family moving!",
+      "approvedTitleOne": "{count} chore approved",
+      "approvedTitleOther": "{count} chores approved",
+      "childEarned": "{name} earned"
+    },
+    "page": {
+      "title": "Approval Inbox",
+      "waitingOne": "{count} chore waiting for review",
+      "waitingOther": "{count} chores waiting for review",
+      "loading": "Loading approvals…"
+    },
+    "group": {
+      "countOne": "{count} chore",
+      "countOther": "{count} chores"
+    },
+    "review": {
+      "justNow": "just now"
+    },
+    "choreType": {
+      "standard": "Standard",
+      "routine": "Routine",
+      "see_and_do": "See & Do",
+      "ghost": "Ghost Chore"
+    },
+    "coinModal": {
+      "title": "Approve & award coins",
+      "completedBy": "{name} completed:",
+      "prompt": "How many coins should be awarded?",
+      "remaining": "{count} left to review"
+    },
+    "rejectModal": {
+      "title": "Reject chore",
+      "prompt": "Send \"{title}\" back for another try?",
+      "feedback": "Feedback (optional)",
+      "feedbackPlaceholder": "Let them know what to fix…"
+    },
+    "empty": {
+      "title": "You are all caught up!",
+      "body": "No chores currently need approval."
+    },
+    "errors": {
+      "generic": "Something went wrong. Please try again."
     }
   }
 }

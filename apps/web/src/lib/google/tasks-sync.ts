@@ -27,6 +27,7 @@ import {
   resolveGoogleTaskListsForUser,
   updateGoogleTasksSyncMetadata,
 } from "@/lib/google/tasks-link";
+import { collapseRoutineChores } from "@/lib/responsibility/routine-chores";
 import { applyWalletDelta } from "@/lib/economy/wallet";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
@@ -56,6 +57,8 @@ type LocalChore = {
   googleTaskId: string;
   googleTaskListId: string;
   googleTaskOwnerUid: string;
+  routineAssignmentId?: string;
+  routineStepOrder?: number;
 };
 
 type SyncGoogleTasksOptions = {
@@ -254,6 +257,8 @@ function parseLocalChore(doc: {
     googleTaskId: readString(doc.fields, "googleTaskId"),
     googleTaskListId: readString(doc.fields, "googleTaskListId"),
     googleTaskOwnerUid: readString(doc.fields, "googleTaskOwnerUid"),
+    routineAssignmentId: readString(doc.fields, "routineAssignmentId") || undefined,
+    routineStepOrder: readInteger(doc.fields, "routineStepOrder") || undefined,
   };
 }
 
@@ -412,6 +417,19 @@ export async function syncGoogleTasksForUser(
       cap: 5000,
     });
     const allChores = choreDocs.map((doc) => parseLocalChore(doc));
+    // A routine assignment materializes one chore per step, but only the next
+    // open step should ever reach Google Tasks — otherwise every step is pushed
+    // at once. collapseRoutineChores retains all non-routine and already
+    // completed chores and, per assignment, only the lowest-order open step.
+    // Anything routine-linked that survives is "active"; anything else is a
+    // later step we must suppress from every push path below.
+    const ownerActiveChoreIds = new Set(
+      collapseRoutineChores(
+        allChores.filter((chore) => !chore.deleted && chore.assigneeId === options.uid),
+      ).map((chore) => chore.id),
+    );
+    const isSuppressedRoutineStep = (chore: LocalChore) =>
+      Boolean(chore.routineAssignmentId) && !ownerActiveChoreIds.has(chore.id);
     const localGoogleChores = allChores
       .filter((chore) => isGoogleMappedChoreForOwner(chore, options.uid))
       .filter((chore) => selectedTaskListIds.has(chore.googleTaskListId));
@@ -788,6 +806,10 @@ export async function syncGoogleTasksForUser(
       if (localChore.deleted || localChore.status === "Deleted") {
         continue;
       }
+      // Don't recreate a later routine step that shouldn't exist in Google yet.
+      if (isSuppressedRoutineStep(localChore)) {
+        continue;
+      }
       const status = isCompletedStatus(localChore.status) ? "completed" : "needsAction";
       const due = dueDateToGoogleDue(localChore.dueDate);
       const notes = normalizeDetails(localChore.details);
@@ -825,6 +847,11 @@ export async function syncGoogleTasksForUser(
       .sort(compareBySortOrderOrOldest);
 
     for (const localChore of localUnmappedOwnerChores) {
+      // Push routine steps one at a time: skip every step except the next open
+      // one so a multi-step routine doesn't create all its tasks at once.
+      if (isSuppressedRoutineStep(localChore)) {
+        continue;
+      }
       const status = isCompletedStatus(localChore.status) ? "completed" : "needsAction";
       const due = dueDateToGoogleDue(localChore.dueDate);
       const notes = normalizeDetails(localChore.details);

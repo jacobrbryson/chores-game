@@ -14,6 +14,7 @@ describe("feed event mapping", () => {
     expect(mapNotificationKindToFeedType("chore_rejected")).toBe("chore_rejected");
     expect(mapNotificationKindToFeedType("chore_created")).toBe("chore_created");
     expect(mapNotificationKindToFeedType("reward_claimed")).toBe("reward_claimed");
+    expect(mapNotificationKindToFeedType("identity_title_unlocked")).toBe("title_unlocked");
   });
 
   it("excludes noisy lifecycle kinds from the feed", () => {
@@ -29,6 +30,7 @@ describe("feed event mapping", () => {
     }
     expect(feedTypeAction("chore_completed")).toBe("view_chore");
     expect(feedTypeAction("reward_claimed")).toBe("view_reward");
+    expect(feedTypeAction("title_unlocked")).toBeNull();
   });
 });
 

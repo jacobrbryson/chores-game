@@ -1,5 +1,6 @@
 import type { FamilyAwardClaim } from "@/lib/family/award-claims";
 import { listFamilyAwardClaims } from "@/lib/family/award-claims";
+import { adminGetDocument, adminListAllDocuments } from "@/lib/firestore/admin";
 import { getDocument, listAllDocuments, readInteger, readString, readStringArray, readTimestamp } from "@/lib/firestore/rest";
 import {
   canViewerAccessFamilyMember,
@@ -54,6 +55,65 @@ type LoadFamilyMemberProfileDataInput = {
   idToken: string;
 };
 
+function isFirestoreNotFound(error: unknown) {
+  const reason = error instanceof Error ? error.message : "";
+  return reason.includes("FIRESTORE_HTTP_404") || reason.includes("FIRESTORE_ADMIN_HTTP_404");
+}
+
+function isFirestoreForbidden(error: unknown) {
+  const reason = error instanceof Error ? error.message : "";
+  return reason.includes("FIRESTORE_HTTP_403") || reason.includes("PERMISSION_DENIED");
+}
+
+function isAdminCredentialsUnavailable(error: unknown) {
+  const reason = error instanceof Error ? error.message : "";
+  return reason.includes("ADMIN_CREDENTIALS_UNAVAILABLE");
+}
+
+async function getOptionalUserDocument(uid: string, idToken: string) {
+  try {
+    return await getDocument(`users/${uid}`, idToken);
+  } catch (error) {
+    if (isFirestoreNotFound(error)) {
+      return null;
+    }
+    if (!isFirestoreForbidden(error)) {
+      throw error;
+    }
+  }
+
+  try {
+    return await adminGetDocument(`users/${uid}`);
+  } catch (error) {
+    if (isFirestoreNotFound(error) || isAdminCredentialsUnavailable(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function listOptionalUserDocuments(path: string, idToken: string, cap = 500) {
+  try {
+    return await listAllDocuments(path, idToken, { cap });
+  } catch (error) {
+    if (isFirestoreNotFound(error)) {
+      return [];
+    }
+    if (!isFirestoreForbidden(error)) {
+      throw error;
+    }
+  }
+
+  try {
+    return await adminListAllDocuments(path, { cap });
+  } catch (error) {
+    if (isFirestoreNotFound(error) || isAdminCredentialsUnavailable(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
 async function resolveEffectiveConfettiOptionId(
   member: FamilyResolvedMember,
   viewerUid: string,
@@ -63,17 +123,12 @@ async function resolveEffectiveConfettiOptionId(
   const memberOption = memberOptionId ? findConfettiOptionById(memberOptionId) : null;
 
   if (member.uid && member.uid === viewerUid) {
-    try {
-      const userDoc = await getDocument(`users/${member.uid}`, idToken);
+    const userDoc = await getOptionalUserDocument(member.uid, idToken);
+    if (userDoc) {
       const userOptionId = readString(userDoc.fields, "selectedConfettiOptionId").trim();
       const userOption = userOptionId ? findConfettiOptionById(userOptionId) : null;
       if (userOption) {
         return userOption.id;
-      }
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "";
-      if (!reason.includes("FIRESTORE_HTTP_404")) {
-        throw error;
       }
     }
   }
@@ -186,12 +241,12 @@ export async function loadFamilyMemberProfileData(
   );
   let ownedItems: OwnedItemSummary[] = [];
   if (member.uid) {
-    try {
-      const [userDoc, inventoryDocs] = await Promise.all([
-        getDocument(`users/${member.uid}`, input.idToken),
-        listAllDocuments(`users/${member.uid}/inventory`, input.idToken, { cap: 500 }),
-      ]);
-      const ledgerDocs = await listAllDocuments(`users/${member.uid}/walletLedger`, input.idToken, { cap: 500 });
+    const [userDoc, inventoryDocs, ledgerDocs] = await Promise.all([
+      getOptionalUserDocument(member.uid, input.idToken),
+      listOptionalUserDocuments(`users/${member.uid}/inventory`, input.idToken, 500),
+      listOptionalUserDocuments(`users/${member.uid}/walletLedger`, input.idToken, 500),
+    ]);
+    if (userDoc || inventoryDocs.length > 0 || ledgerDocs.length > 0) {
       const inventoryByItemId = new Map<string, { quantity: number; addedAt?: string }>();
       const paidValueByItemId = new Map<string, number>();
       const acquisitionLabelByItemId = new Map<string, string>();
@@ -230,16 +285,11 @@ export async function loadFamilyMemberProfileData(
         }
       }
       ownedItems = buildOwnedItemsSummary({
-        ownedOptionIds: resolveOwnedOptionIds(userDoc.fields),
+        ownedOptionIds: resolveOwnedOptionIds(userDoc?.fields),
         inventoryByItemId,
         paidValueByItemId,
         acquisitionLabelByItemId,
       });
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "";
-      if (!reason.includes("FIRESTORE_HTTP_404")) {
-        throw error;
-      }
     }
   }
 

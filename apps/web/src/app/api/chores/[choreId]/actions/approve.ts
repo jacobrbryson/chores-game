@@ -10,6 +10,8 @@ import {
 } from "@/lib/firestore/rest";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
+import { trackEvent } from "@/lib/analytics/service";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { normalizeCoinValue } from "@/lib/chores/recurrence";
 import { canonicalRecurringChoreId } from "@/lib/chores/skill-bonus";
 import { awardChoreResponsibilityXpBestEffort } from "@/lib/responsibility/service";
@@ -189,6 +191,28 @@ export async function handleApprove(ctx: ChoreActionContext): Promise<ChoreActio
   } catch (error) {
     const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
     console.error("[ACHIEVEMENT_TRACK_AFTER_CHORE_ERROR]", reason);
+  }
+  // Analytics: best-effort and observational. chore_approved answers "how many
+  // approvals this week"; coins_earned mirrors the wallet credit that just landed.
+  await trackEvent({
+    event: ANALYTICS_EVENTS.chore_approved,
+    familyId,
+    userId: session.uid,
+    role: requester.role,
+    metadata: {
+      choreId,
+      coinValue: approvedCoinValue,
+      source: readString(existingChoreDoc.fields, "source") || "manual",
+    },
+  });
+  if (payoutApplied && approvedCoinValue > 0) {
+    await trackEvent({
+      event: ANALYTICS_EVENTS.coins_earned,
+      familyId,
+      userId: session.uid,
+      role: requester.role,
+      metadata: { choreId, coins: approvedCoinValue, source: "chore_approval" },
+    });
   }
   return {
     kind: "ok" as const,

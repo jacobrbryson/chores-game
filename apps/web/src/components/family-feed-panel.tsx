@@ -180,13 +180,20 @@ export function FamilyFeedPanel() {
   return (
     <section className="feed-list" aria-label={t("feed.ariaLabel")}>
       {items.map((item) => {
-        const href = feedActionHref(item.action);
-        const actionLabel =
-          item.action === "view_reward"
+        // A completed chore is what a parent reviews in the Approval Inbox, so
+        // deep-link those events straight there (the page redirects non-parents
+        // home). Other chore/reward events keep their existing destinations.
+        const isApprovalEvent = item.type === "chore_completed";
+        const href = isApprovalEvent ? "/approvals" : feedActionHref(item.action);
+        const actionLabel = isApprovalEvent
+          ? t("feed.actions.reviewApproval")
+          : item.action === "view_reward"
             ? t("feed.actions.viewReward")
             : t("feed.actions.viewChore");
         return (
-          <article key={item.id} className="feed-card">
+          <article
+            key={item.id}
+            className={`feed-card${item.type === "title_unlocked" ? " feed-card-title-unlocked" : ""}`}>
             <div className="feed-card-icon">
               {item.actor ? (
                 <FamilyMemberAvatar

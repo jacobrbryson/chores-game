@@ -2,18 +2,58 @@ import { DEFAULT_LOCALE, normalizeLocale } from "@packages/locales";
 import { createApiClient } from "@packages/api-client";
 import type { AppLocale } from "@packages/locales";
 import { Platform } from "react-native";
+import { collapseRoutineChores } from "@/lib/routine-chores";
 
 const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api/v1";
 export const appBaseUrl = baseUrl.replace(/\/api\/v1\/?$/, "");
 
+// How long to wait before treating a request as a dead connection. Without this,
+// an unreachable backend (server not running, wrong LAN IP, firewall) leaves
+// fetch hanging indefinitely, which the UI experiences as a permanent freeze.
+const REQUEST_TIMEOUT_MS = 12000;
+
+// Thrown when a request never reaches the backend — either it timed out or the
+// connection was refused/failed. Callers can branch on this to show a "can't
+// reach server" message instead of a generic error or an endless spinner.
+export class ServerUnreachableError extends Error {
+  constructor(message = "server_unreachable") {
+    super(message);
+    this.name = "ServerUnreachableError";
+  }
+}
+
+// fetch() with an abort-based timeout. fetch only ever rejects on a network-level
+// failure (it resolves for any HTTP status, including 4xx/5xx), so every
+// rejection here means the request never produced a response — we normalize all
+// of them to ServerUnreachableError. If the caller passed its own signal we defer
+// to it and skip the timeout.
+export function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  if (init.signal) {
+    return fetch(input, init);
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(input, { ...init, signal: controller.signal })
+    .catch(() => {
+      throw new ServerUnreachableError(
+        controller.signal.aborted ? "server_timeout" : "server_unreachable",
+      );
+    })
+    .finally(() => clearTimeout(timer));
+}
+
 export const apiClient = createApiClient({
   baseUrl,
   getAccessToken: async () => null,
-  fetchImpl: (input, init) => fetch(input, { ...init, credentials: "include" }),
+  fetchImpl: (input, init) => fetchWithTimeout(input, { ...init, credentials: "include" }),
 });
 
 export async function apiFetch(path: string, init?: RequestInit) {
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetchWithTimeout(`${baseUrl}${path}`, {
     ...init,
     credentials: "include",
     headers: {
@@ -629,7 +669,7 @@ export async function copyMobileCommunityAward(awardId: string) {
 }
 
 export async function voteMobileCommunityAward(awardId: string) {
-  const response = await fetch(`${appBaseUrl}/api/votes`, {
+  const response = await fetchWithTimeout(`${appBaseUrl}/api/votes`, {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json" },
@@ -652,13 +692,18 @@ export async function fetchMobileFamilySummary(): Promise<MobileFamilySummary> {
     family: summary.family ?? null,
     members: Array.isArray(summary.members) ? summary.members : [],
     categories: Array.isArray(summary.categories) ? summary.categories : [],
-    choresToday: Array.isArray(summary.choresToday) ? summary.choresToday : [],
+    // Collapse routine-linked chores to the next actionable step here so every
+    // consumer of the summary (dashboard, home, kiosk) shows one step at a time
+    // instead of flooding the list with every materialized routine step.
+    choresToday: collapseRoutineChores(
+      Array.isArray(summary.choresToday) ? summary.choresToday : [],
+    ),
     resolvedLocale: normalizeLocale(summary.resolvedLocale) || DEFAULT_LOCALE,
   };
 }
 
 export async function patchMobileProfile(body: Record<string, unknown>) {
-  const response = await fetch(`${appBaseUrl}/api/profile`, {
+  const response = await fetchWithTimeout(`${appBaseUrl}/api/profile`, {
     method: "PATCH",
     credentials: "include",
     headers: { "content-type": "application/json" },
@@ -672,7 +717,7 @@ export async function patchMobileProfile(body: Record<string, unknown>) {
 }
 
 export async function getMobileNewsletterPreferences() {
-  const response = await fetch(`${appBaseUrl}/api/newsletter/preferences`, {
+  const response = await fetchWithTimeout(`${appBaseUrl}/api/newsletter/preferences`, {
     credentials: "include",
     cache: "no-store",
   });
@@ -688,7 +733,7 @@ export async function getMobileNewsletterPreferences() {
 export async function patchMobileNewsletterPreferences(body: {
   weeklyFamilyHighlightsEmail: boolean;
 }) {
-  const response = await fetch(`${appBaseUrl}/api/newsletter/preferences`, {
+  const response = await fetchWithTimeout(`${appBaseUrl}/api/newsletter/preferences`, {
     method: "PATCH",
     credentials: "include",
     headers: { "content-type": "application/json" },
@@ -836,7 +881,7 @@ export async function deleteMobileChore(choreId: string) {
 }
 
 export async function reorderMobileChores(orderedChoreIds: string[]) {
-  const response = await fetch(`${appBaseUrl}/api/chores`, {
+  const response = await fetchWithTimeout(`${appBaseUrl}/api/chores`, {
     method: "PATCH",
     credentials: "include",
     headers: { "content-type": "application/json" },
@@ -957,7 +1002,7 @@ export async function switchKioskPlayer(playerId: string) {
 }
 
 export async function signInWithGoogleIdToken(idToken: string) {
-  const response = await fetch(`${appBaseUrl}/api/auth/google/mobile`, {
+  const response = await fetchWithTimeout(`${appBaseUrl}/api/auth/google/mobile`, {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json" },
@@ -971,7 +1016,7 @@ export async function signInWithGoogleIdToken(idToken: string) {
 }
 
 export async function signOut() {
-  const response = await fetch(`${appBaseUrl}/api/auth/logout`, {
+  const response = await fetchWithTimeout(`${appBaseUrl}/api/auth/logout`, {
     method: "POST",
     credentials: "include",
     redirect: "manual",

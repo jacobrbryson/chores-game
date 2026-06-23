@@ -8,6 +8,11 @@ import { CoinIcon } from "@/components/coin-icon";
 import { KioskPinModal } from "@/components/kiosk-pin-modal";
 import { useLocale } from "@/components/locale-provider";
 import {
+  buildAllDoneProgressPayload,
+  IdentityTitleCelebration,
+  type IdentityTitleCelebrationData,
+} from "@/components/identity-title-celebration";
+import {
   RoutineBadgeIcon,
   RoutineProgressDialog,
 } from "@/components/routine-progress-dialog";
@@ -49,8 +54,8 @@ function choreMatchesMember(chore: FamilySnapshotChore, aliases: Set<string>) {
 // Focused shared-tablet checklist. The whole family's today-chores are fetched
 // once and cached, so switching between the pre-approved roster is instant
 // (client-side filter) — the websocket keeps the cache fresh when chores are
-// added/removed. Permissions are always player-level (the session identity is
-// the active player); this view never exposes parent/admin/support controls.
+// added/removed. Permissions are always player-level, even when the selected
+// profile is a parent; this view never exposes parent/admin/support controls.
 export function KioskActiveClient({
   playerName,
   playerEmail,
@@ -77,9 +82,12 @@ export function KioskActiveClient({
   const [pin, setPin] = useState("");
   const [pinPending, setPinPending] = useState(false);
   const [pinError, setPinError] = useState("");
+  const [identityCelebration, setIdentityCelebration] =
+    useState<IdentityTitleCelebrationData | null>(null);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const exitTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const identityCelebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch the family snapshot once (whole-family today chores + members + ws
   // token). Used on mount and for silent background reconciliation.
@@ -234,6 +242,9 @@ export function KioskActiveClient({
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
       }
+      if (identityCelebrationTimerRef.current) {
+        clearTimeout(identityCelebrationTimerRef.current);
+      }
       for (const timer of Object.values(timers)) {
         clearTimeout(timer);
       }
@@ -242,7 +253,6 @@ export function KioskActiveClient({
 
   const rosterPlayers = members.filter(
     (member) =>
-      member.role === "player" &&
       member.status === "active" &&
       (rosterIds.length === 0 || rosterIds.includes(member.id)),
   );
@@ -295,7 +305,6 @@ export function KioskActiveClient({
     setActionError("");
     setPendingCompleteIds((current) => ({ ...current, [chore.id]: true }));
     setExitingIds((current) => ({ ...current, [chore.id]: true }));
-    triggerPartyConfetti({ intensity: 1.3, sourceClientX: event.clientX, sourceClientY: event.clientY, showAllDone: true });
     // Remove from the list once the exit animation has played.
     exitTimersRef.current[chore.id] = setTimeout(() => {
       setCompletedIds((current) => ({ ...current, [chore.id]: true }));
@@ -315,6 +324,46 @@ export function KioskActiveClient({
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
         throw new Error(payload.error ?? `COMPLETE_CHORE_HTTP_${response.status}`);
+      }
+      const completePayload = (await response.json().catch(() => null)) as
+        | {
+            responsibilityXp?: {
+              choreXpAwarded?: number;
+              newSkillXpAwarded?: number;
+              title?: Omit<IdentityTitleCelebrationData, "xpAwarded">;
+            };
+            routineProgress?: {
+              completionBonusXpAwarded?: number;
+            };
+          }
+        | null;
+      const titlePayload = completePayload?.responsibilityXp?.title;
+      const xpAwarded =
+        (completePayload?.responsibilityXp?.choreXpAwarded ?? 0) +
+        (completePayload?.responsibilityXp?.newSkillXpAwarded ?? 0) +
+        (completePayload?.routineProgress?.completionBonusXpAwarded ?? 0);
+      const identityData = titlePayload ? { ...titlePayload, xpAwarded } : null;
+      triggerPartyConfetti({
+        intensity: 1.3,
+        sourceClientX: event.clientX,
+        sourceClientY: event.clientY,
+        showAllDone: true,
+        ...(identityData
+          ? { allDoneProgress: buildAllDoneProgressPayload(identityData, t) }
+          : {}),
+      });
+      if (identityData) {
+        setIdentityCelebration(identityData);
+        if (identityCelebrationTimerRef.current) {
+          clearTimeout(identityCelebrationTimerRef.current);
+        }
+        identityCelebrationTimerRef.current = setTimeout(
+          () => {
+            setIdentityCelebration(null);
+            identityCelebrationTimerRef.current = null;
+          },
+          identityData.unlocked ? 5500 : 4000,
+        );
       }
       // Optimistic coin bump for the active player; reconciled by the refresh.
       if (chore.coinValue > 0 && activeMemberId) {
@@ -441,6 +490,9 @@ export function KioskActiveClient({
 
       {loadError ? <Alert tone="warning">{t("kiosk.loadError", { error: loadError })}</Alert> : null}
       {actionError ? <Alert tone="warning">{actionError}</Alert> : null}
+      {identityCelebration ? (
+        <IdentityTitleCelebration data={identityCelebration} />
+      ) : null}
 
       {loading ? (
         <ul className="kiosk-chore-list" aria-hidden="true">

@@ -8,6 +8,7 @@ import { CoinIcon } from "@/components/coin-icon";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { MenuActionButton } from "@/components/menu-action-button";
 import { ModalShell } from "@/components/modal-shell";
+import { ResponsibilityProgressCard } from "@/components/responsibility-progress-card";
 import { useLocale } from "@/components/locale-provider";
 import Link from "next/link";
 import { CSSProperties, type ReactNode, useState } from "react";
@@ -54,6 +55,7 @@ type TodayChoreCardProps = {
   onDrop?: (choreId: string, position: "before" | "after") => void;
   onDragEnd?: () => void;
   onEdited: () => Promise<void> | void;
+  progressMemberId?: string;
 };
 
 function getSafeHexColor(value: string | undefined) {
@@ -187,12 +189,14 @@ export function TodayChoreCard({
   onDrop,
   onDragEnd,
   onEdited,
+  progressMemberId,
 }: TodayChoreCardProps) {
   const { t } = useLocale();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmSkipOpen, setConfirmSkipOpen] = useState(false);
+  const [progressDialogOpen, setProgressDialogOpen] = useState(false);
   // Recurrence indicator starts collapsed (calendar icon) and toggles to the
   // frequency label on click. Local component state means a list reload/refresh
   // naturally resets every row back to the icon, as required.
@@ -263,6 +267,7 @@ export function TodayChoreCard({
   // Only honor internal app links (defense against seeded/edited external URLs).
   const hasInternalActionHref = actionHref.startsWith("/") && !actionHref.startsWith("//");
   const actionLabel = chore.actionLabel?.trim() || "Open";
+  const canOpenProgress = Boolean(progressMemberId) && !isMultiOrFamilyAssignee;
 
   return (
     <li
@@ -320,6 +325,24 @@ export function TodayChoreCard({
           onChanged={onEdited}
         />
       ) : null}
+      <ModalShell open={progressDialogOpen} onRequestClose={() => setProgressDialogOpen(false)}>
+        <div className="w-full max-w-3xl rounded-xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6">
+          <div className="modal-dialog-title-row mb-3">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">{chore.assigneeName}</h3>
+            </div>
+            <Button
+              type="button"
+              className="modal-close-button"
+              onClick={() => setProgressDialogOpen(false)}
+              aria-label={t("common.actions.close")}
+              title={t("common.actions.close")}>
+              X
+            </Button>
+          </div>
+          {progressMemberId ? <ResponsibilityProgressCard memberId={progressMemberId} /> : null}
+        </div>
+      </ModalShell>
       <AddEditChoresDialog
         chore={{
           id: chore.id,
@@ -348,16 +371,39 @@ export function TodayChoreCard({
       <div className="flex min-w-0 flex-col gap-3 rounded-lg">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
-            <FamilyMemberAvatar
-              className="today-chore-avatar text-sm font-semibold"
-              size={32}
-              borderWidth={1}
-              name={chore.assigneeName}
-              avatarId={assigneeAvatarId}
-              avatarPhotoUrl={assigneeAvatarPhotoUrl}
-              primaryColor={assigneePrimaryColor || undefined}
-              isFamily={chore.assigneeScope === "family"}
-            />
+            {canOpenProgress ? (
+              <button
+                type="button"
+                className="today-chore-avatar-button"
+                aria-label={`${t("responsibility.progress.title")}: ${chore.assigneeName}`}
+                title={t("responsibility.progress.title")}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setProgressDialogOpen(true);
+                }}>
+                <FamilyMemberAvatar
+                  className="today-chore-avatar text-sm font-semibold"
+                  size={32}
+                  borderWidth={1}
+                  name={chore.assigneeName}
+                  avatarId={assigneeAvatarId}
+                  avatarPhotoUrl={assigneeAvatarPhotoUrl}
+                  primaryColor={assigneePrimaryColor || undefined}
+                  isFamily={false}
+                />
+              </button>
+            ) : (
+              <FamilyMemberAvatar
+                className="today-chore-avatar text-sm font-semibold"
+                size={32}
+                borderWidth={1}
+                name={chore.assigneeName}
+                avatarId={assigneeAvatarId}
+                avatarPhotoUrl={assigneeAvatarPhotoUrl}
+                primaryColor={assigneePrimaryColor || undefined}
+                isFamily={chore.assigneeScope === "family"}
+              />
+            )}
             <div className="flex min-w-0 flex-col items-start gap-1">
               <span className="today-chore-title-row flex flex-wrap items-center gap-x-2 gap-y-1">
                 <strong className="break-words">{chore.title}</strong>

@@ -61,6 +61,13 @@ export type ResponsibilityPillarProgress = {
   currentLevelFloorXp: number;
   nextLevelXp: number | null;
   progressFraction: number;
+  // Responsibility Identity layer: the current title tier (0-based), the next
+  // title tier (null at the top), and progress across the whole band toward it.
+  // Title display names are resolved client-side via `responsibility.titles.*`
+  // locale keys so this stays language-agnostic.
+  titleTier: number;
+  nextTitleTier: number | null;
+  titleProgressFraction: number;
 };
 
 export type ResponsibilityProgressSummary = {

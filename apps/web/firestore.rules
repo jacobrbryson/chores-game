@@ -1435,6 +1435,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Analytics events are written and read exclusively through
+    // admin/service-account credentials (see apps/web/src/lib/analytics).
+    // Clients must never touch them.
+    match /analyticsEvents/{eventId} {
+      allow read, write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
