@@ -28,6 +28,10 @@ import {
   updateGoogleTasksSyncMetadata,
 } from "@/lib/google/tasks-link";
 import { collapseRoutineChores } from "@/lib/responsibility/routine-chores";
+import {
+  acquireGoogleTasksSyncLease,
+  releaseGoogleTasksSyncLease,
+} from "@/lib/google/tasks-sync-lease";
 import { applyWalletDelta } from "@/lib/economy/wallet";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
@@ -345,6 +349,7 @@ function isGoogleTaskForbidden(error: unknown) {
 export async function syncGoogleTasksForUser(
   options: SyncGoogleTasksOptions,
 ): Promise<SyncGoogleTasksResult> {
+  let syncLeaseId = "";
   const minIntervalSeconds =
     typeof options.minIntervalSeconds === "number"
       ? Math.max(0, Math.floor(options.minIntervalSeconds))
@@ -402,6 +407,22 @@ export async function syncGoogleTasksForUser(
         pushedCount: 0,
       };
     }
+
+    const acquiredLeaseId = await acquireGoogleTasksSyncLease({
+      uid: options.uid,
+      idToken: options.idToken,
+    });
+    if (!acquiredLeaseId) {
+      return {
+        kind: "skipped",
+        reason: "sync_in_progress",
+        importedCount: 0,
+        updatedCount: 0,
+        deletedCount: 0,
+        pushedCount: 0,
+      };
+    }
+    syncLeaseId = acquiredLeaseId;
 
     const selectedTaskListIds = new Set(selectedTaskLists.map((entry) => entry.id));
     const remoteTaskGroups = await Promise.all(
@@ -927,5 +948,13 @@ export async function syncGoogleTasksForUser(
       deletedCount: 0,
       pushedCount: 0,
     };
+  } finally {
+    if (syncLeaseId) {
+      await releaseGoogleTasksSyncLease({
+        uid: options.uid,
+        idToken: options.idToken,
+        leaseId: syncLeaseId,
+      });
+    }
   }
 }

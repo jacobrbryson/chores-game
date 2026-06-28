@@ -813,16 +813,16 @@
         "praise": "Soulignez une victoire precise de cette semaine a votre prochaine visite dans l'application. Des encouragements precis aident la routine a durer.",
         "birthYear": "Indiquez l'annee de naissance de votre enfant dans son profil pour que les suggestions de taches soient adaptees a son age."
       },
-      "athena": {
-        "eyebrow": "Nouveau · Compagnon d'apprentissage Athena",
-        "title": "Reliez votre compte a Athena",
-        "intro": "Connectez Family Chores a Athena, le compagnon d'apprentissage IA de vos enfants, pour une semaine plus intelligente.",
-        "benefits": {
-          "suggestions": "Des suggestions de taches plus intelligentes et personnalisees pour chaque enfant.",
-          "coins": "Les enfants peuvent demander a Athena combien de pieces ils ont.",
-          "nextChore": "Athena leur indique quelle tache faire ensuite."
+      "latestFeatures": {
+        "eyebrow": "Nouveau dans Family Chores",
+        "title": "Découvrez les nouveautés pour votre famille",
+        "intro": "De nouvelles façons d’aider les enfants à voir leurs progrès et de garder les routines familiales bien organisées.",
+        "items": {
+          "responsibilityProgress": "Les titres de responsabilité et les célébrations de progrès rendent la croissance visible après chaque tâche terminée.",
+          "avatarShortcut": "Touchez l’avatar d’un enfant sur le tableau de bord pour ouvrir ses progrès de responsabilité.",
+          "kioskParents": "Ajoutez les profils des parents au mode Kiosque pour partager la même liste de tâches en famille."
         },
-        "cta": "Relier mon compte"
+        "cta": "Voir toutes les nouveautés"
       }
     }
   },

@@ -13,6 +13,7 @@ import { MenuActionButton } from "@/components/menu-action-button";
 import { MenuActionLink } from "@/components/menu-action-link";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
+import { showToast } from "@/components/toast";
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -42,7 +43,6 @@ import { getDashboardChorePage } from "@/lib/ui/chore-dashboard";
 import { collapseRoutineChores } from "@/lib/responsibility/routine-chores";
 import {
   buildAllDoneProgressPayload,
-  IdentityTitleCelebration,
   type IdentityTitleCelebrationData,
 } from "@/components/identity-title-celebration";
 import { AssignRoutineDialog } from "@/components/assign-routine-dialog";
@@ -610,7 +610,6 @@ export function TodayChoresPanel({
     position: "before" | "after";
   } | null>(null);
   const [reorderBusy, setReorderBusy] = useState(false);
-  const [choreActionError, setChoreActionError] = useState("");
   const [pendingApproveChore, setPendingApproveChore] = useState<FamilySnapshotChore | null>(null);
   const [approvalSelectionsByAssignee, setApprovalSelectionsByAssignee] = useState<ApprovalAssigneeSelectionMap>({});
   const [choreScopeSelection, setChoreScopeSelection] =
@@ -626,11 +625,6 @@ export function TodayChoresPanel({
   const [completionStatsRefreshTick, setCompletionStatsRefreshTick] = useState(0);
   const [visibleChoreCount, setVisibleChoreCount] = useState(CHORE_PAGE_SIZE);
   const completionHideTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const [newSkillCelebration, setNewSkillCelebration] = useState<{ amount: number } | null>(null);
-  const newSkillCelebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [identityCelebration, setIdentityCelebration] =
-    useState<IdentityTitleCelebrationData | null>(null);
-  const identityCelebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingApprovalAssigneeIds = useMemo(
     () => (pendingApproveChore ? getApprovalAssigneeIds(pendingApproveChore, members) : []),
     [members, pendingApproveChore],
@@ -762,14 +756,6 @@ export function TodayChoresPanel({
         clearTimeout(timer);
       }
       completionHideTimersRef.current = {};
-      if (newSkillCelebrationTimerRef.current) {
-        clearTimeout(newSkillCelebrationTimerRef.current);
-        newSkillCelebrationTimerRef.current = null;
-      }
-      if (identityCelebrationTimerRef.current) {
-        clearTimeout(identityCelebrationTimerRef.current);
-        identityCelebrationTimerRef.current = null;
-      }
     };
   }, []);
 
@@ -1372,7 +1358,10 @@ export function TodayChoresPanel({
         });
       }
       if (result.phase === "error") {
-        setChoreActionError(result.error || "create_chore_failed");
+        showToast(
+          t("dashboard.choreUpdateError", { error: result.error || "create_chore_failed" }),
+          "error",
+        );
         return;
       }
       await onReload();
@@ -1381,7 +1370,10 @@ export function TodayChoresPanel({
     }
 
     if (result.phase === "error") {
-      setChoreActionError(result.error || "update_chore_failed");
+      showToast(
+        t("dashboard.choreUpdateError", { error: result.error || "update_chore_failed" }),
+        "error",
+      );
       return;
     }
     if (result.phase === "success") {
@@ -1394,7 +1386,6 @@ export function TodayChoresPanel({
     if (busyActionsById[choreId]) {
       return;
     }
-    setChoreActionError("");
     setBusyActionsById((current) => ({ ...current, [choreId]: "delete" }));
     try {
       const response = await fetch(`/api/chores/${choreId}`, { method: "DELETE" });
@@ -1405,7 +1396,12 @@ export function TodayChoresPanel({
       setOptimisticallyRemovedIds((current) => ({ ...current, [choreId]: true }));
       await onReload();
     } catch (removeError) {
-      setChoreActionError(normalizeError(removeError, "remove_chore_failed"));
+      showToast(
+        t("dashboard.choreUpdateError", {
+          error: normalizeError(removeError, "remove_chore_failed"),
+        }),
+        "error",
+      );
     } finally {
       setBusyActionsById((current) => {
         const next = { ...current };
@@ -1419,7 +1415,6 @@ export function TodayChoresPanel({
     if (busyActionsById[choreId]) {
       return;
     }
-    setChoreActionError("");
     setBusyActionsById((current) => ({ ...current, [choreId]: "delete_routine" }));
     try {
       const response = await fetch(`/api/routines/assignments/${assignmentId}`, {
@@ -1432,7 +1427,12 @@ export function TodayChoresPanel({
       setOptimisticallyRemovedIds((current) => ({ ...current, [choreId]: true }));
       await onReload();
     } catch (removeError) {
-      setChoreActionError(normalizeError(removeError, "delete_routine_failed"));
+      showToast(
+        t("dashboard.choreUpdateError", {
+          error: normalizeError(removeError, "delete_routine_failed"),
+        }),
+        "error",
+      );
     } finally {
       setBusyActionsById((current) => {
         const next = { ...current };
@@ -1446,7 +1446,6 @@ export function TodayChoresPanel({
     if (busyActionsById[choreId]) {
       return;
     }
-    setChoreActionError("");
     setBusyActionsById((current) => ({ ...current, [choreId]: "skip" }));
     setExitingChoreIds((current) => ({ ...current, [choreId]: true }));
     const existingTimer = completionHideTimersRef.current[choreId];
@@ -1489,7 +1488,12 @@ export function TodayChoresPanel({
         delete next[choreId];
         return next;
       });
-      setChoreActionError(normalizeError(skipError, "skip_chore_failed"));
+      showToast(
+        t("dashboard.choreUpdateError", {
+          error: normalizeError(skipError, "skip_chore_failed"),
+        }),
+        "error",
+      );
     } finally {
       setBusyActionsById((current) => {
         const next = { ...current };
@@ -1516,7 +1520,6 @@ export function TodayChoresPanel({
       setPendingApproveChore(chore);
       return;
     }
-    setChoreActionError("");
     setBusyActionsById((current) => ({ ...current, [choreId]: "complete" }));
     setExitingChoreIds((current) => ({ ...current, [choreId]: true }));
     const immediateIdentityData = chore?.responsibilityProgress
@@ -1583,20 +1586,12 @@ export function TodayChoresPanel({
           }
         | null;
       if (completePayload?.newSkillBonus?.awarded) {
-        setNewSkillCelebration({ amount: completePayload.newSkillBonus.totalCoins ?? 0 });
         triggerPartyConfetti({
           intensity: 1.8,
           sourceClientX: source?.clientX,
           sourceClientY: source?.clientY,
           showAllDone: false,
         });
-        if (newSkillCelebrationTimerRef.current) {
-          clearTimeout(newSkillCelebrationTimerRef.current);
-        }
-        newSkillCelebrationTimerRef.current = setTimeout(() => {
-          setNewSkillCelebration(null);
-          newSkillCelebrationTimerRef.current = null;
-        }, 4500);
       }
       const titlePayload = completePayload?.responsibilityXp?.title;
       const xpAwarded =
@@ -1612,25 +1607,17 @@ export function TodayChoresPanel({
           showAllDone: false,
         });
       }
-      if (identityData) {
-        setIdentityCelebration(identityData);
-        if (identityCelebrationTimerRef.current) {
-          clearTimeout(identityCelebrationTimerRef.current);
-        }
-        identityCelebrationTimerRef.current = setTimeout(
-          () => {
-            setIdentityCelebration(null);
-            identityCelebrationTimerRef.current = null;
-          },
-          identityData.unlocked ? 5500 : 4000,
-        );
-      }
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("wallet:refresh"));
         window.dispatchEvent(new Event("notifications:refresh"));
       }
     } catch (completeError) {
-      setChoreActionError(normalizeError(completeError, "complete_chore_failed"));
+      showToast(
+        t("dashboard.choreUpdateError", {
+          error: normalizeError(completeError, "complete_chore_failed"),
+        }),
+        "error",
+      );
       const pendingTimer = completionHideTimersRef.current[choreId];
       if (pendingTimer) {
         clearTimeout(pendingTimer);
@@ -1660,7 +1647,6 @@ export function TodayChoresPanel({
       return;
     }
     const choreId = pendingApproveChore.id;
-    setChoreActionError("");
     setBusyActionsById((current) => ({ ...current, [choreId]: "complete" }));
     try {
       const completeResponse = await fetch(`/api/chores/${choreId}`, {
@@ -1684,7 +1670,12 @@ export function TodayChoresPanel({
         window.dispatchEvent(new Event("notifications:refresh"));
       }
     } catch (error) {
-      setChoreActionError(normalizeError(error, "complete_and_approve_failed"));
+      showToast(
+        t("dashboard.choreUpdateError", {
+          error: normalizeError(error, "complete_and_approve_failed"),
+        }),
+        "error",
+      );
     } finally {
       setBusyActionsById((current) => {
         const next = { ...current };
@@ -1708,7 +1699,6 @@ export function TodayChoresPanel({
     }
     setLocalOpenOrderIds(nextIds);
     setReorderBusy(true);
-    setChoreActionError("");
     try {
       const response = await fetch("/api/chores", {
         method: "PATCH",
@@ -1725,7 +1715,12 @@ export function TodayChoresPanel({
       await onReload();
     } catch (reorderError) {
       setLocalOpenOrderIds(currentIds);
-      setChoreActionError(normalizeError(reorderError, "reorder_chores_failed"));
+      showToast(
+        t("dashboard.choreUpdateError", {
+          error: normalizeError(reorderError, "reorder_chores_failed"),
+        }),
+        "error",
+      );
     } finally {
       setReorderBusy(false);
     }
@@ -1749,7 +1744,6 @@ export function TodayChoresPanel({
     }
     setLocalOpenOrderIds(nextIds);
     setReorderBusy(true);
-    setChoreActionError("");
     try {
       const response = await fetch("/api/chores", {
         method: "PATCH",
@@ -1766,7 +1760,12 @@ export function TodayChoresPanel({
       await onReload();
     } catch (reorderError) {
       setLocalOpenOrderIds(currentIds);
-      setChoreActionError(normalizeError(reorderError, "reorder_chores_failed"));
+      showToast(
+        t("dashboard.choreUpdateError", {
+          error: normalizeError(reorderError, "reorder_chores_failed"),
+        }),
+        "error",
+      );
     } finally {
       setReorderBusy(false);
     }
@@ -2230,22 +2229,6 @@ export function TodayChoresPanel({
                 {t("dashboard.clearFilters")}
               </button>
             </div>
-          ) : null}
-          {choreActionError ? <Alert className="mb-3">{t("dashboard.choreUpdateError", { error: choreActionError })}</Alert> : null}
-          {newSkillCelebration ? (
-            <div
-              className="mb-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800"
-              role="status">
-              <span aria-hidden="true">&#127881;</span>
-              <span>
-                {t("dashboard.newSkillCelebration", {
-                  amount: String(newSkillCelebration.amount),
-                })}
-              </span>
-            </div>
-          ) : null}
-          {identityCelebration ? (
-            <IdentityTitleCelebration data={identityCelebration} />
           ) : null}
           {visibleChores.length === 0 ? (
             <div className="dashboard-empty-state">

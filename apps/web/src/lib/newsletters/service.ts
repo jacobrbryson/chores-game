@@ -168,8 +168,7 @@ export async function buildWeeklyFamilyHighlightsPreview(input: {
       }),
       mostActiveHelperAvatarColor: resolveMemberPrimaryColor(metrics.mostActiveHelperPrimaryColor),
       recentHighlights: metrics.recentHighlights,
-      athenaLinkUrl: `${appOrigin}/profile?tab=integrations`,
-      athenaIconUrl: `${appOrigin}/email/athena-glyph.png`,
+      changeLogUrl: `${appOrigin}/change-log`,
       proTip: buildProTip({
         locale,
         familyLocale: family.familyLocale,

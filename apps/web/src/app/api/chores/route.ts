@@ -10,9 +10,9 @@ import {
   type FirestoreValue,
   getDocument,
   integerField,
-  listAllDocuments,
   listDocuments,
   patchDocument,
+  runQuery,
   readBoolean,
   readInteger,
   readString,
@@ -164,6 +164,25 @@ type ChoreStatusFilter =
   | "open"
   | "recurring";
 const MAX_CHORE_ARCHIVE = 5000;
+
+// Reading the family chore archive with documents.list paginates serially
+// (300 docs/page, up to ~17 back-to-back round-trips for a large family), which
+// dominated the chores-list latency. A single runQuery streams the whole capped
+// window back in one HTTP call instead. The read is intentionally left
+// unfiltered/unordered so it matches the previous listAllDocuments behavior:
+// adding a Firestore `where deleted==false` or `orderBy createdAt` would
+// silently drop legacy chores that lack those fields. Deleted/sort/filter
+// handling stays in JS exactly as before.
+async function listFamilyChoreDocuments(familyId: string, idToken: string) {
+  return runQuery(
+    {
+      from: [{ collectionId: "chores" }],
+      limit: MAX_CHORE_ARCHIVE,
+    },
+    idToken,
+    `families/${familyId}`,
+  );
+}
 type CompletionWindowRange = {
   startMillis: number;
   endMillis: number;
@@ -922,16 +941,23 @@ export async function GET(request: NextRequest) {
             wsAuthToken: "",
           };
         }
-        await syncGoogleTasksForUser({
-          uid: session.uid,
-          idToken,
-          minIntervalSeconds: 60,
-        });
+        // The Google Tasks sync makes external Google API calls (plus its own
+        // archive read) and was previously awaited on every chores-list request,
+        // blocking the response even for the majority of users who have never
+        // linked Google Tasks. We already know the viewer's link state from the
+        // user doc above, so skip the sync entirely when it can't do anything.
+        if (viewerGoogleTasksLinked) {
+          await syncGoogleTasksForUser({
+            uid: session.uid,
+            idToken,
+            minIntervalSeconds: 60,
+          });
+        }
         const viewerRole = await getViewerRole(familyId, session.uid, idToken);
 
         const [memberDocs, docs, categories] = await Promise.all([
           listDocuments(`families/${familyId}/members`, idToken, 200),
-          listAllDocuments(`families/${familyId}/chores`, idToken, { cap: MAX_CHORE_ARCHIVE }),
+          listFamilyChoreDocuments(familyId, idToken),
           listFamilyCategories(familyId, idToken),
         ]);
         const categoryMap = buildCategoryMap(categories);
@@ -1273,9 +1299,7 @@ export async function PATCH(request: NextRequest) {
           return { kind: "forbidden_action" as const };
         }
 
-        const docs = await listAllDocuments(`families/${familyId}/chores`, idToken, {
-          cap: MAX_CHORE_ARCHIVE,
-        });
+        const docs = await listFamilyChoreDocuments(familyId, idToken);
         const openChores = docs
           .map((doc) => normalizeChoreDoc(doc))
           .filter((doc) => !doc.deleted && doc.status === "Open")
@@ -1441,7 +1465,7 @@ export async function POST(request: NextRequest) {
         );
 
         const [existingDocs, categories] = await Promise.all([
-          listAllDocuments(`families/${familyId}/chores`, idToken, { cap: MAX_CHORE_ARCHIVE }),
+          listFamilyChoreDocuments(familyId, idToken),
           listFamilyCategories(familyId, idToken),
         ]);
         const categoryMap = buildCategoryMap(categories);

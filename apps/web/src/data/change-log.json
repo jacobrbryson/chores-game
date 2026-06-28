@@ -1,5 +1,29 @@
 [
   {
+    "id": "google-tasks-duplicate-routine-guard",
+    "date": "2026-06-28",
+    "type": "Bug Fix",
+    "subject": "Routine steps no longer duplicate in Google Tasks",
+    "description": "Google Tasks sync now coordinates overlapping updates, preventing the same routine step from being added two or three times when multiple refreshes happen together.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "weekly-email-latest-family-features",
+    "date": "2026-06-28",
+    "type": "Enhancement",
+    "subject": "Weekly highlights now share the latest family features",
+    "description": "The weekly family activity email now spotlights recent ways to celebrate Responsibility growth, open progress from dashboard avatars, and include parents in Kiosk Mode, with a link to explore every update.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "dashboard-chore-alerts-no-layout-shift",
+    "date": "2026-06-28",
+    "type": "Bug Fix",
+    "subject": "Dashboard chores stay in place during updates",
+    "description": "Chore update errors now appear as unobtrusive notifications, while completion rewards remain in the main celebration, so temporary messages no longer shift the chore list while you work.",
+    "image": "/file.svg"
+  },
+  {
     "id": "responsibility-earned-identities-level-gate",
     "date": "2026-06-23",
     "type": "Bug Fix",

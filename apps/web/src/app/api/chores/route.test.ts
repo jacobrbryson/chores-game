@@ -6,6 +6,7 @@ const mockSetSessionUserCookie = vi.fn();
 const mockGetDocument = vi.fn();
 const mockListDocuments = vi.fn();
 const mockListAllDocuments = vi.fn();
+const mockRunQuery = vi.fn();
 const mockListFamilyCategories = vi.fn();
 const mockSyncGoogleTasksForUser = vi.fn();
 
@@ -29,6 +30,7 @@ vi.mock("@/lib/firestore/rest", () => ({
   integerField: (value: number) => value,
   listDocuments: mockListDocuments,
   listAllDocuments: mockListAllDocuments,
+  runQuery: mockRunQuery,
   patchDocument: vi.fn(),
   readBoolean: (fields: Record<string, unknown> | undefined, key: string) =>
     Boolean(fields?.[key]),
@@ -169,9 +171,16 @@ describe("GET /api/chores", () => {
       throw new Error(`Unexpected listDocuments path: ${path}`);
     });
 
-    mockListAllDocuments.mockImplementation(async (path: string) => {
-      if (path === "families/family-1/chores") {
-        return [
+    mockListAllDocuments.mockResolvedValue([]);
+    mockRunQuery.mockImplementation(
+      async (
+        structuredQuery: { from?: Array<{ collectionId?: string }> },
+        _idToken: string,
+        parentPath?: string,
+      ) => {
+        const collectionId = structuredQuery.from?.[0]?.collectionId;
+        if (collectionId === "chores" && parentPath === "families/family-1") {
+          return [
           {
             name: "projects/test/databases/(default)/documents/families/family-1/chores/tomorrow-open",
             fields: {
@@ -214,10 +223,13 @@ describe("GET /api/chores", () => {
               source: "google_tasks",
             },
           },
-        ];
-      }
-      throw new Error(`Unexpected listAllDocuments path: ${path}`);
-    });
+          ];
+        }
+        throw new Error(
+          `Unexpected runQuery: ${collectionId ?? "?"} @ ${parentPath ?? "?"}`,
+        );
+      },
+    );
 
     mockListFamilyCategories.mockResolvedValue([]);
     mockSyncGoogleTasksForUser.mockResolvedValue({

@@ -806,16 +806,16 @@
         "praise": "Call out one specific win from this week when you open the app again. Specific praise helps the routine stick.",
         "birthYear": "Set your child's birth year in their profile so chore suggestions are tailored to their age."
       },
-      "athena": {
-        "eyebrow": "New · Athena Learning Companion",
-        "title": "Link your account with Athena",
-        "intro": "Connect Family Chores to Athena, your kids' AI learning companion, for a smarter week ahead.",
-        "benefits": {
-          "suggestions": "Smarter, more personalized chore suggestions for each child.",
-          "coins": "Kids can ask Athena how many coins they have.",
-          "nextChore": "Athena tells them which chore to work on next."
+      "latestFeatures": {
+        "eyebrow": "New in Family Chores",
+        "title": "See what’s new for your family",
+        "intro": "Fresh ways to help kids see their growth and keep shared routines focused.",
+        "items": {
+          "responsibilityProgress": "Responsibility titles and progress celebrations make each completed chore feel like visible growth.",
+          "avatarShortcut": "Tap a child's dashboard avatar to open their Responsibility Progress.",
+          "kioskParents": "Include parent profiles in Kiosk Mode for a shared family checklist."
         },
-        "cta": "Link your account"
+        "cta": "Explore all updates"
       }
     }
   },

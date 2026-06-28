@@ -40,12 +40,7 @@ export type WeeklyFamilyHighlightsTemplateProps = {
   mostActiveHelperAvatarColor?: string;
   recentHighlights: WeeklyHighlightItem[];
   proTip: string;
-  // Athena Learning Companion link callout. When `athenaLinkUrl` is set, the
-  // email features a promo block inviting the parent to link their account.
-  athenaLinkUrl?: string;
-  // Absolute URL to the hosted Athena glyph PNG. Falls back to an inline SVG
-  // (which Gmail/Outlook strip) when omitted.
-  athenaIconUrl?: string;
+  changeLogUrl: string;
 };
 
 function escapeHtml(value: string) {
@@ -135,39 +130,24 @@ export function renderWeeklyFamilyHighlightsTemplate(input: {
       : `<span style="display:inline-block;width:40px;height:40px;border-radius:999px;border:2px solid ${escapeHtml(avatarPrimary)};background:${escapeHtml(avatarSecondary)};color:#ffffff;font-size:18px;font-weight:700;line-height:40px;text-align:center;">${escapeHtml(helperInitial)}</span>`
     : "";
 
-  const showAthenaCallout = Boolean(props.athenaLinkUrl);
-  const athenaBenefits = [
-    t("newsletter.weekly.athena.benefits.suggestions"),
-    t("newsletter.weekly.athena.benefits.coins"),
-    t("newsletter.weekly.athena.benefits.nextChore"),
+  const latestFeatureItems = [
+    t("newsletter.weekly.latestFeatures.items.responsibilityProgress"),
+    t("newsletter.weekly.latestFeatures.items.avatarShortcut"),
+    t("newsletter.weekly.latestFeatures.items.kioskParents"),
   ];
-  const athenaBenefitRows = athenaBenefits
+  const latestFeatureRows = latestFeatureItems
     .map(
-      (benefit) =>
-        `<tr><td style="padding:3px 8px 3px 0;vertical-align:top;font-size:15px;line-height:1.4;">✨</td><td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:1.5;color:#ffffff;">${escapeHtml(benefit)}</td></tr>`,
+      (feature) =>
+        `<tr><td style="padding:4px 9px 4px 0;vertical-align:top;font-size:15px;line-height:1.4;">✨</td><td style="padding:4px 0;vertical-align:top;font-size:14px;line-height:1.5;color:#ffffff;">${escapeHtml(feature)}</td></tr>`,
     )
     .join("");
-  // Same sparkle/sun glyph used in-app for Athena (see <AthenaGlyph /> and
-  // <AthenaAvatar />). Prefer the hosted PNG (renders everywhere); fall back to
-  // inline SVG (which Gmail/Outlook strip) when no icon URL is provided.
-  const athenaGlyph = props.athenaIconUrl
-    ? `<img src="${escapeHtml(props.athenaIconUrl)}" width="40" height="40" alt="" style="display:block;width:40px;height:40px;margin:0 auto;" />`
-    : `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;margin:0 auto;"><path d="M12 3v2" /><path d="M12 19v2" /><path d="M5 12H3" /><path d="M21 12h-2" /><circle cx="12" cy="12" r="4" /><path d="m6.3 6.3 1.4 1.4" /><path d="m16.3 16.3 1.4 1.4" /></svg>`;
-  const athenaIconBadge = `<table role="presentation" cellpadding="0" cellspacing="0" style="width:64px;height:64px;border-radius:16px;background:rgba(255,255,255,0.18);"><tr><td align="center" valign="middle" style="text-align:center;vertical-align:middle;">${athenaGlyph}</td></tr></table>`;
-  const athenaCalloutHtml = showAthenaCallout
-    ? `<div style="margin-top:22px;padding:20px;border-radius:16px;background:linear-gradient(135deg,#7c3aed,#c026d3);color:#ffffff;">
-            <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
-              <td style="padding-right:12px;vertical-align:middle;">${athenaIconBadge}</td>
-              <td style="vertical-align:middle;">
-                <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#ffffff;opacity:0.85;">${escapeHtml(t("newsletter.weekly.athena.eyebrow"))}</div>
-                <h2 style="margin:4px 0 0;font-size:18px;color:#ffffff;">${escapeHtml(t("newsletter.weekly.athena.title"))}</h2>
-              </td>
-            </tr></table>
-            <p style="margin:12px 0 12px;font-size:14px;line-height:1.6;color:#ffffff;opacity:0.95;">${escapeHtml(t("newsletter.weekly.athena.intro"))}</p>
-            <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${athenaBenefitRows}</table>
-            <a href="${escapeHtml(props.athenaLinkUrl ?? "")}" style="display:inline-block;margin-top:16px;background:#ffffff;color:#6d28d9;text-decoration:none;padding:11px 18px;border-radius:999px;font-weight:700;">${escapeHtml(t("newsletter.weekly.athena.cta"))}</a>
-          </div>`
-    : "";
+  const latestFeaturesHtml = `<div style="margin-top:22px;padding:20px;border-radius:16px;background:linear-gradient(135deg,#0f766e,#2563eb);color:#ffffff;">
+          <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#ffffff;opacity:0.85;">${escapeHtml(t("newsletter.weekly.latestFeatures.eyebrow"))}</div>
+          <h2 style="margin:4px 0 0;font-size:18px;color:#ffffff;">${escapeHtml(t("newsletter.weekly.latestFeatures.title"))}</h2>
+          <p style="margin:12px 0;font-size:14px;line-height:1.6;color:#ffffff;opacity:0.95;">${escapeHtml(t("newsletter.weekly.latestFeatures.intro"))}</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${latestFeatureRows}</table>
+          <a href="${escapeHtml(props.changeLogUrl)}" style="display:inline-block;margin-top:16px;background:#ffffff;color:#1d4ed8;text-decoration:none;padding:11px 18px;border-radius:999px;font-weight:700;">${escapeHtml(t("newsletter.weekly.latestFeatures.cta"))}</a>
+        </div>`;
 
   const html = `<!doctype html>
 <html lang="${escapeHtml(input.locale)}">
@@ -195,7 +175,7 @@ export function renderWeeklyFamilyHighlightsTemplate(input: {
             <h2 style="margin:0 0 10px;font-size:18px;">${escapeHtml(t("newsletter.weekly.recentHighlights"))}</h2>
             ${recentHighlights ? `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">${recentHighlights}</table>` : `<p style="margin:0;color:#475569;">${escapeHtml(t("newsletter.weekly.noRecentHighlights"))}</p>`}
           </div>
-          ${athenaCalloutHtml}
+          ${latestFeaturesHtml}
           <div style="margin-top:22px;padding:16px;border-radius:16px;background:#fff7ed;border:1px solid #fed7aa;">
             <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#9a3412;">${escapeHtml(t("newsletter.weekly.proTip"))}</div>
             <p style="margin:8px 0 0;line-height:1.6;color:#7c2d12;">${escapeHtml(props.proTip)}</p>
@@ -230,16 +210,12 @@ export function renderWeeklyFamilyHighlightsTemplate(input: {
     ...(props.recentHighlights.length > 0
       ? props.recentHighlights.map((item) => `${item.icon?.trim() || FEED_FALLBACK_EMOJI} ${item.title}: ${item.message}`)
       : [t("newsletter.weekly.noRecentHighlights")]),
-    ...(showAthenaCallout
-      ? [
-          "",
-          t("newsletter.weekly.athena.eyebrow"),
-          t("newsletter.weekly.athena.title"),
-          t("newsletter.weekly.athena.intro"),
-          ...athenaBenefits.map((benefit) => `- ${benefit}`),
-          `${t("newsletter.weekly.athena.cta")}: ${props.athenaLinkUrl ?? ""}`,
-        ]
-      : []),
+    "",
+    t("newsletter.weekly.latestFeatures.eyebrow"),
+    t("newsletter.weekly.latestFeatures.title"),
+    t("newsletter.weekly.latestFeatures.intro"),
+    ...latestFeatureItems.map((feature) => `- ${feature}`),
+    `${t("newsletter.weekly.latestFeatures.cta")}: ${props.changeLogUrl}`,
     "",
     `${t("newsletter.weekly.openDashboard")}: ${props.dashboardUrl}`,
     `${t("newsletter.weekly.managePreferences")}: ${props.managePreferencesUrl}`,

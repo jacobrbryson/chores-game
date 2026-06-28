@@ -493,7 +493,9 @@ service cloud.firestore {
           "googleTasksLastSyncStatus",
           "googleTasksLastSyncError",
           "googleTasksLastSyncedAt",
-          "googleTasksUpdatedAt"
+          "googleTasksUpdatedAt",
+          "googleTasksSyncLeaseId",
+          "googleTasksSyncLeaseExpiresAt"
         ])
         && (
           !("googleTasksLinked" in request.resource.data)
@@ -551,6 +553,14 @@ service cloud.firestore {
         && (
           !("googleTasksUpdatedAt" in request.resource.data)
           || request.resource.data.googleTasksUpdatedAt is timestamp
+        )
+        && (
+          !("googleTasksSyncLeaseId" in request.resource.data)
+          || request.resource.data.googleTasksSyncLeaseId is string
+        )
+        && (
+          !("googleTasksSyncLeaseExpiresAt" in request.resource.data)
+          || request.resource.data.googleTasksSyncLeaseExpiresAt is timestamp
         );
     }
 
