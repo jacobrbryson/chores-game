@@ -206,83 +206,91 @@ export function RoutineStepsEditor({
           {steps.map((step, index) => {
             const resolved = resolveStepChore(step, choreCatalogByTitle);
             return (
-              <li key={`${step.id ?? "new"}_${index}`} className="flex items-center gap-2">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-500">
-                  {index + 1}
-                </span>
-                <span className="min-w-0 flex-1 break-words text-sm text-slate-700">
-                  {step.title}
-                  {showNewChoreBadge && resolved.isNewChore ? (
-                    <span className="ml-1.5 inline-flex rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
-                      {t("responsibility.assignDialog.newChoreBadge")}
+              <li
+                key={`${step.id ?? "new"}_${index}`}
+                className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <span className="flex min-w-0 flex-col gap-2 sm:contents">
+                  <span className="flex min-w-0 items-start gap-2 sm:contents">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-500">
+                      {index + 1}
                     </span>
-                  ) : null}
-                </span>
-                <span className="inline-flex shrink-0 items-center gap-1">
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
-                    <CoinIcon size={13} />
-                    <input
-                      type="number"
-                      min={0}
-                      max={1000}
-                      step={1}
-                      value={String(resolved.coinValue)}
-                      aria-label={t("responsibility.assignDialog.coinsPerStepLabel")}
-                      onChange={(event) => {
-                        const parsed = Number(event.target.value);
-                        updateStep(index, {
-                          coinValue:
-                            Number.isFinite(parsed) && parsed >= 0
-                              ? Math.min(1000, Math.trunc(parsed))
-                              : 0,
-                        });
-                      }}
-                      onBlur={(event) => {
-                        event.target.value = String(resolved.coinValue);
-                      }}
-                      className="h-7 w-14 rounded-md border border-slate-300 bg-white px-1.5 text-right text-xs font-semibold text-slate-800"
-                    />
+                    <span className="min-w-0 flex-1 break-words text-sm text-slate-700">
+                      {step.title}
+                      {showNewChoreBadge && resolved.isNewChore ? (
+                        <span className="ml-1.5 inline-flex rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                          {t("responsibility.assignDialog.newChoreBadge")}
+                        </span>
+                      ) : null}
+                    </span>
                   </span>
-                  <button
-                    type="button"
-                    aria-pressed={resolved.requireApproval}
-                    aria-label={t("responsibility.assignDialog.requiresApprovalBadge")}
-                    title={t("responsibility.assignDialog.requiresApprovalBadge")}
-                    onClick={() =>
-                      updateStep(index, { requireApproval: !resolved.requireApproval })
-                    }
-                    className={`flex h-7 w-7 items-center justify-center rounded-md border text-sm ${
-                      resolved.requireApproval
-                        ? "border-sky-300 bg-sky-100"
-                        : "border-slate-200 bg-white opacity-50 grayscale hover:opacity-80"
-                    }`}>
-                    <span aria-hidden="true">🔍</span>
-                  </button>
-                </span>
-                <span className="flex shrink-0 gap-1">
-                  <Button
-                    type="button"
-                    className="btn btn-secondary btn-sm px-2"
-                    aria-label={t("responsibility.assignDialog.moveStepUp")}
-                    disabled={index === 0}
-                    onClick={() => moveStep(index, -1)}>
-                    ↑
-                  </Button>
-                  <Button
-                    type="button"
-                    className="btn btn-secondary btn-sm px-2"
-                    aria-label={t("responsibility.assignDialog.moveStepDown")}
-                    disabled={index === steps.length - 1}
-                    onClick={() => moveStep(index, 1)}>
-                    ↓
-                  </Button>
-                  <Button
-                    type="button"
-                    className="btn btn-secondary btn-sm px-2 text-red-600"
-                    aria-label={t("responsibility.assignDialog.removeStep")}
-                    onClick={() => removeStep(index)}>
-                    ✕
-                  </Button>
+                  <span className="flex min-w-0 flex-wrap items-center justify-between gap-2 sm:contents">
+                    <span className="inline-flex shrink-0 items-center gap-1">
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
+                        <CoinIcon size={13} />
+                        <input
+                          type="number"
+                          min={0}
+                          max={1000}
+                          step={1}
+                          value={String(resolved.coinValue)}
+                          aria-label={t("responsibility.assignDialog.coinsPerStepLabel")}
+                          onChange={(event) => {
+                            const parsed = Number(event.target.value);
+                            updateStep(index, {
+                              coinValue:
+                                Number.isFinite(parsed) && parsed >= 0
+                                  ? Math.min(1000, Math.trunc(parsed))
+                                  : 0,
+                            });
+                          }}
+                          onBlur={(event) => {
+                            event.target.value = String(resolved.coinValue);
+                          }}
+                          className="h-7 w-14 rounded-md border border-slate-300 bg-white px-1.5 text-right text-xs font-semibold text-slate-800"
+                        />
+                      </span>
+                      <button
+                        type="button"
+                        aria-pressed={resolved.requireApproval}
+                        aria-label={t("responsibility.assignDialog.requiresApprovalBadge")}
+                        title={t("responsibility.assignDialog.requiresApprovalBadge")}
+                        onClick={() =>
+                          updateStep(index, { requireApproval: !resolved.requireApproval })
+                        }
+                        className={`flex h-7 w-7 items-center justify-center rounded-md border text-sm ${
+                          resolved.requireApproval
+                            ? "border-sky-300 bg-sky-100"
+                            : "border-slate-200 bg-white opacity-50 grayscale hover:opacity-80"
+                        }`}>
+                        <span aria-hidden="true">🔍</span>
+                      </button>
+                    </span>
+                    <span className="flex shrink-0 gap-1">
+                      <Button
+                        type="button"
+                        className="btn btn-secondary btn-sm px-2"
+                        aria-label={t("responsibility.assignDialog.moveStepUp")}
+                        disabled={index === 0}
+                        onClick={() => moveStep(index, -1)}>
+                        ↑
+                      </Button>
+                      <Button
+                        type="button"
+                        className="btn btn-secondary btn-sm px-2"
+                        aria-label={t("responsibility.assignDialog.moveStepDown")}
+                        disabled={index === steps.length - 1}
+                        onClick={() => moveStep(index, 1)}>
+                        ↓
+                      </Button>
+                      <Button
+                        type="button"
+                        className="btn btn-secondary btn-sm px-2 text-red-600"
+                        aria-label={t("responsibility.assignDialog.removeStep")}
+                        onClick={() => removeStep(index)}>
+                        ✕
+                      </Button>
+                    </span>
+                  </span>
                 </span>
               </li>
             );

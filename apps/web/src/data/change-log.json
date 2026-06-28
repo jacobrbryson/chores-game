@@ -1,5 +1,13 @@
 [
   {
+    "id": "routine-step-editor-mobile-layout",
+    "date": "2026-06-28",
+    "type": "Bug Fix",
+    "subject": "Routine steps are easier to read on mobile",
+    "description": "Routine step names now keep their space on smaller screens, with editing controls arranged neatly beneath each step instead of squeezing the text into a narrow column.",
+    "image": "/file.svg"
+  },
+  {
     "id": "google-tasks-duplicate-routine-guard",
     "date": "2026-06-28",
     "type": "Bug Fix",
@@ -10,7 +18,7 @@
   {
     "id": "weekly-email-latest-family-features",
     "date": "2026-06-28",
-    "type": "Enhancement",
+    "type": "Feature",
     "subject": "Weekly highlights now share the latest family features",
     "description": "The weekly family activity email now spotlights recent ways to celebrate Responsibility growth, open progress from dashboard avatars, and include parents in Kiosk Mode, with a link to explore every update.",
     "image": "/file.svg"
