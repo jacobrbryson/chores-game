@@ -220,6 +220,11 @@ The `supportRequests` collection is the single source of truth for all user-subm
 - Support manages content; the SEO dashboard reports metadata, readiness, sitemap, and lifecycle health.
 
 ## Recent Decisions (2026-02-15)
+- Admin family reward redemption update (2026-07-14):
+  - On web, admins redeeming a Family Award can choose any active family member with a linked user account; the selected member's wallet pays for and owns the award.
+  - Admins can optionally claim/consume the award in the same action. The award claim records both the recipient and acting admin, and the wallet debit remains ledger-audited.
+  - The existing mobile reward redemption API accepts the same recipient/consume fields. A native mobile store UI is not currently present, so no mobile screen change applies yet.
+  - This introduces no new collection or data classification; recipient redemption fields remain `FAMILY_PRIVATE` award data and wallet ledger audit data remains restricted to its existing classification.
 - Custom weekly recurrence update (2026-06-15):
   - Chores and routine assignments can store `recurrenceDays` (`sun` through `sat`) alongside the existing custom recurrence interval/unit.
   - Weekly custom recurrence supports schedules like every Tuesday, weekdays, and every other Tuesday; recurring spawns copy the weekday list from the source chore/assignment.

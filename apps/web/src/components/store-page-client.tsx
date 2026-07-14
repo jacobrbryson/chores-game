@@ -21,6 +21,7 @@ import { useLocale } from "@/components/locale-provider";
 import { DiscoveryBadge } from "@/components/discovery-badge";
 import { getSectionCount, markDiscoverySeen, useDiscoverySummary } from "@/lib/hooks/use-discovery";
 import { ModalShell } from "@/components/modal-shell";
+import { TailwindSelect } from "@/components/tailwind-select";
 import {
   dispatchConfettiSelectionChanged,
   triggerPartyConfetti,
@@ -45,6 +46,7 @@ const STORE_ACTION_TIMEOUT_MS = 12000;
 const STORE_TAB_ORDER = ["family_awards", "customize_colors", "customize_avatar", "victory_confetti", "quest_items"];
 
 type StoreSummaryResponse = {
+  viewerUid: string;
   balance: number;
   ownedOptionIds: string[];
   questItemQuantities: Record<string, number>;
@@ -58,6 +60,14 @@ type StoreSummaryResponse = {
   googlePhotoUrl?: string;
   selectedConfettiOptionId: string;
   viewerRole?: "admin" | "player";
+  redemptionMembers?: Array<{
+    id: string;
+    uid: string;
+    name: string;
+    email: string;
+    balance: number;
+    availableRewardIds: string[];
+  }>;
   categories: StoreCategory[];
 };
 
@@ -93,7 +103,16 @@ export function StorePageClient() {
   const [purchaseSuccess, setPurchaseSuccess] = useState<{
     category: StoreCategory;
     option: StoreOption;
+    recipientMemberId?: string;
+    recipientName?: string;
+    consumed?: boolean;
   } | null>(null);
+  const [rewardRedemption, setRewardRedemption] = useState<{
+    category: StoreCategory;
+    option: StoreOption;
+  } | null>(null);
+  const [redemptionMemberId, setRedemptionMemberId] = useState("");
+  const [consumeReward, setConsumeReward] = useState(false);
   const previewActiveRef = useRef(false);
   const confettiPreviewResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistedThemeRef = useRef<ThemePreference>(DEFAULT_THEME_PREFERENCE);
@@ -384,12 +403,20 @@ export function StorePageClient() {
     }
   }
 
-  async function onPurchaseOption(category: StoreCategory, option: StoreOption) {
+  async function onPurchaseOption(
+    category: StoreCategory,
+    option: StoreOption,
+    redemption?: { recipientMemberId: string; consumeReward: boolean },
+  ) {
     if (!summary || pendingOptionId) {
       return;
     }
     const optionPrice = getOptionPrice(category, option);
-    if (summary.balance < optionPrice) {
+    const recipient = redemption
+      ? summary.redemptionMembers?.find((member) => member.id === redemption.recipientMemberId)
+      : null;
+    const purchaseBalance = recipient?.balance ?? summary.balance;
+    if (purchaseBalance < optionPrice) {
       setActionError("insufficient_funds");
       return;
     }
@@ -400,6 +427,7 @@ export function StorePageClient() {
         action: "purchase_option",
         categoryId: category.id,
         optionId: option.id,
+        ...(redemption ?? {}),
       });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
@@ -408,7 +436,14 @@ export function StorePageClient() {
       await loadSummary({ showLoading: false, clearError: false });
       window.dispatchEvent(new Event("wallet:refresh"));
       window.dispatchEvent(new Event("profile-avatar:refresh"));
-      setPurchaseSuccess({ category, option });
+      setPurchaseSuccess({
+        category,
+        option,
+        recipientMemberId: recipient?.id,
+        recipientName: recipient?.name,
+        consumed: redemption?.consumeReward,
+      });
+      setRewardRedemption(null);
     } catch (purchaseError) {
       if (typeof window !== "undefined") {
         console.error("[STORE_PURCHASE_CLIENT_ERROR]", {
@@ -606,7 +641,11 @@ export function StorePageClient() {
                       option.isUnlockable === true &&
                       option.unlockSource === "quest";
                     const applied = isRewardOption ? false : isOptionApplied(selectedCategory, option);
-                    const canAfford = summary.balance >= optionPrice;
+                    const canAfford = isRewardOption && summary.viewerRole === "admin"
+                      ? (summary.redemptionMembers ?? []).some(
+                          (member) => member.balance >= optionPrice && member.availableRewardIds.includes(option.id),
+                        )
+                      : summary.balance >= optionPrice;
                     const isDefaultConfettiOption =
                       selectedCategory.kind === "confetti" && option.isDefault === true;
                     const questItemCanBuy =
@@ -793,6 +832,17 @@ export function StorePageClient() {
                           disabled={disabled}
                           onClick={() => {
                             if (isRewardOption) {
+                              if (summary.viewerRole === "admin") {
+                                const eligibleMembers = (summary.redemptionMembers ?? []).filter(
+                                  (member) => member.availableRewardIds.includes(option.id),
+                                );
+                                const viewerMember = eligibleMembers.find((member) => member.uid === summary.viewerUid);
+                                setRedemptionMemberId((viewerMember ?? eligibleMembers[0])?.id ?? "");
+                                setConsumeReward(false);
+                                setRewardRedemption({ category: selectedCategory, option });
+                                setActiveCategoryId(null);
+                                return;
+                              }
                               void onPurchaseOption(selectedCategory, option);
                               return;
                             }
@@ -855,6 +905,94 @@ export function StorePageClient() {
           </section>
 
           <ModalShell
+            open={Boolean(rewardRedemption)}
+            onRequestClose={() => {
+              if (!pendingOptionId) setRewardRedemption(null);
+            }}>
+            {rewardRedemption ? (() => {
+              const { category, option } = rewardRedemption;
+              const optionPrice = getOptionPrice(category, option);
+              const members = (summary.redemptionMembers ?? []).filter(
+                (member) => member.availableRewardIds.includes(option.id),
+              );
+              const selectedMember = members.find((member) => member.id === redemptionMemberId);
+              const insufficientFunds = Boolean(selectedMember && selectedMember.balance < optionPrice);
+              const submitDisabled = !selectedMember || insufficientFunds || pendingOptionId.length > 0;
+              const disabledReason = !selectedMember
+                ? t("store.rewardRecipientRequired")
+                : insufficientFunds
+                  ? t("store.rewardRecipientInsufficientFunds", { name: selectedMember.name })
+                  : pendingOptionId
+                    ? t("store.redeeming")
+                    : "";
+              return (
+                <section className="modal-card max-w-lg" aria-labelledby="reward-redemption-title">
+                  <div className="modal-card-header">
+                    <div>
+                      <p className="eyebrow">{t("store.familyReward")}</p>
+                      <h2 id="reward-redemption-title">{t("store.redeemRewardTitle", { reward: option.label })}</h2>
+                    </div>
+                    <Button type="button" className="btn btn-secondary" onClick={() => setRewardRedemption(null)}>
+                      {t("common.cancel")}
+                    </Button>
+                  </div>
+                  <div className="space-y-5 p-5">
+                    <label className="block space-y-2">
+                      <span className="font-semibold text-slate-800">{t("store.redeemFor")}</span>
+                      <TailwindSelect
+                        ariaLabel={t("store.redeemFor")}
+                        value={redemptionMemberId}
+                        onChange={setRedemptionMemberId}
+                        options={members.map((member) => ({
+                          value: member.id,
+                          label: t("store.rewardRecipientOption", { name: member.name, coins: member.balance }),
+                        }))}
+                        className="w-full"
+                        buttonClassName="w-full"
+                      />
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4"
+                        checked={consumeReward}
+                        onChange={(event) => setConsumeReward(event.target.checked)}
+                      />
+                      <span>
+                        <strong className="block text-slate-900">{t("store.consumeRewardNow")}</strong>
+                        <span className="small">{t("store.consumeRewardNowHelp")}</span>
+                      </span>
+                    </label>
+                    {insufficientFunds && selectedMember ? (
+                      <Alert>{t("store.rewardRecipientInsufficientFunds", { name: selectedMember.name })}</Alert>
+                    ) : null}
+                    <div className="flex justify-end gap-3">
+                      <Button type="button" className="btn btn-secondary" onClick={() => setRewardRedemption(null)}>
+                        {t("common.cancel")}
+                      </Button>
+                      <span title={submitDisabled ? disabledReason : undefined}>
+                        <Button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={submitDisabled}
+                          onClick={() => {
+                            if (!selectedMember || submitDisabled) return;
+                            void onPurchaseOption(category, option, {
+                              recipientMemberId: selectedMember.id,
+                              consumeReward,
+                            });
+                          }}>
+                          {pendingOptionId ? t("store.redeeming") : t("store.confirmRedemption")}
+                        </Button>
+                      </span>
+                    </div>
+                  </div>
+                </section>
+              );
+            })() : null}
+          </ModalShell>
+
+          <ModalShell
             open={Boolean(purchaseSuccess)}
             onRequestClose={() => {
               if (!pendingOptionId) {
@@ -862,7 +1000,7 @@ export function StorePageClient() {
               }
             }}>
             {purchaseSuccess ? (() => {
-              const { category, option } = purchaseSuccess;
+              const { category, option, recipientMemberId, recipientName, consumed } = purchaseSuccess;
               const rewardImage = category.kind === "reward" ? findFamilyRewardImageOption(option.value) : null;
               const isAdmin = summary?.viewerRole === "admin";
               const primaryColor = option.theme?.primary ?? option.value;
@@ -879,6 +1017,8 @@ export function StorePageClient() {
               const destHref =
                 category.kind === "quest_item"
                   ? "/profile?tab=inventory"
+                  : category.kind === "reward" && recipientMemberId
+                    ? `/family/${encodeURIComponent(recipientMemberId)}`
                   : "/profile";
               return (
                 <section className="store-success-modal">
@@ -969,11 +1109,21 @@ export function StorePageClient() {
                       </div>
                     ) : null}
                   </div>
-                  <p className="store-success-message">
-                    <strong>{option.label}</strong>{" "}
-                    {t("store.purchaseSuccessHasBeenAdded")}{" "}
-                    <Link href={destHref}>{destLabel}</Link>.
-                  </p>
+                  {category.kind === "reward" && recipientName ? (
+                    <p className="store-success-message">
+                      <strong>{option.label}</strong>{" "}
+                      {consumed
+                        ? t("store.rewardRedeemedAndConsumedFor", { name: recipientName })
+                        : t("store.rewardRedeemedFor", { name: recipientName })}
+                      {!consumed ? <> <Link href={destHref}>{t("store.viewMemberAwards")}</Link>.</> : null}
+                    </p>
+                  ) : (
+                    <p className="store-success-message">
+                      <strong>{option.label}</strong>{" "}
+                      {t("store.purchaseSuccessHasBeenAdded")}{" "}
+                      <Link href={destHref}>{destLabel}</Link>.
+                    </p>
+                  )}
                   <div className="store-success-actions">
                     {category.kind === "quest_item" ? (
                       <Button
@@ -982,11 +1132,11 @@ export function StorePageClient() {
                         onClick={() => { router.push("/quests"); }}>
                         {t("store.purchaseSuccessBackToQuests")}
                       </Button>
-                    ) : category.kind === "reward" && isAdmin ? (
+                    ) : category.kind === "reward" && isAdmin && !consumed ? (
                       <Button
                         type="button"
                         className="btn btn-secondary"
-                        onClick={() => { router.push("/profile"); }}>
+                        onClick={() => { router.push(destHref); }}>
                         {t("store.purchaseSuccessClaimNow")}
                       </Button>
                     ) : (category.kind === "color" || category.kind === "avatar" || category.kind === "confetti") ? (

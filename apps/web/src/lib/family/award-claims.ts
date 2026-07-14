@@ -24,6 +24,8 @@ export type FamilyAwardClaim = {
   claimedAt?: string;
   claimedByUid?: string;
   claimedByName?: string;
+  redeemedByUid?: string;
+  redeemedByName?: string;
 };
 
 function toUnixMillis(value?: string) {
@@ -56,6 +58,8 @@ export function parseFamilyAwardClaims(
       claimedAt: readTimestamp(doc.fields, "claimedAt") || undefined,
       claimedByUid: readString(doc.fields, "claimedByUid") || undefined,
       claimedByName: readString(doc.fields, "claimedByName") || undefined,
+      redeemedByUid: readString(doc.fields, "redeemedByUid") || undefined,
+      redeemedByName: readString(doc.fields, "redeemedByName") || undefined,
       deleted: readBoolean(doc.fields, "deleted"),
     }))
     .filter(

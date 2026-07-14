@@ -4,7 +4,8 @@ import { randomUUID } from "node:crypto";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import type { SessionUser } from "@/lib/auth/session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
-import { applyWalletDelta, getPrimaryFamilyId, getWalletBalance } from "@/lib/economy/wallet";
+import { applyAdminWalletDelta, applyWalletDelta, getPrimaryFamilyId, getWalletBalance } from "@/lib/economy/wallet";
+import { adminGetDocument } from "@/lib/firestore/admin";
 import {
   createOrReplaceDocument,
   listAllDocuments,
@@ -44,6 +45,7 @@ import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { trackAchievementEvent } from "@/lib/achievements/service";
 import { buildOwnedItemsSummary } from "@/lib/items/owned-items";
 import { recordOperationMetric } from "@/lib/observability/metrics";
+import { buildRewardClaimFields } from "@/lib/store/reward-redemption";
 
 type StoreActionBody = {
   action?: unknown;
@@ -53,7 +55,73 @@ type StoreActionBody = {
   themeOptionId?: unknown;
   color?: unknown;
   avatarId?: unknown;
+  recipientMemberId?: unknown;
+  consumeReward?: unknown;
 };
+
+type RedemptionMember = {
+  id: string;
+  uid: string;
+  name: string;
+  email: string;
+  balance: number;
+  availableRewardIds: string[];
+};
+
+function isNotFoundError(error: unknown) {
+  const reason = error instanceof Error ? error.message : "";
+  return reason.includes("FIRESTORE_HTTP_404") || reason.includes("FIRESTORE_ADMIN_HTTP_404");
+}
+
+async function getMemberWalletBalance(uid: string, viewerUid: string, idToken: string) {
+  if (uid === viewerUid) {
+    return Math.max(0, await getWalletBalance(uid, idToken));
+  }
+  try {
+    const doc = await getDocument(`users/${uid}`, idToken);
+    return Math.max(0, readInteger(doc.fields, "walletBalance"));
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    if (!reason.includes("FIRESTORE_HTTP_403") && !isNotFoundError(error)) {
+      throw error;
+    }
+  }
+  try {
+    const doc = await adminGetDocument(`users/${uid}`);
+    return Math.max(0, readInteger(doc.fields, "walletBalance"));
+  } catch (error) {
+    if (isNotFoundError(error)) return 0;
+    throw error;
+  }
+}
+
+async function listRedemptionMembers(familyId: string, viewerUid: string, idToken: string) {
+  const members = await listDocuments(`families/${familyId}/members`, idToken, 200);
+  const rewards = await listFamilyRewards(familyId, idToken);
+  const activeMembers = members
+    .map((doc) => ({
+      id: doc.name.split("/").pop() ?? "",
+      uid: readString(doc.fields, "uid").trim(),
+      name: readString(doc.fields, "name").trim() || readString(doc.fields, "email").trim() || "Family member",
+      email: readString(doc.fields, "email").trim(),
+      status: readString(doc.fields, "status"),
+      deleted: readBoolean(doc.fields, "deleted"),
+    }))
+    .filter((member) => member.id && member.uid && !member.deleted && member.status !== "invited")
+    .filter((member, index, all) => all.findIndex((candidate) => candidate.uid === member.uid) === index);
+
+  return Promise.all(activeMembers.map(async (member): Promise<RedemptionMember> => {
+    const availability = await resolveAvailableFamilyRewards(familyId, member.uid, idToken, rewards);
+    return {
+      id: member.id,
+      uid: member.uid,
+      name: member.name,
+      email: member.email,
+      balance: await getMemberWalletBalance(member.uid, viewerUid, idToken),
+      availableRewardIds: availability.availableRewards.map((reward) => reward.id),
+    };
+  }));
+}
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -330,9 +398,13 @@ async function getStoreSummary(session: SessionUser, memberId: string, idToken: 
   let themeSecondaryColor = normalizeColor(readString(userDoc.fields, "preferencesThemeSecondaryColor"));
   let themeTertiaryColor = normalizeColor(readString(userDoc.fields, "preferencesThemeTertiaryColor"));
   let viewerRole: "admin" | "player" = "player";
+  let redemptionMembers: RedemptionMember[] = [];
 
   if (familyId) {
     viewerRole = await getViewerRoleForFamily(familyId, uid, idToken);
+    if (viewerRole === "admin") {
+      redemptionMembers = await listRedemptionMembers(familyId, uid, idToken);
+    }
     for (const candidateMemberId of [memberId, uid].filter(Boolean)) {
       try {
         const memberDoc = await getDocument(`families/${familyId}/members/${candidateMemberId}`, idToken);
@@ -442,7 +514,7 @@ async function getStoreSummary(session: SessionUser, memberId: string, idToken: 
   }
 
   const familyRewardAvailability = familyId
-    ? await resolveAvailableFamilyRewards(familyId, uid, idToken)
+    ? await resolveAvailableFamilyRewards(familyId, viewerRole === "admin" ? "__admin_catalog__" : uid, idToken)
     : { rewards: [], availableRewards: [] };
   const familyAwardsCategory = buildFamilyAwardsCategory(familyRewardAvailability.availableRewards);
   const ownedItems = buildOwnedItemsSummary({
@@ -451,9 +523,11 @@ async function getStoreSummary(session: SessionUser, memberId: string, idToken: 
   });
 
   return {
+    viewerUid: uid,
     balance,
     familyId,
     viewerRole,
+    redemptionMembers,
     ownedOptionIds: Array.from(ownedOptionIds),
     dashboardPrimaryColor,
     themeOptionId,
@@ -758,6 +832,8 @@ export async function POST(request: NextRequest) {
         if (action === "purchase_option") {
           const categoryId = typeof body.categoryId === "string" ? body.categoryId.trim() : "";
           const optionId = typeof body.optionId === "string" ? body.optionId.trim() : "";
+          const requestedRecipientMemberId = typeof body.recipientMemberId === "string" ? body.recipientMemberId.trim() : "";
+          const consumeReward = body.consumeReward === true;
           console.log("[STORE_PURCHASE_ATTEMPT]", {
             uid,
             authUid: session.authUid || session.uid,
@@ -769,12 +845,25 @@ export async function POST(request: NextRequest) {
           let category = findStoreCategoryById(categoryId);
           let option = category?.options.find((entry) => entry.id === optionId) ?? null;
 
+          let rewardRecipient: RedemptionMember | null = null;
           if (!category && categoryId === "family_awards") {
             const familyId = await getPrimaryFamilyIdWithFallback(uid, idToken);
             if (!familyId) {
               return { kind: "family_not_found" as const };
             }
-            const familyRewardAvailability = await resolveAvailableFamilyRewards(familyId, uid, idToken);
+            const viewerRole = await getViewerRoleForFamily(familyId, uid, idToken);
+            if ((requestedRecipientMemberId || consumeReward) && viewerRole !== "admin") {
+              return { kind: "forbidden" as const };
+            }
+            if (viewerRole === "admin" && requestedRecipientMemberId) {
+              const members = await listRedemptionMembers(familyId, uid, idToken);
+              rewardRecipient = members.find((member) => member.id === requestedRecipientMemberId || member.uid === requestedRecipientMemberId) ?? null;
+              if (!rewardRecipient) {
+                return { kind: "invalid_recipient" as const };
+              }
+            }
+            const recipientUid = rewardRecipient?.uid ?? uid;
+            const familyRewardAvailability = await resolveAvailableFamilyRewards(familyId, recipientUid, idToken);
             const rewardExists = familyRewardAvailability.rewards.some((reward) => reward.id === optionId);
             category = buildFamilyAwardsCategory(familyRewardAvailability.availableRewards);
             option = category.options.find((entry) => entry.id === optionId) ?? null;
@@ -833,19 +922,67 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          const balance = await getWalletBalance(uid, idToken);
+          const purchaseUid = category.kind === "reward" && rewardRecipient ? rewardRecipient.uid : uid;
+          const balance = purchaseUid === uid
+            ? await getWalletBalance(uid, idToken)
+            : rewardRecipient?.balance ?? 0;
           if (balance < optionPrice) {
             return { kind: "insufficient_funds" as const };
           }
 
+          let rewardPurchase: {
+            familyId: string;
+            awardClaimId: string;
+            recipientName: string;
+            recipientEmail: string;
+            now: string;
+          } | null = null;
+          if (category.kind === "reward") {
+            const familyId = await getPrimaryFamilyIdWithFallback(uid, idToken);
+            if (!familyId) {
+              return { kind: "family_not_found" as const };
+            }
+            rewardPurchase = {
+              familyId,
+              awardClaimId: randomUUID(),
+              recipientName: rewardRecipient?.name || session.name || session.email || "Family member",
+              recipientEmail: rewardRecipient?.email || session.email || "",
+              now: new Date().toISOString(),
+            };
+          }
+
           try {
-            await applyWalletDelta({
-              uid,
-              idToken,
-              delta: -optionPrice,
-              reason: "store_purchase",
-              itemId: option.id,
-            });
+            if (category.kind === "reward" && rewardPurchase) {
+              await applyAdminWalletDelta({
+                uid: purchaseUid,
+                delta: -optionPrice,
+                reason: "store_purchase",
+                itemId: option.id,
+                additionalWrites: [{
+                  update: {
+                    path: `families/${rewardPurchase.familyId}/awardClaims/${rewardPurchase.awardClaimId}`,
+                    fields: buildRewardClaimFields({
+                      rewardId: option.id,
+                      rewardDescription: option.label,
+                      rewardImageId: option.value,
+                      coinCost: optionPrice,
+                      recipientUid: purchaseUid,
+                      recipientName: rewardPurchase.recipientName,
+                      recipientEmail: rewardPurchase.recipientEmail,
+                      actorUid: session.uid,
+                      actorName: session.name || session.email || "Admin",
+                      consumed: consumeReward,
+                      now: rewardPurchase.now,
+                    }),
+                    currentDocument: { exists: false },
+                  },
+                }],
+              });
+            } else if (purchaseUid === uid) {
+              await applyWalletDelta({ uid, idToken, delta: -optionPrice, reason: "store_purchase", itemId: option.id });
+            } else {
+              await applyAdminWalletDelta({ uid: purchaseUid, delta: -optionPrice, reason: "store_purchase", itemId: option.id });
+            }
           } catch (error) {
             const reason = error instanceof Error ? error.message : "";
             console.error("[STORE_PURCHASE_WALLET_ERROR]", {
@@ -861,49 +998,16 @@ export async function POST(request: NextRequest) {
           }
 
           if (category.kind === "reward") {
-            const familyId = await getPrimaryFamilyIdWithFallback(uid, idToken);
+            const familyId = rewardPurchase?.familyId ?? "";
             console.log("[STORE_PURCHASE_REWARD_CONTEXT]", {
               uid,
               categoryId,
               optionId: option.id,
               familyId: familyId || "(missing)",
             });
-            if (!familyId) {
-              return { kind: "family_not_found" as const };
-            }
-            const now = new Date().toISOString();
-            const awardClaimId = randomUUID();
-            try {
-              await createOrReplaceDocument(
-                `families/${familyId}/awardClaims/${awardClaimId}`,
-                {
-                  rewardId: stringField(option.id),
-                  rewardDescription: stringField(option.label),
-                  rewardImageId: stringField(option.value),
-                  coinCost: integerField(optionPrice),
-                  purchaserUid: stringField(uid),
-                  purchaserName: stringField(session.name || session.email || "Family member"),
-                  purchaserEmail: stringField(session.email || ""),
-                  purchasedAt: timestampField(now),
-                  status: stringField("unclaimed"),
-                  claimedByUid: stringField(""),
-                  claimedByName: stringField(""),
-                  createdAt: timestampField(now),
-                  updatedAt: timestampField(now),
-                },
-                idToken,
-              );
-            } catch (error) {
-              const reason = error instanceof Error ? error.message : "";
-              console.error("[STORE_PURCHASE_AWARD_CLAIM_ERROR]", {
-                uid,
-                familyId,
-                awardClaimId,
-                optionId: option.id,
-                reason: reason.slice(0, 220),
-              });
-              throw error;
-            }
+            const awardClaimId = rewardPurchase?.awardClaimId ?? "";
+            const recipientName = rewardPurchase?.recipientName ?? "Family member";
+            const recipientEmail = rewardPurchase?.recipientEmail ?? "";
             try {
               await emitFamilyActivity({
                 familyId,
@@ -913,8 +1017,8 @@ export async function POST(request: NextRequest) {
                 actorEmail: session.email,
                 actorName: session.name || session.email || "Family member",
                 title: "Prize claimed",
-                message: `${session.name || "Someone"} claimed "${option.label}" for ${optionPrice} coins.`,
-                relatedIds: [session.uid, session.email],
+                message: `${session.name || "Someone"} redeemed "${option.label}" for ${recipientName}${consumeReward ? " and marked it consumed" : ""}.`,
+                relatedIds: [session.uid, session.email, purchaseUid, recipientEmail].filter(Boolean),
                 pushType: "reward_claimed",
               });
             } catch (error) {
@@ -1190,6 +1294,12 @@ export async function POST(request: NextRequest) {
     }
     if (data.kind === "family_not_found") {
       return NextResponse.json({ error: "family_not_found" }, { status: 404 });
+    }
+    if (data.kind === "forbidden") {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    if (data.kind === "invalid_recipient") {
+      return NextResponse.json({ error: "invalid_recipient" }, { status: 400 });
     }
 
     let nextSession = refreshedSession;

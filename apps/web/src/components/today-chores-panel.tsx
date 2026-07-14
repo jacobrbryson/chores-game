@@ -48,6 +48,10 @@ import {
 import { AssignRoutineDialog } from "@/components/assign-routine-dialog";
 import type { FamilySnapshotChore, FamilySnapshotMember } from "@/lib/family/types";
 import {
+  buildFamilyMemberAliasMap,
+  normalizeFamilyMemberAlias,
+} from "@/lib/family/member-aliases";
+import {
   parseCompletionWindow,
   type CompletionWindow,
 } from "@/lib/preferences/completion-window";
@@ -125,7 +129,7 @@ function normalizeError(error: unknown, fallback: string) {
 }
 
 function normalizeAssigneeAlias(value?: string) {
-  return (value ?? "").trim().toLowerCase();
+  return normalizeFamilyMemberAlias(value);
 }
 
 function getMemberAliasSet(member: FamilySnapshotMember) {
@@ -812,18 +816,7 @@ export function TodayChoresPanel({
     return activeMembers.find((member) => member.id === selectedMemberId) ?? null;
   }, [activeMembers, selectedChoreScope]);
   const memberByAlias = useMemo(() => {
-    const map = new Map<string, FamilySnapshotMember>();
-    for (const member of members) {
-      map.set(normalizeAssigneeAlias(member.id), member);
-      if (member.uid) {
-        map.set(normalizeAssigneeAlias(member.uid), member);
-      }
-      const normalizedEmail = normalizeAssigneeAlias(member.email);
-      if (normalizedEmail) {
-        map.set(normalizedEmail, member);
-      }
-    }
-    return map;
+    return buildFamilyMemberAliasMap(members);
   }, [members]);
   const getProgressMemberIdForChore = (chore: FamilySnapshotChore) => {
     if (chore.assigneeScope === "family" || (chore.assigneeIds?.length ?? 0) > 1) {
@@ -2486,7 +2479,7 @@ export function TodayChoresPanel({
               </p>
               <div className="mb-4 flex flex-col gap-2">
                 {pendingApprovalAssigneeIds.map((assigneeId) => {
-                  const member = memberByAlias.get(assigneeId);
+                  const member = memberByAlias.get(normalizeAssigneeAlias(assigneeId));
                   const selection = approvalSelectionsByAssignee[assigneeId] ?? {
                     enabled: true,
                     coinValue: 0,

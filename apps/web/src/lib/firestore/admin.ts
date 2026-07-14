@@ -12,7 +12,7 @@ type FirestoreRunQueryResult = {
   document?: FirestoreDocument;
 };
 
-type AdminCommitWrite =
+export type AdminCommitWrite =
   | {
       update: {
         path: string;

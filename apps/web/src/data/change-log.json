@@ -1,5 +1,21 @@
 [
   {
+    "id": "complete-approve-assignee-profiles",
+    "date": "2026-07-14",
+    "type": "Bug Fix",
+    "subject": "Chore approval shows the right family members",
+    "description": "The Complete and Approve dialog now shows each assignee's full name and saved avatar consistently.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "admin-reward-recipient-redemption",
+    "date": "2026-07-14",
+    "type": "Feature",
+    "subject": "Parents can redeem rewards for any family member",
+    "description": "Parents can now choose who a family reward is for and optionally mark it claimed and used during redemption.",
+    "image": "/store3/family-rewards.png"
+  },
+  {
     "id": "routine-step-editor-mobile-layout",
     "date": "2026-06-28",
     "type": "Bug Fix",
