@@ -68,14 +68,14 @@
       "continue": "Continuar",
       "delete": "Eliminar",
       "dismiss": "Descartar",
+      "done": "Listo",
       "edit": "Editar",
       "loading": "Cargando...",
       "remove": "Quitar",
       "retry": "Intentar de nuevo",
       "save": "Guardar",
       "start": "Comenzar",
-      "saving": "Guardando…",
-      "done": "Listo"
+      "saving": "Guardando…"
     },
     "labels": {
       "default": "predeterminado",
@@ -891,11 +891,6 @@
     "descriptionLabel": "Descripción",
     "descriptionPlaceholder": "Añade todos los detalles que puedas",
     "severityLabel": "Gravedad",
-    "severity": {
-      "low": "Baja",
-      "medium": "Media",
-      "high": "Alta"
-    },
     "importanceLabel": "Importancia",
     "importance": {
       "nice_to_have": "Estaría bien",
@@ -905,6 +900,11 @@
     },
     "allowContactLabel": "El soporte de Family Chores puede contactarme con preguntas de seguimiento",
     "notifyOnStatusChangeLabel": "Avísame cuando cambie el estado de esta solicitud",
+    "severity": {
+      "low": "Baja",
+      "medium": "Media",
+      "high": "Alta"
+    },
     "categoryLabel": "Categoría",
     "categoryPlaceholder": "Selecciona una categoría (opcional)",
     "categoryCustomPlaceholder": "Escribe una categoría personalizada…",

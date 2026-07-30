@@ -68,14 +68,14 @@
       "continue": "Continuer",
       "delete": "Supprimer",
       "dismiss": "Ignorer",
+      "done": "Terminer",
       "edit": "Modifier",
       "loading": "Chargement...",
       "remove": "Retirer",
       "retry": "Réessayer",
       "save": "Enregistrer",
       "start": "Commencer",
-      "saving": "Enregistrement…",
-      "done": "Terminer"
+      "saving": "Enregistrement…"
     },
     "labels": {
       "default": "par défaut",
