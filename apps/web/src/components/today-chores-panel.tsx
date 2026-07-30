@@ -11,7 +11,7 @@ import { FilterMenuIcon } from "@/components/filter-menu-icon";
 import { useLocale } from "@/components/locale-provider";
 import { MenuActionButton } from "@/components/menu-action-button";
 import { MenuActionLink } from "@/components/menu-action-link";
-import { ModalShell } from "@/components/modal-shell";
+import { MODAL_EXIT_MS, ModalShell } from "@/components/modal-shell";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
 import { showToast } from "@/components/toast";
 import {
@@ -201,6 +201,7 @@ const COMPLETION_LINE_COLORS = [
   "#999933",
 ];
 const CHORE_EXIT_ANIMATION_MS = 160;
+const COMPLETION_DIALOG_HANDOFF_MS = MODAL_EXIT_MS + 40;
 const QUICK_SORT_DEFAULT_DIRECTION: Record<QuickSortKey, QuickSortDirection> = {
   coin_value: "desc",
   frequency: "desc",
@@ -828,6 +829,38 @@ export function TodayChoresPanel({
         : chore.assigneeId || "";
     const member = memberByAlias.get(normalizeAssigneeAlias(assigneeId));
     return member?.uid || member?.id || assigneeId;
+  };
+  const showChoreCompletionCelebration = (
+    chore: FamilySnapshotChore,
+    source?: { clientX: number; clientY: number },
+  ) => {
+    const immediateIdentityData = chore.responsibilityProgress
+      ? ({
+          pillar: chore.responsibilityProgress.pillar,
+          xpBefore: chore.responsibilityProgress.xpBefore,
+          xpAfter: chore.responsibilityProgress.xpAfter,
+          levelBefore: chore.responsibilityProgress.levelBefore,
+          levelAfter: chore.responsibilityProgress.levelAfter,
+          tier: chore.responsibilityProgress.tier,
+          nextTier: chore.responsibilityProgress.nextTier,
+          prevFraction: chore.responsibilityProgress.prevFraction,
+          newFraction: chore.responsibilityProgress.newFraction,
+          unlocked: chore.responsibilityProgress.unlocked,
+          xpAwarded: chore.responsibilityProgress.xpAwarded,
+        } satisfies IdentityTitleCelebrationData)
+      : null;
+    triggerPartyConfetti({
+      intensity: 1.3,
+      sourceClientX: source?.clientX,
+      sourceClientY: source?.clientY,
+      showAllDone: true,
+      ...(chore.newSkillBonusEligible
+        ? { allDoneTitle: t("dashboard.newSkillPopupTitle") }
+        : {}),
+      ...(immediateIdentityData
+        ? { allDoneProgress: buildAllDoneProgressPayload(immediateIdentityData, t) }
+        : {}),
+    });
   };
   const pendingCreateChores = useMemo(
     () => Object.values(pendingCreateChoresByRequestId),
@@ -1515,33 +1548,9 @@ export function TodayChoresPanel({
     }
     setBusyActionsById((current) => ({ ...current, [choreId]: "complete" }));
     setExitingChoreIds((current) => ({ ...current, [choreId]: true }));
-    const immediateIdentityData = chore?.responsibilityProgress
-      ? ({
-          pillar: chore.responsibilityProgress.pillar,
-          xpBefore: chore.responsibilityProgress.xpBefore,
-          xpAfter: chore.responsibilityProgress.xpAfter,
-          levelBefore: chore.responsibilityProgress.levelBefore,
-          levelAfter: chore.responsibilityProgress.levelAfter,
-          tier: chore.responsibilityProgress.tier,
-          nextTier: chore.responsibilityProgress.nextTier,
-          prevFraction: chore.responsibilityProgress.prevFraction,
-          newFraction: chore.responsibilityProgress.newFraction,
-          unlocked: chore.responsibilityProgress.unlocked,
-          xpAwarded: chore.responsibilityProgress.xpAwarded,
-        } satisfies IdentityTitleCelebrationData)
-      : null;
-    triggerPartyConfetti({
-      intensity: 1.3,
-      sourceClientX: source?.clientX,
-      sourceClientY: source?.clientY,
-      showAllDone: true,
-      ...(chore?.newSkillBonusEligible
-        ? { allDoneTitle: t("dashboard.newSkillPopupTitle") }
-        : {}),
-      ...(immediateIdentityData
-        ? { allDoneProgress: buildAllDoneProgressPayload(immediateIdentityData, t) }
-        : {}),
-    });
+    if (chore) {
+      showChoreCompletionCelebration(chore, source);
+    }
     const existingTimer = completionHideTimersRef.current[choreId];
     if (existingTimer) {
       clearTimeout(existingTimer);
@@ -1654,8 +1663,13 @@ export function TodayChoresPanel({
         const body = (await completeResponse.json()) as { error?: string };
         throw new Error(body.error ?? `COMPLETE_CHORE_HTTP_${completeResponse.status}`);
       }
+      const completedChore = pendingApproveChore;
       setPendingApproveChore(null);
       setApprovalSelectionsByAssignee({});
+      window.setTimeout(
+        () => showChoreCompletionCelebration(completedChore),
+        COMPLETION_DIALOG_HANDOFF_MS,
+      );
       await onReload();
       setCompletionStatsRefreshTick((current) => current + 1);
       if (typeof window !== "undefined") {

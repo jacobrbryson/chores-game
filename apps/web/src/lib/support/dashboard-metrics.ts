@@ -1,22 +1,26 @@
 import { adminGetDocument } from "@/lib/firestore/admin";
-import { readInteger, readString, readTimestamp, type FirestoreValue } from "@/lib/firestore/rest";
+import { readString, readTimestamp, type FirestoreValue } from "@/lib/firestore/rest";
 
 export const SUPPORT_DASHBOARD_METRICS_DOC_PATH = "appConfig/supportDashboardMetrics";
 
-export type SupportAudit30DayPoint = {
+export type SupportFamilyActivityPoint = {
   date: string;
-  count: number;
+  newFamilies: number;
+  newUsers: number;
+  choresCreated: number;
+  routinesCreated: number;
+  choresCompleted: number;
+  routinesCompleted: number;
 };
 
 export type SupportDashboardMetrics = {
-  audit30DayTotal: number;
-  audit30DaySeries: SupportAudit30DayPoint[];
-  audit30DayWindowStart: string;
-  audit30DayWindowEnd: string;
+  familyActivity30DaySeries: SupportFamilyActivityPoint[];
+  familyActivity30DayWindowStart: string;
+  familyActivity30DayWindowEnd: string;
   updatedAt: string;
 };
 
-function buildEmptySeries() {
+function buildEmptySeries(): SupportFamilyActivityPoint[] {
   const today = new Date();
   const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   return Array.from({ length: 30 }, (_, index) => {
@@ -24,7 +28,12 @@ function buildEmptySeries() {
     date.setDate(end.getDate() - (29 - index));
     return {
       date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`,
-      count: 0,
+      newFamilies: 0,
+      newUsers: 0,
+      choresCreated: 0,
+      routinesCreated: 0,
+      choresCompleted: 0,
+      routinesCompleted: 0,
     };
   });
 }
@@ -32,12 +41,27 @@ function buildEmptySeries() {
 export function defaultSupportDashboardMetrics(): SupportDashboardMetrics {
   const series = buildEmptySeries();
   return {
-    audit30DayTotal: 0,
-    audit30DaySeries: series,
-    audit30DayWindowStart: series[0]?.date ?? "",
-    audit30DayWindowEnd: series[series.length - 1]?.date ?? "",
+    familyActivity30DaySeries: series,
+    familyActivity30DayWindowStart: series[0]?.date ?? "",
+    familyActivity30DayWindowEnd: series[series.length - 1]?.date ?? "",
     updatedAt: "",
   };
+}
+
+function isFamilyActivityPoint(value: unknown): value is SupportFamilyActivityPoint {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const point = value as Record<string, unknown>;
+  return (
+    typeof point.date === "string" &&
+    typeof point.newFamilies === "number" &&
+    typeof point.newUsers === "number" &&
+    typeof point.choresCreated === "number" &&
+    typeof point.routinesCreated === "number" &&
+    typeof point.choresCompleted === "number" &&
+    typeof point.routinesCompleted === "number"
+  );
 }
 
 export function parseSupportDashboardMetricsFields(
@@ -48,36 +72,33 @@ export function parseSupportDashboardMetricsFields(
     return fallback;
   }
 
-  let audit30DaySeries = fallback.audit30DaySeries;
-  const audit30DaySeriesJson = readString(fields, "audit30DaySeriesJson");
-  if (audit30DaySeriesJson) {
+  let familyActivity30DaySeries = fallback.familyActivity30DaySeries;
+  const seriesJson = readString(fields, "familyActivity30DaySeriesJson");
+  if (seriesJson) {
     try {
-      const parsed = JSON.parse(audit30DaySeriesJson) as unknown;
-      if (
-        Array.isArray(parsed) &&
-        parsed.every(
-          (entry) =>
-            typeof entry === "object" &&
-            entry !== null &&
-            typeof (entry as { date?: unknown }).date === "string" &&
-            typeof (entry as { count?: unknown }).count === "number",
-        )
-      ) {
-        audit30DaySeries = parsed.map((entry) => ({
-          date: String((entry as { date: string }).date),
-          count: Math.max(0, Math.trunc((entry as { count: number }).count)),
+      const parsed = JSON.parse(seriesJson) as unknown;
+      if (Array.isArray(parsed) && parsed.every(isFamilyActivityPoint)) {
+        familyActivity30DaySeries = parsed.map((entry) => ({
+          date: entry.date,
+          newFamilies: Math.max(0, Math.trunc(entry.newFamilies)),
+          newUsers: Math.max(0, Math.trunc(entry.newUsers)),
+          choresCreated: Math.max(0, Math.trunc(entry.choresCreated)),
+          routinesCreated: Math.max(0, Math.trunc(entry.routinesCreated)),
+          choresCompleted: Math.max(0, Math.trunc(entry.choresCompleted)),
+          routinesCompleted: Math.max(0, Math.trunc(entry.routinesCompleted)),
         }));
       }
     } catch {
-      audit30DaySeries = fallback.audit30DaySeries;
+      familyActivity30DaySeries = fallback.familyActivity30DaySeries;
     }
   }
 
   return {
-    audit30DayTotal: readInteger(fields, "audit30DayTotal"),
-    audit30DaySeries,
-    audit30DayWindowStart: readString(fields, "audit30DayWindowStart") || fallback.audit30DayWindowStart,
-    audit30DayWindowEnd: readString(fields, "audit30DayWindowEnd") || fallback.audit30DayWindowEnd,
+    familyActivity30DaySeries,
+    familyActivity30DayWindowStart:
+      readString(fields, "familyActivity30DayWindowStart") || fallback.familyActivity30DayWindowStart,
+    familyActivity30DayWindowEnd:
+      readString(fields, "familyActivity30DayWindowEnd") || fallback.familyActivity30DayWindowEnd,
     updatedAt: readTimestamp(fields, "updatedAt"),
   };
 }

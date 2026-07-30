@@ -5,6 +5,8 @@ import { E2E_TEST_DATA } from "./env";
 type CreateChoreOptions = {
   title: string;
   assigneeId?: string;
+  assigneeIds?: string[];
+  assigneeScope?: "single" | "multiple" | "family";
   coinValue?: number;
   requireApproval?: boolean;
 };
@@ -14,11 +16,15 @@ async function parseJson(response: Awaited<ReturnType<APIRequestContext["post"]>
 }
 
 export async function createChore(request: APIRequestContext, options: CreateChoreOptions) {
+  const assigneeIds = options.assigneeIds ?? [
+    options.assigneeId ?? E2E_TEST_DATA.child.memberId,
+  ];
   const response = await request.post("/api/chores", {
     data: {
       description: options.title,
-      assigneeIds: [options.assigneeId ?? E2E_TEST_DATA.child.memberId],
-      assigneeScope: "single",
+      assigneeIds,
+      assigneeScope:
+        options.assigneeScope ?? (assigneeIds.length > 1 ? "multiple" : "single"),
       coinValue: options.coinValue ?? 5,
       requireApproval: options.requireApproval ?? true,
     },

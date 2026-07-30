@@ -21,7 +21,11 @@ function formatDate(value: string) {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
 }
 
-export function SupportStaleInvitesPanel() {
+export function SupportStaleInvitesPanel({
+  onCountChange,
+}: {
+  onCountChange?: (count: number) => void;
+} = {}) {
   const [staleInvites, setStaleInvites] = useState<StaleInvite[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -72,6 +76,14 @@ export function SupportStaleInvitesPanel() {
     } finally {
       setDeleting(null);
     }
+  }
+
+  useEffect(() => {
+    if (!loading) onCountChange?.(staleInvites.length);
+  }, [loading, staleInvites.length, onCountChange]);
+
+  if (!loading && staleInvites.length === 0) {
+    return null;
   }
 
   return (

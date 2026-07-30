@@ -49,7 +49,11 @@ function activitySummary(activity: ChildActivity) {
   return parts.length ? parts.join(", ") : "none";
 }
 
-export function SupportDuplicateChildrenPanel() {
+export function SupportDuplicateChildrenPanel({
+  onCountChange,
+}: {
+  onCountChange?: (count: number) => void;
+} = {}) {
   const [groups, setGroups] = useState<DuplicateChildGroup[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -106,6 +110,14 @@ export function SupportDuplicateChildrenPanel() {
     (sum, group) => sum + group.candidates.filter((c) => !c.isOriginal).length,
     0,
   );
+
+  useEffect(() => {
+    if (!loading) onCountChange?.(totalDuplicates);
+  }, [loading, totalDuplicates, onCountChange]);
+
+  if (!loading && totalDuplicates === 0) {
+    return null;
+  }
 
   return (
     <section className="rounded-2xl border border-rose-200 bg-white shadow-sm">

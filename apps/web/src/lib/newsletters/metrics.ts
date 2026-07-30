@@ -235,7 +235,10 @@ export async function computeWeeklyFamilyHighlightMetrics(input: {
       continue;
     }
     const status = readString(choreDoc.fields, "status");
-    if (status === "Submitted") {
+    // Match the dashboard Approval Inbox exactly: Submitted is also the
+    // completed state for chores that pay out immediately, so it only
+    // represents a pending approval when the chore requires approval.
+    if (status === "Submitted" && readBoolean(choreDoc.fields, "requireApproval")) {
       pendingApprovals += 1;
     }
     if (status !== "Submitted" && status !== "Approved") {

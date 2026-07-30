@@ -1,5 +1,21 @@
 [
   {
+    "id": "multi-assignee-celebration-and-admin-award-dialog",
+    "date": "2026-07-29",
+    "type": "Bug Fix",
+    "subject": "Shared chores celebrate and reward dialogs stay polished",
+    "description": "Completing a chore assigned to multiple family members now shows the full celebration, and parent reward redemptions use a clearer, responsive confirmation dialog.",
+    "image": "/store3/family-rewards.png"
+  },
+  {
+    "id": "weekly-email-pending-approval-count",
+    "date": "2026-07-26",
+    "type": "Bug Fix",
+    "subject": "Weekly approval totals now match your dashboard",
+    "description": "Weekly family highlights now count only completed chores that are actually waiting for parent approval.",
+    "image": "/file.svg"
+  },
+  {
     "id": "complete-approve-assignee-profiles",
     "date": "2026-07-14",
     "type": "Bug Fix",

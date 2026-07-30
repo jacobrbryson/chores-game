@@ -244,6 +244,7 @@ async function upsertFirebaseUser(
     photoUrl: stringField(tokenInfo.picture ?? session.photoUrl ?? ""),
     provider: stringField("google"),
     lastSignInAt: timestampField(now),
+    ...(hasExistingUserDoc ? {} : { createdAt: timestampField(now) }),
     ...(linkedFamilyId
       ? {
           familyIds: stringArrayField([linkedFamilyId]),

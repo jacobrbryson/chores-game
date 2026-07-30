@@ -242,6 +242,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Latest family-activity notification per family, used as an "Active" signal in the Families table.
+    const lastActivityByFamilyId = new Map<string, string>();
+    for (const doc of notificationDocs) {
+      const fid = familyIdFromDocumentName(doc.name);
+      const createdAt = readTimestamp(doc.fields, "createdAt");
+      if (!fid || !createdAt) {
+        continue;
+      }
+      const existing = lastActivityByFamilyId.get(fid);
+      if (!existing || (Date.parse(createdAt) || 0) > (Date.parse(existing) || 0)) {
+        lastActivityByFamilyId.set(fid, createdAt);
+      }
+    }
+
     const emailByUid = new Map<string, string>();
     for (const doc of userDocs) {
       const uid = readString(doc.fields, "uid") || documentIdFromName(doc.name);
@@ -275,6 +289,7 @@ export async function GET(request: NextRequest) {
           createdByEmail: emailByUid.get(base.createdBy) ?? "",
           admins: adminsByFamilyId.get(base.id) ?? [],
           lastWeeklyHighlightSentAt: lastWeeklyHighlightSentByFamilyId.get(base.id) ?? "",
+          lastActivityAt: lastActivityByFamilyId.get(base.id) ?? "",
         };
       })
       .filter((family) => containsQuery([family.id, family.name, family.createdBy, family.createdByEmail], query));

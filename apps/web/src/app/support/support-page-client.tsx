@@ -9,15 +9,14 @@ import { ModalShell } from "@/components/modal-shell";
 import { AppMenu } from "@/components/app-menu";
 import { MenuActionButton } from "@/components/menu-action-button";
 import { SupportCommunityAwardsPanel } from "@/components/support-community-awards-panel";
-import { SupportActivityChart } from "@/components/support-activity-chart";
+import { SupportFamilyActivityChart } from "@/components/support-family-activity-chart";
 import { SupportContentPanel, SupportSeoPanel } from "@/components/support-content-panel";
 import { SupportConsoleShell, type SupportModuleId } from "@/components/support-console-shell";
-import { SupportDiscoveryPanel } from "@/components/support-discovery-panel";
 import { SupportFeedPanel } from "@/components/support-feed-panel";
 import { SupportGhostChoresPanel } from "@/components/support-ghost-chores-panel";
+import { SupportChoreUsagePanel } from "@/components/support-chore-usage-panel";
 import { SupportMetricsStrip, type SupportMetric } from "@/components/support-metrics-strip";
 import { SupportNewslettersPanel } from "@/components/support-newsletters-panel";
-import { SupportPrivacyPanel } from "@/components/support-privacy-panel";
 import { SupportStaleInvitesPanel } from "@/components/support-stale-invites-panel";
 import { SupportDuplicateChildrenPanel } from "@/components/support-duplicate-children-panel";
 import { SupportResponsibilityPanel } from "@/components/support-responsibility-panel";
@@ -46,6 +45,7 @@ type SupportFamily = {
   createdAt: string;
   admins: Array<{ name: string }>;
   lastWeeklyHighlightSentAt: string;
+  lastActivityAt: string;
 };
 
 type WeeklyHighlightsPreview = {
@@ -152,6 +152,7 @@ type WsMetrics = {
 };
 
 const PAGE_SIZE = 20;
+const FAMILIES_PAGE_SIZE = 5;
 
 const MODULE_COPY: Record<SupportModuleId, { title: string; subtitle: string }> = {
   dashboard: {
@@ -161,6 +162,10 @@ const MODULE_COPY: Record<SupportModuleId, { title: string; subtitle: string }> 
   families: {
     title: "Families",
     subtitle: "Inspect family records, admins, newsletter sends, and family-scoped activity.",
+  },
+  chores: {
+    title: "Chores",
+    subtitle: "Browse chore records across families and remove problematic entries.",
   },
   users: {
     title: "Users",
@@ -239,11 +244,11 @@ function recentCount(values: string[], days: number) {
   }).length;
 }
 
-function paginate<T>(rows: T[], page: number) {
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+function paginate<T>(rows: T[], page: number, pageSize: number = PAGE_SIZE) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.max(1, Math.min(page, totalPages));
   return {
-    rows: rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    rows: rows.slice((safePage - 1) * pageSize, safePage * pageSize),
     page: safePage,
     totalPages,
   };
@@ -375,6 +380,8 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [duplicateChildrenCount, setDuplicateChildrenCount] = useState<number | null>(null);
+  const [staleInvitesCount, setStaleInvitesCount] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{
     entity: "family" | "user" | "chore";
     id: string;
@@ -451,18 +458,40 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
 
   const familyMetrics = useMemo<SupportMetric[]>(() => {
     const families = payload?.families ?? [];
-    return [
+    const metrics: SupportMetric[] = [
       { label: "Families", value: payload?.counts.families ?? 0, detail: "Total family records", tone: "sky" },
-      { label: "Loaded Rows", value: families.length, detail: "Visible in this dataset", tone: "violet" },
+      {
+        label: "Activity",
+        value: recentCount(families.map((family) => family.lastActivityAt), 30),
+        detail: "Families active last 30 days",
+        tone: "violet",
+      },
       { label: "New Families", value: recentCount(families.map((family) => family.createdAt), 30), detail: "Created last 30 days", tone: "emerald" },
       {
         label: "Highlights Sent",
-        value: families.filter((family) => family.lastWeeklyHighlightSentAt).length,
-        detail: "Weekly email activity",
+        value: recentCount(families.map((family) => family.lastWeeklyHighlightSentAt), 30),
+        detail: "Weekly email sends last 30 days",
         tone: "amber",
       },
     ];
-  }, [payload]);
+    if (duplicateChildrenCount) {
+      metrics.push({
+        label: "Duplicate Children",
+        value: duplicateChildrenCount,
+        detail: "Possible duplicate child profiles",
+        tone: "rose",
+      });
+    }
+    if (staleInvitesCount) {
+      metrics.push({
+        label: "Stale Invites",
+        value: staleInvitesCount,
+        detail: "Orphaned invite records",
+        tone: "amber",
+      });
+    }
+    return metrics;
+  }, [payload, duplicateChildrenCount, staleInvitesCount]);
 
   const userMetrics = useMemo<SupportMetric[]>(() => {
     const users = payload?.users ?? [];
@@ -471,16 +500,6 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
       { label: "Admins", value: users.filter((user) => user.role === "admin").length, detail: "Parent/admin accounts", tone: "sky" },
       { label: "Tasks Linked", value: users.filter((user) => user.googleTasksLinked).length, detail: "Google Tasks profiles", tone: "emerald" },
       { label: "Wallet Coins", value: users.reduce((sum, user) => sum + user.walletBalance, 0), detail: "Loaded user balances", tone: "amber" },
-    ];
-  }, [payload]);
-
-  const choreMetrics = useMemo<SupportMetric[]>(() => {
-    const chores = payload?.chores ?? [];
-    return [
-      { label: "Loaded Chores", value: chores.length, detail: "Quest-adjacent objects", tone: "violet" },
-      { label: "Open", value: chores.filter((chore) => chore.status === "Open").length, detail: "Available chores", tone: "sky" },
-      { label: "Submitted", value: chores.filter((chore) => chore.status === "Submitted").length, detail: "Awaiting review", tone: "amber" },
-      { label: "Google Synced", value: chores.filter((chore) => chore.source === "google_tasks").length, detail: "External source", tone: "emerald" },
     ];
   }, [payload]);
 
@@ -496,9 +515,11 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
 
   const filteredFamilies = useMemo(
     () =>
-      (payload?.families ?? []).filter((family) =>
-        containsQuery([family.id, family.name, family.createdBy, family.createdByEmail], query),
-      ),
+      (payload?.families ?? [])
+        .filter((family) =>
+          containsQuery([family.id, family.name, family.createdBy, family.createdByEmail], query),
+        )
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [payload, query],
   );
   const filteredUsers = useMemo(
@@ -696,12 +717,10 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
               {payload.suspicious.length} submitted chore(s) have approval or payout evidence.
             </Alert>
           ) : null}
-          <SupportActivityChart
-            series={payload.supportDashboardMetrics.audit30DaySeries}
+          <SupportFamilyActivityChart
+            series={payload.supportDashboardMetrics.familyActivity30DaySeries}
             updatedAt={payload.supportDashboardMetrics.updatedAt}
           />
-          <SupportFeedPanel events={payload.events} />
-          <SupportDiscoveryPanel />
         </>
       ) : null}
 
@@ -713,21 +732,20 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
               <SearchBar label="Search families" value={query} onChange={setQuery} placeholder="Family name, ID, creator" />
             </div>
             <FamiliesTable
-              families={paginate(filteredFamilies, page).rows}
+              families={paginate(filteredFamilies, page, FAMILIES_PAGE_SIZE).rows}
               deleting={deleting}
               onDelete={(family) => requestDelete("family", family.id, family.name)}
               onSendHighlights={(family) => void requestSendHighlights(family)}
             />
             <Pager
-              page={paginate(filteredFamilies, page).page}
-              totalPages={paginate(filteredFamilies, page).totalPages}
+              page={paginate(filteredFamilies, page, FAMILIES_PAGE_SIZE).page}
+              totalPages={paginate(filteredFamilies, page, FAMILIES_PAGE_SIZE).totalPages}
               total={filteredFamilies.length}
               onPageChange={setPage}
             />
           </section>
-          <SupportDuplicateChildrenPanel />
-          <SupportStaleInvitesPanel />
-          <SupportPrivacyPanel />
+          <SupportDuplicateChildrenPanel onCountChange={setDuplicateChildrenCount} />
+          <SupportStaleInvitesPanel onCountChange={setStaleInvitesCount} />
         </>
       ) : null}
 
@@ -776,13 +794,18 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
         </>
       ) : null}
 
-      {!loading && payload && module === "quests" ? (
+      {!loading && payload && module === "chores" ? (
         <>
-          <SupportMetricsStrip metrics={choreMetrics} forceSingleRow />
-          <SupportGhostChoresPanel />
+          <SupportChoreUsagePanel />
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-wrap gap-3 border-b border-slate-200 bg-slate-50/70 p-4">
-              <SearchBar label="Search quest-adjacent chores" value={query} onChange={setQuery} placeholder="Title, status, assignee, source" />
+            <div className="border-b border-slate-200 bg-slate-50/70 p-4">
+              <h3 className="text-lg font-bold text-slate-900">Browse &amp; Remove Chores</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Look up an individual chore record to inspect or delete it.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <SearchBar label="Search chores" value={query} onChange={setQuery} placeholder="Title, status, assignee, source" />
+              </div>
             </div>
             <ChoresTable
               chores={paginate(filteredChores, page).rows}
@@ -798,6 +821,8 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
           </section>
         </>
       ) : null}
+
+      {!loading && payload && module === "quests" ? <SupportGhostChoresPanel /> : null}
 
       {!loading && payload && module === "content" ? <SupportContentPanel /> : null}
 
@@ -997,7 +1022,6 @@ function FamiliesTable({
         <thead className="bg-slate-50 text-xs uppercase text-slate-500">
           <tr>
             <th className="px-3 py-2">Family</th>
-            <th className="px-3 py-2">Created By</th>
             <th className="px-3 py-2">Admins</th>
             <th className="px-3 py-2">Created</th>
             <th className="px-3 py-2">Weekly Highlights</th>
@@ -1021,9 +1045,8 @@ function FamiliesTable({
               }}>
               <td className="px-3 py-2">
                 <div className="font-semibold text-slate-900">{family.name}</div>
-                <div className="text-xs text-slate-500">{family.id}</div>
+                <div className="text-xs text-slate-500">{family.createdByEmail || compactId(family.createdBy)}</div>
               </td>
-              <td className="px-3 py-2">{family.createdByEmail || compactId(family.createdBy)}</td>
               <td className="px-3 py-2">
                 {family.admins.length ? family.admins.map((admin) => admin.name).join(", ") : "-"}
               </td>
@@ -1044,7 +1067,7 @@ function FamiliesTable({
           ))}
           {families.length === 0 ? (
             <tr>
-              <td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-500">
+              <td colSpan={5} className="px-3 py-6 text-center text-sm text-slate-500">
                 No families match the current search.
               </td>
             </tr>

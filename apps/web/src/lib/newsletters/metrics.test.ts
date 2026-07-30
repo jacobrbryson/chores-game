@@ -128,6 +128,7 @@ describe("newsletter metrics and recipients", () => {
           }),
           doc(`${path}/chore-2`, {
             status: stringValue("Submitted"),
+            requireApproval: booleanValue(true),
             assigneeId: stringValue("player-1"),
             submittedAt: stringValue("2026-06-03T10:00:00.000Z"),
           }),
@@ -137,6 +138,15 @@ describe("newsletter metrics and recipients", () => {
             status: stringValue("Approved"),
             assigneeScope: stringValue("family"),
             submittedAt: stringValue("2026-06-04T10:00:00.000Z"),
+          }),
+          // Submitted is also the completed state for chores that do not
+          // require approval. The dashboard excludes these from its inbox, so
+          // the weekly email must not report them as pending approvals.
+          doc(`${path}/chore-4`, {
+            status: stringValue("Submitted"),
+            requireApproval: booleanValue(false),
+            assigneeId: stringValue("player-2"),
+            submittedAt: stringValue("2026-06-05T10:00:00.000Z"),
           }),
         ];
       }
@@ -198,7 +208,7 @@ describe("newsletter metrics and recipients", () => {
       },
     });
 
-    expect(metrics.choresCompleted).toBe(3);
+    expect(metrics.choresCompleted).toBe(4);
     expect(metrics.coinsEarned).toBe(15);
     expect(metrics.rewardsRedeemed).toBe(1);
     expect(metrics.familyAwardsClaimed).toBe(1);

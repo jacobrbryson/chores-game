@@ -9,7 +9,7 @@ type ModalShellProps = {
   onRequestClose?: () => void;
 };
 
-const EXIT_MS = 140;
+export const MODAL_EXIT_MS = 140;
 
 export function ModalShell({ open, children, onRequestClose }: ModalShellProps) {
   const [mounted, setMounted] = useState(open);
@@ -28,7 +28,7 @@ export function ModalShell({ open, children, onRequestClose }: ModalShellProps) 
     const timer = window.setTimeout(() => {
       setMounted(false);
       setClosing(false);
-    }, EXIT_MS);
+    }, MODAL_EXIT_MS);
     return () => window.clearTimeout(timer);
   }, [mounted, open]);
 

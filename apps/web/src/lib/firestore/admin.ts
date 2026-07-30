@@ -260,6 +260,56 @@ export async function adminRunQuery(structuredQuery: Record<string, unknown>) {
   return rows.map((row) => row.document).filter((doc): doc is FirestoreDocument => Boolean(doc));
 }
 
+// adminRunQuery returns whatever a single runQuery streams back, which is fine
+// for capped browse views but not for aggregating an entire collection group.
+// adminRunQueryAllInCollectionGroup pages through the whole group by ordering on
+// __name__ and cursoring past the last document, so callers can count/aggregate
+// every doc (e.g. total chores across all families). Returns `truncated: true`
+// if the safety cap is hit before the group is exhausted.
+export async function adminRunQueryAllInCollectionGroup(
+  collectionId: string,
+  options?: { cap?: number; pageSize?: number },
+): Promise<{ documents: FirestoreDocument[]; truncated: boolean }> {
+  const cap = options?.cap ?? 20000;
+  const pageSize = Math.min(1000, Math.max(1, options?.pageSize ?? 1000));
+  const documents: FirestoreDocument[] = [];
+  let cursor: string | null = null;
+
+  for (;;) {
+    const structuredQuery: Record<string, unknown> = {
+      from: [{ collectionId, allDescendants: true }],
+      orderBy: [{ field: { fieldPath: "__name__" }, direction: "ASCENDING" }],
+      limit: pageSize,
+    };
+    if (cursor) {
+      structuredQuery.startAt = {
+        before: false,
+        values: [{ referenceValue: cursor }],
+      };
+    }
+
+    const page = await adminRunQuery(structuredQuery);
+    if (page.length === 0) {
+      break;
+    }
+    for (const doc of page) {
+      documents.push(doc);
+      if (documents.length >= cap) {
+        return { documents, truncated: true };
+      }
+    }
+    if (page.length < pageSize) {
+      break;
+    }
+    cursor = page[page.length - 1]?.name ?? null;
+    if (!cursor) {
+      break;
+    }
+  }
+
+  return { documents, truncated: false };
+}
+
 export async function adminCreateDocument(
   path: string,
   documentId: string,

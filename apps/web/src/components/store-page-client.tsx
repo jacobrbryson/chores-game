@@ -20,7 +20,7 @@ import { CoinIcon } from "@/components/coin-icon";
 import { useLocale } from "@/components/locale-provider";
 import { DiscoveryBadge } from "@/components/discovery-badge";
 import { getSectionCount, markDiscoverySeen, useDiscoverySummary } from "@/lib/hooks/use-discovery";
-import { ModalShell } from "@/components/modal-shell";
+import { MODAL_EXIT_MS, ModalShell } from "@/components/modal-shell";
 import { TailwindSelect } from "@/components/tailwind-select";
 import {
   dispatchConfettiSelectionChanged,
@@ -44,6 +44,7 @@ import { findFamilyRewardImageOption } from "@/lib/family/rewards";
 
 const STORE_ACTION_TIMEOUT_MS = 12000;
 const STORE_TAB_ORDER = ["family_awards", "customize_colors", "customize_avatar", "victory_confetti", "quest_items"];
+const MODAL_HANDOFF_DELAY_MS = MODAL_EXIT_MS + 40;
 
 type StoreSummaryResponse = {
   viewerUid: string;
@@ -436,14 +437,20 @@ export function StorePageClient() {
       await loadSummary({ showLoading: false, clearError: false });
       window.dispatchEvent(new Event("wallet:refresh"));
       window.dispatchEvent(new Event("profile-avatar:refresh"));
-      setPurchaseSuccess({
+      const nextPurchaseSuccess = {
         category,
         option,
         recipientMemberId: recipient?.id,
         recipientName: recipient?.name,
         consumed: redemption?.consumeReward,
-      });
-      setRewardRedemption(null);
+      };
+      if (redemption) {
+        setRewardRedemption(null);
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, MODAL_HANDOFF_DELAY_MS);
+        });
+      }
+      setPurchaseSuccess(nextPurchaseSuccess);
     } catch (purchaseError) {
       if (typeof window !== "undefined") {
         console.error("[STORE_PURCHASE_CLIENT_ERROR]", {
@@ -839,8 +846,8 @@ export function StorePageClient() {
                                 const viewerMember = eligibleMembers.find((member) => member.uid === summary.viewerUid);
                                 setRedemptionMemberId((viewerMember ?? eligibleMembers[0])?.id ?? "");
                                 setConsumeReward(false);
+                                setActionError("");
                                 setRewardRedemption({ category: selectedCategory, option });
-                                setActiveCategoryId(null);
                                 return;
                               }
                               void onPurchaseOption(selectedCategory, option);
@@ -912,6 +919,7 @@ export function StorePageClient() {
             {rewardRedemption ? (() => {
               const { category, option } = rewardRedemption;
               const optionPrice = getOptionPrice(category, option);
+              const rewardImage = findFamilyRewardImageOption(option.value);
               const members = (summary.redemptionMembers ?? []).filter(
                 (member) => member.availableRewardIds.includes(option.id),
               );
@@ -926,36 +934,71 @@ export function StorePageClient() {
                     ? t("store.redeeming")
                     : "";
               return (
-                <section className="modal-card max-w-lg" aria-labelledby="reward-redemption-title">
-                  <div className="modal-card-header">
-                    <div>
+                <section className="family-modal-card max-w-lg" aria-labelledby="reward-redemption-title">
+                  <div className="modal-dialog-title-row family-modal-title-row">
+                    <div className="min-w-0">
                       <p className="eyebrow">{t("store.familyReward")}</p>
-                      <h2 id="reward-redemption-title">{t("store.redeemRewardTitle", { reward: option.label })}</h2>
+                      <h2 id="reward-redemption-title" className="family-modal-title break-words">
+                        {t("store.redeemRewardTitle", { reward: option.label })}
+                      </h2>
                     </div>
-                    <Button type="button" className="btn btn-secondary" onClick={() => setRewardRedemption(null)}>
-                      {t("common.cancel")}
-                    </Button>
+                    <span title={pendingOptionId ? t("store.redeeming") : undefined}>
+                      <Button
+                        type="button"
+                        className="modal-close-button"
+                        disabled={pendingOptionId.length > 0}
+                        onClick={() => setRewardRedemption(null)}
+                        aria-label={t("common.actions.close")}
+                        title={pendingOptionId ? undefined : t("common.actions.close")}>
+                        X
+                      </Button>
+                    </span>
                   </div>
-                  <div className="space-y-5 p-5">
+                  <div className="space-y-5">
+                    <div className="flex items-center gap-4 rounded-xl border border-sky-100 bg-sky-50 p-4">
+                      <Image
+                        src={rewardImage?.imagePath ?? "/rewards/screens.png"}
+                        alt=""
+                        width={80}
+                        height={80}
+                        className="h-20 w-20 shrink-0 rounded-lg object-contain"
+                      />
+                      <div className="min-w-0">
+                        <p className="break-words font-bold text-slate-900">{option.label}</p>
+                        <p className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-slate-600">
+                          <CoinIcon size={16} /> {optionPrice} coins
+                        </p>
+                      </div>
+                    </div>
                     <label className="block space-y-2">
                       <span className="font-semibold text-slate-800">{t("store.redeemFor")}</span>
-                      <TailwindSelect
-                        ariaLabel={t("store.redeemFor")}
-                        value={redemptionMemberId}
-                        onChange={setRedemptionMemberId}
-                        options={members.map((member) => ({
-                          value: member.id,
-                          label: t("store.rewardRecipientOption", { name: member.name, coins: member.balance }),
-                        }))}
-                        className="w-full"
-                        buttonClassName="w-full"
-                      />
+                      <span
+                        className="block"
+                        title={pendingOptionId ? t("store.redeeming") : undefined}>
+                        <TailwindSelect
+                          ariaLabel={t("store.redeemFor")}
+                          value={redemptionMemberId}
+                          onChange={setRedemptionMemberId}
+                          options={members.map((member) => ({
+                            value: member.id,
+                            label: t("store.rewardRecipientOption", { name: member.name, coins: member.balance }),
+                          }))}
+                          className="w-full"
+                          buttonClassName="w-full"
+                          disabled={pendingOptionId.length > 0}
+                        />
+                      </span>
                     </label>
-                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <label
+                      className={`flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4${
+                        pendingOptionId ? " cursor-not-allowed opacity-60" : " cursor-pointer"
+                      }`}
+                      title={pendingOptionId ? t("store.redeeming") : undefined}>
                       <input
                         type="checkbox"
                         className="mt-1 h-4 w-4"
                         checked={consumeReward}
+                        disabled={pendingOptionId.length > 0}
                         onChange={(event) => setConsumeReward(event.target.checked)}
                       />
                       <span>
@@ -963,13 +1006,20 @@ export function StorePageClient() {
                         <span className="small">{t("store.consumeRewardNowHelp")}</span>
                       </span>
                     </label>
+                    {actionError ? <Alert>{t("store.updateError", { error: actionError })}</Alert> : null}
                     {insufficientFunds && selectedMember ? (
                       <Alert>{t("store.rewardRecipientInsufficientFunds", { name: selectedMember.name })}</Alert>
                     ) : null}
-                    <div className="flex justify-end gap-3">
-                      <Button type="button" className="btn btn-secondary" onClick={() => setRewardRedemption(null)}>
-                        {t("common.cancel")}
-                      </Button>
+                    <div className="family-modal-actions">
+                      <span title={pendingOptionId ? t("store.redeeming") : undefined}>
+                        <Button
+                          type="button"
+                          className="btn btn-secondary"
+                          disabled={pendingOptionId.length > 0}
+                          onClick={() => setRewardRedemption(null)}>
+                          {t("common.cancel")}
+                        </Button>
+                      </span>
                       <span title={submitDisabled ? disabledReason : undefined}>
                         <Button
                           type="button"

@@ -220,6 +220,11 @@ The `supportRequests` collection is the single source of truth for all user-subm
 - Support manages content; the SEO dashboard reports metadata, readiness, sitemap, and lifecycle health.
 
 ## Recent Decisions (2026-02-15)
+- Dashboard completion and admin reward dialog fixes (2026-07-29):
+  - Completing and approving a multi-assignee chore from the dashboard payout dialog now triggers the same completion/confetti celebration as the direct completion path.
+  - The admin Family Award redemption dialog uses the shared family modal layout, shows the award and coin cost, surfaces purchase errors in-dialog, and hands off cleanly to the success dialog without overlapping modal backdrops.
+  - These are web-only UI fixes. The existing mobile completion flow is separate, and a native mobile store UI is still not present.
+  - No data model or data classification changes are introduced.
 - Admin family reward redemption update (2026-07-14):
   - On web, admins redeeming a Family Award can choose any active family member with a linked user account; the selected member's wallet pays for and owns the award.
   - Admins can optionally claim/consume the award in the same action. The award claim records both the recipient and acting admin, and the wallet debit remains ledger-audited.
@@ -997,10 +1002,12 @@ Family Chores is **privacy-first and child-safety-first**. These rules are non-n
   - **Server-side guard against duplicate "first child" creation.** `POST /api/family/members` accepts `source` (`"onboarding"` vs `"family_management"`) and `onboardingFirstChild`. `shouldBlockOnboardingFirstChild` (same module) rejects an onboarding first-child create with `409 setup_already_complete` when the family already has children. Regular family-management adds are never blocked — keep that distinction when touching this route. The onboarding wizard's AddChild step sends `source: "onboarding"` and `onboardingFirstChild` only for the first add in the session.
   - **Duplicate-child cleanup is support-only, soft-delete, and activity-guarded.** `GET/POST /api/support/duplicate-children` (Families module panel) detects same-family/same-name duplicate children and soft-deletes only empty, non-original duplicates. Detection/safety logic is the pure `findDuplicateChildGroups` / `hasMeaningfulActivity` in `apps/web/src/lib/support/duplicate-children.ts`. Never hard-delete a child, and never delete one with chores, completions, coins, wallet ledger, inventory, or achievements — the POST handler re-verifies activity server-side before deleting.
   - **Structured logs:** `[ONBOARDING_REDIRECT_DECISION]`, `[FAMILY_MEMBER_CREATE]`, `[ONBOARDING_DUPLICATE_CHILD_PREVENTED]`, and `[SUPPORT_DUPLICATE_CHILD_SOFT_DELETED]` carry `user_id`/`family_id`/`child_count`/`child_creation_source`/`redirect_target` for tracing. Preserve these when refactoring.
-- Support dashboard audit metrics (2026-06-13):
-  - The `/support/dashboard` 30-day audit chart is sourced from `appConfig/supportDashboardMetrics` (classification: `ADMIN_ONLY`).
-  - The document stores a precomputed `audit30DayTotal`, `audit30DaySeriesJson`, window bounds, and `updatedAt` so support charts do not depend on capped collection-group debug reads.
-  - Refresh this document with `npm run support:audit-metrics` when operators need an updated series or after bulk audit-log backfills.
+- Support dashboard family activity metrics (2026-07-20):
+  - The `/support/dashboard` 30-day chart ("30-Day Family Activity") is sourced from `appConfig/supportDashboardMetrics` (classification: `ADMIN_ONLY`).
+  - The document stores a precomputed `familyActivity30DaySeriesJson` (one point per day with `newFamilies`, `newUsers`, `choresCreated`, `routinesCreated`, `choresCompleted`, `routinesCompleted`), window bounds, and `updatedAt` so the chart does not depend on capped collection-group debug reads.
+  - Refresh this document with `npm run support:family-activity-metrics` when operators need an updated series or after bulk data backfills.
+  - `newUsers` counts rely on `users/{uid}.createdAt`, which is only set going forward from 2026-07-20 (managed local player accounts already had it); pre-existing Google-signup accounts have no `createdAt` and are not retroactively counted.
+  - The old audit-log-only "30-Day Audit Activity" chart and the dashboard's "Family Activity Feed" panel were removed in favor of this chart; `SupportFeedPanel` (feed diagnostics) remains on the Communication tab.
 
 ## New Skill Bonus (2026-06-11)
 - **What it is.** A child earns a one-time **+5 coin** "New Skill Bonus" the first time they ever complete a given chore. User-facing copy is always "New Skill Bonus" (never "New Chore Bonus"). Amount: `NEW_SKILL_BONUS_AMOUNT` in `apps/web/src/lib/chores/skill-bonus.ts`.
