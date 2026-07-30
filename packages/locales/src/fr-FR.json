@@ -454,7 +454,14 @@
     },
     "menu": {
       "choreOptions": "Options de la tache",
-      "bulkActions": "Actions groupees"
+      "bulkActions": "Actions groupees",
+      "disabledReasons": {
+        "actionInProgress": "Une autre action sur une tache est encore en cours.",
+        "approvalNotRequired": "Cette tache n'a pas besoin d'approbation.",
+        "approveStatus": "Seules les taches en attente d'approbation peuvent etre approuvees. Statut actuel : {status}.",
+        "rejectStatus": "Seules les taches en attente d'approbation peuvent etre rejetees. Statut actuel : {status}.",
+        "undoStatus": "Seules les taches terminees ou deja examinees peuvent etre annulees. Statut actuel : {status}."
+      }
     },
     "actions": {
       "approve": "Approuver",
@@ -1588,6 +1595,7 @@
       "columnSteps": "Étapes",
       "columnTimesUsed": "Utilisations",
       "columnUpdated": "Dernière mise à jour",
+      "actionsAriaLabel": "Options de la routine",
       "assignAction": "Assigner",
       "duplicateAction": "Dupliquer",
       "copyName": "{name} (copie)",

@@ -454,7 +454,14 @@
     },
     "menu": {
       "choreOptions": "Chore options",
-      "bulkActions": "Bulk actions"
+      "bulkActions": "Bulk actions",
+      "disabledReasons": {
+        "actionInProgress": "Another chore action is still in progress.",
+        "approvalNotRequired": "This chore does not need approval.",
+        "approveStatus": "Only chores waiting for approval can be approved. Current status: {status}.",
+        "rejectStatus": "Only chores waiting for approval can be rejected. Current status: {status}.",
+        "undoStatus": "Only completed or reviewed chores can be undone. Current status: {status}."
+      }
     },
     "actions": {
       "approve": "Approve",
@@ -1544,6 +1551,7 @@
       "columnSteps": "Steps",
       "columnTimesUsed": "Times Used",
       "columnUpdated": "Last Updated",
+      "actionsAriaLabel": "Routine options",
       "assignAction": "Assign",
       "duplicateAction": "Duplicate",
       "copyName": "{name} (copy)",

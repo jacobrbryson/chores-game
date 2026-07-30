@@ -45,4 +45,46 @@ describe("locales", () => {
     expect(t("profile.languageSaved")).toBe("Langue mise à jour.");
     expect(onMissingKey).not.toHaveBeenCalled();
   });
+
+  it("translates Store reward redemption copy in every supported language", () => {
+    const redemptionKeys = [
+      "store.familyReward",
+      "store.redeemRewardTitle",
+      "store.redeemFor",
+      "store.rewardRecipientOption",
+      "store.rewardRecipientRequired",
+      "store.rewardRecipientInsufficientFunds",
+      "store.consumeRewardNow",
+      "store.consumeRewardNowHelp",
+      "store.confirmRedemption",
+      "store.rewardRedeemedFor",
+      "store.rewardRedeemedAndConsumedFor",
+      "store.viewMemberAwards",
+    ];
+    const expectations = {
+      "fr-FR": ["Récompense familiale", "Échanger Soirée cinéma"],
+      "en-US": ["Family reward", "Redeem Movie night"],
+      "es-US": ["Recompensa familiar", "Canjear Noche de cine"],
+    } as const;
+
+    for (const locale of SUPPORTED_LOCALES) {
+      const t = createTranslator({ locale });
+      const reward =
+        locale === "fr-FR"
+          ? "Soirée cinéma"
+          : locale === "es-US"
+            ? "Noche de cine"
+            : "Movie night";
+
+      expect([
+        t("store.familyReward"),
+        t("store.redeemRewardTitle", { reward }),
+      ]).toEqual(expectations[locale]);
+      for (const key of redemptionKeys) {
+        expect(
+          t(key, { reward, name: "Alex", coins: 20 }),
+        ).not.toBe(key);
+      }
+    }
+  });
 });

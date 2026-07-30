@@ -454,7 +454,14 @@
     },
     "menu": {
       "choreOptions": "Opciones de tarea",
-      "bulkActions": "Acciones masivas"
+      "bulkActions": "Acciones masivas",
+      "disabledReasons": {
+        "actionInProgress": "Todavia hay otra accion de tarea en progreso.",
+        "approvalNotRequired": "Esta tarea no necesita aprobacion.",
+        "approveStatus": "Solo se pueden aprobar las tareas que esperan aprobacion. Estado actual: {status}.",
+        "rejectStatus": "Solo se pueden rechazar las tareas que esperan aprobacion. Estado actual: {status}.",
+        "undoStatus": "Solo se pueden deshacer las tareas completadas o revisadas. Estado actual: {status}."
+      }
     },
     "actions": {
       "approve": "Aprobar",
@@ -1588,6 +1595,7 @@
       "columnSteps": "Pasos",
       "columnTimesUsed": "Veces usada",
       "columnUpdated": "Última actualización",
+      "actionsAriaLabel": "Opciones de la rutina",
       "assignAction": "Asignar",
       "duplicateAction": "Duplicar",
       "copyName": "{name} (copia)",

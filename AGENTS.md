@@ -220,9 +220,10 @@ The `supportRequests` collection is the single source of truth for all user-subm
 - Support manages content; the SEO dashboard reports metadata, readiness, sitemap, and lifecycle health.
 
 ## Recent Decisions (2026-02-15)
-- Dashboard completion and admin reward dialog fixes (2026-07-29):
+- Dashboard completion and admin reward dialog fixes (2026-07-30):
   - Completing and approving a multi-assignee chore from the dashboard payout dialog now triggers the same completion/confetti celebration as the direct completion path.
   - The admin Family Award redemption dialog uses the shared family modal layout, shows the award and coin cost, surfaces purchase errors in-dialog, and hands off cleanly to the success dialog without overlapping modal backdrops.
+  - Store reward-redemption copy is synchronized between the shared locale source and the standalone web deployment package for `fr-FR`, `en-US`, and `es-US`; the deploy script refreshes both embedded `core` and `locales` packages before deployment.
   - These are web-only UI fixes. The existing mobile completion flow is separate, and a native mobile store UI is still not present.
   - No data model or data classification changes are introduced.
 - Admin family reward redemption update (2026-07-14):
