@@ -7,6 +7,7 @@ import {
 } from "@packages/core/src/main-navigation";
 import { useMobileLocale } from "@/lib/locale";
 import { MobileProfileMenu } from "@/components/ui/MobileProfileMenu";
+import { DiscoveryBadge } from "@/components/ui/DiscoveryBadge";
 import { colors, spacing, typography } from "@/theme";
 
 type Props = {
@@ -27,18 +28,6 @@ type Props = {
   onLoggedOut: () => void;
   onAccountChanged?: () => void;
 };
-
-function NavDiscoveryBadge({ count }: { count: number }) {
-  if (!count || count <= 0) {
-    return null;
-  }
-  const display = count > 99 ? "99+" : String(count);
-  return (
-    <View style={styles.discoveryBadge} accessibilityLabel={`${count} new`}>
-      <Text style={styles.discoveryBadgeText}>{display}</Text>
-    </View>
-  );
-}
 
 function IconView({ icon }: { icon: MainNavigationIcon }) {
   if (icon === "list") {
@@ -151,7 +140,7 @@ export function MainNavigation({
             ]}>
             <View style={styles.iconWrap}>
               <IconView icon={item.icon} />
-              <NavDiscoveryBadge count={discoveryCounts?.[item.id] ?? 0} />
+              <DiscoveryBadge count={discoveryCounts?.[item.id] ?? 0} variant="absolute" />
             </View>
             <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
               {t(`nav.${item.id}` as const)}
@@ -190,21 +179,6 @@ const styles = StyleSheet.create({
   itemActive: { backgroundColor: "#e8f5ff" },
   itemPressed: { opacity: 0.76 },
   iconWrap: { position: "relative" },
-  discoveryBadge: {
-    position: "absolute",
-    top: -8,
-    right: -12,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 999,
-    paddingHorizontal: 4,
-    backgroundColor: "#dc2626",
-    borderWidth: 1,
-    borderColor: "#ffffff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  discoveryBadgeText: { color: "#ffffff", fontSize: 9, fontWeight: "800" },
   iconSlot: { width: 20, height: 20 },
   listIcon: { width: 20, height: 20, justifyContent: "center", gap: 2 },
   listIconRow: { flexDirection: "row", alignItems: "center", gap: 3 },

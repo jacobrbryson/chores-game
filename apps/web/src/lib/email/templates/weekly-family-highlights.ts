@@ -79,7 +79,6 @@ function buildMetrics(props: WeeklyFamilyHighlightsTemplateProps): WeeklyMetricL
     { labelKey: "newsletter.weekly.metrics.coinsEarned", value: props.coinsEarned, emoji: "🪙" },
     { labelKey: "newsletter.weekly.metrics.rewardsRedeemed", value: props.rewardsRedeemed, emoji: "🎁" },
     { labelKey: "newsletter.weekly.metrics.familyAwardsClaimed", value: props.familyAwardsClaimed, emoji: "🏆" },
-    { labelKey: "newsletter.weekly.metrics.questsCompleted", value: props.questsCompleted, emoji: "🗺️" },
     { labelKey: "newsletter.weekly.metrics.achievementsUnlocked", value: props.achievementsUnlocked, emoji: "🏅" },
     { labelKey: "newsletter.weekly.metrics.pendingApprovals", value: props.pendingApprovals, emoji: "⏳" },
   ];

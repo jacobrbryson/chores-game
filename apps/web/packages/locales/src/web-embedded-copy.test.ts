@@ -7,10 +7,9 @@ import esUS from "./es-US.json";
 import frFR from "./fr-FR.json";
 
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
-const embeddedDirectory = path.resolve(
-  sourceDirectory,
-  "../../../apps/web/packages/locales/src",
-);
+const embeddedDirectory = sourceDirectory.includes(`${path.sep}apps${path.sep}web${path.sep}`)
+  ? sourceDirectory
+  : path.resolve(sourceDirectory, "../../../apps/web/packages/locales/src");
 
 function readEmbeddedLocale(fileName: string) {
   return JSON.parse(

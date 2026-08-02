@@ -11,6 +11,7 @@ import type { AppLocale } from "@packages/locales";
 
 export type DiscoverySectionKey =
   | "chores"
+  | "feed"
   | "store"
   | "store:customize_colors"
   | "store:customize_avatar"

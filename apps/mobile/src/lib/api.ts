@@ -3,6 +3,15 @@ import { createApiClient } from "@packages/api-client";
 import type { AppLocale } from "@packages/locales";
 import { Platform } from "react-native";
 import { collapseRoutineChores } from "@/lib/routine-chores";
+import {
+  mobileFamilyFriendAwardCopyPath,
+  mobileFamilyFriendInvitationRequest,
+  mobileFamilyFriendInvitationPath,
+  mobileFamilyFriendInviteRequest,
+  mobileFamilyFriendPath,
+  mobileFamilyFriendRemoveRequest,
+  mobileFamilyFriendsPath,
+} from "@/lib/family-friends-contract";
 
 const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api/v1";
 export const appBaseUrl = baseUrl.replace(/\/api\/v1\/?$/, "");
@@ -200,9 +209,10 @@ export type MobileFeedItem = {
   message: string;
   actor: MobileFeedActor | null;
   icon: string;
-  action: "view_chore" | "view_reward" | null;
+  action: "view_chore" | "view_reward" | "copy_friend_award" | null;
   createdAt: string;
-  metadata: { choreId?: string; choreTitle?: string };
+  sourceFamily?: { id: string; name: string; isFriend: boolean };
+  metadata: { choreId?: string; choreTitle?: string; rewardId?: string; rewardDescription?: string };
 };
 
 export type MobileFeedPage = {
@@ -216,8 +226,9 @@ export type MobileFeedPage = {
   };
 };
 
-export async function fetchMobileFeed(page = 1, limit = 20): Promise<MobileFeedPage> {
+export async function fetchMobileFeed(page = 1, limit = 20, scope: "all" | "friends" = "all"): Promise<MobileFeedPage> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (scope === "friends") params.set("scope", "friends");
   const payload = await apiFetch(`/feed?${params.toString()}`);
   const pagination = payload?.pagination ?? {};
   return {
@@ -230,6 +241,66 @@ export async function fetchMobileFeed(page = 1, limit = 20): Promise<MobileFeedP
       hasMore: Boolean(pagination.hasMore),
     },
   };
+}
+
+export type MobileFamilyFriend = {
+  familyId: string;
+  familyName: string;
+  connectedAt: string;
+};
+
+export type MobileFamilyFriendInvite = {
+  id: string;
+  status: string;
+  fromFamilyName: string;
+  fromAdminName: string;
+  toEmail: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export type MobileFamilyFriendsState = {
+  viewerRole: "admin" | "player";
+  friends: MobileFamilyFriend[];
+  incoming: MobileFamilyFriendInvite[];
+  outgoing: MobileFamilyFriendInvite[];
+};
+
+export async function fetchMobileFamilyFriends(): Promise<MobileFamilyFriendsState> {
+  const payload = (await apiFetch(mobileFamilyFriendsPath)) as Partial<MobileFamilyFriendsState>;
+  return {
+    viewerRole: payload.viewerRole === "admin" ? "admin" : "player",
+    friends: Array.isArray(payload.friends) ? payload.friends : [],
+    incoming: Array.isArray(payload.incoming) ? payload.incoming : [],
+    outgoing: Array.isArray(payload.outgoing) ? payload.outgoing : [],
+  };
+}
+
+export async function inviteMobileFamilyFriend(email: string) {
+  return apiFetch(mobileFamilyFriendsPath, mobileFamilyFriendInviteRequest(email));
+}
+
+export async function confirmMobileFamilyFriend(inviteId: string) {
+  return apiFetch(mobileFamilyFriendInvitationPath(inviteId), mobileFamilyFriendInvitationRequest("accept"));
+}
+
+export async function resendMobileFamilyFriendInvite(inviteId: string) {
+  return apiFetch(mobileFamilyFriendInvitationPath(inviteId), mobileFamilyFriendInvitationRequest("resend"));
+}
+
+export async function cancelMobileFamilyFriendInvite(inviteId: string) {
+  return apiFetch(mobileFamilyFriendInvitationPath(inviteId), mobileFamilyFriendInvitationRequest("cancel"));
+}
+
+export async function removeMobileFamilyFriend(friendFamilyId: string) {
+  return apiFetch(mobileFamilyFriendPath(friendFamilyId), mobileFamilyFriendRemoveRequest());
+}
+
+export async function copyMobileFriendAward(sourceFamilyId: string, rewardId: string) {
+  return apiFetch(mobileFamilyFriendAwardCopyPath, {
+    method: "POST",
+    body: JSON.stringify({ sourceFamilyId, rewardId }),
+  });
 }
 
 export type MobileStoreSummary = {

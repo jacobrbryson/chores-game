@@ -187,12 +187,13 @@ async function requestFirestoreAdmin<T>(url: string, init?: RequestInit) {
   });
 
   if (!response.ok) {
-    let detail = "";
+    const raw = await response.text().catch(() => "");
+    let detail = raw;
     try {
-      const json = (await response.json()) as { error?: { message?: string } };
-      detail = json.error?.message ?? "";
+      const json = JSON.parse(raw) as { error?: { message?: string } };
+      detail = json.error?.message ?? raw;
     } catch {
-      detail = await response.text();
+      // Preserve the raw response when the API does not return JSON.
     }
     throw new Error(`FIRESTORE_ADMIN_HTTP_${response.status}${detail ? `_${detail}` : ""}`);
   }
@@ -252,6 +253,23 @@ export async function adminGetDocument(path: string) {
 export async function adminRunQuery(structuredQuery: Record<string, unknown>) {
   const rows = await requestFirestoreAdmin<FirestoreRunQueryResult[]>(
     `${baseDatabaseUrl()}/documents:runQuery`,
+    {
+      method: "POST",
+      body: JSON.stringify({ structuredQuery }),
+    },
+  );
+  return rows.map((row) => row.document).filter((doc): doc is FirestoreDocument => Boolean(doc));
+}
+
+// Runs a structured query relative to a concrete document path. This is useful
+// for securely reading another family's child collection after a server-side
+// relationship check, without widening client Firestore rules.
+export async function adminRunQueryAt(
+  parentPath: string,
+  structuredQuery: Record<string, unknown>,
+) {
+  const rows = await requestFirestoreAdmin<FirestoreRunQueryResult[]>(
+    `${baseDocumentsUrl()}/${parentPath}:runQuery`,
     {
       method: "POST",
       body: JSON.stringify({ structuredQuery }),

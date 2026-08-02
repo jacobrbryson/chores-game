@@ -6,8 +6,6 @@ import {
   MeResponseSchema,
   NotificationSchema,
   PaginatedResponseSchema,
-  QuestChoiceInputSchema,
-  QuestSummarySchema,
   RedeemRewardInputSchema,
   RewardSchema,
   type ApiError,
@@ -90,15 +88,6 @@ export function createApiClient(config: ApiClientConfig) {
       redeem: (id: string) => {
         RedeemRewardInputSchema.parse({ rewardId: id });
         return request(`/rewards/${id}/redeem`, { method: "POST" }, RewardSchema);
-      },
-    },
-    quests: {
-      list: () => request("/quests", { method: "GET" }, PaginatedResponseSchema(QuestSummarySchema)),
-      getById: (id: string) => request(`/quests/${id}`, { method: "GET" }, QuestSummarySchema),
-      start: (id: string) => request(`/quests/${id}/start`, { method: "POST" }, QuestSummarySchema),
-      submitChoice: (id: string, input: { choiceId: string; purchaseIfMissing?: boolean }) => {
-        QuestChoiceInputSchema.parse(input);
-        return request(`/quests/${id}/choice`, { method: "POST", body: JSON.stringify(input) }, QuestSummarySchema);
       },
     },
     achievements: {

@@ -22,6 +22,7 @@ function humanizeCategory(value: string) {
 function buildCategoryCounts(summary: MobileProfileSummary | null) {
   const byCategory = new Map<string, number>();
   for (const item of summary?.ownedItems ?? []) {
+    if (item.category.trim().toLowerCase().includes("quest")) continue;
     byCategory.set(item.category, (byCategory.get(item.category) ?? 0) + Math.max(0, item.quantity));
   }
   return Array.from(byCategory.entries())

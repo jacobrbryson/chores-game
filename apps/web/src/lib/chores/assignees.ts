@@ -115,6 +115,22 @@ export async function resolveAssigneeAvatarPhotoUrl(
   );
 }
 
+export async function resolveAssigneeName(
+  familyId: string,
+  assigneeId: string,
+  idToken: string,
+  fallbackName = "Family member",
+) {
+  return (
+    (await resolveFromMember(
+      familyId,
+      assigneeId,
+      idToken,
+      (fields) => readString(fields, "name") || undefined,
+    )) ?? fallbackName
+  );
+}
+
 // Resolves the Firebase uid for a chore assignee alias (doc id, uid, or email).
 // Returns "" when the member cannot be resolved or is deleted.
 export async function resolveAssigneeUid(

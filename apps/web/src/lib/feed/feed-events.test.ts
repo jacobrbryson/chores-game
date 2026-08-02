@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { localeMessages, SUPPORTED_LOCALES } from "@packages/locales";
 import {
   FEED_EVENT_TYPES,
   feedTypeAction,
@@ -15,6 +16,7 @@ describe("feed event mapping", () => {
     expect(mapNotificationKindToFeedType("chore_created")).toBe("chore_created");
     expect(mapNotificationKindToFeedType("reward_claimed")).toBe("reward_claimed");
     expect(mapNotificationKindToFeedType("identity_title_unlocked")).toBe("title_unlocked");
+    expect(mapNotificationKindToFeedType("family_reward_created")).toBe("family_award_created");
   });
 
   it("excludes noisy lifecycle kinds from the feed", () => {
@@ -31,6 +33,16 @@ describe("feed event mapping", () => {
     expect(feedTypeAction("chore_completed")).toBe("view_chore");
     expect(feedTypeAction("reward_claimed")).toBe("view_reward");
     expect(feedTypeAction("title_unlocked")).toBeNull();
+    expect(feedTypeAction("family_award_created")).toBe("copy_friend_award");
+  });
+
+  it("provides a translated heading for every feed type", () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      const events = localeMessages[locale].feed.events as Record<string, string>;
+      for (const type of FEED_EVENT_TYPES) {
+        expect(events[type], `${locale} feed.events.${type}`).toBeTruthy();
+      }
+    }
   });
 });
 

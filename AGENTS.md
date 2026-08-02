@@ -140,7 +140,6 @@ All AI-powered features must:
 ## Public Content & SEO Rules
 Public SEO content may only be generated from:
 - Approved chores
-- Approved quests
 - Approved community awards
 - Approved support-published content
 - Approved changelog entries
@@ -220,6 +219,14 @@ The `supportRequests` collection is the single source of truth for all user-subm
 - Support manages content; the SEO dashboard reports metadata, readiness, sitemap, and lifecycle health.
 
 ## Recent Decisions (2026-02-15)
+- Family Friends and quest retirement update (2026-08-01):
+  - Only parent/admin accounts can invite another family by an admin email, confirm a request, cancel/resend a pending invitation, or remove a connection. One target-family admin confirmation creates the bilateral connection.
+  - Invitations use expiring single-use confirmation tokens, best-effort email delivery, and admin-only in-app confirmation actions. Relationship mutations are server-authorized and audit logged.
+  - Connected families share only positive feed activity: chore completions/approvals, routine completions, rewards claimed, and earned milestones. Cross-family child display is limited to first name and avatar. Rejections, edits, deletions, and other private/noisy activity are never shared.
+  - Friend-created Family Awards appear only to parents/admins and can be copied into the viewer's own Family Awards after the server verifies the active friendship.
+  - The full Feed tab merges the family's own feed with connected-family highlights while the dashboard chore list stays focused on chores. A per-profile unseen counter appears beside Feed and clears when the tab is viewed; it uses the existing discovery-state storage. Pending invitation confirmations may still appear above the tabs. Mobile uses the same merged feed and counter behavior, and its Profile screen supports inviting, confirming, resending, cancelling, and removing Family Friends.
+  - Quest navigation, pages, APIs, store items, discovery counts, support surfaces, and mobile entry points are disabled. Quest source code, historical data, and assets remain in place for a possible future return.
+  - Data classifications: bilateral `families/{familyId}/friends` relationship metadata is `FAMILY_PRIVATE`; invitation records and invited admin emails are `ADMIN_ONLY`; cross-family child first names, avatars, positive activity projections, and per-profile Feed last-seen timestamps are `CHILD_SENSITIVE`; immutable relationship audit records remain `ADMIN_ONLY`. The Feed counter adds no new collection.
 - Dashboard completion and admin reward dialog fixes (2026-07-30):
   - Completing and approving a multi-assignee chore from the dashboard payout dialog now triggers the same completion/confetti celebration as the direct completion path.
   - The admin Family Award redemption dialog uses the shared family modal layout, shows the award and coin cost, surfaces purchase errors in-dialog, and hands off cleanly to the success dialog without overlapping modal backdrops.

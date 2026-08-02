@@ -229,6 +229,7 @@
     },
     "sections": {
       "chores": "Tareas",
+      "feed": "Actividad",
       "store": "Tienda",
       "storeCustomizeColors": "Colores",
       "storeCustomizeAvatar": "Avatares",
@@ -384,13 +385,32 @@
       "reviewApproval": "Revisar aprobación"
     },
     "events": {
+      "family_award_created": "Nuevo premio familiar",
       "chore_created": "Nueva tarea añadida",
       "chore_completed": "Tarea completada",
       "chore_approved": "Tarea aprobada",
       "chore_rejected": "La tarea necesita otro intento",
       "reward_claimed": "Recompensa canjeada",
+      "routine_assigned": "Rutina asignada",
+      "routine_completed": "Rutina completada",
       "title_unlocked": "Nuevo título obtenido"
     }
+  },
+  "familyFriends": {
+    "title": "Familias amigas",
+    "description": "Conéctate con familias que conoces y celebren juntos sus logros positivos.",
+    "invite": { "email": "Correo del administrador familiar", "placeholder": "padre@ejemplo.com" },
+    "incoming": { "title": "Solicitudes por confirmar", "from": "Invitación de {name}", "dashboardTitle": "{family} quiere ser una familia amiga" },
+    "outgoing": { "title": "Solicitudes enviadas" },
+    "connected": { "title": "Familias conectadas", "since": "Familias amigas desde {date}", "empty": "Aún no hay familias amigas. Invita a una familia que conozcas." },
+    "latest": { "title": "Últimos logros de amigos", "description": "Anima a las familias que más te importan.", "viewAll": "Ver el feed completo" },
+    "feed": { "fromFamily": "De {family}" },
+    "actions": { "invite": "Invitar familia", "sending": "Enviando...", "confirm": "Confirmar", "confirming": "Confirmando...", "resend": "Reenviar", "cancel": "Cancelar", "remove": "Eliminar amistad", "keep": "Seguir conectados" },
+    "awards": { "copy": "Copiar a mis premios familiares", "copying": "Copiando...", "copied": "Premio familiar copiado a tu familia." },
+    "remove": { "title": "Eliminar familia amiga", "body": "¿Desconectarse de {family}? Sus familias dejarán de compartir actividad." },
+    "disabled": { "actionPending": "Todavía se está guardando otra acción de Familias amigas." },
+    "errors": { "action": "Falló la actualización de Familias amigas: {error}" },
+    "notices": { "sent": "Invitación enviada por correo y dentro de la aplicación si el destinatario tiene una cuenta.", "email_warning": "La solicitud se guardó, pero no se pudo confirmar el envío del correo. Puedes reenviarlo.", "accept": "Ahora sus familias son amigas.", "resend": "Invitación reenviada.", "cancel": "Invitación cancelada.", "removed": "Familia amiga eliminada." }
   },
   "choreDialog": {
     "addTitle": "Agregar tareas",
@@ -1237,6 +1257,7 @@
       "members": "Miembros",
       "awards": "Premios",
       "categories": "Categorias",
+      "friends": "Amigos",
       "quests": "Misiones",
       "privacy": "Privacidad"
     },

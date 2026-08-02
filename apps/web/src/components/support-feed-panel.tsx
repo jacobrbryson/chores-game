@@ -25,6 +25,7 @@ const FEED_TYPE_LABELS: Record<FeedEventType, string> = {
   routine_assigned: "Routine assigned",
   routine_completed: "Routine completed",
   title_unlocked: "Title unlocked",
+  family_award_created: "Family Award created",
 };
 
 export function SupportFeedPanel({ events }: { events: SupportFeedEvent[] }) {

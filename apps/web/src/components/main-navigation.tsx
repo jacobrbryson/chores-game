@@ -16,7 +16,6 @@ const NAV_DISCOVERY_SECTION: Partial<Record<MainNavigationItemId, string>> = {
   dashboard: "chores",
   store: "store",
   achievements: "achievements",
-  quests: "quests",
 };
 
 type MainNavigationProps = {
@@ -50,7 +49,7 @@ export function MainNavigation({
 }: MainNavigationProps) {
   const pathname = usePathname();
   const { t } = useLocale();
-  const { summary } = useDiscoverySummary();
+  const { summary } = useDiscoverySummary(["chores", "store", "achievements"]);
 
   return (
     <nav className="main-nav" aria-label="Primary navigation">

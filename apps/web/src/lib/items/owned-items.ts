@@ -14,6 +14,17 @@ export type OwnedItemSummary = {
   acquisitionLabel: string;
 };
 
+export function isRetiredQuestOwnedItem(item: OwnedItemSummary) {
+  const optionMatch = findStoreOptionById(item.id);
+  return (
+    item.category === "quest" ||
+    item.category === "quest_items" ||
+    item.image.startsWith("/quests/") ||
+    item.acquisitionLabel.toLowerCase().includes("quest") ||
+    optionMatch?.option.unlockSource === "quest"
+  );
+}
+
 export function buildOwnedItemsSummary(input: {
   ownedOptionIds: Iterable<string>;
   inventoryByItemId: Map<string, { quantity: number; addedAt?: string }>;
@@ -75,7 +86,7 @@ export function buildOwnedItemsSummary(input: {
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
-  return Array.from(byId.values()).sort((left, right) => {
+  return Array.from(byId.values()).filter((item) => !isRetiredQuestOwnedItem(item)).sort((left, right) => {
     const byAddedAt = toUnixMillis(right.addedAt) - toUnixMillis(left.addedAt);
     if (byAddedAt !== 0) {
       return byAddedAt;

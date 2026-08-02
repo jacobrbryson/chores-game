@@ -22,6 +22,7 @@ import {
 } from "@/lib/discovery/counts";
 import { getChangeLogEntries } from "@/lib/change-log";
 import { loadPublicRequestedChanges } from "@/lib/support/public-requests";
+import { loadVisibleFeedTimestampsForViewer } from "@/lib/feed/discovery";
 import {
   DISCOVERY_SECTIONS,
   getDiscoverySection,
@@ -204,6 +205,7 @@ function storeCatalogTimestampsByCategory(): Map<string, string[]> {
 
 type SectionNeeds = {
   chores: boolean;
+  feed: boolean;
   store: boolean;
   quests: boolean;
   achievements: boolean;
@@ -219,6 +221,7 @@ function resolveNeeds(sectionKeys: DiscoverySectionKey[]): SectionNeeds {
   );
   return {
     chores: set.has("chores"),
+    feed: set.has("feed"),
     store: anyStore,
     quests: set.has("quests"),
     achievements: set.has("achievements"),
@@ -269,9 +272,10 @@ export async function getDiscoverySummaryForViewer(
   const lastSeen = await getLastSeenMapForViewer(context);
   const needs = resolveNeeds(requested);
 
-  const [chores, rewardTimestamps, achievements, questTimestamps, requestedChangeTimestamps] =
+  const [chores, feedTimestamps, rewardTimestamps, achievements, questTimestamps, requestedChangeTimestamps] =
     await Promise.all([
       needs.chores ? loadChores(context) : Promise.resolve([] as DiscoveryChoreRecord[]),
+      needs.feed ? loadVisibleFeedTimestampsForViewer(context) : Promise.resolve([] as string[]),
       needs.store ? loadRewardTimestamps(context) : Promise.resolve([] as string[]),
       needs.achievements ? loadAchievements(context) : Promise.resolve([] as DiscoveryAchievementRecord[]),
       needs.quests ? loadQuestPublishTimestamps(context) : Promise.resolve([] as string[]),
@@ -295,6 +299,8 @@ export async function getDiscoverySummaryForViewer(
           aliases: context.aliases,
           lastSeenAt,
         });
+      case "feed":
+        return countNewByTimestamp(feedTimestamps, lastSeenAt);
       case "quests":
         return countNewByTimestamp(questTimestamps, lastSeenAt);
       case "achievements":

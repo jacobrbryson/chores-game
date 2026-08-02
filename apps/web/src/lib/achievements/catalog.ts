@@ -61,8 +61,6 @@ export const ACHIEVEMENT_CATALOG: AchievementCatalogEntry[] = [
   { id: "player_all_avatars_unlocked", audience: "player", title: "All Avatars Unlocked", wittyTitle: "Avatar Vault Complete", description: "Unlock all store avatars.", metricType: "store_avatar_collection_complete", target: 1, imageUrl: "/achievements/placeholders/player_first_avatar.svg", sortOrder: 44, isVisibleToPlayers: true },
   { id: "player_first_confetti_unlock", audience: "player", title: "First Confetti Unlock", wittyTitle: "Spark Starter", description: "Unlock your first store confetti style.", metricType: "store_confetti_unlocks", target: 1, imageUrl: "/achievements/placeholders/player_first_confetti.svg", sortOrder: 45, isVisibleToPlayers: true },
   { id: "player_all_confetti_unlocked", audience: "player", title: "All Confetti Unlocked", wittyTitle: "Celebration Overdrive", description: "Unlock all purchasable store confetti styles.", metricType: "store_confetti_collection_complete", target: 1, imageUrl: "/achievements/placeholders/player_first_confetti.svg", sortOrder: 46, isVisibleToPlayers: true },
-  { id: "player_first_quest_item_unlock", audience: "player", title: "First Quest Item Unlock", wittyTitle: "Pocket Adventure", description: "Unlock your first quest item from the store.", metricType: "store_quest_item_unlocks", target: 1, imageUrl: "/achievements/placeholders/player_first_purchase.svg", sortOrder: 47, isVisibleToPlayers: true },
-  { id: "player_all_quest_items_unlocked", audience: "player", title: "All Quest Items Unlocked", wittyTitle: "Quest Quartermaster", description: "Unlock every quest item type in the store.", metricType: "store_quest_item_collection_complete", target: 1, imageUrl: "/achievements/placeholders/player_first_purchase.svg", sortOrder: 48, isVisibleToPlayers: true },
   { id: "admin_first_chore_created", audience: "admin", title: "First Chore Created", wittyTitle: "Taskmaster Begins", description: "Create your first chore.", metricType: "admin_chores_created", target: 1, imageUrl: "/achievements/placeholders/admin_first_chore_created.svg", sortOrder: 101, isVisibleToPlayers: false },
   { id: "admin_25_chores_created", audience: "admin", title: "25 Chores Created", wittyTitle: "List Lord", description: "Create 25 chores.", metricType: "admin_chores_created", target: 25, imageUrl: "/achievements/placeholders/admin_25_chores_created.svg", sortOrder: 102, isVisibleToPlayers: false },
   { id: "admin_first_approval", audience: "admin", title: "First Approval Given", wittyTitle: "The Rubber Stamp Awakens", description: "Approve your first submitted chore.", metricType: "admin_chores_approved", target: 1, imageUrl: "/achievements/placeholders/admin_first_approval.svg", sortOrder: 103, isVisibleToPlayers: false },
@@ -85,7 +83,7 @@ export const ACHIEVEMENT_BY_ID = new Map(
 );
 
 function validateAchievementCatalog() {
-  if (ACHIEVEMENT_CATALOG.length !== 58) {
+  if (ACHIEVEMENT_CATALOG.length !== 56) {
     throw new Error(`ACHIEVEMENT_CATALOG_COUNT_INVALID_${ACHIEVEMENT_CATALOG.length}`);
   }
   const ids = new Set<string>();
@@ -97,7 +95,7 @@ function validateAchievementCatalog() {
   }
   const playerCount = ACHIEVEMENT_CATALOG.filter((entry) => entry.audience === "player").length;
   const adminCount = ACHIEVEMENT_CATALOG.filter((entry) => entry.audience === "admin").length;
-  if (playerCount !== 48 || adminCount !== 10) {
+  if (playerCount !== 46 || adminCount !== 10) {
     throw new Error(`ACHIEVEMENT_AUDIENCE_COUNT_INVALID_${playerCount}_${adminCount}`);
   }
 }

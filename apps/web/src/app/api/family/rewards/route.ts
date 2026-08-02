@@ -30,6 +30,8 @@ import {
 } from "@/lib/family/rewards";
 import { trackAchievementEvent } from "@/lib/achievements/service";
 import { submitFamilyRewardToCommunity } from "@/lib/community-awards";
+import { emitFamilyActivity } from "@/lib/notifications/events";
+import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 
 type CreateRewardBody = {
   description?: unknown;
@@ -281,6 +283,21 @@ export async function POST(request: NextRequest) {
             admin_rewards_created: 1,
           },
         });
+        await emitFamilyActivity({
+          familyId,
+          idToken,
+          kind: "family_reward_created",
+          actorUid: session.uid,
+          actorEmail: session.email,
+          actorName: session.name,
+          title: `${session.name || "A parent"} created a new Family Award`,
+          message: `${description} for ${coinCost} coins`,
+          rewardId,
+          rewardDescription: description,
+          rewardCoinCost: coinCost,
+          rewardImageId: imageId,
+        });
+        await publishFamilyActivity({ type: "family_reward_created", familyId, occurredAt: now });
 
         return {
           kind: "ok" as const,

@@ -11,14 +11,14 @@ import {
 import { colors, radius, spacing, typography } from "@/theme";
 import { MobileCommunityAwardsLibrary } from "@/components/MobileCommunityAwardsLibrary";
 import { AppScreen, AvatarBadge, Button, Card, CoinPill, EmptyState, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
+import { filterActiveMobileStoreCategories } from "@/lib/mobile-feature-surface";
 
-const STORE_CATEGORY_ORDER = ["family_awards", "customize_colors", "customize_avatar", "victory_confetti", "quest_items"];
+const STORE_CATEGORY_ORDER = ["family_awards", "customize_colors", "customize_avatar", "victory_confetti"];
 const STORE_CATEGORY_LABELS: Record<string, string> = {
   family_awards: "Family",
   customize_colors: "Colors",
   customize_avatar: "Avatars",
   victory_confetti: "Confetti",
-  quest_items: "Quests",
 };
 
 const FAMILY_REWARD_IMAGE_PATHS: Record<string, string> = {
@@ -144,10 +144,10 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
       setStore(nextStore);
       setError("");
       setSelectedCategoryId((current) => {
-        if (current && nextStore.categories.some((category) => category.id === current)) {
+        if (current && current !== "quest_items" && nextStore.categories.some((category) => category.id === current)) {
           return current;
         }
-        const ordered = [...nextStore.categories].sort(
+        const ordered = filterActiveMobileStoreCategories(nextStore.categories).sort(
           (a, b) => STORE_CATEGORY_ORDER.indexOf(a.id) - STORE_CATEGORY_ORDER.indexOf(b.id),
         );
         return ordered[0]?.id ?? "";
@@ -169,7 +169,7 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
     if (!store) {
       return [];
     }
-    return [...store.categories].sort(
+    return filterActiveMobileStoreCategories(store.categories).sort(
       (a, b) => STORE_CATEGORY_ORDER.indexOf(a.id) - STORE_CATEGORY_ORDER.indexOf(b.id),
     );
   }, [store]);
@@ -301,7 +301,7 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
   }
 
   return (
-    <AppScreen title="Store" subtitle="Colors, avatars, confetti, and quest gear" right={right} onPressBreadcrumbRoot={onGoDashboard}>
+    <AppScreen title="Store" subtitle="Colors, avatars, confetti, and family awards" right={right} onPressBreadcrumbRoot={onGoDashboard}>
       {loading ? <LoadingState label="Loading store..." /> : null}
       {error ? <ErrorState message={`Could not load store: ${error}`} /> : null}
       {!loading && !error && store ? (

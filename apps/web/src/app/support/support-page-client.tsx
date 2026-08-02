@@ -13,7 +13,6 @@ import { SupportFamilyActivityChart } from "@/components/support-family-activity
 import { SupportContentPanel, SupportSeoPanel } from "@/components/support-content-panel";
 import { SupportConsoleShell, type SupportModuleId } from "@/components/support-console-shell";
 import { SupportFeedPanel } from "@/components/support-feed-panel";
-import { SupportGhostChoresPanel } from "@/components/support-ghost-chores-panel";
 import { SupportChoreUsagePanel } from "@/components/support-chore-usage-panel";
 import { SupportMetricsStrip, type SupportMetric } from "@/components/support-metrics-strip";
 import { SupportNewslettersPanel } from "@/components/support-newsletters-panel";
@@ -182,10 +181,6 @@ const MODULE_COPY: Record<SupportModuleId, { title: string; subtitle: string }> 
   awards: {
     title: "Awards",
     subtitle: "Review and moderate community-submitted award ideas.",
-  },
-  quests: {
-    title: "Quests",
-    subtitle: "Track quest-adjacent support signals and Smart Ghost Chore suggestions.",
   },
   content: {
     title: "Content",
@@ -821,8 +816,6 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
           </section>
         </>
       ) : null}
-
-      {!loading && payload && module === "quests" ? <SupportGhostChoresPanel /> : null}
 
       {!loading && payload && module === "content" ? <SupportContentPanel /> : null}
 

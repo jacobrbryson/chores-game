@@ -19,6 +19,7 @@ export const FEED_EVENT_TYPES = [
   "routine_assigned",
   "routine_completed",
   "title_unlocked",
+  "family_award_created",
 ] as const;
 
 export type FeedEventType = (typeof FEED_EVENT_TYPES)[number];
@@ -39,6 +40,7 @@ const NOTIFICATION_KIND_TO_FEED_TYPE: Record<string, FeedEventType> = {
   routine_assigned: "routine_assigned",
   routine_completed: "routine_completed",
   identity_title_unlocked: "title_unlocked",
+  family_reward_created: "family_award_created",
 };
 
 export function mapNotificationKindToFeedType(kind: string): FeedEventType | null {
@@ -60,6 +62,7 @@ const FEED_TYPE_ICONS: Record<FeedEventType, string> = {
   routine_assigned: "routine",
   routine_completed: "routine_done",
   title_unlocked: "title",
+  family_award_created: "reward",
 };
 
 export function feedTypeIcon(type: FeedEventType): string {
@@ -77,6 +80,7 @@ const FEED_TYPE_EMOJI: Record<FeedEventType, string> = {
   routine_assigned: "📋",
   routine_completed: "🎉",
   title_unlocked: "🏅",
+  family_award_created: "🎁",
 };
 
 // Fallback for notification kinds that surface in the email highlights but aren't part
@@ -89,11 +93,14 @@ export function feedTypeEmoji(type: FeedEventType): string {
 
 // Optional safe deep-link action for an event. Only surfaces that the viewer can already
 // reach are linked; never link to support/admin/operator-only surfaces.
-export type FeedActionType = "view_chore" | "view_reward";
+export type FeedActionType = "view_chore" | "view_reward" | "copy_friend_award";
 
 export function feedTypeAction(type: FeedEventType): FeedActionType | null {
   if (type === "reward_claimed") {
     return "view_reward";
+  }
+  if (type === "family_award_created") {
+    return "copy_friend_award";
   }
   if (type === "routine_assigned" || type === "routine_completed" || type === "title_unlocked") {
     // Routine and title-unlock events carry no single chore to deep-link to.

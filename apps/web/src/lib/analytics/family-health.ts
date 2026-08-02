@@ -83,7 +83,6 @@ export type FamilyHealthInputs = {
   storePurchasesRecent?: number;
   pillarXpEarnedRecent?: number;
   identityProgressRecent?: number;
-  questActivityRecent?: number;
   athenaUsageRecent?: number;
 
   // Total events for the family in the window — used to detect "no signal at all".
@@ -185,7 +184,6 @@ export function scoreFamilyHealth(
     (inputs.storePurchasesRecent ?? 0) +
     (inputs.pillarXpEarnedRecent ?? 0) +
     (inputs.identityProgressRecent ?? 0) +
-    (inputs.questActivityRecent ?? 0) +
     (inputs.athenaUsageRecent ?? 0);
   const engagementDepth = countScore(depthCount, t.depthSaturation);
 

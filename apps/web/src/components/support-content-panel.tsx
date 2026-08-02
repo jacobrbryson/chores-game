@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { ModalShell } from "@/components/modal-shell";
-import { EDITABLE_PUBLIC_CONTENT_TYPES, PUBLIC_CONTENT_STATUSES, PUBLIC_CONTENT_TYPES, type PublicContentStatus, type PublicContentType } from "@/lib/public-content/types";
+import { EDITABLE_PUBLIC_CONTENT_TYPES, PUBLIC_CONTENT_STATUSES, SUPPORT_VISIBLE_PUBLIC_CONTENT_TYPES, type PublicContentStatus, type PublicContentType } from "@/lib/public-content/types";
 
 type ContentRecord = {
   id: string;
@@ -145,7 +145,7 @@ export function SupportSeoPanel() {
       </div>
       <SummaryCard title="Counts by type">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {PUBLIC_CONTENT_TYPES.map((type) => (
+          {SUPPORT_VISIBLE_PUBLIC_CONTENT_TYPES.map((type) => (
             <Row key={type} label={type.replace("_", " ")} value={String(seo?.byType?.[type] ?? 0)} />
           ))}
         </div>
@@ -254,7 +254,7 @@ export function SupportContentPanel() {
           <input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} className="min-w-[220px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search content" />
           <select value={type} onChange={(event) => { setType(event.target.value); setPage(1); }} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
             <option value="">All types</option>
-            {PUBLIC_CONTENT_TYPES.map((entry) => <option key={entry} value={entry}>{entry.replace("_", " ")}</option>)}
+            {SUPPORT_VISIBLE_PUBLIC_CONTENT_TYPES.map((entry) => <option key={entry} value={entry}>{entry.replace("_", " ")}</option>)}
           </select>
           <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
             <option value="">All statuses</option>

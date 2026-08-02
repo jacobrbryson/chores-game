@@ -10,6 +10,7 @@ import type {
 // add one-off badge logic directly to a feature.
 export const DISCOVERY_SECTIONS: DiscoverySectionDefinition[] = [
   { key: "chores", audience: "all", labelKey: "discovery.sections.chores" },
+  { key: "feed", audience: "all", labelKey: "discovery.sections.feed" },
   { key: "store", audience: "all", labelKey: "discovery.sections.store" },
   {
     key: "store:customize_colors",
@@ -39,14 +40,6 @@ export const DISCOVERY_SECTIONS: DiscoverySectionDefinition[] = [
     labelKey: "discovery.sections.storeFamilyAwards",
     storeCategoryId: "family_awards",
   },
-  {
-    key: "store:quest_items",
-    parentKey: "store",
-    audience: "all",
-    labelKey: "discovery.sections.storeQuestItems",
-    storeCategoryId: "quest_items",
-  },
-  { key: "quests", audience: "all", labelKey: "discovery.sections.quests" },
   { key: "achievements", audience: "all", labelKey: "discovery.sections.achievements" },
   { key: "changelog", audience: "all", labelKey: "discovery.sections.changelog" },
   { key: "requested_changes", audience: "all", labelKey: "discovery.sections.requestedChanges" },
@@ -63,6 +56,7 @@ const SECTION_BY_KEY = new Map<string, DiscoverySectionDefinition>(
 // resolved (the client localizes by labelKey).
 const FALLBACK_LABELS: Record<DiscoverySectionKey, string> = {
   chores: "Chores",
+  feed: "Feed",
   store: "Store",
   "store:customize_colors": "Colors",
   "store:customize_avatar": "Avatars",

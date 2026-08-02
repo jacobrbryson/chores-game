@@ -1,9 +1,9 @@
 {
   "id": "terms-of-service",
   "title": "Terms of Service",
-  "version": "2026-06-06",
-  "effectiveDate": "2026-06-06",
-  "lastUpdated": "2026-06-06",
+  "version": "2026-08-01",
+  "effectiveDate": "2026-08-01",
+  "lastUpdated": "2026-08-01",
   "requiresReacceptance": true,
   "sections": [
     {
@@ -17,7 +17,7 @@
       "heading": "Service Description",
       "body": [
         "Family Chores is a household task-management game developed by Orcwood Games in which parents and guardians assign, review, and approve chores, and players earn virtual in-app currency and cosmetic rewards for completing them.",
-        "Features include chore management, approvals and rejections, a virtual economy, cosmetic customization, achievement tracking, quests, and family activity feeds."
+        "Features include chore management, approvals and rejections, a virtual economy, cosmetic customization, achievement tracking, family activity feeds, and parent-controlled Family Friends connections."
       ]
     },
     {
@@ -61,7 +61,8 @@
     {
       "heading": "Family Content and Public Content",
       "body": [
-        "Content created within a family group — chores, rewards, activity records — is private to that family and accessible only to authorized members.",
+        "Content created within a family group — chores, rewards, and activity records — is private to that family except for the limited positive activity an administrator elects to share through a confirmed Family Friends connection.",
+        "Only administrators may send, confirm, or remove Family Friends connections. Connected families may see positive activity, including child first names and avatars. Family Award creation is shared only with administrators; rejections, edits, deletions, and email addresses are not shared.",
         "Community and public-facing content, such as feature requests or changelog highlights, is reviewed and published by Orcwood Games. Families do not control what appears in public community content.",
         "Orcwood Games will not display private family data, child names, or family identifiers in public content without explicit approval."
       ]

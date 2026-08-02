@@ -46,6 +46,7 @@ type NotificationItem = {
   createdAt: string;
   seen: boolean;
   triggeredByViewer: boolean;
+  inviteId?: string;
 };
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 50;
@@ -393,8 +394,12 @@ export async function GET(request: NextRequest) {
         );
 
         const visible = notificationDocs
-          .map((doc) => {
+          .map((doc): NotificationItem | null => {
             const id = documentIdFromName(doc.name);
+            const kind = readString(doc.fields, "kind");
+            if (kind.startsWith("quest_")) {
+              return null;
+            }
             const actorUid = readString(doc.fields, "actorUid");
             const relatedIds = readStringArray(doc.fields, "relatedIds");
             const triggeredByViewer = actorUid === session.uid;
@@ -408,12 +413,13 @@ export async function GET(request: NextRequest) {
             const seen = triggeredByViewer || seenIds.has(id);
             return {
               id,
-              kind: readString(doc.fields, "kind"),
+              kind,
               title: readString(doc.fields, "title"),
               message: readString(doc.fields, "message"),
               createdAt: readTimestamp(doc.fields, "createdAt"),
               seen,
               triggeredByViewer,
+              inviteId: readString(doc.fields, "inviteId") || undefined,
             } satisfies NotificationItem;
           })
           .filter((entry): entry is NotificationItem => Boolean(entry))

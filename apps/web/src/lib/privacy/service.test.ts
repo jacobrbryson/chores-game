@@ -264,13 +264,13 @@ describe("legal document loader", () => {
     const doc = getPrivacyPolicy();
     // The version in the JSON file is the canonical default; if CURRENT_PRIVACY_VERSION
     // differs it means an env override is active (acceptable) but the default must match.
-    expect(doc.version).toBe("2026-06-06");
+    expect(doc.version).toBe("2026-08-01");
     expect(CURRENT_PRIVACY_VERSION).toBe(doc.version);
   });
 
   it("terms document version matches CURRENT_TERMS_VERSION", () => {
     const doc = getTermsOfService();
-    expect(doc.version).toBe("2026-06-06");
+    expect(doc.version).toBe("2026-08-01");
     expect(CURRENT_TERMS_VERSION).toBe(doc.version);
   });
 

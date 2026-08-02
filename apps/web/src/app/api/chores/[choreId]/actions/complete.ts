@@ -37,6 +37,7 @@ import { awardChoreResponsibilityXpBestEffort } from "@/lib/responsibility/servi
 import { recordRoutineStepCompletionBestEffort } from "@/lib/responsibility/assignment-service";
 import { getRequesterContext, isRequesterAssignee } from "@/lib/chores/access";
 import {
+  resolveAssigneeName,
   resolveAssigneeUid,
   resolveChoreAssigneeIds,
   userHasFamilyMembership,
@@ -291,7 +292,16 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
       celebrationPlayerUid: session.uid,
     });
   }
-  const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
+  const primaryAssigneeAlias = choreAssigneeIds[0] || choreAssigneeId;
+  const assigneeUid = await resolveAssigneeUid(familyId, primaryAssigneeAlias, idToken);
+  const completedForSingleAssignee = requester.role === "admin" && choreAssigneeIds.length === 1;
+  const completionActorName = completedForSingleAssignee
+    ? await resolveAssigneeName(familyId, choreAssigneeIds[0], idToken, actorName)
+    : actorName;
+  const completionActorUid = completedForSingleAssignee
+    ? assigneeUid || primaryAssigneeAlias
+    : session.uid;
+  const completionActorEmail = completedForSingleAssignee ? "" : session.email;
   // Kiosk Mode attribution: in kiosk the current identity is the player, so the
   // player is recorded as the actor (parents are still notified) while the
   // originally signed-in account is preserved as authenticated_user_id and the
@@ -307,7 +317,7 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
       choreId,
       choreFields: existingChoreDoc.fields,
       playerUid: assigneeUid || "",
-      actor: { uid: session.uid, email: session.email, name: actorName },
+      actor: { uid: completionActorUid, email: completionActorEmail, name: completionActorName },
       kiosk: kioskActivity,
     });
   }
@@ -316,16 +326,16 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
     familyId,
     idToken,
     kind: "chore_completed",
-    actorUid: session.uid,
-    actorEmail: session.email,
-    actorName,
+    actorUid: completionActorUid,
+    actorEmail: completionActorEmail,
+    actorName: completionActorName,
     title: completionNeedsApproval ? "Chore submitted for approval" : "Chore completed",
     message: completionNeedsApproval
-      ? `${actorName} completed "${choreTitle}"${routineStepContext} and it is waiting for parent approval.`
-      : `${actorName} marked "${choreTitle}"${routineStepContext} complete${payoutApplied ? ` and earned ${approvedCoinValue} coins` : ""}.${newSkillBonus.awarded ? ` 🎉 New Skill Learned (+${newSkillBonus.totalCoins} bonus coins)!` : ""}${choreRecurrence.recurrenceType !== "none" ? ` ${recurrenceLabel(choreRecurrence)}.` : ""}`,
+      ? `${completionActorName} completed "${choreTitle}"${routineStepContext} and it is waiting for parent approval.`
+      : `${completionActorName} completed "${choreTitle}"${routineStepContext}${payoutApplied ? ` and earned ${approvedCoinValue} coins` : ""}.${newSkillBonus.awarded ? ` 🎉 New Skill Learned (+${newSkillBonus.totalCoins} bonus coins)!` : ""}${choreRecurrence.recurrenceType !== "none" ? ` ${recurrenceLabel(choreRecurrence)}.` : ""}`,
     choreId,
     choreTitle,
-    relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
+    relatedIds: choreAssigneeIds,
     pushType: completionNeedsApproval ? "chore_approval_required" : "chore_completed",
     source: kioskActivity.source,
     authenticatedUid: kioskActivity.authenticatedUid,
@@ -362,6 +372,11 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
       source: kioskActivity.source,
       authenticatedUid: kioskActivity.authenticatedUid,
       completedForPlayerId: kioskActivity.completedForPlayerId,
+    });
+    await publishFamilyActivity({
+      type: "identity_title_unlocked",
+      familyId,
+      occurredAt: now,
     });
   }
   // Credit achievements to every assignee on the chore. Group, family, and

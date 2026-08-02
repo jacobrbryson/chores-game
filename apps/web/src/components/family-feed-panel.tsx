@@ -25,9 +25,12 @@ type FeedItem = {
   icon: string;
   action: FeedActionType | null;
   createdAt: string;
+  sourceFamily: { id: string; name: string; isFriend: boolean };
   metadata: {
     choreId?: string;
     choreTitle?: string;
+    rewardId?: string;
+    rewardDescription?: string;
   };
 };
 
@@ -78,10 +81,10 @@ function feedActionHref(action: FeedActionType | null): string | null {
   return null;
 }
 
-function FeedSkeleton({ label }: { label: string }) {
+function FeedSkeleton({ label, compact = false }: { label: string; compact?: boolean }) {
   return (
     <section className="feed-list" aria-label={label} aria-hidden="true">
-      {[0, 1, 2, 3].map((key) => (
+      {(compact ? [0, 1, 2] : [0, 1, 2, 3]).map((key) => (
         <div key={key} className="feed-card feed-card-skeleton">
           <div className="family-skeleton feed-skeleton-avatar" />
           <div className="feed-skeleton-body">
@@ -94,7 +97,9 @@ function FeedSkeleton({ label }: { label: string }) {
   );
 }
 
-export function FamilyFeedPanel() {
+type FamilyFeedPanelProps = { scope?: "all" | "friends"; compact?: boolean };
+
+export function FamilyFeedPanel({ scope = "all", compact = false }: FamilyFeedPanelProps) {
   const { locale, t } = useLocale();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [page, setPage] = useState(1);
@@ -102,6 +107,8 @@ export function FamilyFeedPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const [copyPendingId, setCopyPendingId] = useState("");
+  const [copyNotice, setCopyNotice] = useState("");
   const requestSeqRef = useRef(0);
 
   const loadFeed = useCallback(async (targetPage: number, mode: "replace" | "append") => {
@@ -114,7 +121,11 @@ export function FamilyFeedPanel() {
     requestSeqRef.current += 1;
     const requestSeq = requestSeqRef.current;
     try {
-      const params = new URLSearchParams({ page: String(targetPage), limit: "20" });
+      const params = new URLSearchParams({
+        page: String(targetPage),
+        limit: compact ? "3" : "20",
+      });
+      if (scope === "friends") params.set("scope", "friends");
       const response = await fetch(`/api/feed?${params.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
@@ -139,7 +150,7 @@ export function FamilyFeedPanel() {
         setIsLoadingMore(false);
       }
     }
-  }, []);
+  }, [compact, scope]);
 
   useEffect(() => {
     void loadFeed(1, "replace");
@@ -160,7 +171,7 @@ export function FamilyFeedPanel() {
   }, [loadFeed]);
 
   if (isLoading) {
-    return <FeedSkeleton label={t("feed.loading")} />;
+    return <FeedSkeleton label={t("feed.loading")} compact={compact} />;
   }
 
   if (error) {
@@ -168,6 +179,7 @@ export function FamilyFeedPanel() {
   }
 
   if (items.length === 0) {
+    if (compact) return null;
     return (
       <article className="family-panel feed-empty">
         <div className="feed-empty-emoji" aria-hidden="true">🎉</div>
@@ -177,13 +189,48 @@ export function FamilyFeedPanel() {
     );
   }
 
+  async function copyFriendAward(item: FeedItem) {
+    if (!item.metadata.rewardId || !item.sourceFamily.isFriend || copyPendingId) return;
+    setCopyPendingId(item.id);
+    setCopyNotice("");
+    try {
+      const response = await fetch("/api/family-friends/awards/copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceFamilyId: item.sourceFamily.id,
+          rewardId: item.metadata.rewardId,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || `FRIEND_AWARD_COPY_HTTP_${response.status}`);
+      setCopyNotice("copied");
+    } catch (copyError) {
+      setCopyNotice(copyError instanceof Error ? copyError.message : "friend_award_copy_failed");
+    } finally {
+      setCopyPendingId("");
+    }
+  }
+
   return (
-    <section className="feed-list" aria-label={t("feed.ariaLabel")}>
+    <section className={compact ? "family-page-card mb-4" : ""} aria-label={compact ? t("familyFriends.latest.title") : t("feed.ariaLabel")}>
+      {compact ? (
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div><h2>{t("familyFriends.latest.title")}</h2><p className="small">{t("familyFriends.latest.description")}</p></div>
+          <Link href="/?tab=feed" className="feed-card-action">{t("familyFriends.latest.viewAll")}</Link>
+        </div>
+      ) : null}
+      {copyNotice ? (
+        <Alert tone={copyNotice === "copied" ? "success" : "warning"}>
+          {copyNotice === "copied" ? t("familyFriends.awards.copied") : t("familyFriends.errors.action", { error: copyNotice })}
+        </Alert>
+      ) : null}
+      <div className="feed-list">
       {items.map((item) => {
         // A completed chore is what a parent reviews in the Approval Inbox, so
         // deep-link those events straight there (the page redirects non-parents
         // home). Other chore/reward events keep their existing destinations.
-        const isApprovalEvent = item.type === "chore_completed";
+        const isApprovalEvent = item.type === "chore_completed" && !item.sourceFamily.isFriend;
         const href = isApprovalEvent ? "/approvals" : feedActionHref(item.action);
         const actionLabel = isApprovalEvent
           ? t("feed.actions.reviewApproval")
@@ -222,11 +269,29 @@ export function FamilyFeedPanel() {
                   {formatRelativeTime(item.createdAt, locale, t("feed.justNow"))}
                 </time>
               </div>
+              {item.sourceFamily.isFriend ? (
+                <p className="small font-semibold text-teal-700">
+                  {t("familyFriends.feed.fromFamily", { family: item.sourceFamily.name })}
+                </p>
+              ) : null}
               {item.message ? <p className="feed-card-message">{item.message}</p> : null}
               {href ? (
                 <Link href={href} className="feed-card-action">
                   {actionLabel}
                 </Link>
+              ) : null}
+              {item.action === "copy_friend_award" && item.sourceFamily.isFriend && item.metadata.rewardId ? (
+                <span title={copyPendingId ? t("familyFriends.disabled.actionPending") : undefined}>
+                  <Button
+                    type="button"
+                    className="btn btn-primary mt-2"
+                    disabled={Boolean(copyPendingId)}
+                    onClick={() => void copyFriendAward(item)}>
+                    {copyPendingId === item.id
+                      ? t("familyFriends.awards.copying")
+                      : t("familyFriends.awards.copy")}
+                  </Button>
+                </span>
               ) : null}
             </div>
           </article>
@@ -243,6 +308,7 @@ export function FamilyFeedPanel() {
           </Button>
         </div>
       ) : null}
+      </div>
     </section>
   );
 }

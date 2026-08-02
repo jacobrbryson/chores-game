@@ -6,7 +6,6 @@ export type SupportModuleId =
   | "communication"
   | "requests"
   | "awards"
-  | "quests"
   | "content"
   | "seo"
   | "responsibility"
@@ -21,7 +20,6 @@ export const SUPPORT_MODULES: Array<{ id: SupportModuleId; label: string; href: 
   { id: "communication", label: "Communication", href: "/support/communication" },
   { id: "requests", label: "Requests", href: "/support/requests" },
   { id: "awards", label: "Awards", href: "/support/awards" },
-  { id: "quests", label: "Quests", href: "/support/quests" },
   { id: "content", label: "Content", href: "/support/content" },
   { id: "seo", label: "SEO", href: "/support/seo" },
   { id: "responsibility", label: "Responsibility", href: "/support/responsibility" },

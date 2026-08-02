@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { DEFAULT_LOCALE, resolveLocalePreference } from "@packages/locales";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import type { SessionUser } from "@/lib/auth/session";
+import { buildGoogleUserAuthFields } from "@/lib/auth/google-user-fields";
 import { createFamilyForUser } from "@/lib/family/bootstrap";
 import { mobileWebCorsPreflight, withMobileWebCors } from "@/lib/mobile-web-cors";
 import {
@@ -12,9 +13,6 @@ import {
   readBoolean,
   readString,
   readStringArray,
-  stringArrayField,
-  stringField,
-  timestampField,
 } from "@/lib/firestore/rest";
 
 type GoogleTokenInfo = {
@@ -175,17 +173,16 @@ async function upsertFirebaseUser(session: FirebaseSession, tokenInfo: GoogleTok
     fallbackLocale: DEFAULT_LOCALE,
   });
 
-  const authFields = {
-    uid: stringField(session.localId),
-    role: stringField(effectiveRole),
-    locale: stringField(effectiveLocale),
-    email: stringField(normalizedEmail),
-    displayName: stringField(tokenInfo.name ?? session.displayName ?? ""),
-    photoUrl: stringField(tokenInfo.picture ?? session.photoUrl ?? ""),
-    provider: stringField("google"),
-    lastSignInAt: timestampField(now),
-    ...(linkedFamilyId ? { familyIds: stringArrayField([linkedFamilyId]), lastFamilyUpdateAt: timestampField(now) } : {}),
-  };
+  const authFields = buildGoogleUserAuthFields({
+    uid: session.localId,
+    role: effectiveRole,
+    locale: effectiveLocale,
+    email: normalizedEmail,
+    displayName: tokenInfo.name ?? session.displayName ?? "",
+    photoUrl: tokenInfo.picture ?? session.photoUrl ?? "",
+    familyId: linkedFamilyId,
+    now,
+  });
   await patchDocument(`users/${session.localId}`, authFields, session.idToken, Object.keys(authFields));
 
   return {

@@ -44,7 +44,9 @@ export function CategorySelector({
   customPlaceholder = "Enter a custom category…",
   customLabel = "Custom category",
 }: Props) {
-  const keys = type === "bug" ? BUG_CATEGORY_KEYS : FEATURE_CATEGORY_KEYS;
+  const keys = (type === "bug" ? BUG_CATEGORY_KEYS : FEATURE_CATEGORY_KEYS).filter(
+    (key) => !key.includes("quest"),
+  );
   const isCustom = value !== "" && !isKnownCategoryKey(value);
   const selectValue = isCustom ? CUSTOM_SENTINEL : value;
 

@@ -12,7 +12,7 @@ type HomeProps = {
 const HOME_TITLE =
 	"Family Chores | Organized chores, rewards, and live family visibility";
 const HOME_DESCRIPTION =
-	"Family Chores Game helps parents manage chores, rewards, managed child profiles, family awards, quests, Google Tasks sync, and live household activity.";
+	"Family Chores Game helps parents manage chores, rewards, managed child profiles, family awards, Google Tasks sync, and live household activity.";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {

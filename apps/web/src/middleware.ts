@@ -117,6 +117,21 @@ export function middleware(request: NextRequest) {
     return applyCorsHeaders(new NextResponse(null, { status: 204 }), request);
   }
 
+  const questPageDisabled =
+    pathname === "/quests" ||
+    pathname.startsWith("/quests/") ||
+    pathname === "/features/quests" ||
+    pathname.startsWith("/features/quests/") ||
+    pathname === "/family/quests" ||
+    pathname.startsWith("/family/quests/");
+  const questApiDisabled = /^\/api\/(?:v1\/)?(?:family\/)?quests(?:\/|$)/.test(pathname);
+  if (questApiDisabled) {
+    return applyCorsHeaders(NextResponse.json({ error: "not_found" }, { status: 404 }), request);
+  }
+  if (questPageDisabled) {
+    return applyCorsHeaders(new NextResponse("Not Found", { status: 404 }), request);
+  }
+
   // Kiosk lock: while a session is in Kiosk Mode, the shared tablet is pinned to
   // /kiosk. Every other page route redirects there so the dashboard and the rest
   // of the app are never reachable until the PIN-gated exit clears the flag.

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { AppState, StyleSheet, Text, View } from "react-native";
 import { DEFAULT_LOCALE, type AppLocale } from "@packages/locales";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import type { MainNavigationItemId } from "@packages/core/src/main-navigation";
@@ -19,7 +19,6 @@ import { HomeScreen } from "@/screens/HomeScreen";
 import { LoginPlaceholderScreen } from "@/screens/LoginPlaceholderScreen";
 import { MobileKioskScreen } from "@/screens/MobileKioskScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
-import { QuestsScreen } from "@/screens/QuestsScreen";
 import { RewardsScreen } from "@/screens/RewardsScreen";
 import { Button, MainNavigation } from "@/components/ui";
 
@@ -28,12 +27,11 @@ type TabKey = MainNavigationItemId | "profile" | "login" | "all-chores";
 const EMPTY_DISCOVERY: MobileDiscoverySummary = { sections: {}, totalCount: 0 };
 
 // Nav item -> discovery section. The Dashboard item carries the Chores count;
-// tapping Store/Achievements/Quests marks that section seen on view.
+// Tapping Store or Achievements marks that section seen on view.
 const NAV_DISCOVERY_SECTION: Partial<Record<MainNavigationItemId, string>> = {
   dashboard: "chores",
   store: "store",
   achievements: "achievements",
-  quests: "quests",
 };
 
 type SessionMe = {
@@ -78,7 +76,7 @@ function AppContent({
   const [discovery, setDiscovery] = useState<MobileDiscoverySummary>(EMPTY_DISCOVERY);
 
   const loadDiscovery = React.useCallback(() => {
-    void fetchDiscoverySummary()
+    void fetchDiscoverySummary(["chores", "feed", "store", "achievements"])
       .then((summary) => setDiscovery(summary))
       .catch(() => setDiscovery((current) => current));
   }, []);
@@ -130,12 +128,20 @@ function AppContent({
     }
   }, [authState, loadDiscovery]);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active" && authState === "authenticated") {
+        loadDiscovery();
+      }
+    });
+    return () => subscription.remove();
+  }, [authState, loadDiscovery]);
+
   const discoveryCounts = useMemo<Partial<Record<MainNavigationItemId, number>>>(
     () => ({
       dashboard: getDiscoverySectionCount(discovery, "chores"),
       store: getDiscoverySectionCount(discovery, "store"),
       achievements: getDiscoverySectionCount(discovery, "achievements"),
-      quests: getDiscoverySectionCount(discovery, "quests"),
     }),
     [discovery],
   );
@@ -158,7 +164,6 @@ function AppContent({
     };
     switch (tab) {
       case "store": return <RewardsScreen onGoDashboard={goDashboard} onStoreUpdated={refreshSessionState} />;
-      case "quests": return <QuestsScreen onGoDashboard={goDashboard} />;
       case "achievements": return <AchievementsScreen onGoDashboard={goDashboard} />;
       case "profile": return <ProfileScreen onGoDashboard={goDashboard} />;
       case "all-chores": return <ChoresScreen onGoDashboard={goDashboard} />;
@@ -166,13 +171,14 @@ function AppContent({
       default: return (
         <HomeScreen
           viewerKey={sessionMe?.uid}
+          feedUnseenCount={getDiscoverySectionCount(discovery, "feed")}
           onOpenAllChores={() => setTab("all-chores")}
           onOpenStore={() => setTab("store")}
           onDiscoveryRefresh={loadDiscovery}
         />
       );
     }
-  }, [authState, tab, sessionMe?.uid, loadDiscovery]);
+  }, [authState, tab, sessionMe?.uid, discovery, loadDiscovery]);
 
   // Tapping a nav destination counts as viewing it: mark that section seen and
   // refresh the badges. Chores is handled on the Home dashboard itself.

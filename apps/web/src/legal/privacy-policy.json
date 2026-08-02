@@ -1,9 +1,9 @@
 {
   "id": "privacy-policy",
   "title": "Privacy Policy",
-  "version": "2026-06-06",
-  "effectiveDate": "2026-06-06",
-  "lastUpdated": "2026-06-06",
+  "version": "2026-08-01",
+  "effectiveDate": "2026-08-01",
+  "lastUpdated": "2026-08-01",
   "requiresReacceptance": true,
   "sections": [
     {
@@ -22,8 +22,9 @@
         "Account and identity information from Google sign-in, including name, email address, user ID, and a reference to your Google profile photo.",
         "Family workspace data, including family name, member roles (parent/admin or child/player), chore assignments, submissions, approvals, rejections, rewards, redemptions, and associated timestamps.",
         "Virtual economy data, including wallet balances, coin ledger transaction history, and store item ownership and redemption records.",
-        "Achievement, quest, and inventory progress records for each family member.",
+        "Achievement and inventory progress records for each family member, plus retained historical quest records when a family used the retired quest feature.",
         "Family activity feed records, including event type, actor display name, and timestamps.",
+        "Family Friends connection records, invitations, and the positive activity shared between families after two family administrators confirm a connection.",
         "Optional Google Tasks integration data, including selected task list names and linked task metadata, when a user enables Google Tasks sync in their profile.",
         "Referral and acquisition source data, such as referral codes or links used at sign-up or during family creation.",
         "Entitlement and access tier information, including beta, early adopter, premium, or support-admin status.",
@@ -38,7 +39,7 @@
         "We use collected information to:"
       ],
       "items": [
-        "Provide core app features, including chore management, approvals, reward redemption, achievements, quests, and family activity.",
+        "Provide core app features, including chore management, approvals, reward redemption, achievements, family activity, and parent-controlled Family Friends connections.",
         "Authenticate users and enforce role-based access controls so that family data is accessible only to authorized members.",
         "Sync chore data with Google Tasks when a user has enabled the integration.",
         "Maintain transaction and activity records for reliability, auditing, dispute resolution, and support.",
@@ -77,6 +78,8 @@
       ],
       "items": [
         "Within your family group, so that assigned members can view relevant chores, activity, and status.",
+        "With a connected Family Friend: all members may see positive activity such as chore and routine completions, approvals, claimed rewards, and milestones. This activity may include a child's first name and avatar. Family Award creation is shared only with administrators. Rejections, edits, deletions, email addresses, and other sensitive or noisy activity are not shared.",
+        "A Family Friends connection can be created only when an administrator invites another family administrator by email and that administrator confirms. Either family administrator can disconnect the families.",
         "With service providers that help operate the app, such as authentication, cloud hosting, and database infrastructure providers.",
         "When required by law, regulation, legal process, or as necessary to protect the rights, property, or safety of users or others."
       ]
@@ -104,7 +107,7 @@
       "body": [
         "Family Chores is designed for family participation with parent or guardian oversight. Parents and guardians are responsible for managing household access, approving child accounts, and reviewing activity.",
         "We do not knowingly collect personal information from children without parental consent. Parents must record parental consent in the app before child accounts can participate in family features. Consent is versioned and audited.",
-        "Child-facing social or community features are disabled by default. When such features are added, they will require explicit opt-in by a parent or guardian before a child account can participate."
+        "Family Friends is disabled by default. A parent or guardian enables it for their family by sending or confirming a connection request. Connected families can then see the limited positive activity, first names, and avatars described above until an administrator disconnects them."
       ]
     },
     {
@@ -127,6 +130,7 @@
         "Request family data deletion from Family → Privacy. Deletion takes effect 30 days after the request and can be canceled during that period.",
         "Unlink Google Tasks from your profile in the Profile page.",
         "Update your family's data region in Family → Privacy before recording consent.",
+        "Manage or disconnect Family Friends from the Family page.",
         "Contact us with privacy questions or data requests."
       ]
     },

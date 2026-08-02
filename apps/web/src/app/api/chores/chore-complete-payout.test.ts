@@ -167,6 +167,7 @@ describe("PATCH /api/chores/[choreId] complete payout", () => {
             fields: {
               uid: "player-uid",
               email: "legacy-player@example.com",
+              name: "Ross Bryson",
               role: "player",
               deleted: false,
             },
@@ -364,7 +365,11 @@ describe("PATCH /api/chores/[choreId] complete payout", () => {
     );
     expect(mockEmitFamilyActivity).toHaveBeenCalledWith(
       expect.objectContaining({
+        actorUid: "player-uid",
+        actorEmail: "",
+        actorName: "Ross Bryson",
         title: "Chore completed",
+        message: 'Ross Bryson completed "Take out trash" and earned 5 coins.',
         pushType: "chore_completed",
       }),
     );

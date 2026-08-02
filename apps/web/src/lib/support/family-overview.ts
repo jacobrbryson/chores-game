@@ -28,6 +28,11 @@ export type SupportFamilyOverview = {
     end: string;
   };
   metrics: Awaited<ReturnType<typeof computeWeeklyFamilyHighlightMetrics>>;
+  friends: Array<{
+    familyId: string;
+    familyName: string;
+    connectedAt: string;
+  }>;
   members: Array<{
     id: string;
     uid: string;
@@ -66,13 +71,14 @@ export async function loadSupportFamilyOverview(familyId: string): Promise<Suppo
         }).catch(() => null)
       : null,
   );
-  const [familyDoc, memberDocs, choreDocs, newsletterContext, metrics, newsletterSendDocs] = await Promise.all([
+  const [familyDoc, memberDocs, choreDocs, newsletterContext, metrics, newsletterSendDocs, friendDocs] = await Promise.all([
     adminGetDocument(`families/${familyId}`).catch(() => null),
     adminListDocuments(`families/${familyId}/members`, 250).catch(() => []),
     adminListAllDocuments(`families/${familyId}/chores`, { cap: 5000 }).catch(() => []),
     newsletterContextPromise,
     metricsPromise,
     adminListAllDocuments(`families/${familyId}/newsletterSends`, { cap: 2000 }).catch(() => []),
+    adminListAllDocuments(`families/${familyId}/friends`, { cap: 100 }).catch(() => []),
   ]);
 
   if (!familyDoc || !newsletterContext || !metrics) {
@@ -236,6 +242,15 @@ export async function loadSupportFamilyOverview(familyId: string): Promise<Suppo
       return left.name.localeCompare(right.name);
     });
 
+  const friends = friendDocs
+    .filter((doc) => !readBoolean(doc.fields, "deleted") && readString(doc.fields, "status") === "active")
+    .map((doc) => ({
+      familyId: readString(doc.fields, "friendFamilyId") || documentIdFromName(doc.name),
+      familyName: readString(doc.fields, "friendFamilyName") || "Family friend",
+      connectedAt: readTimestamp(doc.fields, "connectedAt"),
+    }))
+    .sort((left, right) => left.familyName.localeCompare(right.familyName));
+
   return {
     family: {
       id: familyId,
@@ -255,6 +270,7 @@ export async function loadSupportFamilyOverview(familyId: string): Promise<Suppo
       end: window.weekEndDateOnly,
     },
     metrics,
+    friends,
     members: overviewMembers,
   };
 }

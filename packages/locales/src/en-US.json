@@ -229,6 +229,7 @@
     },
     "sections": {
       "chores": "Chores",
+      "feed": "Feed",
       "store": "Store",
       "storeCustomizeColors": "Colors",
       "storeCustomizeAvatar": "Avatars",
@@ -389,8 +390,27 @@
       "chore_approved": "Chore approved",
       "chore_rejected": "Chore needs another try",
       "reward_claimed": "Reward redeemed",
-      "title_unlocked": "New title earned"
+      "routine_assigned": "Routine assigned",
+      "routine_completed": "Routine completed",
+      "title_unlocked": "New title earned",
+      "family_award_created": "New Family Award"
     }
+  },
+  "familyFriends": {
+    "title": "Family Friends",
+    "description": "Connect with families you know and celebrate positive wins together.",
+    "invite": { "email": "Family admin email", "placeholder": "parent@example.com" },
+    "incoming": { "title": "Requests to confirm", "from": "Invited by {name}", "dashboardTitle": "{family} wants to be Family Friends" },
+    "outgoing": { "title": "Sent requests" },
+    "connected": { "title": "Connected families", "since": "Family Friends since {date}", "empty": "No Family Friends yet. Invite a family you know to get started." },
+    "latest": { "title": "Friends’ latest wins", "description": "Cheer on the families you care about.", "viewAll": "View the full feed" },
+    "feed": { "fromFamily": "From {family}" },
+    "actions": { "invite": "Invite family", "sending": "Sending...", "confirm": "Confirm", "confirming": "Confirming...", "resend": "Resend", "cancel": "Cancel", "remove": "Remove friend", "keep": "Keep connected" },
+    "awards": { "copy": "Copy to my Family Awards", "copying": "Copying...", "copied": "Family Award copied to your family." },
+    "remove": { "title": "Remove Family Friend", "body": "Disconnect from {family}? Your families will stop sharing activity." },
+    "disabled": { "actionPending": "Another Family Friends action is still being saved." },
+    "errors": { "action": "Family Friends update failed: {error}" },
+    "notices": { "sent": "Invitation sent by email and in the app when the recipient has an account.", "email_warning": "The request was saved, but email delivery could not be confirmed. You can resend it.", "accept": "Your families are now Family Friends.", "resend": "Invitation sent again.", "cancel": "Invitation cancelled.", "removed": "Family Friend removed." }
   },
   "choreDialog": {
     "addTitle": "Add Chores",
@@ -1237,6 +1257,7 @@
       "members": "Members",
       "awards": "Awards",
       "categories": "Categories",
+      "friends": "Friends",
       "quests": "Quests",
       "privacy": "Privacy"
     },

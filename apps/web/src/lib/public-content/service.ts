@@ -302,11 +302,12 @@ async function writeContentAudit(record: PublicContentRecord, actor: Actor, even
 
 export async function listPublicContentRecords(query: PublicContentListQuery = {}) {
   const all = (await adminListAllDocuments(COLLECTION, { cap: 1000 })).map(normalizePublicContentDocument);
+  const visibleRecords = query.includeRetired ? all : all.filter((record) => record.type !== "quest");
   const q = (query.q ?? "").trim().toLowerCase();
   const type = query.type && isPublicContentType(query.type) ? query.type : "";
   const status = query.status && isPublicContentStatus(query.status) ? query.status : "";
   const locale = normalizeLocale(query.locale ?? "") ?? "";
-  const filtered = all
+  const filtered = visibleRecords
     .filter((record) => !type || record.type === type)
     .filter((record) => !status || record.status === status)
     .filter((record) => !locale || record.locale === locale)
@@ -326,7 +327,7 @@ export async function listPublicContentRecords(query: PublicContentListQuery = {
   const total = sorted.length;
   return {
     records: sorted.slice((page - 1) * pageSize, page * pageSize),
-    allRecords: all,
+    allRecords: visibleRecords,
     pagination: {
       page,
       pageSize,
@@ -338,7 +339,7 @@ export async function listPublicContentRecords(query: PublicContentListQuery = {
 }
 
 async function assertUniqueSlug(type: PublicContentType, slug: string, id: string) {
-  const { allRecords } = await listPublicContentRecords();
+  const { allRecords } = await listPublicContentRecords({ includeRetired: true });
   return !allRecords.some((record) => record.id !== id && record.status !== "archived" && record.type === type && record.slug === slug);
 }
 

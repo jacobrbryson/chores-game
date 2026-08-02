@@ -6,6 +6,13 @@ const { mockCreateOrReplaceDocument, mockListDocuments } = vi.hoisted(() => ({
   mockListDocuments: vi.fn(),
 }));
 
+vi.mock("@/lib/feed/discovery", () => ({
+  loadVisibleFeedTimestampsForViewer: vi.fn(async () => [
+    "2026-06-02T00:00:00.000Z",
+    "2026-06-03T00:00:00.000Z",
+  ]),
+}));
+
 vi.mock("@/lib/firestore/rest", () => ({
   createOrReplaceDocument: mockCreateOrReplaceDocument,
   listDocuments: mockListDocuments,
@@ -135,6 +142,7 @@ describe("getDiscoverySummaryForViewer", () => {
   it("scopes player chore counts to the active player's own chores", async () => {
     const summary = await getDiscoverySummaryForViewer(buildContext());
     expect(summary.sections.chores.count).toBe(1); // only player-1's chore
+    expect(summary.sections.feed.count).toBe(2);
   });
 
   it("counts all family chores for admins and aggregates store children into the store total", async () => {

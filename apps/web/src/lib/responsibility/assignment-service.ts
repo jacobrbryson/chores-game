@@ -438,6 +438,11 @@ async function finalizeRoutineCompletion(input: {
       authenticatedUid: kiosk?.authenticatedUid,
       completedForPlayerId: kiosk?.completedForPlayerId,
     });
+    await publishFamilyActivity({
+      type: "identity_title_unlocked",
+      familyId,
+      occurredAt: now,
+    });
   }
 
   // Recurring assignment: spawn the next occurrence with a fresh set of

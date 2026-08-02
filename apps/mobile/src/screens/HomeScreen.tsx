@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { AppScreen } from "@/components/ui";
+import { AppScreen, DiscoveryBadge } from "@/components/ui";
 import { MobileDashboardChoresPanel } from "@/components/MobileDashboardChoresPanel";
 import { MobileFeedPanel } from "@/components/MobileFeedPanel";
+import { MobileFamilyFriendsHighlights } from "@/components/MobileFamilyFriendsHighlights";
 import {
   loadDashboardTabPreference,
   saveDashboardTabPreference,
@@ -18,6 +19,7 @@ type Props = {
   onGoDashboard?: () => void;
   onOpenAllChores?: () => void;
   onOpenStore?: () => void;
+  feedUnseenCount?: number;
   // Called after the dashboard marks a discovery section seen so the bottom-nav
   // badges (owned by App) refresh.
   onDiscoveryRefresh?: () => void;
@@ -32,6 +34,7 @@ export function HomeScreen({
   viewerKey,
   onOpenAllChores,
   onOpenStore,
+  feedUnseenCount = 0,
   onDiscoveryRefresh,
 }: Props) {
   const { t } = useMobileLocale();
@@ -54,10 +57,12 @@ export function HomeScreen({
   // Marking the Chores section seen clears its nav badge once the Chores tab is
   // the active dashboard tab (not while the panel is merely mounted).
   useEffect(() => {
-    if (activeTab === "chores") {
-      void markDiscoverySeen(["chores"]).then(() => onDiscoveryRefresh?.());
+    if (tab === null) {
+      return;
     }
-  }, [activeTab, onDiscoveryRefresh]);
+    const section = activeTab === "feed" ? "feed" : "chores";
+    void markDiscoverySeen([section]).then(() => onDiscoveryRefresh?.());
+  }, [activeTab, onDiscoveryRefresh, tab]);
 
   function selectTab(next: DashboardTab) {
     setTab(next);
@@ -66,6 +71,7 @@ export function HomeScreen({
 
   return (
     <AppScreen title="Dashboard" right={right}>
+      <MobileFamilyFriendsHighlights />
       <View style={styles.tabs}>
         {(["chores", "feed"] as const).map((id) => {
           const active = activeTab === id;
@@ -77,9 +83,12 @@ export function HomeScreen({
               onPress={() => selectTab(id)}
               style={[styles.tab, active && styles.tabActive]}
             >
-              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                {t(`dashboard.tabs.${id}`)}
-              </Text>
+              <View style={styles.tabLabelRow}>
+                <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+                  {t(`dashboard.tabs.${id}`)}
+                </Text>
+                {id === "feed" ? <DiscoveryBadge count={feedUnseenCount} /> : null}
+              </View>
             </Pressable>
           );
         })}
@@ -113,5 +122,6 @@ const styles = StyleSheet.create({
   },
   tabActive: { backgroundColor: colors.brand, borderWidth: 1, borderColor: colors.brand },
   tabLabel: { fontSize: typography.body, fontWeight: "700", color: colors.muted },
+  tabLabelRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   tabLabelActive: { color: "#ffffff", fontWeight: "800" },
 });

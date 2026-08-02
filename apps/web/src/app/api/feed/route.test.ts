@@ -6,6 +6,18 @@ const mockSetSessionUserCookie = vi.fn();
 const mockGetDocument = vi.fn();
 const mockListDocuments = vi.fn();
 const mockRunQuery = vi.fn();
+const mockListFamilyFriends = vi.fn();
+const mockAdminListAllDocuments = vi.fn();
+const mockAdminRunQueryAt = vi.fn();
+
+vi.mock("@/lib/family-friends/repository", () => ({
+  listFamilyFriends: mockListFamilyFriends,
+}));
+
+vi.mock("@/lib/firestore/admin", () => ({
+  adminListAllDocuments: mockAdminListAllDocuments,
+  adminRunQueryAt: mockAdminRunQueryAt,
+}));
 
 vi.mock("@/lib/auth/firebase-refresh", () => ({
   runWithRefreshedFirebaseToken: mockRunWithRefreshedFirebaseToken,
@@ -25,6 +37,10 @@ vi.mock("@/lib/firestore/rest", () => ({
   listDocuments: mockListDocuments,
   runQuery: mockRunQuery,
   readBoolean: (fields: Record<string, unknown> | undefined, key: string) => Boolean(fields?.[key]),
+  readInteger: (fields: Record<string, unknown> | undefined, key: string) => {
+    const value = fields?.[key];
+    return typeof value === "number" ? value : 0;
+  },
   readString: (fields: Record<string, unknown> | undefined, key: string) => {
     const value = fields?.[key];
     return typeof value === "string" ? value : "";
@@ -146,6 +162,9 @@ describe("GET /api/feed", () => {
       }
       throw new Error(`Unexpected getDocument path: ${path}`);
     });
+    mockListFamilyFriends.mockResolvedValue([]);
+    mockAdminListAllDocuments.mockResolvedValue([]);
+    mockAdminRunQueryAt.mockResolvedValue([]);
     mockListDocuments.mockImplementation(async (path: string) => {
       if (path.endsWith("/members")) {
         return MEMBERS;
@@ -208,6 +227,140 @@ describe("GET /api/feed", () => {
     const completed = body.items.find((item: { id: string }) => item.id === "n1");
     expect(completed.actor).toMatchObject({ name: "Child", avatarId: "avatar-05" });
     expect(completed.metadata).toMatchObject({ choreId: "c1" });
+  });
+
+  it("normalizes legacy admin-on-behalf completions to the assigned child", async () => {
+    setSession("admin");
+    mockRunQuery.mockResolvedValue([
+      notificationDoc("admin-completed-for-child", {
+        kind: "chore_completed",
+        actorUid: "parent-uid",
+        actorEmail: "parent@example.com",
+        actorName: "Parent",
+        relatedIds: ["child-uid"],
+        title: "Chore completed",
+        message:
+          'Parent marked "Tell everyone three things you are grateful for" (step 4 of 4 in the "Daily Gratitude" routine) complete and earned 3 coins.',
+        choreId: "c-routine-step",
+        createdAt: "2026-06-04T10:00:00.000Z",
+      }),
+    ]);
+
+    const { GET } = await import("./route");
+    const body = await (await GET(feedRequest())).json();
+
+    expect(body.items[0]).toMatchObject({
+      actor: { uid: "child-uid", name: "Child", avatarId: "avatar-05" },
+      message:
+        'Child completed "Tell everyone three things you are grateful for" (step 4 of 4 in the "Daily Gratitude" routine) and earned 3 coins.',
+    });
+  });
+
+  it("uses the child's avatar for a legacy routine completed by an admin", async () => {
+    setSession("admin");
+    mockRunQuery.mockResolvedValue([
+      notificationDoc("admin-completed-routine-for-child", {
+        kind: "routine_completed",
+        actorUid: "parent-uid",
+        actorEmail: "parent@example.com",
+        actorName: "Parent",
+        relatedIds: ["child-uid"],
+        title: "Routine completed",
+        message: '🎉 Child finished the "Daily Gratitude" routine and earned 3 bonus coins!',
+        createdAt: "2026-06-04T10:00:00.000Z",
+      }),
+    ]);
+
+    const { GET } = await import("./route");
+    const body = await (await GET(feedRequest())).json();
+
+    expect(body.items[0]).toMatchObject({
+      type: "routine_completed",
+      actor: { uid: "child-uid", name: "Child", avatarId: "avatar-05" },
+      message: '🎉 Child finished the "Daily Gratitude" routine and earned 3 bonus coins!',
+    });
+  });
+
+  it("shares only positive friend activity, redacts surnames, and hides friend awards from players", async () => {
+    setSession("player");
+    mockListFamilyFriends.mockResolvedValue([
+      { familyId: "family-2", familyName: "Cousins", connectedAt: "2026-06-01T00:00:00.000Z" },
+    ]);
+    mockAdminListAllDocuments.mockResolvedValue([
+      memberDoc("aaron-uid", {
+        uid: "aaron-uid",
+        email: "aaron@example.com",
+        name: "Aaron Cousin",
+        role: "player",
+        avatarId: "avatar-09",
+      }),
+    ]);
+    mockAdminRunQueryAt.mockResolvedValue([
+      notificationDoc("friend-win", {
+        kind: "chore_completed",
+        actorUid: "aaron-uid",
+        actorEmail: "aaron@example.com",
+        actorName: "Aaron Cousin",
+        title: "Chore completed",
+        message: "Aaron Cousin completed Make the bed",
+        createdAt: "2026-06-04T10:00:00.000Z",
+      }),
+      notificationDoc("friend-edit", {
+        kind: "chore_edited",
+        actorUid: "aaron-uid",
+        actorName: "Aaron Cousin",
+        title: "Chore edited",
+        message: "Aaron Cousin edited a chore",
+        createdAt: "2026-06-04T11:00:00.000Z",
+      }),
+      notificationDoc("friend-award", {
+        kind: "family_reward_created",
+        actorUid: "aaron-uid",
+        actorName: "Aaron Cousin",
+        title: "New Family Award",
+        message: "Aaron Cousin created Movie night",
+        rewardId: "reward-1",
+        createdAt: "2026-06-04T12:00:00.000Z",
+      }),
+    ]);
+
+    const { GET } = await import("./route");
+    const body = await (await GET(feedRequest("?scope=friends"))).json();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]).toMatchObject({
+      id: "family-2:friend-win",
+      message: "Aaron completed Make the bed",
+      actor: { name: "Aaron", avatarId: "avatar-09" },
+      sourceFamily: { id: "family-2", name: "Cousins", isFriend: true },
+    });
+  });
+
+  it("shows friend-created Family Awards with a copy action only to admins", async () => {
+    setSession("admin");
+    mockListFamilyFriends.mockResolvedValue([
+      { familyId: "family-2", familyName: "Cousins", connectedAt: "2026-06-01T00:00:00.000Z" },
+    ]);
+    mockAdminListAllDocuments.mockResolvedValue([]);
+    mockAdminRunQueryAt.mockResolvedValue([
+      notificationDoc("friend-award", {
+        kind: "family_reward_created",
+        actorName: "Aunt Amy",
+        title: "New Family Award",
+        message: "Aunt Amy created Movie night",
+        rewardId: "reward-1",
+        rewardDescription: "Movie night",
+        rewardCoinCost: 20,
+        createdAt: "2026-06-04T12:00:00.000Z",
+      }),
+    ]);
+
+    const { GET } = await import("./route");
+    const body = await (await GET(feedRequest("?scope=friends"))).json();
+    expect(body.items[0]).toMatchObject({
+      type: "family_award_created",
+      action: "copy_friend_award",
+      metadata: { rewardId: "reward-1", rewardDescription: "Movie night", rewardCoinCost: 20 },
+    });
   });
 
   it("caps the page size at the maximum and paginates", async () => {

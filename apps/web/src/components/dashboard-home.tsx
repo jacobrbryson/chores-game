@@ -7,10 +7,17 @@ import { ApprovalInboxCard } from "@/components/approval-inbox-card";
 import { FamilyCard } from "@/components/family-card";
 import { IdentityJourneyWidget } from "@/components/identity-journey-widget";
 import { FamilyFeedPanel } from "@/components/family-feed-panel";
+import { FamilyFriendsHighlights } from "@/components/family-friends-highlights";
+import { DiscoveryBadge } from "@/components/discovery-badge";
 import { ReacceptanceModal } from "@/components/reacceptance-modal";
 import { useLocale } from "@/components/locale-provider";
 import { usePersistedTab } from "@/lib/hooks/use-persisted-tab";
-import { useMarkDiscoverySeen } from "@/lib/hooks/use-discovery";
+import {
+  getSectionCount,
+  markDiscoverySeen,
+  useDiscoverySummary,
+  useMarkDiscoverySeen,
+} from "@/lib/hooks/use-discovery";
 
 type DashboardHomeTabId = "chores" | "feed";
 
@@ -46,11 +53,25 @@ export function DashboardHome({ viewerKey }: DashboardHomeProps) {
   });
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
   const [reacceptanceDone, setReacceptanceDone] = useState(false);
+  const { summary: discoverySummary } = useDiscoverySummary(["feed"]);
+  const feedUnseenCount = getSectionCount(discoverySummary, "feed");
 
   // Mark chores discovery seen only while the Chores tab is actually active —
   // the hidden-but-mounted chores panel must not clear the badge. The visible
   // count lives on the top-nav Dashboard item (see MainNavigation).
   useMarkDiscoverySeen(["chores"], activeTab === "chores");
+  useMarkDiscoverySeen(["feed"], activeTab === "feed");
+
+  // Activity received while the Feed is already visible is seen immediately;
+  // FamilyFeedPanel refreshes from the same event.
+  useEffect(() => {
+    if (activeTab !== "feed" || typeof window === "undefined") {
+      return;
+    }
+    const handleVisibleFeedActivity = () => void markDiscoverySeen(["feed"]);
+    window.addEventListener("notifications:refresh", handleVisibleFeedActivity);
+    return () => window.removeEventListener("notifications:refresh", handleVisibleFeedActivity);
+  }, [activeTab]);
 
   // Gate check: redirect to onboarding if needed, or surface the re-acceptance
   // modal when the family's consent is outdated. Fails open so the dashboard is
@@ -76,7 +97,15 @@ export function DashboardHome({ viewerKey }: DashboardHomeProps) {
 
   const tabs: AppTabItem<DashboardHomeTabId>[] = [
     { id: "chores", label: t("dashboard.tabs.chores") },
-    { id: "feed", label: t("dashboard.tabs.feed") },
+    {
+      id: "feed",
+      label: (
+        <>
+          {t("dashboard.tabs.feed")}
+          <DiscoveryBadge count={feedUnseenCount} />
+        </>
+      ),
+    },
   ];
 
   const showReacceptance =
@@ -99,6 +128,7 @@ export function DashboardHome({ viewerKey }: DashboardHomeProps) {
           thing a parent sees. The card self-gates to admins and renders nothing for
           children. */}
       <ApprovalInboxCard />
+      <FamilyFriendsHighlights />
       <div className="dashboard-home-tabs">
         <AppTabs
           ariaLabel={t("dashboard.tabs.ariaLabel")}

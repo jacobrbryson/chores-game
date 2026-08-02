@@ -1076,6 +1076,14 @@ service cloud.firestore {
         allow update: if isFamilyAdmin(familyId) || canRedeemFamilyReward(familyId);
       }
 
+      // Family Friends relationship metadata is family-private. Mutations are
+      // performed only by the audited server workflow because acceptance and
+      // removal must update both families atomically.
+      match /friends/{friendFamilyId} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update, delete: if false;
+      }
+
       match /quests/{questId} {
         allow read: if isFamilyMember(familyId);
         allow create, update, delete: if isFamilyAdmin(familyId);

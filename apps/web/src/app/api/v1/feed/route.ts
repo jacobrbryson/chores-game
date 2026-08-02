@@ -7,12 +7,14 @@ export async function GET(request: NextRequest) {
   const forwarded = new URLSearchParams();
   const page = incoming.get("page");
   const limit = incoming.get("limit");
+  const scope = incoming.get("scope");
   if (page) {
     forwarded.set("page", page);
   }
   if (limit) {
     forwarded.set("limit", limit);
   }
+  if (scope === "friends") forwarded.set("scope", "friends");
   const query = forwarded.toString();
   const upstream = await proxyJson(request, `/api/feed${query ? `?${query}` : ""}`);
   if (upstream.status >= 400) {

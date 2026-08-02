@@ -130,7 +130,7 @@ const roleParent = [
 
 const rolePlayer = [
   "A clear list, a Kiosk Mode for shared tablets, and visible progress",
-  "Coins for store unlocks, family awards, quests, and personalization",
+  "Coins for store unlocks, family awards, and personalization",
   "Responsibility levels that make growing up feel like leveling up",
 ];
 
@@ -373,7 +373,7 @@ export function MarketingHomepage({
               <span className="marketing-card-label">Kids</span>
               <h3>Effort they can see paying off</h3>
               <p>
-                Coins, unlocks, quests, and Responsibility levels turn doing your part into
+                Coins, unlocks, Family Awards, and Responsibility levels turn doing your part into
                 progress kids can watch build over time.
               </p>
               <ul className="marketing-bullet-list">
@@ -386,7 +386,7 @@ export function MarketingHomepage({
 
           <MarketingImageFrame
             src="/saas_flow.png"
-            alt="Illustrated product flow showing profile personalization, family communication, rewards, and quest-style progress."
+            alt="Illustrated product flow showing profile personalization, family communication, rewards, and responsibility progress."
             width={1536}
             height={1024}
             className="marketing-image-tall"

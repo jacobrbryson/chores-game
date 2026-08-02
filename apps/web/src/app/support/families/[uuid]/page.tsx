@@ -84,6 +84,9 @@ export default async function SupportFamilyOverviewPage({
               <span className="font-semibold text-slate-900">Members:</span> {overview.family.totalMembers} total,{" "}
               {overview.family.activeMembers} active
             </div>
+            <div>
+              <span className="font-semibold text-slate-900">Family Friends:</span> {overview.friends.length} connected
+            </div>
           </div>
         </div>
       </section>
@@ -101,8 +104,8 @@ export default async function SupportFamilyOverviewPage({
         />
         <MetricCard
           label="Weekly Progress"
-          value={overview.metrics.questsCompleted + overview.metrics.achievementsUnlocked}
-          detail={`${overview.metrics.questsCompleted} quests and ${overview.metrics.achievementsUnlocked} achievements`}
+          value={overview.metrics.achievementsUnlocked}
+          detail={`${overview.metrics.achievementsUnlocked} achievements unlocked`}
         />
         <MetricCard
           label="Active Helpers"
@@ -113,6 +116,28 @@ export default async function SupportFamilyOverviewPage({
               : "No completed chores in this window"
           }
         />
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <h2 className="text-xl font-bold text-slate-900">Family Friends</h2>
+          <p className="mt-1 text-sm text-slate-600">Confirmed cross-family connections. Relationship changes are recorded in both families’ audit logs.</p>
+        </div>
+        <div className="p-5">
+          {overview.friends.length ? (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {overview.friends.map((friend) => (
+                <div key={friend.familyId} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="font-semibold text-slate-900">{friend.familyName}</div>
+                  <div className="mt-1 text-xs text-slate-500">Connected {formatDate(friend.connectedAt)}</div>
+                  <div className="mt-1 text-xs text-slate-400">{compactId(friend.familyId)}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">No confirmed Family Friends connections.</p>
+          )}
+        </div>
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">

@@ -8,10 +8,18 @@ import {
   listDocuments,
   runQuery,
   readBoolean,
+  readInteger,
   readString,
   readStringArray,
   readTimestamp,
 } from "@/lib/firestore/rest";
+import { adminListAllDocuments, adminRunQueryAt } from "@/lib/firestore/admin";
+import {
+  canShareFriendFeedKind,
+  firstNameOnly,
+  friendSafeMessage,
+} from "@/lib/family-friends/model";
+import { listFamilyFriends } from "@/lib/family-friends/repository";
 import {
   feedTypeAction,
   feedTypeIcon,
@@ -45,9 +53,14 @@ type FeedItem = {
   icon: string;
   action: ReturnType<typeof feedTypeAction>;
   createdAt: string;
+  sourceFamily: { id: string; name: string; isFriend: boolean };
   metadata: {
     choreId?: string;
     choreTitle?: string;
+    rewardId?: string;
+    rewardDescription?: string;
+    rewardCoinCost?: number;
+    rewardImageId?: string;
   };
 };
 
@@ -116,6 +129,7 @@ type ViewerContext = {
   role: "admin" | "player";
   aliases: Set<string>;
   actorsByAlias: Map<string, FeedActor>;
+  rolesByAlias: Map<string, "admin" | "player">;
 };
 
 function buildViewerContext(
@@ -128,6 +142,7 @@ function buildViewerContext(
     aliases.add(normalize(viewerEmail));
   }
   const actorsByAlias = new Map<string, FeedActor>();
+  const rolesByAlias = new Map<string, "admin" | "player">();
   let role: "admin" | "player" = "player";
   let roleResolved = false;
 
@@ -145,9 +160,11 @@ function buildViewerContext(
       avatarPhotoUrl: readString(doc.fields, "avatarPhotoUrl"),
       primaryColor: readString(doc.fields, "dashboardPrimaryColor"),
     };
+    const memberRole = readString(doc.fields, "role") === "admin" ? "admin" : "player";
     for (const key of [memberId, memberUid, memberEmail]) {
       if (key) {
         actorsByAlias.set(normalize(key), actor);
+        rolesByAlias.set(normalize(key), memberRole);
       }
     }
 
@@ -169,7 +186,7 @@ function buildViewerContext(
     }
   }
 
-  return { role, aliases, actorsByAlias };
+  return { role, aliases, actorsByAlias, rolesByAlias };
 }
 
 function resolveActor(context: ViewerContext, actorUid: string, actorEmail: string, actorName: string): FeedActor | null {
@@ -193,6 +210,65 @@ function resolveActor(context: ViewerContext, actorUid: string, actorEmail: stri
   };
 }
 
+function normalizeCompletionDisplay(params: {
+  context: ViewerContext;
+  type: FeedEventType;
+  actorUid: string;
+  actorEmail: string;
+  relatedIds: string[];
+  message: string;
+  recordedActor: FeedActor | null;
+}) {
+  const { context, type, actorUid, actorEmail, relatedIds, message, recordedActor } = params;
+  if ((type !== "chore_completed" && type !== "routine_completed") || !recordedActor) {
+    return { actor: recordedActor, message };
+  }
+  const actorRole = [actorUid, actorEmail, recordedActor.uid]
+    .filter(Boolean)
+    .map((alias) => context.rolesByAlias.get(normalize(alias)))
+    .find(Boolean);
+  if (actorRole !== "admin") {
+    return { actor: recordedActor, message };
+  }
+  const childActor = relatedIds
+    .map((alias) => ({
+      actor: context.actorsByAlias.get(normalize(alias)),
+      role: context.rolesByAlias.get(normalize(alias)),
+    }))
+    .find((candidate) => candidate.actor && candidate.role === "player")?.actor;
+  if (!childActor) {
+    return { actor: recordedActor, message };
+  }
+
+  const markedPrefix = `${recordedActor.name} marked `;
+  if (message.startsWith(markedPrefix)) {
+    const detail = message.slice(markedPrefix.length);
+    const completeIndex = detail.lastIndexOf(" complete");
+    if (completeIndex >= 0) {
+      return {
+        actor: childActor,
+        message: `${childActor.name} completed ${detail.slice(0, completeIndex)}${detail.slice(completeIndex + " complete".length)}`,
+      };
+    }
+  }
+  const actorPrefix = `${recordedActor.name} `;
+  return {
+    actor: childActor,
+    message: message.startsWith(actorPrefix)
+      ? `${childActor.name} ${message.slice(actorPrefix.length)}`
+      : message,
+  };
+}
+
+function redactFriendMemberNames(value: string, context: ViewerContext, actorName: string) {
+  let safe = friendSafeMessage(value, actorName);
+  const names = new Set(Array.from(context.actorsByAlias.values()).map((actor) => actor.name).filter(Boolean));
+  for (const name of names) {
+    safe = friendSafeMessage(safe, name);
+  }
+  return safe;
+}
+
 export async function GET(request: NextRequest) {
   const session = getSessionFromRequest(request);
   if (!session?.uid) {
@@ -206,6 +282,7 @@ export async function GET(request: NextRequest) {
   const requestedPage = parsePositiveInt(searchParams.get("page"), 1);
   const requestedLimit = parsePositiveInt(searchParams.get("limit"), DEFAULT_PAGE_SIZE);
   const pageSize = Math.min(MAX_PAGE_SIZE, requestedLimit);
+  const friendsOnly = searchParams.get("scope") === "friends";
 
   const operationStartedAt = Date.now();
   try {
@@ -222,7 +299,7 @@ export async function GET(request: NextRequest) {
           };
         }
 
-        const [memberDocs, notificationDocs] = await Promise.all([
+        const [memberDocs, notificationDocs, friends] = await Promise.all([
           listDocuments(`families/${familyId}/members`, idToken, 200),
           runQuery(
             {
@@ -233,12 +310,13 @@ export async function GET(request: NextRequest) {
             idToken,
             `families/${familyId}`,
           ),
+          listFamilyFriends(familyId),
         ]);
 
         const context = buildViewerContext(memberDocs, session.uid, session.email);
 
-        const visible = notificationDocs
-          .map((doc) => {
+        const ownVisible = notificationDocs
+          .map((doc): FeedItem | null => {
             const type = mapNotificationKindToFeedType(readString(doc.fields, "kind"));
             if (!type) {
               return null;
@@ -256,22 +334,103 @@ export async function GET(request: NextRequest) {
             }
             const choreId = readString(doc.fields, "choreId");
             const choreTitle = readString(doc.fields, "choreTitle");
+            const display = normalizeCompletionDisplay({
+              context,
+              type,
+              actorUid,
+              actorEmail,
+              relatedIds,
+              message: readString(doc.fields, "message"),
+              recordedActor: resolveActor(
+                context,
+                actorUid,
+                actorEmail,
+                readString(doc.fields, "actorName"),
+              ),
+            });
             return {
               id: documentIdFromName(doc.name),
               type,
               title: readString(doc.fields, "title"),
-              message: readString(doc.fields, "message"),
-              actor: resolveActor(context, actorUid, actorEmail, readString(doc.fields, "actorName")),
+              message: display.message,
+              actor: display.actor,
               icon: feedTypeIcon(type),
               action: feedTypeAction(type),
               createdAt: readTimestamp(doc.fields, "createdAt"),
+              sourceFamily: { id: familyId, name: "", isFriend: false },
               metadata: {
                 ...(choreId ? { choreId } : {}),
                 ...(choreTitle ? { choreTitle } : {}),
+                ...(readString(doc.fields, "rewardId") ? { rewardId: readString(doc.fields, "rewardId") } : {}),
+                ...(readString(doc.fields, "rewardDescription") ? { rewardDescription: readString(doc.fields, "rewardDescription") } : {}),
+                ...(readInteger(doc.fields, "rewardCoinCost") ? { rewardCoinCost: readInteger(doc.fields, "rewardCoinCost") } : {}),
+                ...(readString(doc.fields, "rewardImageId") ? { rewardImageId: readString(doc.fields, "rewardImageId") } : {}),
               },
             } satisfies FeedItem;
           })
-          .filter((entry): entry is FeedItem => Boolean(entry))
+          .filter((entry): entry is FeedItem => Boolean(entry));
+
+        const friendBatches = await Promise.all(
+          friends.map(async (friend) => {
+            const [friendNotifications, friendMembers] = await Promise.all([
+              adminRunQueryAt(`families/${friend.familyId}`, {
+                from: [{ collectionId: "notifications" }],
+                orderBy: [{ field: { fieldPath: "createdAt" }, direction: "DESCENDING" }],
+                limit: 100,
+              }),
+              adminListAllDocuments(`families/${friend.familyId}/members`, { cap: 200 }),
+            ]);
+            const friendContext = buildViewerContext(friendMembers, "", "");
+            return friendNotifications
+              .map((doc): FeedItem | null => {
+                const kind = readString(doc.fields, "kind");
+                if (!canShareFriendFeedKind(kind, context.role)) return null;
+                const type = mapNotificationKindToFeedType(kind);
+                if (!type) return null;
+                const actorUid = readString(doc.fields, "actorUid");
+                const actorEmail = readString(doc.fields, "actorEmail");
+                const rawActorName = readString(doc.fields, "actorName");
+                const resolved = resolveActor(friendContext, actorUid, actorEmail, rawActorName);
+                const display = normalizeCompletionDisplay({
+                  context: friendContext,
+                  type,
+                  actorUid,
+                  actorEmail,
+                  relatedIds: readStringArray(doc.fields, "relatedIds"),
+                  message: readString(doc.fields, "message"),
+                  recordedActor: resolved,
+                });
+                const actor = display.actor
+                  ? { ...display.actor, name: firstNameOnly(display.actor.name) }
+                  : null;
+                const actorNameForRedaction = rawActorName || resolved?.name || "";
+                const rewardId = readString(doc.fields, "rewardId");
+                return {
+                  id: `${friend.familyId}:${documentIdFromName(doc.name)}`,
+                  type,
+                  title: redactFriendMemberNames(readString(doc.fields, "title"), friendContext, actorNameForRedaction),
+                  message: redactFriendMemberNames(display.message, friendContext, actorNameForRedaction),
+                  actor,
+                  icon: feedTypeIcon(type),
+                  action: feedTypeAction(type),
+                  createdAt: readTimestamp(doc.fields, "createdAt"),
+                  sourceFamily: { id: friend.familyId, name: friend.familyName, isFriend: true },
+                  metadata: {
+                    ...(readString(doc.fields, "choreId") ? { choreId: readString(doc.fields, "choreId") } : {}),
+                    ...(readString(doc.fields, "choreTitle") ? { choreTitle: readString(doc.fields, "choreTitle") } : {}),
+                    ...(rewardId ? { rewardId } : {}),
+                    ...(readString(doc.fields, "rewardDescription") ? { rewardDescription: readString(doc.fields, "rewardDescription") } : {}),
+                    ...(readInteger(doc.fields, "rewardCoinCost") ? { rewardCoinCost: readInteger(doc.fields, "rewardCoinCost") } : {}),
+                    ...(readString(doc.fields, "rewardImageId") ? { rewardImageId: readString(doc.fields, "rewardImageId") } : {}),
+                  },
+                } satisfies FeedItem;
+              })
+              .filter((entry): entry is FeedItem => Boolean(entry));
+          }),
+        );
+
+        const friendVisible = friendBatches.flat();
+        const visible = (friendsOnly ? friendVisible : [...ownVisible, ...friendVisible])
           .sort((a, b) => toUnixMillis(b.createdAt) - toUnixMillis(a.createdAt));
 
         const total = visible.length;

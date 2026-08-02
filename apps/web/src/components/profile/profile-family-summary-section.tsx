@@ -60,7 +60,6 @@ function categoryCardStyle(category: string) {
   if (key.includes("confetti")) return { backgroundColor: "#f5f3ff", borderColor: "#ddd6fe" };
   if (key.includes("avatar")) return { backgroundColor: "#eef2ff", borderColor: "#c7d2fe" };
   if (key.includes("color")) return { backgroundColor: "#f0fdfa", borderColor: "#99f6e4" };
-  if (key.includes("quest")) return { backgroundColor: "#fffbeb", borderColor: "#fde68a" };
   if (key.includes("reward")) return { backgroundColor: "#fff1f2", borderColor: "#fecdd3" };
   if (key.includes("inventory")) return { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" };
   return { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" };
@@ -69,6 +68,7 @@ function categoryCardStyle(category: string) {
 function buildCategoryCounts(items: ProfileOwnedItem[]) {
   const byCategory = new Map<string, number>();
   for (const item of items) {
+    if (item.category.trim().toLowerCase().includes("quest")) continue;
     byCategory.set(item.category, (byCategory.get(item.category) ?? 0) + Math.max(0, item.quantity));
   }
   return Array.from(byCategory.entries())

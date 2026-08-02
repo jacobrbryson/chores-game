@@ -16,6 +16,7 @@ type NotificationItem = {
   createdAt: string;
   seen: boolean;
   triggeredByViewer: boolean;
+  inviteId?: string;
 };
 
 type NotificationsResponse = {
@@ -72,6 +73,8 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionPendingId, setActionPendingId] = useState("");
+  const [actionError, setActionError] = useState("");
   const [unseenCount, setUnseenCount] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
@@ -189,6 +192,34 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
     setSortBy(column);
   }
 
+  async function confirmFamilyFriend(item: NotificationItem) {
+    if (!item.inviteId || actionPendingId) return;
+    setActionPendingId(item.id);
+    setActionError("");
+    try {
+      const response = await fetch(
+        `/api/family-friends/invitations/${encodeURIComponent(item.inviteId)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "accept" }),
+        },
+      );
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || `FAMILY_FRIEND_CONFIRM_HTTP_${response.status}`);
+      }
+      await loadNotifications();
+      window.dispatchEvent(new Event("notifications:refresh"));
+    } catch (confirmError) {
+      setActionError(
+        confirmError instanceof Error ? confirmError.message : "family_friend_confirm_failed",
+      );
+    } finally {
+      setActionPendingId("");
+    }
+  }
+
   return (
     <main className="panel family-page family-page-shell">
       <div className="notifications-header">
@@ -265,6 +296,9 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
       {!isLoading && error ? (
         <Alert>{t("notificationsPage.loadError", { error })}</Alert>
       ) : null}
+      {actionError ? (
+        <Alert>{t("familyFriends.errors.action", { error: actionError })}</Alert>
+      ) : null}
       {!isLoading && !error ? (
         items.length === 0 ? (
           <p className="small">{t("notificationsPage.empty")}</p>
@@ -313,6 +347,22 @@ export function NotificationsPageClient({ initialUnseenOnly }: NotificationsPage
                           <Link href="/approvals" className="notifications-row-action">
                             {t("approvals.actions.review")}
                           </Link>
+                        ) : null}
+                        {item.kind === "family_friend_request" && item.inviteId ? (
+                          <Button
+                            type="button"
+                            className="btn btn-primary notifications-row-action"
+                            disabled={Boolean(actionPendingId)}
+                            title={
+                              actionPendingId
+                                ? t("familyFriends.disabled.actionPending")
+                                : undefined
+                            }
+                            onClick={() => void confirmFamilyFriend(item)}>
+                            {actionPendingId === item.id
+                              ? t("familyFriends.actions.confirming")
+                              : t("familyFriends.actions.confirm")}
+                          </Button>
                         ) : null}
                       </td>
                       <td>{item.message || t("notificationsPage.fallback.message")}</td>

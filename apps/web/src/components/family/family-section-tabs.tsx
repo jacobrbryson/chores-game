@@ -7,7 +7,7 @@ export type FamilySectionTabId =
   | "members"
   | "awards"
   | "categories"
-  | "quests"
+  | "friends"
   | "privacy";
 
 type FamilySectionTabsProps = {
@@ -23,7 +23,7 @@ export function FamilySectionTabs({ activeTab, onChange, includePrivacy = false 
     { id: "members", label: t("family.tabs.members") },
     { id: "awards", label: t("family.tabs.awards") },
     { id: "categories", label: t("family.tabs.categories") },
-    { id: "quests", label: t("family.tabs.quests") },
+    { id: "friends", label: t("family.tabs.friends") },
     ...(includePrivacy
       ? ([{ id: "privacy", label: t("family.tabs.privacy") }] as AppTabItem<FamilySectionTabId>[])
       : []),

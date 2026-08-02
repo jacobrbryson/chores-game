@@ -13,6 +13,12 @@ export const PUBLIC_CONTENT_TYPES = [
 
 export type PublicContentType = (typeof PUBLIC_CONTENT_TYPES)[number];
 
+// Quest records remain valid for historical preservation, but are retired from
+// operator-facing creation, filtering, and reporting surfaces.
+export const SUPPORT_VISIBLE_PUBLIC_CONTENT_TYPES = PUBLIC_CONTENT_TYPES.filter(
+  (type): type is Exclude<PublicContentType, "quest"> => type !== "quest",
+);
+
 export const EDITABLE_PUBLIC_CONTENT_TYPES = ["chore", "reward", "guide"] as const;
 
 export const PUBLIC_CONTENT_STATUSES = [
@@ -133,4 +139,5 @@ export type PublicContentListQuery = {
   page?: number;
   limit?: number;
   sort?: string;
+  includeRetired?: boolean;
 };

@@ -156,7 +156,7 @@ export async function handleApprove(ctx: ChoreActionContext): Promise<ChoreActio
     newSkillBonusAwarded: newSkillBonus.awarded,
     newSkillBonusAmount: newSkillBonus.totalCoins,
   });
-  await publishFamilyActivity({ type: "chore_updated", familyId, choreId, occurredAt: now });
+  await publishFamilyActivity({ type: "chore_approved", familyId, choreId, occurredAt: now });
   await trackAchievementEventBestEffort({
     uid: session.uid,
     familyId,

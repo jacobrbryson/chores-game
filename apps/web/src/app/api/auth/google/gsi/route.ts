@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/session";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
+import { buildGoogleUserAuthFields } from "@/lib/auth/google-user-fields";
 import { getCanonicalAppOrigin } from "@/lib/app-origin";
 import { createFamilyForUser } from "@/lib/family/bootstrap";
 import { seedDiscoveryStateForNewUser } from "@/lib/discovery/service";
@@ -235,23 +236,16 @@ async function upsertFirebaseUser(
     fallbackLocale: DEFAULT_LOCALE,
   });
 
-  const authFields = {
-    uid: stringField(session.localId),
-    role: stringField(effectiveRole),
-    locale: stringField(effectiveLocale),
-    email: stringField(normalizedEmail),
-    displayName: stringField(tokenInfo.name ?? session.displayName ?? ""),
-    photoUrl: stringField(tokenInfo.picture ?? session.photoUrl ?? ""),
-    provider: stringField("google"),
-    lastSignInAt: timestampField(now),
-    ...(hasExistingUserDoc ? {} : { createdAt: timestampField(now) }),
-    ...(linkedFamilyId
-      ? {
-          familyIds: stringArrayField([linkedFamilyId]),
-          lastFamilyUpdateAt: timestampField(now),
-        }
-      : {}),
-  };
+  const authFields = buildGoogleUserAuthFields({
+    uid: session.localId,
+    role: effectiveRole,
+    locale: effectiveLocale,
+    email: normalizedEmail,
+    displayName: tokenInfo.name ?? session.displayName ?? "",
+    photoUrl: tokenInfo.picture ?? session.photoUrl ?? "",
+    familyId: linkedFamilyId,
+    now,
+  });
   await patchDocument(
     `users/${session.localId}`,
     authFields,
@@ -509,4 +503,3 @@ export async function POST(request: NextRequest) {
     return redirectToPath(request, "/", { error: "google_signin_failed" });
   }
 }
-

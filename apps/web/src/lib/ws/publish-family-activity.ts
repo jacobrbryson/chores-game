@@ -1,4 +1,5 @@
 import type { FamilyActivityType } from "@/lib/ws/family-activity-event";
+import { listFamilyFriends } from "@/lib/family-friends/repository";
 
 type FamilyActivityPublishEvent = {
   type: FamilyActivityType;
@@ -30,25 +31,38 @@ export async function publishFamilyActivity(event: FamilyActivityPublishEvent) {
   }
 
   try {
-    const response = await fetch(`${wsServerUrl.replace(/\/$/, "")}/events/family-activity`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${secret}`,
-      },
-      body: JSON.stringify({
-        ...event,
-        occurredAt: event.occurredAt ?? new Date().toISOString(),
+    const friendRefreshTypes = new Set<FamilyActivityType>([
+      "chore_completed",
+      "chore_approved",
+      "routine_completed",
+      "reward_claimed",
+      "identity_title_unlocked",
+      "family_reward_created",
+    ]);
+    const friendFamilyIds = friendRefreshTypes.has(event.type)
+      ? (await listFamilyFriends(event.familyId).catch(() => [])).map((friend) => friend.familyId)
+      : [];
+    await Promise.all(
+      [event.familyId, ...friendFamilyIds].map(async (targetFamilyId) => {
+        const response = await fetch(`${wsServerUrl.replace(/\/$/, "")}/events/family-activity`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${secret}`,
+          },
+          body: JSON.stringify({
+            ...event,
+            familyId: targetFamilyId,
+            occurredAt: event.occurredAt ?? new Date().toISOString(),
+          }),
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          const body = await response.text();
+          console.warn("publish failed", { status: response.status, body });
+        }
       }),
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      const body = await response.text();
-      console.warn("publish failed", {
-        status: response.status,
-        body,
-      });
-    }
+    );
   } catch {
     // Notification is best-effort and must not break chore workflows.
     console.warn("publish request threw before response");

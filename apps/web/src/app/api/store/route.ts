@@ -539,9 +539,17 @@ async function getStoreSummary(session: SessionUser, memberId: string, idToken: 
     googlePhotoUrl,
     unlockedOptionDates,
     selectedConfettiOptionId,
-    questItemQuantities,
+    questItemQuantities: {},
     ownedItems,
-    categories: [familyAwardsCategory, ...STORE_CATEGORIES],
+    categories: [
+      familyAwardsCategory,
+      ...STORE_CATEGORIES
+        .filter((category) => category.id !== "quest_items")
+        .map((category) => ({
+          ...category,
+          options: category.options.filter((option) => option.unlockSource !== "quest"),
+        })),
+    ],
     avatarOptions: DEFAULT_AVATAR_IDS,
   };
 }
@@ -845,6 +853,10 @@ export async function POST(request: NextRequest) {
           let category = findStoreCategoryById(categoryId);
           let option = category?.options.find((entry) => entry.id === optionId) ?? null;
 
+          if (category?.id === "quest_items" || option?.unlockSource === "quest") {
+            return { kind: "invalid_option" as const };
+          }
+
           let rewardRecipient: RedemptionMember | null = null;
           if (!category && categoryId === "family_awards") {
             const familyId = await getPrimaryFamilyIdWithFallback(uid, idToken);
@@ -1031,6 +1043,11 @@ export async function POST(request: NextRequest) {
               });
               throw error;
             }
+            await publishFamilyActivity({
+              type: "reward_claimed",
+              familyId,
+              occurredAt: new Date().toISOString(),
+            });
             await trackAchievementEvent({
               uid,
               familyId,

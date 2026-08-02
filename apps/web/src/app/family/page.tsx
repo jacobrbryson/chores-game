@@ -11,9 +11,9 @@ import { CoinIcon } from "@/components/coin-icon";
 import { CommunityAwardsLibrary } from "@/components/community-awards-page-client";
 import { EnumChip, humanizeEnum } from "@/components/enum-chip";
 import { FamilyPrivacyTab } from "@/components/family/family-privacy-tab";
+import { FamilyFriendsSection } from "@/components/family-friends-section";
 import { FamilySectionTabs, type FamilySectionTabId } from "@/components/family/family-section-tabs";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
-import { FamilyQuestsSection } from "@/components/family-quests-section";
 import { useLocale } from "@/components/locale-provider";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
@@ -79,7 +79,7 @@ const FAMILY_TAB_IDS: readonly FamilySectionTabId[] = [
   "members",
   "awards",
   "categories",
-  "quests",
+  "friends",
   "privacy",
 ];
 
@@ -925,7 +925,7 @@ export default function FamilyPage() {
               {activeFamilyTab === "members" ? <MembersSkeleton /> : null}
               {activeFamilyTab === "awards" ? <AwardsSkeleton /> : null}
               {activeFamilyTab === "categories" ? <CategoriesSkeleton /> : null}
-              {activeFamilyTab === "quests" ? <AwardsSkeleton /> : null}
+              {activeFamilyTab === "friends" ? <AwardsSkeleton /> : null}
               {activeFamilyTab === "privacy" ? <AwardsSkeleton /> : null}
             </div>
           ) : null}
@@ -1326,7 +1326,7 @@ export default function FamilyPage() {
                       {canManageMembers ? <CommunityAwardsLibrary embedded /> : null}
                     </section>
                     ) : null}
-                    {activeFamilyTab === "quests" ? <FamilyQuestsSection /> : null}
+                    {activeFamilyTab === "friends" ? <FamilyFriendsSection /> : null}
                     {activeFamilyTab === "privacy" && canManageMembers ? <FamilyPrivacyTab /> : null}
                   </div>
                 </>

@@ -15,6 +15,7 @@ import { useMobileLocale } from "@/lib/locale";
 import { colors, spacing, typography } from "@/theme";
 import { AppScreen, AvatarBadge, Button, Card, CoinPill, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
 import { MobileProfileFamilySummary } from "@/components/MobileProfileFamilySummary";
+import { MobileFamilyFriendsManager } from "@/components/MobileFamilyFriendsManager";
 
 type ProfileData = {
   name: string;
@@ -250,6 +251,7 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
             claimingAwardId={claimingAwardId}
             onClaimAward={(awardId) => void onClaimAward(awardId)}
           />
+          <MobileFamilyFriendsManager />
         </>
       ) : null}
     </AppScreen>

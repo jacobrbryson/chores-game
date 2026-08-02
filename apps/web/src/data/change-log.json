@@ -1,5 +1,37 @@
 [
   {
+    "id": "feed-routine-label-and-child-attribution",
+    "date": "2026-08-02",
+    "type": "Bug Fix",
+    "subject": "Family Feed celebrations name the right helper",
+    "description": "Routine celebrations now have a readable heading, and chores completed by a parent on a child's behalf show the child's name and avatar.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "google-sign-in-session-creation",
+    "date": "2026-08-01",
+    "type": "Bug Fix",
+    "subject": "Google sign-in completes reliably",
+    "description": "New parent accounts can now finish Google sign-in and open their family dashboard without a permissions error.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "family-friends-shared-celebration-feed",
+    "date": "2026-08-01",
+    "type": "Feature",
+    "subject": "Celebrate everyday wins with Family Friends",
+    "description": "Parents can invite trusted families to connect, and everyone can cheer on positive chore wins in a shared Feed with an unseen-activity counter. Parents can also discover and copy Family Awards created by their friends.",
+    "image": "/store3/family-rewards.png"
+  },
+  {
+    "id": "quests-retired-from-family-chores",
+    "date": "2026-08-01",
+    "type": "Feature",
+    "subject": "A more focused Family Chores experience",
+    "description": "Quests have been removed from the app so chores, family progress, rewards, and shared celebrations stay front and center.",
+    "image": "/store3/theme.png"
+  },
+  {
     "id": "multi-assignee-celebration-and-admin-award-dialog",
     "date": "2026-07-30",
     "type": "Bug Fix",

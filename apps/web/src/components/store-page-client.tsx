@@ -43,7 +43,7 @@ import {
 import { findFamilyRewardImageOption } from "@/lib/family/rewards";
 
 const STORE_ACTION_TIMEOUT_MS = 12000;
-const STORE_TAB_ORDER = ["family_awards", "customize_colors", "customize_avatar", "victory_confetti", "quest_items"];
+const STORE_TAB_ORDER = ["family_awards", "customize_colors", "customize_avatar", "victory_confetti"];
 const MODAL_HANDOFF_DELAY_MS = MODAL_EXIT_MS + 40;
 
 type StoreSummaryResponse = {
@@ -170,14 +170,14 @@ export function StorePageClient() {
     if (!summary || !activeCategoryId) {
       return null;
     }
-    return summary.categories.find((entry) => entry.id === activeCategoryId) ?? null;
+    return summary.categories.find((entry) => entry.id === activeCategoryId && entry.id !== "quest_items") ?? null;
   }, [activeCategoryId, summary]);
   const orderedCategories = useMemo(() => {
     if (!summary) {
       return [];
     }
     const orderIndex = new Map(STORE_TAB_ORDER.map((id, index) => [id, index]));
-    return [...summary.categories].sort(
+    return summary.categories.filter((category) => category.id !== "quest_items").sort(
       (a, b) => (orderIndex.get(a.id) ?? 999) - (orderIndex.get(b.id) ?? 999),
     );
   }, [summary]);

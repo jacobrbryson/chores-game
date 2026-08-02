@@ -1,5 +1,6 @@
 export const FAMILY_ACTIVITY_TYPES = [
-	"chore_completed",
+  "chore_completed",
+  "chore_approved",
 	"chore_created",
 	"chore_updated",
 	"chore_deleted",
@@ -9,7 +10,10 @@ export const FAMILY_ACTIVITY_TYPES = [
 	"quest_rewarded",
 	"routine_updated",
 	"routine_assigned",
-	"routine_completed",
+  "routine_completed",
+  "reward_claimed",
+  "identity_title_unlocked",
+	"family_reward_created",
 ] as const;
 
 export type FamilyActivityType = (typeof FAMILY_ACTIVITY_TYPES)[number];
@@ -34,5 +38,6 @@ export function isFamilyActivityType(value: unknown): value is FamilyActivityTyp
 		value === "routine_updated" ||
 		value === "routine_assigned" ||
 		value === "routine_completed"
+		|| value === "family_reward_created"
 	);
 }
