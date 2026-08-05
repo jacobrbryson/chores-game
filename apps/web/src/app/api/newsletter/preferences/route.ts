@@ -50,14 +50,30 @@ export async function PATCH(request: NextRequest) {
     return jsonReauthRequired();
   }
 
-  let body: { weeklyFamilyHighlightsEmail?: unknown };
+  type PreferencesPatchBody = {
+    weeklyFamilyHighlightsEmail?: unknown;
+    familyFriendInviteEmail?: unknown;
+  };
+  let body: PreferencesPatchBody;
   try {
-    body = (await request.json()) as { weeklyFamilyHighlightsEmail?: unknown };
+    body = (await request.json()) as PreferencesPatchBody;
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
-  if (typeof body.weeklyFamilyHighlightsEmail !== "boolean") {
+  if (
+    "weeklyFamilyHighlightsEmail" in body &&
+    typeof body.weeklyFamilyHighlightsEmail !== "boolean"
+  ) {
     return NextResponse.json({ error: "invalid_weekly_family_highlights_email" }, { status: 400 });
+  }
+  if ("familyFriendInviteEmail" in body && typeof body.familyFriendInviteEmail !== "boolean") {
+    return NextResponse.json({ error: "invalid_family_friend_invite_email" }, { status: 400 });
+  }
+  if (
+    typeof body.weeklyFamilyHighlightsEmail !== "boolean" &&
+    typeof body.familyFriendInviteEmail !== "boolean"
+  ) {
+    return NextResponse.json({ error: "no_preferences_provided" }, { status: 400 });
   }
 
   try {
@@ -67,7 +83,8 @@ export async function PATCH(request: NextRequest) {
         updateNewsletterPreferences({
           uid: session.uid,
           idToken,
-          weeklyFamilyHighlightsEmail: body.weeklyFamilyHighlightsEmail as boolean,
+          weeklyFamilyHighlightsEmail: body.weeklyFamilyHighlightsEmail as boolean | undefined,
+          familyFriendInviteEmail: body.familyFriendInviteEmail as boolean | undefined,
         }),
     );
     const response = NextResponse.json(data);

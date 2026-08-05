@@ -1,5 +1,13 @@
 [
   {
+    "id": "family-friend-invite-email-link-and-preference",
+    "date": "2026-08-05",
+    "type": "Bug Fix",
+    "subject": "Family Friend invite emails link back to the app",
+    "description": "The Confirm Family Friends button in the invitation email now opens Family Chores instead of failing to load, and parents can turn Family Friend invite emails off under Profile → Notifications → Email while still approving requests in the app.",
+    "image": "/file.svg"
+  },
+  {
     "id": "feed-routine-label-and-child-attribution",
     "date": "2026-08-02",
     "type": "Bug Fix",

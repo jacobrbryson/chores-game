@@ -67,6 +67,32 @@ describe("/api/newsletter/preferences", () => {
     expect(body.weeklyFamilyHighlightsEmail).toBe(false);
   });
 
+  it("updates the family friend invite preference on its own", async () => {
+    mockGetSession.mockReturnValue({ uid: "user-1", firebaseIdToken: "token" });
+    mockRunWithRefreshedFirebaseToken.mockImplementation(async (_session, callback) => ({
+      data: await callback("token"),
+      session: { uid: "user-1" },
+      refreshed: false,
+    }));
+    mockUpdatePreferences.mockResolvedValue({
+      weeklyFamilyHighlightsEmail: true,
+      familyFriendInviteEmail: false,
+    });
+
+    const response = await PATCH(new Request("http://localhost/api/newsletter/preferences", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ familyFriendInviteEmail: false }),
+    }) as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.familyFriendInviteEmail).toBe(false);
+    expect(mockUpdatePreferences).toHaveBeenCalledWith(
+      expect.objectContaining({ familyFriendInviteEmail: false, weeklyFamilyHighlightsEmail: undefined }),
+    );
+  });
+
   it("rejects invalid payloads", async () => {
     mockGetSession.mockReturnValue({ uid: "user-1", firebaseIdToken: "token" });
 
@@ -77,5 +103,31 @@ describe("/api/newsletter/preferences", () => {
     }) as any);
 
     expect(response.status).toBe(400);
+  });
+
+  it("rejects a non-boolean family friend invite preference", async () => {
+    mockGetSession.mockReturnValue({ uid: "user-1", firebaseIdToken: "token" });
+
+    const response = await PATCH(new Request("http://localhost/api/newsletter/preferences", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ familyFriendInviteEmail: 1 }),
+    }) as any);
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe("invalid_family_friend_invite_email");
+  });
+
+  it("rejects an empty preference payload", async () => {
+    mockGetSession.mockReturnValue({ uid: "user-1", firebaseIdToken: "token" });
+
+    const response = await PATCH(new Request("http://localhost/api/newsletter/preferences", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    }) as any);
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe("no_preferences_provided");
   });
 });

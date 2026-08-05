@@ -85,11 +85,19 @@ export function FamilyFriendsSection() {
       });
       const payload = (await response.json().catch(() => ({}))) as {
         error?: string;
-        delivery?: { email?: boolean; inApp?: boolean };
+        delivery?: { email?: boolean; inApp?: boolean; emailOptedOut?: boolean };
       };
       if (!response.ok) throw new Error(payload.error || `FAMILY_FRIEND_INVITE_HTTP_${response.status}`);
       setEmail("");
-      setNotice(payload.delivery?.email ? "sent" : "email_warning");
+      // An email opt-out is a recipient choice, not a delivery failure — the
+      // request is still waiting for them in their in-app notifications.
+      setNotice(
+        payload.delivery?.emailOptedOut
+          ? "sent_in_app_only"
+          : payload.delivery?.email
+            ? "sent"
+            : "email_warning",
+      );
       await load();
     } catch (inviteError) {
       setError(inviteError instanceof Error ? inviteError.message : "family_friend_invite_failed");

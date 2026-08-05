@@ -1,5 +1,9 @@
 import { DEFAULT_LOCALE, normalizeLocale, type AppLocale } from "@packages/locales";
 import {
+  FAMILY_FRIEND_INVITE_EMAIL_FIELD,
+  resolveFamilyFriendInviteEmailPreference,
+} from "@/lib/email/preferences";
+import {
   boolField,
   type FirestoreValue,
   getDocument,
@@ -14,6 +18,7 @@ export const WEEKLY_FAMILY_HIGHLIGHTS_FIELD = "weeklyFamilyHighlightsEmail";
 export type NewsletterPreferenceSummary = {
   locale: AppLocale;
   weeklyFamilyHighlightsEmail: boolean;
+  familyFriendInviteEmail: boolean;
 };
 
 export function resolveWeeklyFamilyHighlightsEmailPreference(
@@ -30,25 +35,31 @@ export async function getNewsletterPreferences(uid: string, idToken: string) {
   return {
     locale: normalizeLocale(readString(userDoc.fields, "locale")) || DEFAULT_LOCALE,
     weeklyFamilyHighlightsEmail: resolveWeeklyFamilyHighlightsEmailPreference(userDoc.fields),
+    familyFriendInviteEmail: resolveFamilyFriendInviteEmailPreference(userDoc.fields),
   } satisfies NewsletterPreferenceSummary;
 }
 
 export async function updateNewsletterPreferences(input: {
   uid: string;
   idToken: string;
-  weeklyFamilyHighlightsEmail: boolean;
+  weeklyFamilyHighlightsEmail?: boolean;
+  familyFriendInviteEmail?: boolean;
 }) {
   const now = new Date().toISOString();
-  await patchDocument(
-    `users/${input.uid}`,
-    {
-      [WEEKLY_FAMILY_HIGHLIGHTS_FIELD]: boolField(input.weeklyFamilyHighlightsEmail),
-      preferencesUpdatedAt: timestampField(now),
-    },
-    input.idToken,
-    [WEEKLY_FAMILY_HIGHLIGHTS_FIELD, "preferencesUpdatedAt"],
-  );
+  const fields: Record<string, FirestoreValue> = { preferencesUpdatedAt: timestampField(now) };
+  if (typeof input.weeklyFamilyHighlightsEmail === "boolean") {
+    fields[WEEKLY_FAMILY_HIGHLIGHTS_FIELD] = boolField(input.weeklyFamilyHighlightsEmail);
+  }
+  if (typeof input.familyFriendInviteEmail === "boolean") {
+    fields[FAMILY_FRIEND_INVITE_EMAIL_FIELD] = boolField(input.familyFriendInviteEmail);
+  }
+  // Only the toggles present in the request are written, so a partial update
+  // never resets the preference the caller did not touch. The PATCH response
+  // carries the merged document, so both values can be echoed back without a
+  // second read.
+  const updated = await patchDocument(`users/${input.uid}`, fields, input.idToken, Object.keys(fields));
   return {
-    weeklyFamilyHighlightsEmail: input.weeklyFamilyHighlightsEmail,
+    weeklyFamilyHighlightsEmail: resolveWeeklyFamilyHighlightsEmailPreference(updated.fields),
+    familyFriendInviteEmail: resolveFamilyFriendInviteEmailPreference(updated.fields),
   };
 }

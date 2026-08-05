@@ -410,7 +410,7 @@
     "remove": { "title": "Retirer une famille amie", "body": "Se déconnecter de {family} ? Vos familles ne partageront plus leur activité." },
     "disabled": { "actionPending": "Une autre action Familles amies est encore en cours." },
     "errors": { "action": "Échec de la mise à jour des familles amies : {error}" },
-    "notices": { "sent": "Invitation envoyée par e-mail et dans l’application si le destinataire a un compte.", "email_warning": "La demande est enregistrée, mais l’envoi de l’e-mail n’a pas été confirmé. Vous pouvez la renvoyer.", "accept": "Vos familles sont maintenant amies.", "resend": "Invitation renvoyée.", "cancel": "Invitation annulée.", "removed": "Famille amie retirée." }
+    "notices": { "sent": "Invitation envoyée par e-mail et dans l’application si le destinataire a un compte.", "email_warning": "La demande est enregistrée, mais l’envoi de l’e-mail n’a pas été confirmé. Vous pouvez la renvoyer.", "sent_in_app_only": "Invitation enregistrée. Cette famille a désactivé les e-mails d’invitation ; elle la retrouvera dans ses notifications dans l’application.", "accept": "Vos familles sont maintenant amies.", "resend": "Invitation renvoyée.", "cancel": "Invitation annulée.", "removed": "Famille amie retirée." }
   },
   "choreDialog": {
     "addTitle": "Ajouter des tâches",
@@ -789,11 +789,11 @@
       "pushGenericError": "Impossible d'enregistrer les parametres de notifications push.",
       "pushNoWebSupport": "Les notifications push se gerent dans l'application web.",
       "emailTitle": "E-mail",
-      "emailDescription": "Choisissez si Family Chores doit envoyer un e-mail hebdomadaire des moments forts de la famille a ce compte parent."
+      "emailDescription": "Choisissez les e-mails Family Chores que ce compte parent reçoit."
     },
     "newsletter": {
       "title": "Preferences e-mail",
-      "description": "Choisissez si Family Chores doit envoyer un e-mail hebdomadaire des moments forts de la famille a ce compte parent.",
+      "description": "Choisissez les e-mails Family Chores que ce compte parent reçoit.",
       "weeklyFamilyHighlightsEmail": "E-mail hebdomadaire des moments forts de la famille",
       "loading": "Chargement de la preference e-mail...",
       "enabled": "L'e-mail hebdomadaire des moments forts est active.",
@@ -803,6 +803,12 @@
       "saving": "Enregistrement...",
       "enabledSuccess": "L'e-mail hebdomadaire des moments forts a ete active.",
       "disabledSuccess": "L'e-mail hebdomadaire des moments forts a ete desactive.",
+      "familyFriendInviteEmail": "Invitations de familles amies",
+      "familyFriendInviteEnabled": "Les e-mails d’invitation de familles amies sont activés.",
+      "familyFriendInviteDisabled": "Les e-mails d’invitation de familles amies sont désactivés.",
+      "familyFriendInviteEnabledSuccess": "Les e-mails d’invitation de familles amies ont été activés.",
+      "familyFriendInviteDisabledSuccess": "Les e-mails d’invitation de familles amies ont été désactivés.",
+      "familyFriendInviteHint": "Les demandes arrivent toujours dans vos notifications dans l’application, où vous pouvez les accepter ou les refuser.",
       "saveError": "Impossible d'enregistrer la preference e-mail : {error}"
     },
     "accountSubtitle": "Votre compte",

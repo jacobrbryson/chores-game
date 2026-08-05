@@ -410,7 +410,7 @@
     "remove": { "title": "Eliminar familia amiga", "body": "¿Desconectarse de {family}? Sus familias dejarán de compartir actividad." },
     "disabled": { "actionPending": "Todavía se está guardando otra acción de Familias amigas." },
     "errors": { "action": "Falló la actualización de Familias amigas: {error}" },
-    "notices": { "sent": "Invitación enviada por correo y dentro de la aplicación si el destinatario tiene una cuenta.", "email_warning": "La solicitud se guardó, pero no se pudo confirmar el envío del correo. Puedes reenviarlo.", "accept": "Ahora sus familias son amigas.", "resend": "Invitación reenviada.", "cancel": "Invitación cancelada.", "removed": "Familia amiga eliminada." }
+    "notices": { "sent": "Invitación enviada por correo y dentro de la aplicación si el destinatario tiene una cuenta.", "email_warning": "La solicitud se guardó, pero no se pudo confirmar el envío del correo. Puedes reenviarlo.", "sent_in_app_only": "Invitación guardada. Esta familia desactivó los correos de invitación, así que la verá en sus notificaciones dentro de la aplicación.", "accept": "Ahora sus familias son amigas.", "resend": "Invitación reenviada.", "cancel": "Invitación cancelada.", "removed": "Familia amiga eliminada." }
   },
   "choreDialog": {
     "addTitle": "Agregar tareas",
@@ -789,11 +789,11 @@
       "pushGenericError": "No se pudo guardar la configuracion de notificaciones push.",
       "pushNoWebSupport": "Las notificaciones push se administran en la aplicacion web.",
       "emailTitle": "Correo",
-      "emailDescription": "Elige si Family Chores debe enviar un correo semanal con los mejores momentos de la familia a esta cuenta de padre o madre."
+      "emailDescription": "Elige qué correos de Family Chores recibe esta cuenta de padre o madre."
     },
     "newsletter": {
       "title": "Preferencias de correo",
-      "description": "Elige si Family Chores debe enviar un correo semanal con los mejores momentos de la familia a esta cuenta de padre o madre.",
+      "description": "Elige qué correos de Family Chores recibe esta cuenta de padre o madre.",
       "weeklyFamilyHighlightsEmail": "Correo semanal de mejores momentos familiares",
       "loading": "Cargando la preferencia de correo...",
       "enabled": "El correo semanal de mejores momentos esta activado.",
@@ -803,6 +803,12 @@
       "saving": "Guardando...",
       "enabledSuccess": "El correo semanal de mejores momentos se activo.",
       "disabledSuccess": "El correo semanal de mejores momentos se desactivo.",
+      "familyFriendInviteEmail": "Invitaciones de familias amigas",
+      "familyFriendInviteEnabled": "Los correos de invitación de familias amigas están activados.",
+      "familyFriendInviteDisabled": "Los correos de invitación de familias amigas están desactivados.",
+      "familyFriendInviteEnabledSuccess": "Los correos de invitación de familias amigas se activaron.",
+      "familyFriendInviteDisabledSuccess": "Los correos de invitación de familias amigas se desactivaron.",
+      "familyFriendInviteHint": "Las solicitudes siguen llegando a tus notificaciones en la aplicación, donde puedes aceptarlas o rechazarlas.",
       "saveError": "No se pudo guardar la preferencia de correo: {error}"
     },
     "accountSubtitle": "Tu cuenta",

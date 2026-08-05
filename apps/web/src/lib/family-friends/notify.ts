@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getCanonicalAppOrigin } from "@/lib/app-origin";
+import { isFamilyFriendInviteEmailEnabled } from "@/lib/email/preferences";
 import { getEmailProvider, getEmailReplyToAddresses } from "@/lib/email/provider";
 import { adminCreateOrReplaceDocument } from "@/lib/firestore/admin";
 import { stringArrayField, stringField, timestampField } from "@/lib/firestore/rest";
@@ -98,6 +99,11 @@ async function writeInviteNotification(input: FriendInviteNotificationInput) {
 }
 
 async function sendInviteEmail(input: FriendInviteNotificationInput) {
+  // Recipients who turned Family Friend Invites off in Profile → Notifications →
+  // Email still get the in-app notification and can approve or decline there.
+  if (input.targetAdminUid && !(await isFamilyFriendInviteEmailEnabled(input.targetAdminUid))) {
+    return "skipped" as const;
+  }
   const origin = getCanonicalAppOrigin();
   const copy = copyFor(input.locale);
   const confirmUrl = `${origin}/api/family-friends/invitations/email-confirm?invite=${encodeURIComponent(input.inviteId)}&token=${encodeURIComponent(input.token)}`;
@@ -111,17 +117,25 @@ async function sendInviteEmail(input: FriendInviteNotificationInput) {
     html,
     replyTo: getEmailReplyToAddresses().length ? getEmailReplyToAddresses() : undefined,
   });
+  return "sent" as const;
 }
 
 export async function notifyFamilyFriendInvite(input: FriendInviteNotificationInput) {
-  const results = await Promise.allSettled([writeInviteNotification(input), sendInviteEmail(input)]);
-  for (const result of results) {
+  const [inAppResult, emailResult] = await Promise.allSettled([
+    writeInviteNotification(input),
+    sendInviteEmail(input),
+  ]);
+  for (const result of [inAppResult, emailResult]) {
     if (result.status === "rejected") {
       console.warn("[FAMILY_FRIEND_INVITE_NOTIFY_SKIPPED]", result.reason instanceof Error ? result.reason.message.slice(0, 180) : "unknown");
     }
   }
+  // `emailOptedOut` keeps a deliberate opt-out from being reported to the
+  // inviter as a delivery failure.
+  const emailOptedOut = emailResult.status === "fulfilled" && emailResult.value === "skipped";
   return {
-    inApp: results[0]?.status === "fulfilled",
-    email: results[1]?.status === "fulfilled",
+    inApp: inAppResult.status === "fulfilled",
+    email: emailResult.status === "fulfilled" && !emailOptedOut,
+    emailOptedOut,
   };
 }

@@ -410,7 +410,7 @@
     "remove": { "title": "Remove Family Friend", "body": "Disconnect from {family}? Your families will stop sharing activity." },
     "disabled": { "actionPending": "Another Family Friends action is still being saved." },
     "errors": { "action": "Family Friends update failed: {error}" },
-    "notices": { "sent": "Invitation sent by email and in the app when the recipient has an account.", "email_warning": "The request was saved, but email delivery could not be confirmed. You can resend it.", "accept": "Your families are now Family Friends.", "resend": "Invitation sent again.", "cancel": "Invitation cancelled.", "removed": "Family Friend removed." }
+    "notices": { "sent": "Invitation sent by email and in the app when the recipient has an account.", "email_warning": "The request was saved, but email delivery could not be confirmed. You can resend it.", "sent_in_app_only": "Invitation saved. This family turned off Family Friend invite emails, so it is waiting in their in-app notifications.", "accept": "Your families are now Family Friends.", "resend": "Invitation sent again.", "cancel": "Invitation cancelled.", "removed": "Family Friend removed." }
   },
   "choreDialog": {
     "addTitle": "Add Chores",
@@ -789,11 +789,11 @@
       "pushGenericError": "Could not save push notification settings.",
       "pushNoWebSupport": "Push notifications are managed in the web app.",
       "emailTitle": "Email",
-      "emailDescription": "Choose whether Family Chores should send a weekly family highlights email to this parent account."
+      "emailDescription": "Choose which Family Chores emails this parent account receives."
     },
     "newsletter": {
       "title": "Email Preferences",
-      "description": "Choose whether Family Chores should send a weekly family highlights email to this parent account.",
+      "description": "Choose which Family Chores emails this parent account receives.",
       "weeklyFamilyHighlightsEmail": "Weekly Family Highlights Email",
       "loading": "Loading email preference...",
       "enabled": "Weekly family highlights email is on.",
@@ -803,6 +803,12 @@
       "saving": "Saving...",
       "enabledSuccess": "Weekly family highlights email turned on.",
       "disabledSuccess": "Weekly family highlights email turned off.",
+      "familyFriendInviteEmail": "Family Friend Invites",
+      "familyFriendInviteEnabled": "Family Friend invite emails are on.",
+      "familyFriendInviteDisabled": "Family Friend invite emails are off.",
+      "familyFriendInviteEnabledSuccess": "Family Friend invite emails turned on.",
+      "familyFriendInviteDisabledSuccess": "Family Friend invite emails turned off.",
+      "familyFriendInviteHint": "Requests still arrive in your in-app notifications, where you can approve or decline them.",
       "saveError": "Could not save email preference: {error}"
     },
     "accountSubtitle": "Your account",
