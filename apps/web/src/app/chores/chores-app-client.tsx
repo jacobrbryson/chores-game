@@ -27,6 +27,7 @@ import type {
 } from "@/lib/chores/recurrence";
 import { recurrenceShortLabel } from "@/lib/chores/recurrence";
 import type { ChoreType } from "@/lib/chores/types";
+import type { ResponsibilityPillar } from "@/lib/responsibility/types";
 import { parseCompletionWindow } from "@/lib/preferences/completion-window";
 import {
   RoutineBadgeIcon,
@@ -76,6 +77,7 @@ type ChoreRow = {
   routineName?: string;
   routineStepOrder?: number;
   routineStepCount?: number;
+  responsibilityPillar?: ResponsibilityPillar;
   createdAt?: string;
 };
 
@@ -1994,6 +1996,7 @@ export default function ChoresPage() {
                     recurrenceInterval: editingChore.recurrenceInterval,
                     recurrenceUnit: editingChore.recurrenceUnit,
                     recurrenceDays: editingChore.recurrenceDays,
+                    responsibilityPillar: editingChore.responsibilityPillar,
                   }
                 : undefined
             }

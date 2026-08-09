@@ -1370,6 +1370,7 @@ export function TodayChoresPanel({
             recurrenceInterval: pendingChore.recurrenceInterval,
             recurrenceUnit: pendingChore.recurrenceUnit,
             recurrenceDays: pendingChore.recurrenceDays,
+            responsibilityPillar: pendingChore.responsibilityPillar,
             source: "manual",
             createdAt: new Date().toISOString(),
           },

@@ -362,6 +362,7 @@ export function TodayChoreCard({
           recurrenceInterval: chore.recurrenceInterval,
           recurrenceUnit: chore.recurrenceUnit,
           recurrenceDays: chore.recurrenceDays,
+          responsibilityPillar: chore.responsibilityPillar,
         }}
         onSaved={onEdited}
         open={editDialogOpen}

@@ -11,6 +11,7 @@ import {
   readBoolean,
   readInteger,
   readString,
+  readStringArray,
   readTimestamp,
   stringField,
   timestampField,
@@ -28,6 +29,7 @@ import {
   updateGoogleTasksSyncMetadata,
 } from "@/lib/google/tasks-link";
 import { collapseRoutineChores } from "@/lib/responsibility/routine-chores";
+import { normalizeEmail } from "@/lib/chores/input";
 import {
   acquireGoogleTasksSyncLease,
   releaseGoogleTasksSyncLease,
@@ -51,6 +53,7 @@ type LocalChore = {
   status: string;
   deleted: boolean;
   assigneeId: string;
+  assigneeIds: string[];
   assigneeName: string;
   createdAt: string;
   submittedAt: string;
@@ -205,14 +208,44 @@ function localAuthorityMillis(chore: LocalChore) {
   return toUnixMillis(chore.updatedAt) || toUnixMillis(chore.submittedAt) || toUnixMillis(chore.createdAt);
 }
 
-function isGoogleMappedChoreForOwner(chore: LocalChore, ownerUid: string) {
+// A chore's assigneeId is an alias, not a uid: the app stores whatever the
+// assignee picker sent, which is the member doc id (a uid for members who
+// signed up directly, their email for members still on an email-keyed invite
+// doc). Comparing it to the Firebase uid directly makes a member's own chores
+// look like someone else's, so ownership is always tested against the full
+// alias set built by resolveOwnerIdentity.
+function matchesOwnerAlias(value: string, ownerAliases: ReadonlySet<string>) {
+  if (!value) {
+    return false;
+  }
+  if (ownerAliases.has(value)) {
+    return true;
+  }
+  const normalized = normalizeEmail(value);
+  return Boolean(normalized) && ownerAliases.has(normalized);
+}
+
+// True when the owner is an assignee at all — including as one of several on a
+// group chore, where the singular assigneeId is stored empty.
+function isChoreAssignedToOwner(chore: LocalChore, ownerAliases: ReadonlySet<string>) {
+  if (matchesOwnerAlias(chore.assigneeId, ownerAliases)) {
+    return true;
+  }
+  return chore.assigneeIds.some((assigneeId) => matchesOwnerAlias(assigneeId, ownerAliases));
+}
+
+function isGoogleMappedChoreForOwner(
+  chore: LocalChore,
+  ownerUid: string,
+  ownerAliases: ReadonlySet<string>,
+) {
   if (!chore.googleTaskId || !chore.googleTaskListId) {
     return false;
   }
   if (chore.googleTaskOwnerUid && chore.googleTaskOwnerUid !== ownerUid) {
     return false;
   }
-  if (!chore.googleTaskOwnerUid && chore.assigneeId !== ownerUid) {
+  if (!chore.googleTaskOwnerUid && !isChoreAssignedToOwner(chore, ownerAliases)) {
     return false;
   }
   return true;
@@ -222,6 +255,7 @@ function isGoogleMappedChoreForOwner(chore: LocalChore, ownerUid: string) {
 function isUnmappedLocalChoreForOwner(
   chore: LocalChore,
   ownerUid: string,
+  ownerAliases: ReadonlySet<string>,
   mappedChoreIds: Set<string>,
 ) {
   if (mappedChoreIds.has(chore.id)) {
@@ -230,7 +264,9 @@ function isUnmappedLocalChoreForOwner(
   if (chore.deleted || chore.status === "Deleted") {
     return false;
   }
-  if (chore.assigneeId !== ownerUid) {
+  // Only single-assignee chores are pushed into Google Tasks. Group and family
+  // chores store an empty singular assigneeId and stay app-only.
+  if (!matchesOwnerAlias(chore.assigneeId, ownerAliases)) {
     return false;
   }
   if (chore.googleTaskOwnerUid && chore.googleTaskOwnerUid !== ownerUid) {
@@ -251,6 +287,7 @@ function parseLocalChore(doc: {
     status: readString(doc.fields, "status"),
     deleted: readBoolean(doc.fields, "deleted"),
     assigneeId: readString(doc.fields, "assigneeId"),
+    assigneeIds: readStringArray(doc.fields, "assigneeIds"),
     assigneeName: readString(doc.fields, "assigneeName"),
     createdAt: readTimestamp(doc.fields, "createdAt") || "",
     submittedAt: readTimestamp(doc.fields, "submittedAt") || "",
@@ -266,33 +303,68 @@ function parseLocalChore(doc: {
   };
 }
 
-async function resolveAssigneeName(familyId: string, uid: string, idToken: string, fallbackName: string) {
-  try {
-    const directMemberDoc = await getDocument(`families/${familyId}/members/${uid}`, idToken);
-    const directName = readString(directMemberDoc.fields, "name");
-    if (directName) {
-      return directName;
-    }
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "";
-    if (!reason.includes("FIRESTORE_HTTP_404")) {
-      throw error;
-    }
+/**
+ * Every identifier that can name this user as a chore assignee — their uid,
+ * their email, and the doc id / uid / email of any member doc that resolves to
+ * them — plus the display name to stamp on imported chores. Mirrors the alias
+ * set getRequesterContext builds for the chore routes, so the sync agrees with
+ * the rest of the app about which chores are the user's own.
+ */
+async function resolveOwnerIdentity(
+  familyId: string,
+  uid: string,
+  email: string,
+  idToken: string,
+  fallbackName: string,
+): Promise<{ aliases: Set<string>; assigneeName: string }> {
+  const aliases = new Set<string>([uid]);
+  const normalizedOwnerEmail = normalizeEmail(email);
+  if (normalizedOwnerEmail) {
+    aliases.add(normalizedOwnerEmail);
   }
+  let assigneeName = "";
+
   const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 200);
-  const byUid = memberDocs.find((doc) => {
+  for (const doc of memberDocs) {
     if (readBoolean(doc.fields, "deleted")) {
-      return false;
+      continue;
     }
-    return readString(doc.fields, "uid") === uid;
-  });
-  if (byUid) {
-    const name = readString(byUid.fields, "name");
-    if (name) {
-      return name;
+    const memberId = documentIdFromName(doc.name);
+    const memberUid = readString(doc.fields, "uid");
+    const memberEmail = normalizeEmail(readString(doc.fields, "email"));
+    const isOwner =
+      memberId === uid ||
+      memberUid === uid ||
+      (Boolean(normalizedOwnerEmail) &&
+        (memberEmail === normalizedOwnerEmail || normalizeEmail(memberId) === normalizedOwnerEmail));
+    if (!isOwner) {
+      continue;
+    }
+    aliases.add(memberId);
+    if (memberUid) {
+      aliases.add(memberUid);
+    }
+    if (memberEmail) {
+      aliases.add(memberEmail);
+    }
+    if (!assigneeName) {
+      assigneeName = readString(doc.fields, "name");
     }
   }
-  return fallbackName || "Unassigned";
+
+  if (!assigneeName) {
+    try {
+      const directMemberDoc = await getDocument(`families/${familyId}/members/${uid}`, idToken);
+      assigneeName = readString(directMemberDoc.fields, "name");
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      if (!reason.includes("FIRESTORE_HTTP_404")) {
+        throw error;
+      }
+    }
+  }
+
+  return { aliases, assigneeName: assigneeName || fallbackName || "Unassigned" };
 }
 
 async function resolveAssigneeUid(familyId: string, assigneeId: string, idToken: string) {
@@ -438,6 +510,13 @@ export async function syncGoogleTasksForUser(
       cap: 5000,
     });
     const allChores = choreDocs.map((doc) => parseLocalChore(doc));
+    const { aliases: ownerAliases, assigneeName } = await resolveOwnerIdentity(
+      link.familyId,
+      options.uid,
+      link.email,
+      options.idToken,
+      link.displayName || link.email,
+    );
     // A routine assignment materializes one chore per step, but only the next
     // open step should ever reach Google Tasks — otherwise every step is pushed
     // at once. collapseRoutineChores retains all non-routine and already
@@ -446,13 +525,13 @@ export async function syncGoogleTasksForUser(
     // later step we must suppress from every push path below.
     const ownerActiveChoreIds = new Set(
       collapseRoutineChores(
-        allChores.filter((chore) => !chore.deleted && chore.assigneeId === options.uid),
+        allChores.filter((chore) => !chore.deleted && isChoreAssignedToOwner(chore, ownerAliases)),
       ).map((chore) => chore.id),
     );
     const isSuppressedRoutineStep = (chore: LocalChore) =>
       Boolean(chore.routineAssignmentId) && !ownerActiveChoreIds.has(chore.id);
     const localGoogleChores = allChores
-      .filter((chore) => isGoogleMappedChoreForOwner(chore, options.uid))
+      .filter((chore) => isGoogleMappedChoreForOwner(chore, options.uid, ownerAliases))
       .filter((chore) => selectedTaskListIds.has(chore.googleTaskListId));
     const localByTaskKey = new Map<string, LocalChore>();
     for (const chore of localGoogleChores) {
@@ -477,14 +556,8 @@ export async function syncGoogleTasksForUser(
       (chore) =>
         !chore.deleted &&
         chore.status !== "Deleted" &&
-        chore.assigneeId === options.uid,
+        isChoreAssignedToOwner(chore, ownerAliases),
     ).length;
-    const assigneeName = await resolveAssigneeName(
-      link.familyId,
-      options.uid,
-      options.idToken,
-      link.displayName || link.email,
-    );
 
     let importedCount = 0;
     let updatedCount = 0;
@@ -585,7 +658,10 @@ export async function syncGoogleTasksForUser(
         );
       }
 
-      if (localChore.assigneeId !== options.uid) {
+      // Reassigned away from this user: take the task out of their Google Tasks
+      // and drop the mapping. Alias-matched so a member whose chores are keyed
+      // by member doc id or invite email is not mistaken for someone else.
+      if (!isChoreAssignedToOwner(localChore, ownerAliases)) {
         let canUnlink = remoteTask.deleted;
         if (!remoteTask.deleted) {
           try {
@@ -813,7 +889,7 @@ export async function syncGoogleTasksForUser(
       if (seenRemoteTaskKeys.has(remoteTaskKey)) {
         continue;
       }
-      if (localChore.assigneeId !== options.uid) {
+      if (!isChoreAssignedToOwner(localChore, ownerAliases)) {
         await unlinkGoogleTaskMapping(link.familyId, localChore.id, options.idToken, now);
         await publishFamilyActivity({
           type: "chore_updated",
@@ -864,7 +940,9 @@ export async function syncGoogleTasksForUser(
 
     const mappedChoreIds = new Set(Array.from(localByTaskKey.values()).map((chore) => chore.id));
     const localUnmappedOwnerChores = allChores
-      .filter((chore) => isUnmappedLocalChoreForOwner(chore, options.uid, mappedChoreIds))
+      .filter((chore) =>
+        isUnmappedLocalChoreForOwner(chore, options.uid, ownerAliases, mappedChoreIds),
+      )
       .sort(compareBySortOrderOrOldest);
 
     for (const localChore of localUnmappedOwnerChores) {

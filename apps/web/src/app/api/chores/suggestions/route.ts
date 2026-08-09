@@ -9,11 +9,18 @@ import {
   readInteger,
   readString,
   readStringArray,
+  readTimestamp,
+  type FirestoreValue,
 } from "@/lib/firestore/rest";
+import {
+  normalizeResponsibilityPillar,
+  type ResponsibilityPillar,
+} from "@/lib/responsibility/types";
 
 type Suggestion = {
   description: string;
   familyCount: number;
+  responsibilityPillar?: ResponsibilityPillar;
 };
 
 const MAX_SUGGESTIONS = 100;
@@ -66,7 +73,33 @@ function upsertSuggestion(map: Map<string, Suggestion>, next: Suggestion) {
   map.set(key, {
     description: existing.description,
     familyCount: Math.max(existing.familyCount, next.familyCount),
+    responsibilityPillar: existing.responsibilityPillar ?? next.responsibilityPillar,
   });
+}
+
+// The pillar the family most recently gave a chore with this title. Picking a
+// suggestion re-uses it so a known chore keeps its pillar instead of resetting.
+function buildPillarByTitle(
+  docs: Array<{ name: string; fields?: Record<string, FirestoreValue> }>,
+) {
+  const pillars = new Map<string, { pillar: ResponsibilityPillar; createdAt: string }>();
+  for (const doc of docs) {
+    const title = readString(doc.fields, "title");
+    if (!title || readBoolean(doc.fields, "deleted")) {
+      continue;
+    }
+    const pillar = normalizeResponsibilityPillar(readString(doc.fields, "responsibilityPillar"));
+    if (!pillar) {
+      continue;
+    }
+    const key = title.toLowerCase();
+    const createdAt = readTimestamp(doc.fields, "createdAt");
+    const existing = pillars.get(key);
+    if (!existing || createdAt > existing.createdAt) {
+      pillars.set(key, { pillar, createdAt });
+    }
+  }
+  return pillars;
 }
 
 function matchesQuery(description: string, query: string) {
@@ -172,6 +205,7 @@ export async function GET(request: NextRequest) {
 
         const suggestionsMap = new Map<string, Suggestion>();
         const excludedDescriptions = new Set<string>();
+        const pillarByTitle = buildPillarByTitle(familyChoreDocs);
 
         if (assigneeId) {
           for (const doc of familyChoreDocs) {
@@ -241,9 +275,14 @@ export async function GET(request: NextRequest) {
 
         return {
           suggestions: rankSuggestions(
-            [...suggestionsMap.values()].filter(
-              (entry) => !excludedDescriptions.has(entry.description.toLowerCase()),
-            ),
+            [...suggestionsMap.values()]
+              .filter((entry) => !excludedDescriptions.has(entry.description.toLowerCase()))
+              .map((entry) => {
+                const pillar =
+                  entry.responsibilityPillar ??
+                  pillarByTitle.get(entry.description.toLowerCase())?.pillar;
+                return pillar ? { ...entry, responsibilityPillar: pillar } : entry;
+              }),
           ),
         };
       });

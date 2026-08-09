@@ -28,6 +28,9 @@ import type { ResponsibilityPillar } from "@/lib/responsibility/types";
 type Suggestion = {
   description: string;
   familyCount: number;
+  // Pillar the family last used for a chore with this title, so picking a
+  // suggestion keeps the chore's established pillar instead of starting blank.
+  responsibilityPillar?: ResponsibilityPillar;
 };
 
 type FamilyMemberOption = {
@@ -815,13 +818,10 @@ export function AddEditChoresDialog({
       : isEditMode
         ? chore?.recurrenceType ?? "none"
         : "none";
-    const resolvedResponsibilityPillar = isSeeAndDoMode
-      ? ""
-      : showAdditionalOptions
-        ? responsibilityPillar
-        : isEditMode
-          ? chore?.responsibilityPillar ?? ""
-          : "";
+    // The pillar state is hydrated from the chore being edited and can also be
+    // pre-filled from a picked suggestion, so it is always the source of truth —
+    // collapsing Additional Options must never drop or wipe it.
+    const resolvedResponsibilityPillar = isSeeAndDoMode ? "" : responsibilityPillar;
     const resolvedRecurrenceInterval =
       resolvedRecurrenceType === "custom"
         ? showAdditionalOptions
@@ -1033,8 +1033,12 @@ export function AddEditChoresDialog({
     }
   }
 
-  function applySuggestion(value: string) {
-    setDescription(value);
+  function applySuggestion(suggestion: Suggestion) {
+    setDescription(suggestion.description);
+    // Only fill an empty pillar — an explicit choice made in this dialog wins.
+    if (suggestion.responsibilityPillar) {
+      setResponsibilityPillar((current) => current || suggestion.responsibilityPillar || "");
+    }
     setShowSuggestionMenu(false);
     setActiveSuggestionIndex(-1);
   }
@@ -1066,7 +1070,7 @@ export function AddEditChoresDialog({
       const selected = filteredSuggestions[Math.max(activeSuggestionIndex, 0)];
       if (selected) {
         event.preventDefault();
-        applySuggestion(selected.description);
+        applySuggestion(selected);
       }
     }
   }
@@ -1110,7 +1114,7 @@ export function AddEditChoresDialog({
                   }`}
                   onMouseDown={(event) => {
                     event.preventDefault();
-                    applySuggestion(suggestion.description);
+                    applySuggestion(suggestion);
                   }}>
                   {suggestion.description}
                 </Button>

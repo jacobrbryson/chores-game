@@ -1,5 +1,21 @@
 [
   {
+    "id": "google-tasks-completion-sync-assignee-match",
+    "date": "2026-08-09",
+    "type": "Bug Fix",
+    "subject": "Google Tasks completions reach the app again",
+    "description": "Checking a chore off in Google Tasks now marks it complete in Family Chores for everyone, including family members who joined from an email invitation. Their chores previously went missing from Google Tasks instead of syncing, and chores they created in the app never appeared there at all.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "chore-responsibility-pillar-retained",
+    "date": "2026-08-09",
+    "type": "Bug Fix",
+    "subject": "Chores keep their Responsibility Pillar",
+    "description": "Editing a chore now shows the pillar it was already given instead of a blank picker — and saving no longer clears it. Picking a chore you have used before from the suggestions list also fills in the pillar that chore normally uses.",
+    "image": "/file.svg"
+  },
+  {
     "id": "family-friend-invite-email-link-and-preference",
     "date": "2026-08-05",
     "type": "Bug Fix",
