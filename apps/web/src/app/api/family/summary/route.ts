@@ -48,6 +48,7 @@ import { levelForXp } from "@/lib/responsibility/levels";
 import { pillarXpFieldName } from "@/lib/responsibility/service";
 import { titleProgressForPillar, titleUnlockTier } from "@/lib/responsibility/titles";
 import { normalizeResponsibilityPillar, type ResponsibilityPillar } from "@/lib/responsibility/types";
+import { rolloverOverdueRoutineAssignmentsBestEffort } from "@/lib/responsibility/assignment-service";
 import { DEFAULT_LOCALE, resolveAppLocale } from "@/lib/locale";
 
 export const dynamic = "force-dynamic";
@@ -461,6 +462,13 @@ export async function GET(request: NextRequest) {
           uid: session.uid,
           idToken,
           minIntervalSeconds: 60,
+        });
+
+        await rolloverOverdueRoutineAssignmentsBestEffort({
+          familyId,
+          idToken,
+          today: offsetIsoDateAt(Date.now(), timezoneOffsetMinutes),
+          actor: { uid: session.uid, email: session.email, name: session.name },
         });
 
         const [familyDoc, memberDocs, choreDocs, categories, claimedSkillBonusKeys] =

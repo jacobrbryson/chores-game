@@ -363,6 +363,74 @@ describe("GET /api/feed", () => {
     });
   });
 
+  it("offers parents a routine copy action for friend-created and completed routines", async () => {
+    setSession("admin");
+    mockListFamilyFriends.mockResolvedValue([
+      { familyId: "family-2", familyName: "Cousins", connectedAt: "2026-06-01T00:00:00.000Z" },
+    ]);
+    mockAdminListAllDocuments.mockResolvedValue([]);
+    mockAdminRunQueryAt.mockResolvedValue([
+      notificationDoc("friend-routine-created", {
+        kind: "routine_created",
+        actorName: "Aunt Amy",
+        title: "Routine added",
+        message: "Aunt Amy added the Morning routine.",
+        routineId: "routine-1",
+        routineName: "Morning",
+        createdAt: "2026-06-04T12:00:00.000Z",
+      }),
+      notificationDoc("friend-routine-completed", {
+        kind: "routine_completed",
+        actorName: "Alex Cousin",
+        title: "Routine completed",
+        message: 'Alex Cousin finished the "Bedtime" routine.',
+        createdAt: "2026-06-04T13:00:00.000Z",
+      }),
+    ]);
+
+    const { GET } = await import("./route");
+    const body = await (await GET(feedRequest("?scope=friends"))).json();
+    expect(body.items).toHaveLength(2);
+    expect(body.items[0]).toMatchObject({
+      type: "routine_completed",
+      action: "copy_friend_routine",
+      metadata: { routineName: "Bedtime" },
+    });
+    expect(body.items[1]).toMatchObject({
+      type: "routine_created",
+      action: "copy_friend_routine",
+      metadata: { routineId: "routine-1", routineName: "Morning" },
+    });
+  });
+
+  it("keeps friend routine completions visible to players without exposing the parent copy action", async () => {
+    setSession("player");
+    mockListFamilyFriends.mockResolvedValue([
+      { familyId: "family-2", familyName: "Cousins", connectedAt: "2026-06-01T00:00:00.000Z" },
+    ]);
+    mockAdminListAllDocuments.mockResolvedValue([]);
+    mockAdminRunQueryAt.mockResolvedValue([
+      notificationDoc("friend-routine-completed", {
+        kind: "routine_completed",
+        actorName: "Alex Cousin",
+        title: "Routine completed",
+        message: "Alex Cousin finished the Bedtime routine.",
+        routineId: "routine-2",
+        routineName: "Bedtime",
+        createdAt: "2026-06-04T13:00:00.000Z",
+      }),
+    ]);
+
+    const { GET } = await import("./route");
+    const body = await (await GET(feedRequest("?scope=friends"))).json();
+    expect(body.items[0]).toMatchObject({
+      type: "routine_completed",
+      action: null,
+      metadata: { routineName: "Bedtime" },
+    });
+    expect(body.items[0].metadata).not.toHaveProperty("routineId");
+  });
+
   it("caps the page size at the maximum and paginates", async () => {
     setSession("admin");
     const { GET } = await import("./route");

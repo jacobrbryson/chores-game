@@ -22,6 +22,7 @@ const FEED_TYPE_LABELS: Record<FeedEventType, string> = {
   chore_approved: "Chore approved",
   chore_rejected: "Chore rejected",
   reward_claimed: "Reward redeemed",
+  routine_created: "Routine created",
   routine_assigned: "Routine assigned",
   routine_completed: "Routine completed",
   title_unlocked: "Title unlocked",

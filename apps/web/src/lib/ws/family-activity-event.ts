@@ -9,6 +9,7 @@ export const FAMILY_ACTIVITY_TYPES = [
   "avatar_changed",
   "quest_rewarded",
   "routine_updated",
+  "routine_created",
   "routine_assigned",
   "routine_completed",
   "reward_claimed",

@@ -17,6 +17,7 @@ import {
   type FirestoreValue,
 } from "@/lib/firestore/rest";
 import {
+  adminCommitWrites,
   adminCreateOrReplaceDocument,
   adminGetDocument,
   adminPatchDocument,
@@ -31,7 +32,7 @@ import {
   normalizeCoinValue,
   type ChoreRecurrenceConfig,
 } from "@/lib/chores/recurrence";
-import type { RoutineStep } from "@/lib/responsibility/routines";
+import { routineFromDoc, type RoutineStep } from "@/lib/responsibility/routines";
 import { loadResponsibilityConfig } from "@/lib/responsibility/config";
 import { titleNameEn, titleUnlockTier } from "@/lib/responsibility/titles";
 import {
@@ -41,7 +42,10 @@ import {
 import {
   hasAnyCompletedStep,
   isAssignmentComplete,
+  overdueRoutineRolloverDueDate,
+  resolveNextRecurringOccurrence,
   routineAssignmentFromDoc,
+  shouldArchiveRoutineStepOnRollover,
   type RoutineAssignment,
   type RoutineAssignmentStep,
 } from "@/lib/responsibility/assignments";
@@ -270,6 +274,210 @@ export async function materializeRoutineAssignment(
   return { assignmentId, choreIds: assignmentSteps.map((step) => step.choreId) };
 }
 
+const MAX_ROUTINE_ROLLOVER_ASSIGNMENTS = 1000;
+
+// Replaces overdue, unfinished scheduled routine occurrences with a fresh
+// occurrence for the latest scheduled date. The rollover is one atomic
+// Firestore commit: concurrent dashboard loads cannot create duplicates, and
+// a step being completed at the same moment makes the commit retry safely on
+// the next read. Completed/Submitted step chores are preserved so their coins,
+// approvals, XP, and audit history remain intact; only unresolved Open/Skipped
+// chores are archived.
+export async function rolloverOverdueRoutineAssignmentsBestEffort(input: {
+  familyId: string;
+  idToken: string;
+  today: string;
+  actor?: { uid?: string; email?: string; name?: string };
+}): Promise<number> {
+  const { familyId, idToken, today, actor } = input;
+  try {
+    const assignmentDocs = await listAllDocuments(
+      `families/${familyId}/routineAssignments`,
+      idToken,
+      { cap: MAX_ROUTINE_ROLLOVER_ASSIGNMENTS },
+    );
+    const overdue = assignmentDocs
+      .filter((doc) => !readBoolean(doc.fields, "deleted"))
+      .map((doc) => ({ doc, assignment: routineAssignmentFromDoc(doc) }))
+      .map((entry) => ({
+        ...entry,
+        nextDueDate: overdueRoutineRolloverDueDate(entry.assignment, today),
+      }))
+      .filter(
+        (entry): entry is typeof entry & { nextDueDate: string } =>
+          Boolean(entry.nextDueDate),
+      );
+    if (overdue.length === 0) {
+      return 0;
+    }
+
+    const config = await loadResponsibilityConfig();
+    let rolledOver = 0;
+    for (const { doc: assignmentDoc, assignment, nextDueDate } of overdue) {
+      try {
+        let nextOccurrence = resolveNextRecurringOccurrence(assignment, null);
+        try {
+          const templateDoc = await adminGetDocument(
+            `families/${familyId}/routines/${assignment.routineId}`,
+          );
+          if (!readBoolean(templateDoc.fields, "deleted")) {
+            nextOccurrence = resolveNextRecurringOccurrence(
+              assignment,
+              routineFromDoc(templateDoc),
+            );
+          }
+        } catch {
+          // A deleted/unavailable template must not stop an assigned routine;
+          // its immutable occurrence snapshot is a valid fallback.
+        }
+
+        const oldStepDocs = await Promise.all(
+          assignment.steps.map(async (step) => {
+            try {
+              return { step, doc: await adminGetDocument(`families/${familyId}/chores/${step.choreId}`) };
+            } catch {
+              return { step, doc: null };
+            }
+          }),
+        );
+        const now = new Date().toISOString();
+        const nextAssignmentId = randomUUID();
+        const nextSteps: RoutineAssignmentStep[] = nextOccurrence.steps.map((step, index) => ({
+          id: step.id,
+          title: step.title,
+          order: index + 1,
+          choreId: randomUUID(),
+          coinValue: Math.max(0, Math.trunc(step.coinValue)),
+          requireApproval: step.requireApproval === true,
+        }));
+        const recurrence: ChoreRecurrenceConfig = {
+          recurrenceType: assignment.recurrenceType,
+          recurrenceInterval: assignment.recurrenceInterval,
+          recurrenceUnit: assignment.recurrenceUnit,
+          recurrenceDays: assignment.recurrenceDays,
+        };
+
+        await adminCommitWrites([
+          {
+            update: {
+              path: `families/${familyId}/routineAssignments/${assignment.id}`,
+              fields: {
+                status: stringField("expired"),
+                expiredAt: timestampField(now),
+                updatedAt: timestampField(now),
+                rolloverAssignmentId: stringField(nextAssignmentId),
+              },
+              updateMask: ["status", "expiredAt", "updatedAt", "rolloverAssignmentId"],
+              currentDocument: assignmentDoc.updateTime
+                ? { updateTime: assignmentDoc.updateTime }
+                : { exists: true },
+            },
+          },
+          ...oldStepDocs
+            .filter(({ doc }) => {
+              if (!doc) {
+                return false;
+              }
+              const status = readString(doc.fields, "status") || "Open";
+              return shouldArchiveRoutineStepOnRollover(
+                status,
+                readBoolean(doc.fields, "deleted"),
+              );
+            })
+            .map(({ step, doc }) => ({
+              update: {
+                path: `families/${familyId}/chores/${step.choreId}`,
+                fields: {
+                  deleted: boolField(true),
+                  deletedAt: timestampField(now),
+                  status: stringField("Archived"),
+                  updatedAt: timestampField(now),
+                },
+                updateMask: ["deleted", "deletedAt", "status", "updatedAt"],
+                currentDocument: doc?.updateTime ? { updateTime: doc.updateTime } : { exists: true },
+              },
+            })),
+          ...nextSteps.map((step) => ({
+            update: {
+              path: `families/${familyId}/chores/${step.choreId}`,
+              fields: routineStepChoreFields({
+                step,
+                assignmentId: nextAssignmentId,
+                routine: nextOccurrence.routine,
+                assigneeId: assignment.assigneeId,
+                assigneeName: assignment.assigneeName,
+                dueDate: nextDueDate,
+                stepCount: nextSteps.length,
+                routineStepXp: config.xpValues.routineStepXp,
+                createdByUid: assignment.assignedBy,
+                now,
+              }),
+              currentDocument: { exists: false },
+            },
+          })),
+          {
+            update: {
+              path: `families/${familyId}/routineAssignments/${nextAssignmentId}`,
+              fields: {
+                routineId: stringField(nextOccurrence.routine.id),
+                routineName: stringField(nextOccurrence.routine.name),
+                pillar: stringField(nextOccurrence.routine.pillar),
+                assigneeId: stringField(assignment.assigneeId),
+                assigneeName: stringField(assignment.assigneeName),
+                assignedBy: stringField(assignment.assignedBy),
+                status: stringField("active"),
+                requireApproval: boolField(nextSteps.some((step) => step.requireApproval)),
+                stepsJson: stringField(JSON.stringify(nextSteps)),
+                completedStepIdsJson: stringField("[]"),
+                skippedStepIdsJson: stringField("[]"),
+                completionBonusXp: integerField(nextOccurrence.routine.completionBonusXp),
+                completionBonusCoins: integerField(nextOccurrence.routine.completionBonusCoins),
+                dueDate: stringField(nextDueDate),
+                recurrenceType: stringField(recurrence.recurrenceType),
+                recurrenceInterval: integerField(recurrence.recurrenceInterval ?? 0),
+                recurrenceUnit: stringField(recurrence.recurrenceUnit ?? ""),
+                recurrenceDays: stringArrayField(recurrence.recurrenceDays ?? []),
+                recurrenceParentAssignmentId: stringField(assignment.id),
+                createdAt: timestampField(now),
+                updatedAt: timestampField(now),
+              },
+              currentDocument: { exists: false },
+            },
+          },
+        ]);
+
+        rolledOver += 1;
+        await writeAuditLogBestEffort({
+          familyId,
+          idToken,
+          eventType: "routine_occurrence_reset",
+          actor: { ...actor, role: "system" },
+          userId: assignment.assigneeId,
+          previous: {
+            assignmentId: assignment.id,
+            dueDate: assignment.dueDate,
+            completedSteps: assignment.completedStepIds.length,
+          },
+          next: { assignmentId: nextAssignmentId, dueDate: nextDueDate },
+          reason: "scheduled_routine_rollover",
+        });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message.slice(0, 200) : "unknown";
+        console.warn("[ROUTINE_ROLLOVER_SKIPPED]", {
+          familyId,
+          assignmentId: assignment.id,
+          reason,
+        });
+      }
+    }
+    return rolledOver;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.slice(0, 200) : "unknown";
+    console.warn("[ROUTINE_ROLLOVER_ERROR]", { familyId, reason });
+    return 0;
+  }
+}
+
 export type RoutineStepProgressOutcome = {
   assignmentId: string;
   routineId: string;
@@ -408,6 +616,8 @@ async function finalizeRoutineCompletion(input: {
     actorName: actor.name,
     title: "Routine completed",
     message: `🎉 ${celebrationName} finished the "${assignment.routineName}" routine${completionBonusCoinsAwarded > 0 ? ` and earned ${completionBonusCoinsAwarded} bonus coins` : ""}!`,
+    routineId: assignment.routineId,
+    routineName: assignment.routineName,
     relatedIds: [playerUid, assignment.assigneeId],
     source: kiosk?.source,
     authenticatedUid: kiosk?.authenticatedUid,
@@ -463,22 +673,27 @@ async function finalizeRoutineCompletion(input: {
     // due yesterday + 1 day = today.
     const nextDueDate = nextRecurringDueDate(today, recurrence, today);
     try {
+      // The current occurrence remains an immutable snapshot, but the next
+      // occurrence should use the latest template. This lets parents edit a
+      // recurring routine without changing today's progress.
+      let nextOccurrence = resolveNextRecurringOccurrence(assignment, null);
+      try {
+        const templateDoc = await adminGetDocument(
+          `families/${familyId}/routines/${assignment.routineId}`,
+        );
+        if (!readBoolean(templateDoc.fields, "deleted")) {
+          const template = routineFromDoc(templateDoc);
+          nextOccurrence = resolveNextRecurringOccurrence(assignment, template);
+        }
+      } catch {
+        // If the template was deleted or cannot be read, preserve the
+        // assignment snapshot so recurrence remains reliable.
+      }
       await materializeRoutineAssignment({
         familyId,
         idToken,
-        routine: {
-          id: assignment.routineId,
-          name: assignment.routineName,
-          pillar: assignment.pillar,
-          completionBonusXp: assignment.completionBonusXp,
-          completionBonusCoins: assignment.completionBonusCoins,
-        },
-        steps: assignment.steps.map((step) => ({
-          id: step.id,
-          title: step.title,
-          coinValue: step.coinValue,
-          requireApproval: step.requireApproval,
-        })),
+        routine: nextOccurrence.routine,
+        steps: nextOccurrence.steps,
         assigneeId: assignment.assigneeId,
         assigneeName: assignment.assigneeName,
         dueDate: nextDueDate,
@@ -525,7 +740,7 @@ export async function recordRoutineStepCompletionBestEffort(input: {
     const assignmentPath = `families/${familyId}/routineAssignments/${assignmentId}`;
     const assignmentDoc = await getDocument(assignmentPath, idToken);
     const assignment = routineAssignmentFromDoc(assignmentDoc);
-    if (assignment.completedStepIds.includes(stepId) || assignment.status === "completed") {
+    if (assignment.completedStepIds.includes(stepId) || assignment.status !== "active") {
       return progressSnapshot(assignment, false, 0, 0);
     }
     const completedStepIds = [...assignment.completedStepIds, stepId];
@@ -599,7 +814,7 @@ export async function recordRoutineStepUndoBestEffort(input: {
     const assignmentPath = `families/${familyId}/routineAssignments/${assignmentId}`;
     const assignmentDoc = await getDocument(assignmentPath, idToken);
     const assignment = routineAssignmentFromDoc(assignmentDoc);
-    if (!assignment.completedStepIds.includes(stepId)) {
+    if (assignment.status !== "active" || !assignment.completedStepIds.includes(stepId)) {
       return;
     }
     const completedStepIds = assignment.completedStepIds.filter((id) => id !== stepId);
@@ -650,7 +865,7 @@ export async function recordRoutineStepSkipBestEffort(input: {
     if (
       assignment.skippedStepIds.includes(stepId) ||
       assignment.completedStepIds.includes(stepId) ||
-      assignment.status === "completed"
+      assignment.status !== "active"
     ) {
       return progressSnapshot(assignment, false, 0, 0);
     }

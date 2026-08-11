@@ -9,6 +9,11 @@ export function mobileFamilyFriendPath(familyId: string) {
 }
 
 export const mobileFamilyFriendAwardCopyPath = `${mobileFamilyFriendsPath}/awards/copy`;
+export const mobileFamilyFriendRoutineCopyPath = `${mobileFamilyFriendsPath}/routines/copy`;
+
+export function mobileRoutineAssignPath(routineId: string) {
+  return `/routines/${encodeURIComponent(routineId)}/assign`;
+}
 
 export function mobileFamilyFriendInviteRequest(email: string) {
   return { method: "POST", body: JSON.stringify({ email }) };

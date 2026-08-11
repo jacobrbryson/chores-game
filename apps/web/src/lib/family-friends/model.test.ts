@@ -19,6 +19,12 @@ describe("family friends privacy rules", () => {
     expect(canShareFriendFeedKind("family_reward_created", "player")).toBe(false);
   });
 
+  it("shares routine templates only with parents while keeping completions celebratory", () => {
+    expect(canShareFriendFeedKind("routine_created", "admin")).toBe(true);
+    expect(canShareFriendFeedKind("routine_created", "player")).toBe(false);
+    expect(canShareFriendFeedKind("routine_completed", "player")).toBe(true);
+  });
+
   it("only exposes a friend's first name in cross-family copy", () => {
     expect(firstNameOnly("Thomas Wood Jr.")).toBe("Thomas");
     expect(friendSafeMessage("Thomas Wood Jr. made the bed.", "Thomas Wood Jr.")).toBe(

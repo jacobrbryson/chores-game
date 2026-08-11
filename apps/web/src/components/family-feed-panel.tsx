@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
+import { CopyFriendRoutineDialog } from "@/components/copy-friend-routine-dialog";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { useLocale } from "@/components/locale-provider";
 import { feedTypeEmoji, type FeedActionType, type FeedEventType } from "@/lib/feed/feed-events";
@@ -31,6 +32,8 @@ type FeedItem = {
     choreTitle?: string;
     rewardId?: string;
     rewardDescription?: string;
+    routineId?: string;
+    routineName?: string;
   };
 };
 
@@ -109,6 +112,7 @@ export function FamilyFeedPanel({ scope = "all", compact = false }: FamilyFeedPa
   const [error, setError] = useState("");
   const [copyPendingId, setCopyPendingId] = useState("");
   const [copyNotice, setCopyNotice] = useState("");
+  const [routineToCopy, setRoutineToCopy] = useState<FeedItem | null>(null);
   const requestSeqRef = useRef(0);
 
   const loadFeed = useCallback(async (targetPage: number, mode: "replace" | "append") => {
@@ -222,7 +226,13 @@ export function FamilyFeedPanel({ scope = "all", compact = false }: FamilyFeedPa
       ) : null}
       {copyNotice ? (
         <Alert tone={copyNotice === "copied" ? "success" : "warning"}>
-          {copyNotice === "copied" ? t("familyFriends.awards.copied") : t("familyFriends.errors.action", { error: copyNotice })}
+          {copyNotice === "copied"
+            ? t("familyFriends.awards.copied")
+            : copyNotice === "routine_copied"
+              ? t("familyFriends.routines.copied")
+              : copyNotice === "routine_copied_assigned"
+                ? t("familyFriends.routines.copiedAssigned")
+                : t("familyFriends.errors.action", { error: copyNotice })}
         </Alert>
       ) : null}
       <div className="feed-list">
@@ -293,6 +303,19 @@ export function FamilyFeedPanel({ scope = "all", compact = false }: FamilyFeedPa
                   </Button>
                 </span>
               ) : null}
+              {item.action === "copy_friend_routine" &&
+              item.sourceFamily.isFriend &&
+              (item.metadata.routineId || item.metadata.routineName) ? (
+                <Button
+                  type="button"
+                  className="btn btn-primary mt-2"
+                  onClick={() => {
+                    setCopyNotice("");
+                    setRoutineToCopy(item);
+                  }}>
+                  {t("familyFriends.routines.cta")}
+                </Button>
+              ) : null}
             </div>
           </article>
         );
@@ -309,6 +332,17 @@ export function FamilyFeedPanel({ scope = "all", compact = false }: FamilyFeedPa
         </div>
       ) : null}
       </div>
+      <CopyFriendRoutineDialog
+        open={Boolean(routineToCopy)}
+        sourceFamilyId={routineToCopy?.sourceFamily.id ?? ""}
+        sourceFamilyName={routineToCopy?.sourceFamily.name ?? ""}
+        sourceRoutineId={routineToCopy?.metadata.routineId ?? ""}
+        routineName={routineToCopy?.metadata.routineName ?? ""}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setRoutineToCopy(null);
+        }}
+        onCopied={(assigned) => setCopyNotice(assigned ? "routine_copied_assigned" : "routine_copied")}
+      />
     </section>
   );
 }

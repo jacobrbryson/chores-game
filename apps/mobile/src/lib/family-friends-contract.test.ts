@@ -3,12 +3,14 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   mobileFamilyFriendAwardCopyPath,
+  mobileFamilyFriendRoutineCopyPath,
   mobileFamilyFriendInvitationRequest,
   mobileFamilyFriendInvitationPath,
   mobileFamilyFriendInviteRequest,
   mobileFamilyFriendPath,
   mobileFamilyFriendRemoveRequest,
   mobileFamilyFriendsPath,
+  mobileRoutineAssignPath,
 } from "./family-friends-contract";
 
 describe("Family Friends mobile surface", () => {
@@ -17,6 +19,8 @@ describe("Family Friends mobile surface", () => {
     expect(mobileFamilyFriendInvitationPath("invite/one")).toBe("/family-friends/invitations/invite%2Fone");
     expect(mobileFamilyFriendPath("family/one")).toBe("/family-friends/family%2Fone");
     expect(mobileFamilyFriendAwardCopyPath).toBe("/family-friends/awards/copy");
+    expect(mobileFamilyFriendRoutineCopyPath).toBe("/family-friends/routines/copy");
+    expect(mobileRoutineAssignPath("routine/one")).toBe("/routines/routine%2Fone/assign");
     expect(mobileFamilyFriendInviteRequest("parent@example.com")).toEqual({
       method: "POST",
       body: JSON.stringify({ email: "parent@example.com" }),

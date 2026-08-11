@@ -27,6 +27,7 @@ import { parseCompletionWindow, type CompletionWindow } from "@/lib/preferences/
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
 import { GOOGLE_TASKS_CHORE_SOURCE, syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
+import { rolloverOverdueRoutineAssignmentsBestEffort } from "@/lib/responsibility/assignment-service";
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
 import {
   type ChoreRecurrenceType,
@@ -519,6 +520,12 @@ function toShiftedUtcMillis(value: number, timezoneOffsetMinutes: number) {
   return value - timezoneOffsetMinutes * MINUTE_MILLIS;
 }
 
+function offsetIsoDateAt(value: number, timezoneOffsetMinutes: number) {
+  return new Date(toShiftedUtcMillis(value, timezoneOffsetMinutes))
+    .toISOString()
+    .slice(0, 10);
+}
+
 function fromShiftedUtcMillis(value: number, timezoneOffsetMinutes: number) {
   return value + timezoneOffsetMinutes * MINUTE_MILLIS;
 }
@@ -953,6 +960,12 @@ export async function GET(request: NextRequest) {
             minIntervalSeconds: 60,
           });
         }
+        await rolloverOverdueRoutineAssignmentsBestEffort({
+          familyId,
+          idToken,
+          today: offsetIsoDateAt(Date.now(), timezoneOffsetMinutes),
+          actor: { uid: session.uid, email: session.email, name: session.name },
+        });
         const viewerRole = await getViewerRole(familyId, session.uid, idToken);
 
         const [memberDocs, docs, categories] = await Promise.all([

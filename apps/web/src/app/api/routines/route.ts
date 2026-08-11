@@ -25,6 +25,7 @@ import {
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
 import { emitFamilyActivity } from "@/lib/notifications/events";
 import { recordOperationMetric } from "@/lib/observability/metrics";
+import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { normalizeResponsibilityPillar } from "@/lib/responsibility/types";
 import {
   MAX_ROUTINE_DESCRIPTION_LENGTH,
@@ -90,6 +91,7 @@ export async function GET(request: NextRequest) {
             id: documentIdFromName(doc.name),
             name: readString(doc.fields, "name") || "Family member",
             role: readString(doc.fields, "role") === "admin" ? "admin" : "player",
+            status: readString(doc.fields, "status") === "active" ? "active" : "invited",
           }));
         return { kind: "ok" as const, routines, members, viewerRole, routineDocCount: routineDocs.length, familyId };
       });
@@ -234,7 +236,10 @@ export async function POST(request: NextRequest) {
           actorName: session.name || session.email,
           title: "Routine added",
           message: `${session.name || "A parent"} added the "${name}" routine (${steps.length} steps).`,
+          routineId,
+          routineName: name,
         });
+        await publishFamilyActivity({ type: "routine_created", familyId, occurredAt: now });
         return { kind: "ok" as const, routineId };
       });
 

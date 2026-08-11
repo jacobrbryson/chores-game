@@ -8,6 +8,7 @@ export type FamilyFriendInviteStatus = "pending" | "accepted" | "cancelled" | "e
 export const FRIEND_FEED_KINDS = new Set([
   "chore_completed",
   "chore_approved",
+  "routine_created",
   "routine_completed",
   "reward_claimed",
   "identity_title_unlocked",
@@ -55,5 +56,5 @@ export function canShareFriendFeedKind(kind: string, viewerRole: "admin" | "play
   if (!FRIEND_FEED_KINDS.has(kind)) {
     return false;
   }
-  return kind !== "family_reward_created" || viewerRole === "admin";
+  return !["family_reward_created", "routine_created"].includes(kind) || viewerRole === "admin";
 }

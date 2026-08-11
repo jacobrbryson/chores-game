@@ -34,6 +34,7 @@ export async function publishFamilyActivity(event: FamilyActivityPublishEvent) {
     const friendRefreshTypes = new Set<FamilyActivityType>([
       "chore_completed",
       "chore_approved",
+      "routine_created",
       "routine_completed",
       "reward_claimed",
       "identity_title_unlocked",

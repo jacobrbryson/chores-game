@@ -7,16 +7,22 @@ import {
   documentIdFromName,
   type FirestoreValue,
 } from "@/lib/firestore/rest";
-import type {
-  ChoreRecurrenceType,
-  ChoreRecurrenceUnit,
-  ChoreRecurrenceWeekday,
+import {
+  DEFAULT_CHORE_COIN_VALUE,
+  nextRecurringDueDate,
+  type ChoreRecurrenceConfig,
+  type ChoreRecurrenceType,
+  type ChoreRecurrenceUnit,
+  type ChoreRecurrenceWeekday,
 } from "@/lib/chores/recurrence";
 import {
   normalizeResponsibilityPillar,
   type ResponsibilityPillar,
 } from "@/lib/responsibility/types";
-import { parseCompletedStepIdsJson } from "@/lib/responsibility/routines";
+import {
+  parseCompletedStepIdsJson,
+  type RoutineDefinition,
+} from "@/lib/responsibility/routines";
 
 // A RoutineAssignment is one occurrence of a Routine template assigned to one
 // player. Assignment steps are materialized as ordinary chore documents (so
@@ -28,7 +34,7 @@ import { parseCompletedStepIdsJson } from "@/lib/responsibility/routines";
 // later never rewrites an assignment that is already in flight.
 //
 // Storage: families/{familyId}/routineAssignments/{assignmentId}
-export type RoutineAssignmentStatus = "active" | "completed";
+export type RoutineAssignmentStatus = "active" | "completed" | "expired";
 
 export type RoutineAssignmentStep = {
   id: string;
@@ -127,7 +133,12 @@ export function routineAssignmentFromDoc(doc: {
     assigneeId: readString(doc.fields, "assigneeId"),
     assigneeName: readString(doc.fields, "assigneeName"),
     assignedBy: readString(doc.fields, "assignedBy"),
-    status: readString(doc.fields, "status") === "completed" ? "completed" : "active",
+    status:
+      readString(doc.fields, "status") === "completed"
+        ? "completed"
+        : readString(doc.fields, "status") === "expired"
+          ? "expired"
+          : "active",
     requireApproval: readBoolean(doc.fields, "requireApproval"),
     steps: parseAssignmentStepsJson(readString(doc.fields, "stepsJson")),
     completedStepIds: parseCompletedStepIdsJson(readString(doc.fields, "completedStepIdsJson")),
@@ -168,4 +179,110 @@ export function nextIncompleteStep(
 ): RoutineAssignmentStep | null {
   const resolved = new Set([...assignment.completedStepIds, ...assignment.skippedStepIds]);
   return assignment.steps.find((step) => !resolved.has(step.id)) ?? null;
+}
+
+// Returns the most recent scheduled occurrence on or before `today`. An
+// active recurring routine is rolled over only after its original due date,
+// so today's work remains available for the whole local calendar day.
+export function overdueRoutineRolloverDueDate(
+  assignment: Pick<
+    RoutineAssignment,
+    | "status"
+    | "dueDate"
+    | "recurrenceType"
+    | "recurrenceInterval"
+    | "recurrenceUnit"
+    | "recurrenceDays"
+  >,
+  today: string,
+): string | null {
+  if (
+    assignment.status !== "active" ||
+    assignment.recurrenceType === "none" ||
+    assignment.recurrenceType === "instant" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(assignment.dueDate) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(today) ||
+    assignment.dueDate >= today
+  ) {
+    return null;
+  }
+
+  const recurrence: ChoreRecurrenceConfig = {
+    recurrenceType: assignment.recurrenceType,
+    recurrenceInterval: assignment.recurrenceInterval,
+    recurrenceUnit: assignment.recurrenceUnit,
+    recurrenceDays: assignment.recurrenceDays,
+  };
+  let occurrenceDueDate = assignment.dueDate;
+  // The cap is defensive against malformed recurrence data. Normal configs
+  // advance on every iteration and reach today's date quickly.
+  for (let index = 0; index < 5000; index += 1) {
+    const nextDueDate = nextRecurringDueDate(occurrenceDueDate, recurrence, today);
+    if (!nextDueDate || nextDueDate <= occurrenceDueDate || nextDueDate > today) {
+      break;
+    }
+    occurrenceDueDate = nextDueDate;
+  }
+  return occurrenceDueDate === assignment.dueDate ? null : occurrenceDueDate;
+}
+
+export function shouldArchiveRoutineStepOnRollover(status: string, deleted: boolean): boolean {
+  if (deleted) {
+    return false;
+  }
+  return status === "Open" || status === "Skipped" || status === "";
+}
+
+// Resolves the definition for the next recurring occurrence without mutating
+// the current assignment snapshot. Retained step ids preserve their existing
+// chore settings unless the latest template explicitly overrides them.
+export function resolveNextRecurringOccurrence(
+  assignment: RoutineAssignment,
+  template: Pick<
+    RoutineDefinition,
+    | "id"
+    | "name"
+    | "pillar"
+    | "steps"
+    | "completionBonusXp"
+    | "completionBonusCoins"
+  > | null,
+) {
+  if (!template || template.steps.length === 0) {
+    return {
+      routine: {
+        id: assignment.routineId,
+        name: assignment.routineName,
+        pillar: assignment.pillar,
+        completionBonusXp: assignment.completionBonusXp,
+        completionBonusCoins: assignment.completionBonusCoins,
+      },
+      steps: assignment.steps.map((step) => ({
+        id: step.id,
+        title: step.title,
+        coinValue: step.coinValue,
+        requireApproval: step.requireApproval,
+      })),
+    };
+  }
+
+  const priorStepsById = new Map(assignment.steps.map((step) => [step.id, step] as const));
+  return {
+    routine: {
+      id: template.id,
+      name: template.name,
+      pillar: template.pillar,
+      completionBonusXp: template.completionBonusXp,
+      completionBonusCoins: template.completionBonusCoins,
+    },
+    steps: template.steps.map((step) => {
+      const prior = priorStepsById.get(step.id);
+      return {
+        id: step.id,
+        title: step.title,
+        coinValue: step.coinValue ?? prior?.coinValue ?? DEFAULT_CHORE_COIN_VALUE,
+        requireApproval: step.requireApproval ?? prior?.requireApproval ?? false,
+      };
+    }),
+  };
 }

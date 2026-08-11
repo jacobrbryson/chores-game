@@ -5,6 +5,7 @@ import { useMobileLocale } from "@/lib/locale";
 import { loadChoreEditorPreferences, saveChoreEditorPreferences } from "@/lib/mobile-preferences";
 import { colors, radius, spacing, typography } from "@/theme";
 import { Badge, Button } from "@/components/ui";
+import { MobileMemberMultiSelect } from "@/components/MobileMemberMultiSelect";
 
 type ChoreRecurrenceType = "none" | "daily" | "weekly" | "monthly" | "custom";
 type RecurrenceUnit = "day" | "week" | "month";
@@ -220,12 +221,6 @@ export function MobileChoreEditorModal({
     });
   }
 
-  function toggleAssignee(memberId: string) {
-    setSelectedAssigneeIds((current) => {
-      return current.includes(memberId) ? current.filter((id) => id !== memberId) : [...current, memberId];
-    });
-  }
-
   function toggleCategory(categoryId: string) {
     setSelectedCategoryIds((current) =>
       current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId],
@@ -326,18 +321,13 @@ export function MobileChoreEditorModal({
                 </View>
 
                 <View style={styles.field}>
-                  <Text style={styles.label}>{t("choreDialog.assigneeLabel")}</Text>
-                  <Text style={styles.helperText}>Choose one or more people.</Text>
-                  <View style={styles.chipRow}>
-                    {activeMembers.map((member) => {
-                      const active = selectedAssigneeIds.includes(member.id);
-                      return (
-                        <Pressable key={member.id} onPress={() => toggleAssignee(member.id)} style={[styles.chip, active ? styles.chipActive : null]}>
-                          <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{member.name}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
+                  <MobileMemberMultiSelect
+                    label={t("choreDialog.assigneeLabel")}
+                    helperText={t("choreDialog.assigneePlaceholder")}
+                    members={activeMembers}
+                    selectedIds={selectedAssigneeIds}
+                    onChange={setSelectedAssigneeIds}
+                  />
                   {isFamilySelection ? <Badge label="Assigned to everyone" /> : null}
                 </View>
 

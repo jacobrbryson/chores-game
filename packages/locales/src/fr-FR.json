@@ -391,6 +391,7 @@
       "chore_approved": "Tâche approuvée",
       "chore_rejected": "La tâche doit être refaite",
       "reward_claimed": "Récompense échangée",
+      "routine_created": "Nouvelle routine",
       "routine_assigned": "Routine attribuée",
       "routine_completed": "Routine terminée",
       "title_unlocked": "Nouveau titre obtenu"
@@ -407,6 +408,7 @@
     "feed": { "fromFamily": "De la famille {family}" },
     "actions": { "invite": "Inviter une famille", "sending": "Envoi...", "confirm": "Confirmer", "confirming": "Confirmation...", "resend": "Renvoyer", "cancel": "Annuler", "remove": "Retirer l’ami", "keep": "Rester connectés" },
     "awards": { "copy": "Copier dans mes récompenses", "copying": "Copie...", "copied": "Récompense copiée dans votre famille." },
+    "routines": { "cta": "Copier dans mes routines familiales", "dialogTitle": "Copier cette routine ?", "confirmBody": "Cette action copiera \"{routine}\" de {family}, ainsi que toutes ses tâches enfants, dans vos routines familiales.", "previewHeading": "Prévisualiser et personnaliser les tâches", "assignNow": "Attribuer cette routine à des membres de la famille maintenant", "assigneesLabel": "Attribuer à", "assigneesPlaceholder": "Choisir des membres de la famille...", "chooseAssignees": "Choisissez au moins un membre de la famille à qui attribuer cette routine.", "chooseSteps": "Conservez ou ajoutez au moins une tâche avant de copier cette routine.", "copy": "Copier la routine", "copyAndAssign": "Copier et attribuer", "copying": "Copie...", "copied": "Routine copiée dans vos routines familiales.", "copiedAssigned": "Routine copiée et attribuée.", "unnamed": "cette routine" },
     "remove": { "title": "Retirer une famille amie", "body": "Se déconnecter de {family} ? Vos familles ne partageront plus leur activité." },
     "disabled": { "actionPending": "Une autre action Familles amies est encore en cours." },
     "errors": { "action": "Échec de la mise à jour des familles amies : {error}" },

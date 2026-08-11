@@ -28,9 +28,7 @@ import {
   MAX_ROUTINE_NAME_LENGTH,
   normalizeRoutineSteps,
   routineFromDoc,
-  type RoutineStep,
 } from "@/lib/responsibility/routines";
-import { syncRoutineStepsToActiveAssignments } from "@/lib/responsibility/assignment-service";
 
 type UpdateRoutineBody = {
   name?: unknown;
@@ -88,11 +86,8 @@ export async function PATCH(
           updatedAt: timestampField(now),
         };
         const mask: string[] = ["updatedAt"];
-        // Effective name/pillar/steps after the patch — used to propagate
-        // structural edits onto active assignments below.
-        let effectiveName = existing.name;
-        let effectivePillar = existing.pillar;
-        let normalizedSteps: RoutineStep[] | null = null;
+        // Routine assignments snapshot these fields. Updating the template
+        // must not rewrite an occurrence that is already in progress.
         if (typeof body.name === "string") {
           const name = body.name.trim().replace(/\s+/g, " ");
           if (!name || name.length > MAX_ROUTINE_NAME_LENGTH) {
@@ -100,7 +95,6 @@ export async function PATCH(
           }
           fields.name = stringField(name);
           mask.push("name");
-          effectiveName = name;
         }
         if (typeof body.description === "string") {
           fields.description = stringField(
@@ -109,8 +103,7 @@ export async function PATCH(
           mask.push("description");
         }
         if (body.pillar !== undefined) {
-          effectivePillar = normalizeResponsibilityPillar(body.pillar);
-          fields.pillar = stringField(effectivePillar);
+          fields.pillar = stringField(normalizeResponsibilityPillar(body.pillar));
           mask.push("pillar");
         }
         if (body.steps !== undefined) {
@@ -118,7 +111,6 @@ export async function PATCH(
           if (!steps) {
             return { kind: "routine_steps_invalid" as const };
           }
-          normalizedSteps = steps;
           fields.stepsJson = stringField(JSON.stringify(steps));
           mask.push("stepsJson");
         }
@@ -140,22 +132,6 @@ export async function PATCH(
           mask.push("active");
         }
         await patchDocument(routinePath, fields, idToken, mask);
-        // Structural step edits (add/remove/rename/reorder) flow through to
-        // routines already assigned to kids; completed assignments are left
-        // alone. Best-effort — never fails the template save.
-        if (normalizedSteps) {
-          await syncRoutineStepsToActiveAssignments({
-            familyId,
-            idToken,
-            routine: { id: routineId, name: effectiveName, pillar: effectivePillar },
-            steps: normalizedSteps,
-            actor: {
-              uid: session.uid,
-              email: session.email,
-              name: session.name || session.email,
-            },
-          });
-        }
         await writeAuditLogBestEffort({
           familyId,
           idToken,

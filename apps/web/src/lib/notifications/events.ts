@@ -43,6 +43,8 @@ type EmitFamilyActivityInput = {
   rewardDescription?: string;
   rewardCoinCost?: number;
   rewardImageId?: string;
+  routineId?: string;
+  routineName?: string;
   relatedIds?: string[];
   pushType?: PushNotificationType;
   // Kiosk Mode attribution. `source` distinguishes a shared-tablet completion
@@ -94,6 +96,8 @@ export async function emitFamilyActivity(input: EmitFamilyActivityInput) {
       rewardDescription: stringField(input.rewardDescription ?? ""),
       rewardCoinCost: integerField(input.rewardCoinCost ?? 0),
       rewardImageId: stringField(input.rewardImageId ?? ""),
+      routineId: stringField(input.routineId ?? ""),
+      routineName: stringField(input.routineName ?? ""),
       relatedIds: stringArrayField(relatedIds),
       source: stringField(input.source ?? "app"),
       authenticatedUid: stringField(input.authenticatedUid ?? input.actorUid),

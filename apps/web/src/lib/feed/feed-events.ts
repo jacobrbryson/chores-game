@@ -16,6 +16,7 @@ export const FEED_EVENT_TYPES = [
   "chore_approved",
   "chore_rejected",
   "reward_claimed",
+  "routine_created",
   "routine_assigned",
   "routine_completed",
   "title_unlocked",
@@ -37,6 +38,7 @@ const NOTIFICATION_KIND_TO_FEED_TYPE: Record<string, FeedEventType> = {
   chore_approved: "chore_approved",
   chore_rejected: "chore_rejected",
   reward_claimed: "reward_claimed",
+  routine_created: "routine_created",
   routine_assigned: "routine_assigned",
   routine_completed: "routine_completed",
   identity_title_unlocked: "title_unlocked",
@@ -59,6 +61,7 @@ const FEED_TYPE_ICONS: Record<FeedEventType, string> = {
   chore_approved: "approved",
   chore_rejected: "rejected",
   reward_claimed: "reward",
+  routine_created: "routine",
   routine_assigned: "routine",
   routine_completed: "routine_done",
   title_unlocked: "title",
@@ -77,6 +80,7 @@ const FEED_TYPE_EMOJI: Record<FeedEventType, string> = {
   chore_approved: "🌟",
   chore_rejected: "🔁",
   reward_claimed: "🎁",
+  routine_created: "📋",
   routine_assigned: "📋",
   routine_completed: "🎉",
   title_unlocked: "🏅",
@@ -91,9 +95,21 @@ export function feedTypeEmoji(type: FeedEventType): string {
   return FEED_TYPE_EMOJI[type];
 }
 
+// Routine activity written before routineId/routineName metadata was added
+// still carries the template name in the human-readable activity message.
+// This fallback keeps those existing Feed cards actionable.
+export function routineNameFromFeedMessage(message: string): string {
+  const match = message.match(/"([^"\r\n]+)"\s+routine\b/i);
+  return match?.[1]?.trim() ?? "";
+}
+
 // Optional safe deep-link action for an event. Only surfaces that the viewer can already
 // reach are linked; never link to support/admin/operator-only surfaces.
-export type FeedActionType = "view_chore" | "view_reward" | "copy_friend_award";
+export type FeedActionType =
+  | "view_chore"
+  | "view_reward"
+  | "copy_friend_award"
+  | "copy_friend_routine";
 
 export function feedTypeAction(type: FeedEventType): FeedActionType | null {
   if (type === "reward_claimed") {
@@ -102,7 +118,10 @@ export function feedTypeAction(type: FeedEventType): FeedActionType | null {
   if (type === "family_award_created") {
     return "copy_friend_award";
   }
-  if (type === "routine_assigned" || type === "routine_completed" || type === "title_unlocked") {
+  if (type === "routine_created" || type === "routine_completed") {
+    return "copy_friend_routine";
+  }
+  if (type === "routine_assigned" || type === "title_unlocked") {
     // Routine and title-unlock events carry no single chore to deep-link to.
     return null;
   }

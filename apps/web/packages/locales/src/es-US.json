@@ -391,6 +391,7 @@
       "chore_approved": "Tarea aprobada",
       "chore_rejected": "La tarea necesita otro intento",
       "reward_claimed": "Recompensa canjeada",
+      "routine_created": "Nueva rutina",
       "routine_assigned": "Rutina asignada",
       "routine_completed": "Rutina completada",
       "title_unlocked": "Nuevo título obtenido"
@@ -407,6 +408,7 @@
     "feed": { "fromFamily": "De {family}" },
     "actions": { "invite": "Invitar familia", "sending": "Enviando...", "confirm": "Confirmar", "confirming": "Confirmando...", "resend": "Reenviar", "cancel": "Cancelar", "remove": "Eliminar amistad", "keep": "Seguir conectados" },
     "awards": { "copy": "Copiar a mis premios familiares", "copying": "Copiando...", "copied": "Premio familiar copiado a tu familia." },
+    "routines": { "cta": "Copiar a mis rutinas familiares", "dialogTitle": "¿Copiar esta rutina?", "confirmBody": "Esto copiará \"{routine}\" de {family}, incluidas todas sus tareas secundarias, a tus rutinas familiares.", "previewHeading": "Vista previa y personalización de tareas", "assignNow": "Asignar esta rutina a miembros de la familia ahora", "assigneesLabel": "Asignar a", "assigneesPlaceholder": "Elige miembros de la familia...", "chooseAssignees": "Elige al menos un miembro de la familia para asignarle esta rutina.", "chooseSteps": "Conserva o agrega al menos una tarea antes de copiar esta rutina.", "copy": "Copiar rutina", "copyAndAssign": "Copiar y asignar", "copying": "Copiando...", "copied": "Rutina copiada a tus rutinas familiares.", "copiedAssigned": "Rutina copiada y asignada.", "unnamed": "esta rutina" },
     "remove": { "title": "Eliminar familia amiga", "body": "¿Desconectarse de {family}? Sus familias dejarán de compartir actividad." },
     "disabled": { "actionPending": "Todavía se está guardando otra acción de Familias amigas." },
     "errors": { "action": "Falló la actualización de Familias amigas: {error}" },

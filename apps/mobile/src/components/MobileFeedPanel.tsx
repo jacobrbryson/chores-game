@@ -4,6 +4,7 @@ import { copyMobileFriendAward, fetchMobileFeed, type MobileFeedItem } from "@/l
 import { useMobileLocale } from "@/lib/locale";
 import { colors, radius, spacing, typography } from "@/theme";
 import { AvatarBadge, Button, Card, EmptyState, ErrorState, LoadingState } from "@/components/ui";
+import { MobileCopyFriendRoutineModal } from "@/components/MobileCopyFriendRoutineModal";
 
 type MobileFeedPanelProps = {
   onViewChore?: () => void;
@@ -18,6 +19,7 @@ const FEED_TYPE_EMOJI: Record<string, string> = {
   chore_approved: "🌟",
   chore_rejected: "🔁",
   reward_claimed: "🎁",
+  routine_created: "📋",
   routine_completed: "🎉",
   title_unlocked: "🏅",
   family_award_created: "🎁",
@@ -77,6 +79,7 @@ export function MobileFeedPanel({ onViewChore, onViewReward, scope = "all", comp
   const [error, setError] = useState("");
   const [copyPendingId, setCopyPendingId] = useState("");
   const [copyNotice, setCopyNotice] = useState("");
+  const [routineToCopy, setRoutineToCopy] = useState<MobileFeedItem | null>(null);
   const requestSeqRef = useRef(0);
 
   const load = useCallback(async (targetPage: number, mode: "replace" | "append") => {
@@ -149,8 +152,14 @@ export function MobileFeedPanel({ onViewChore, onViewReward, scope = "all", comp
         </View>
       ) : null}
       {copyNotice ? (
-        <Text style={copyNotice === "copied" ? styles.success : styles.error}>
-          {copyNotice === "copied" ? t("familyFriends.awards.copied") : t("familyFriends.errors.action", { error: copyNotice })}
+        <Text style={["copied", "routine_copied", "routine_copied_assigned"].includes(copyNotice) ? styles.success : styles.error}>
+          {copyNotice === "copied"
+            ? t("familyFriends.awards.copied")
+            : copyNotice === "routine_copied"
+              ? t("familyFriends.routines.copied")
+              : copyNotice === "routine_copied_assigned"
+                ? t("familyFriends.routines.copiedAssigned")
+                : t("familyFriends.errors.action", { error: copyNotice })}
         </Text>
       ) : null}
       {items.map((item) => {
@@ -200,6 +209,17 @@ export function MobileFeedPanel({ onViewChore, onViewReward, scope = "all", comp
                     onPress={() => void copyAward(item)}
                   />
                 ) : null}
+                {item.action === "copy_friend_routine" &&
+                item.sourceFamily?.isFriend &&
+                (item.metadata?.routineId || item.metadata?.routineName) ? (
+                  <Button
+                    label={t("familyFriends.routines.cta")}
+                    onPress={() => {
+                      setCopyNotice("");
+                      setRoutineToCopy(item);
+                    }}
+                  />
+                ) : null}
               </View>
             </View>
           </Card>
@@ -213,6 +233,15 @@ export function MobileFeedPanel({ onViewChore, onViewReward, scope = "all", comp
           onPress={() => void load(page + 1, "append")}
         />
       ) : null}
+      <MobileCopyFriendRoutineModal
+        visible={Boolean(routineToCopy)}
+        sourceFamilyId={routineToCopy?.sourceFamily?.id ?? ""}
+        sourceFamilyName={routineToCopy?.sourceFamily?.name ?? ""}
+        sourceRoutineId={routineToCopy?.metadata?.routineId ?? ""}
+        routineName={routineToCopy?.metadata?.routineName ?? ""}
+        onClose={() => setRoutineToCopy(null)}
+        onCopied={(assigned) => setCopyNotice(assigned ? "routine_copied_assigned" : "routine_copied")}
+      />
     </View>
   );
 }

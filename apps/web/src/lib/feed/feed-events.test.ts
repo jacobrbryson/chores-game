@@ -6,6 +6,7 @@ import {
   feedTypeIcon,
   isFeedEventVisibleToViewer,
   mapNotificationKindToFeedType,
+  routineNameFromFeedMessage,
 } from "./feed-events";
 
 describe("feed event mapping", () => {
@@ -15,6 +16,7 @@ describe("feed event mapping", () => {
     expect(mapNotificationKindToFeedType("chore_rejected")).toBe("chore_rejected");
     expect(mapNotificationKindToFeedType("chore_created")).toBe("chore_created");
     expect(mapNotificationKindToFeedType("reward_claimed")).toBe("reward_claimed");
+    expect(mapNotificationKindToFeedType("routine_created")).toBe("routine_created");
     expect(mapNotificationKindToFeedType("identity_title_unlocked")).toBe("title_unlocked");
     expect(mapNotificationKindToFeedType("family_reward_created")).toBe("family_award_created");
   });
@@ -34,6 +36,8 @@ describe("feed event mapping", () => {
     expect(feedTypeAction("reward_claimed")).toBe("view_reward");
     expect(feedTypeAction("title_unlocked")).toBeNull();
     expect(feedTypeAction("family_award_created")).toBe("copy_friend_award");
+    expect(feedTypeAction("routine_created")).toBe("copy_friend_routine");
+    expect(feedTypeAction("routine_completed")).toBe("copy_friend_routine");
   });
 
   it("provides a translated heading for every feed type", () => {
@@ -43,6 +47,18 @@ describe("feed event mapping", () => {
         expect(events[type], `${locale} feed.events.${type}`).toBeTruthy();
       }
     }
+  });
+});
+
+describe("legacy routine feed metadata", () => {
+  it("extracts the routine name from completion and creation messages", () => {
+    expect(
+      routineNameFromFeedMessage('🎉 Addy finished the "Morning" routine and earned 2 bonus coins!'),
+    ).toBe("Morning");
+    expect(routineNameFromFeedMessage('A parent added the "Bedtime" routine (4 steps).')).toBe(
+      "Bedtime",
+    );
+    expect(routineNameFromFeedMessage("Routine completed")).toBe("");
   });
 });
 

@@ -25,6 +25,7 @@ import {
   feedTypeIcon,
   isFeedEventVisibleToViewer,
   mapNotificationKindToFeedType,
+  routineNameFromFeedMessage,
   type FeedEventType,
 } from "@/lib/feed/feed-events";
 import { recordOperationMetric } from "@/lib/observability/metrics";
@@ -61,6 +62,8 @@ type FeedItem = {
     rewardDescription?: string;
     rewardCoinCost?: number;
     rewardImageId?: string;
+    routineId?: string;
+    routineName?: string;
   };
 };
 
@@ -365,6 +368,8 @@ export async function GET(request: NextRequest) {
                 ...(readString(doc.fields, "rewardDescription") ? { rewardDescription: readString(doc.fields, "rewardDescription") } : {}),
                 ...(readInteger(doc.fields, "rewardCoinCost") ? { rewardCoinCost: readInteger(doc.fields, "rewardCoinCost") } : {}),
                 ...(readString(doc.fields, "rewardImageId") ? { rewardImageId: readString(doc.fields, "rewardImageId") } : {}),
+                ...(readString(doc.fields, "routineId") ? { routineId: readString(doc.fields, "routineId") } : {}),
+                ...(readString(doc.fields, "routineName") ? { routineName: readString(doc.fields, "routineName") } : {}),
               },
             } satisfies FeedItem;
           })
@@ -405,6 +410,9 @@ export async function GET(request: NextRequest) {
                   : null;
                 const actorNameForRedaction = rawActorName || resolved?.name || "";
                 const rewardId = readString(doc.fields, "rewardId");
+                const routineName =
+                  readString(doc.fields, "routineName") ||
+                  routineNameFromFeedMessage(readString(doc.fields, "message"));
                 return {
                   id: `${friend.familyId}:${documentIdFromName(doc.name)}`,
                   type,
@@ -412,7 +420,10 @@ export async function GET(request: NextRequest) {
                   message: redactFriendMemberNames(display.message, friendContext, actorNameForRedaction),
                   actor,
                   icon: feedTypeIcon(type),
-                  action: feedTypeAction(type),
+                  action:
+                    feedTypeAction(type) === "copy_friend_routine" && context.role !== "admin"
+                      ? null
+                      : feedTypeAction(type),
                   createdAt: readTimestamp(doc.fields, "createdAt"),
                   sourceFamily: { id: friend.familyId, name: friend.familyName, isFriend: true },
                   metadata: {
@@ -422,6 +433,10 @@ export async function GET(request: NextRequest) {
                     ...(readString(doc.fields, "rewardDescription") ? { rewardDescription: readString(doc.fields, "rewardDescription") } : {}),
                     ...(readInteger(doc.fields, "rewardCoinCost") ? { rewardCoinCost: readInteger(doc.fields, "rewardCoinCost") } : {}),
                     ...(readString(doc.fields, "rewardImageId") ? { rewardImageId: readString(doc.fields, "rewardImageId") } : {}),
+                    ...(context.role === "admin" && readString(doc.fields, "routineId")
+                      ? { routineId: readString(doc.fields, "routineId") }
+                      : {}),
+                    ...(routineName ? { routineName } : {}),
                   },
                 } satisfies FeedItem;
               })

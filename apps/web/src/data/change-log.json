@@ -1,5 +1,29 @@
 [
   {
+    "id": "partial-routine-scheduled-reset",
+    "date": "2026-08-11",
+    "type": "Bug Fix",
+    "subject": "Repeating routines reset on schedule",
+    "description": "Daily, weekly, monthly, and custom repeating routines now start fresh when their next scheduled time arrives, even if the previous routine was only partly finished. Completed chores still keep their earned credit.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "family-friend-routine-copy-and-assign",
+    "date": "2026-08-11",
+    "type": "Feature",
+    "subject": "Share useful routines with Family Friends",
+    "description": "Parents can preview and customize every chore in a Family Friend's routine before copying it, then choose a repeat schedule and assign it to one or more family members. Existing routine cards in the Feed work too.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "routine-template-edits-preserve-current-progress",
+    "date": "2026-08-10",
+    "type": "Bug Fix",
+    "subject": "Routine edits preserve today's progress",
+    "description": "Adding, removing, renaming, or reordering routine steps no longer changes a routine occurrence that is already underway. The updated steps take effect the next time the routine is assigned or repeats.",
+    "image": "/file.svg"
+  },
+  {
     "id": "google-tasks-completion-sync-assignee-match",
     "date": "2026-08-09",
     "type": "Bug Fix",

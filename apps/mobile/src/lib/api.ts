@@ -5,12 +5,14 @@ import { Platform } from "react-native";
 import { collapseRoutineChores } from "@/lib/routine-chores";
 import {
   mobileFamilyFriendAwardCopyPath,
+  mobileFamilyFriendRoutineCopyPath,
   mobileFamilyFriendInvitationRequest,
   mobileFamilyFriendInvitationPath,
   mobileFamilyFriendInviteRequest,
   mobileFamilyFriendPath,
   mobileFamilyFriendRemoveRequest,
   mobileFamilyFriendsPath,
+  mobileRoutineAssignPath,
 } from "@/lib/family-friends-contract";
 
 const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api/v1";
@@ -209,10 +211,17 @@ export type MobileFeedItem = {
   message: string;
   actor: MobileFeedActor | null;
   icon: string;
-  action: "view_chore" | "view_reward" | "copy_friend_award" | null;
+  action: "view_chore" | "view_reward" | "copy_friend_award" | "copy_friend_routine" | null;
   createdAt: string;
   sourceFamily?: { id: string; name: string; isFriend: boolean };
-  metadata: { choreId?: string; choreTitle?: string; rewardId?: string; rewardDescription?: string };
+  metadata: {
+    choreId?: string;
+    choreTitle?: string;
+    rewardId?: string;
+    rewardDescription?: string;
+    routineId?: string;
+    routineName?: string;
+  };
 };
 
 export type MobileFeedPage = {
@@ -300,6 +309,58 @@ export async function copyMobileFriendAward(sourceFamilyId: string, rewardId: st
   return apiFetch(mobileFamilyFriendAwardCopyPath, {
     method: "POST",
     body: JSON.stringify({ sourceFamilyId, rewardId }),
+  });
+}
+
+export async function copyMobileFriendRoutine(
+  sourceFamilyId: string,
+  routineId: string,
+  routineName: string,
+  steps: Array<{
+    id: string;
+    title: string;
+    coinValue: number;
+    requireApproval: boolean;
+  }>,
+) {
+  return apiFetch(mobileFamilyFriendRoutineCopyPath, {
+    method: "POST",
+    body: JSON.stringify({ sourceFamilyId, routineId, routineName, steps }),
+  }) as Promise<{ routineId: string; routineName?: string; stepCount?: number }>;
+}
+
+export type MobileFriendRoutinePreview = {
+  id: string;
+  name: string;
+  steps: Array<{
+    id: string;
+    title: string;
+    coinValue?: number;
+    requireApproval?: boolean;
+  }>;
+};
+
+export async function fetchMobileFriendRoutinePreview(
+  sourceFamilyId: string,
+  routineId: string,
+  routineName: string,
+): Promise<MobileFriendRoutinePreview> {
+  const params = new URLSearchParams({ sourceFamilyId });
+  if (routineId) params.set("routineId", routineId);
+  if (routineName) params.set("routineName", routineName);
+  const payload = await apiFetch(
+    `${mobileFamilyFriendRoutineCopyPath}?${params.toString()}`,
+  );
+  return payload.routine as MobileFriendRoutinePreview;
+}
+
+export async function assignMobileRoutine(
+  routineId: string,
+  body: { assigneeId: string; recurrenceType: "none" | "daily" | "weekly" | "monthly" },
+) {
+  return apiFetch(mobileRoutineAssignPath(routineId), {
+    method: "POST",
+    body: JSON.stringify(body),
   });
 }
 

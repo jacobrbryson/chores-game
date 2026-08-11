@@ -3,6 +3,9 @@
 ## Purpose
 This file defines what this project is trying to accomplish and the operating rules for contributors (human and AI agents). Treat it as a living document and update it as decisions are made.
 
+## Roadmap
+Planned and in-flight work lives in `docs/ROADMAP.md`. This file records durable rules and decisions already made; the roadmap records what is next. Keep them in sync — when a roadmap item ships, move the decision here.
+
 ## Product Goal
 Build a family chore game where:
 - Parents manage chores, approvals, and rewards.
@@ -219,6 +222,21 @@ The `supportRequests` collection is the single source of truth for all user-subm
 - Support manages content; the SEO dashboard reports metadata, readiness, sitemap, and lifecycle health.
 
 ## Recent Decisions (2026-02-15)
+- Scheduled routine rollover fix (2026-08-11):
+  - An active daily, weekly, monthly, or custom recurring routine expires and materializes a fresh occurrence when its next scheduled date arrives, even when the prior occurrence was only partly complete. Instant recurrences remain completion-driven.
+  - Rollover archives only unresolved open/skipped step chores. Submitted, approved, and otherwise completed step chores remain intact so step coins, approval, Responsibility XP, and history are never clawed back; an expired partial occurrence does not earn the routine completion bonus.
+  - Rollover uses an atomic, update-time-guarded server commit so concurrent web/mobile reads cannot create duplicate occurrences or race a step completion. The shared backend behavior applies to both apps and records an audit event.
+  - No new collections or classifications are introduced. Routine occurrence fields remain `FAMILY_PRIVATE`, completed child activity remains `CHILD_SENSITIVE`, and rollover audit records remain `ADMIN_ONLY`.
+- Family Friend routine copy update (2026-08-10):
+  - Friend routine creation is shared only with parents/admins; routine completion remains visible to all connected-family members under the existing positive-activity rules.
+  - A connected-family parent can copy a routine template and all of its step definitions from either a routine-created or routine-completed Feed event. The server re-verifies the active friendship and admin role before every copy.
+  - Legacy routine Feed events without template metadata resolve the current non-deleted source routine by its quoted activity-message name, so existing cards remain copyable; direct routine-id lookup remains preferred for new events.
+  - The confirmation flow previews every routine chore and lets the parent add/remove/reorder steps and change per-step coin/approval settings before copying. It can save the copied template without assigning it, or assign separate occurrences immediately to one or more active family members (admins and players) with a shared repeat schedule. Assignment uses the canonical routine materialization workflow so chores, limits, audit records, recurrence, and notifications remain consistent.
+  - Web and mobile expose the copy-and-assign flow. Copied routine templates and assignments remain `FAMILY_PRIVATE`; child assignment identity and activity remain `CHILD_SENSITIVE`; immutable copy/assignment audit records remain `ADMIN_ONLY`. No new collections are introduced.
+- Routine template snapshot fix (2026-08-10):
+  - Editing a routine template never mutates an active or historical routine assignment. The assignment remains an immutable snapshot so adding, removing, renaming, or reordering template steps cannot change a child's current progress.
+  - A recurring routine reads the latest non-deleted template when it creates its next occurrence, so template edits still take effect on the next scheduled run.
+  - This backend behavior applies to web and mobile clients. It introduces no new data or data-classification changes; existing routine and assignment audit behavior is unchanged.
 - Family Friends and quest retirement update (2026-08-01):
   - Only parent/admin accounts can invite another family by an admin email, confirm a request, cancel/resend a pending invitation, or remove a connection. One target-family admin confirmation creates the bilateral connection.
   - Invitations use expiring single-use confirmation tokens, best-effort email delivery, and admin-only in-app confirmation actions. Relationship mutations are server-authorized and audit logged.

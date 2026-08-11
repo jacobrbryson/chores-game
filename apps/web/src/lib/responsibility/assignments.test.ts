@@ -3,8 +3,11 @@ import {
   hasAnyCompletedStep,
   isAssignmentComplete,
   nextIncompleteStep,
+  overdueRoutineRolloverDueDate,
   parseAssignmentStepsJson,
+  resolveNextRecurringOccurrence,
   routineAssignmentFromDoc,
+  shouldArchiveRoutineStepOnRollover,
   type RoutineAssignment,
 } from "./assignments";
 import { stringField } from "@/lib/firestore/rest";
@@ -98,6 +101,132 @@ describe("assignment progress helpers", () => {
   });
 });
 
+describe("resolveNextRecurringOccurrence", () => {
+  it("keeps the current snapshot when no template is available", () => {
+    const assignment = assignmentWith(["step_1", "step_2"]);
+    const next = resolveNextRecurringOccurrence(assignment, null);
+
+    expect(next.routine.name).toBe("Clean Room");
+    expect(next.steps.map((step) => step.title)).toEqual([
+      "Make bed",
+      "Pick up Legos",
+      "Empty trash",
+    ]);
+    expect(assignment.completedStepIds).toEqual(["step_1", "step_2"]);
+  });
+
+  it("uses edited steps only for the next occurrence", () => {
+    const assignment = assignmentWith(["step_1", "step_2"]);
+    const next = resolveNextRecurringOccurrence(assignment, {
+      id: "routine-1",
+      name: "Carpe Diem",
+      pillar: "self_care",
+      completionBonusXp: 8,
+      completionBonusCoins: 3,
+      steps: [
+        { id: "step_1", title: "Make the bed" },
+        { id: "step_4", title: "Clean your bathroom sink" },
+      ],
+    });
+
+    expect(next.routine.name).toBe("Carpe Diem");
+    expect(next.steps).toEqual([
+      {
+        id: "step_1",
+        title: "Make the bed",
+        coinValue: 5,
+        requireApproval: false,
+      },
+      {
+        id: "step_4",
+        title: "Clean your bathroom sink",
+        coinValue: 10,
+        requireApproval: false,
+      },
+    ]);
+    expect(assignment.steps).toHaveLength(3);
+    expect(assignment.completedStepIds).toEqual(["step_1", "step_2"]);
+  });
+});
+
+describe("overdueRoutineRolloverDueDate", () => {
+  it("rolls a partially completed daily routine into today", () => {
+    const assignment = {
+      ...assignmentWith(["step_1"]),
+      dueDate: "2026-08-10",
+      recurrenceType: "daily" as const,
+    };
+    expect(overdueRoutineRolloverDueDate(assignment, "2026-08-11")).toBe("2026-08-11");
+    expect(assignment.completedStepIds).toEqual(["step_1"]);
+  });
+
+  it("catches up missed occurrences without scheduling beyond today", () => {
+    expect(
+      overdueRoutineRolloverDueDate(
+        {
+          ...assignmentWith([]),
+          dueDate: "2026-07-20",
+          recurrenceType: "weekly",
+        },
+        "2026-08-11",
+      ),
+    ).toBe("2026-08-10");
+  });
+
+  it("uses the latest selected weekday for a custom weekly routine", () => {
+    expect(
+      overdueRoutineRolloverDueDate(
+        {
+          ...assignmentWith([]),
+          dueDate: "2026-08-10",
+          recurrenceType: "custom",
+          recurrenceInterval: 1,
+          recurrenceUnit: "week",
+          recurrenceDays: ["mon", "tue", "wed", "thu", "fri"],
+        },
+        "2026-08-12",
+      ),
+    ).toBe("2026-08-12");
+  });
+
+  it("does not roll current, completed, non-recurring, or instant assignments", () => {
+    expect(overdueRoutineRolloverDueDate(assignmentWith([]), "2026-08-11")).toBeNull();
+    expect(
+      overdueRoutineRolloverDueDate(
+        { ...assignmentWith([]), dueDate: "2026-08-11", recurrenceType: "daily" },
+        "2026-08-11",
+      ),
+    ).toBeNull();
+    expect(
+      overdueRoutineRolloverDueDate(
+        {
+          ...assignmentWith([]),
+          status: "completed",
+          dueDate: "2026-08-10",
+          recurrenceType: "daily",
+        },
+        "2026-08-11",
+      ),
+    ).toBeNull();
+    expect(
+      overdueRoutineRolloverDueDate(
+        { ...assignmentWith([]), dueDate: "2026-08-10", recurrenceType: "instant" },
+        "2026-08-11",
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("shouldArchiveRoutineStepOnRollover", () => {
+  it("archives only unresolved chores and preserves submitted or paid work", () => {
+    expect(shouldArchiveRoutineStepOnRollover("Open", false)).toBe(true);
+    expect(shouldArchiveRoutineStepOnRollover("Skipped", false)).toBe(true);
+    expect(shouldArchiveRoutineStepOnRollover("Submitted", false)).toBe(false);
+    expect(shouldArchiveRoutineStepOnRollover("Approved", false)).toBe(false);
+    expect(shouldArchiveRoutineStepOnRollover("Open", true)).toBe(false);
+  });
+});
+
 describe("routineAssignmentFromDoc", () => {
   it("parses a Firestore document defensively", () => {
     const assignment = routineAssignmentFromDoc({
@@ -132,5 +261,13 @@ describe("routineAssignmentFromDoc", () => {
     });
     expect(assignment.pillar).toBe("");
     expect(assignment.status).toBe("active");
+  });
+
+  it("preserves an expired rollover occurrence", () => {
+    const assignment = routineAssignmentFromDoc({
+      name: "x/assignment-3",
+      fields: { status: stringField("expired") },
+    });
+    expect(assignment.status).toBe("expired");
   });
 });
