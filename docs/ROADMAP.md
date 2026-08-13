@@ -19,16 +19,18 @@ Last updated: 2026-08-10
 
 | # | Item | Status | Type | Blocking launch? |
 | --- | --- | --- | --- | --- |
-| 1 | Android app on Google Play | Not started | Release ops | Yes |
+| 1 | Android app on Google Play | In progress — internal testing live | Release ops | Yes |
 | 2 | iOS app on the App Store | Not started | Release ops | Yes |
 | 3 | YouTube product demo videos | Not started | Marketing | No |
 | 4 | Family invite / referral build-out | Partial | Product | No |
 | 5 | Friend high-fives, shout-outs, cross-family prizes | Not started | Product | No |
 | 6 | Website refresh — fun, animated, game-like | Not started | Product/design | No |
 | 7 | Family leveling / progressive feature unlock | Not started | Product (cross-cutting) | No |
+| 8 | Weekly email cron + "Week in Review" celebration | Partial | Product + ops | No |
+| 9 | Android build size evaluation | Not started | Release ops | No |
 
-Items 1 and 2 are sequential-ish gating work with external review latency; 3–7 can proceed in parallel.
-Suggested order: **1 → 2** (start immediately, long lead times) with **6** running alongside, then **7 → 4 → 5**, and **3** once the refreshed UI from 6 exists to film.
+Items 1 and 2 are sequential-ish gating work with external review latency; 3–8 can proceed in parallel.
+Suggested order: **1 → 2** (start immediately, long lead times) with **6** running alongside, then **7 → 4 → 5**, and **3** once the refreshed UI from 6 exists to film. **Item 8's cron half is small and nearly done — it can ship on its own at any point.**
 
 **Item 7 is a cross-cutting dependency and should be designed before 4, 5, and the kid-facing half of 6.** It decides which surfaces are visible to which families, so item 4's referral incentives, item 5's cross-family features, and item 6's celebration moments all want to know about it. Its ladder design (which feature unlocks when) is also the cheapest thing on this roadmap to get wrong and the most expensive to change later, because unlock order becomes a promise to existing families.
 
@@ -36,33 +38,37 @@ Suggested order: **1 → 2** (start immediately, long lead times) with **6** run
 
 ## 1. Android app on Google Play
 
-**Status:** Not started · **Owner:** TBD
+**Status:** **Internal (private) testing live — install from Google Play confirmed working 2026-08-12** · **Owner:** TBD
 
-The Expo app runs locally (`apps/mobile`, Expo 54 / RN 0.81) but nothing about release builds or store submission exists yet.
+The Expo app (`apps/mobile`, Expo 54 / RN 0.81) builds through EAS and is distributing on Play's internal testing track. A verified install from Play also confirms the pieces that only fail in a store-delivered build: Play App Signing, the upload keystore, and the release SHA-1 registration behind Google Sign-In. What remains is the policy/listing work required to widen the audience.
 
 ### Current state
 - `apps/mobile/app.config.js` sets `android.package = com.orcwood.familychores`, icons, adaptive icon, and splash.
-- **No `apps/mobile/eas.json`** — there is no build profile, no submit profile, no credentials configuration.
-- No Play Store listing assets (feature graphic, phone/tablet screenshots, short/full description).
-- No release signing configuration or Play App Signing enrollment.
-- Sign-in requires `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` and server-side `GOOGLE_ANDROID_CLIENT_ID`; the release build's SHA-1 must be registered in the Google Cloud OAuth client or Google Sign-In will fail only in production.
+- `apps/mobile/eas.json` now defines development/preview APK profiles, a production AAB profile with remote version-code auto-incrementing, and a draft internal-track submit profile using EAS-managed credentials.
+- No Play Store listing assets yet (feature graphic, phone/tablet screenshots, short/full description).
+- EAS-managed upload credentials are generated and the app is enrolled in Play App Signing.
+- The release SHA-1 is registered on the Android OAuth client — confirmed by Google Sign-In working in the Play-delivered internal build. `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` and server-side `GOOGLE_ANDROID_CLIENT_ID` are wired correctly for release.
 
-### Known issue to fix first
-Root `app.json` declares `android.package = "com.anonymous.choresgame"`, which conflicts with the real package id in `apps/mobile/app.config.js` (`com.orcwood.familychores`). Reconcile or delete the stale root file before generating any release build — a wrong package id on a published app is unfixable without a new listing.
+### Package-id resolution
+The stale root `app.json` that declared `com.anonymous.choresgame` has been removed. All supported scripts and EAS profiles run from `apps/mobile`, whose Expo config and native Gradle project both use `com.orcwood.familychores`. The duplicate root `android/` tree is a legacy generated project with no package-script entry point; it is not the mobile release project and must not be built or submitted.
 
 ### Work
-- [ ] Reconcile/remove the conflicting root `app.json` package id.
-- [ ] Create Google Play Console developer account; complete identity verification (can take days).
-- [ ] Add `apps/mobile/eas.json` with `development` / `preview` / `production` build profiles and a `submit` profile.
-- [ ] Configure Android release credentials (prefer EAS-managed keystore + Play App Signing).
-- [ ] Register the release SHA-1/SHA-256 with the Android OAuth client so Google Sign-In works in the production build.
-- [ ] Produce an internal-testing AAB and verify: Google Sign-In, family summary, chore complete/approve, wallet, realtime feed, deep links (`familychores://`), and locale switching (`fr-FR`/`en-US`/`es-US`).
+- [x] Remove the stale root `app.json`; all supported mobile builds run from `apps/mobile` with package id `com.orcwood.familychores`. The unused legacy root `android/` tree must not be built.
+- [x] Create Google Play Console developer account; complete identity verification.
+- [x] Add `apps/mobile/eas.json` with `development` / `preview` / `production` build profiles and a `submit` profile.
+- [x] Generate the EAS-managed Android upload keystore and enroll the first uploaded AAB in Play App Signing.
+- [x] Register the release SHA-1/SHA-256 with the Android OAuth client so Google Sign-In works in the production build.
+- [x] Produce an internal-testing AAB and confirm it installs from Play.
+- [ ] Run the full functional smoke pass on the **Play-installed** build (not a dev client): Google Sign-In, family summary, chore complete/approve, wallet, realtime feed, deep links (`familychores://`), and locale switching (`fr-FR`/`en-US`/`es-US`). The smoke-test checklist is in `docs/release/android-play-store.md`.
+- [ ] Set a `version` (versionName) in `apps/mobile/app.config.js` — it is currently unset, so builds report `1.0.0` while EAS auto-increments only the versionCode. Worth fixing before the first public-facing release so version reporting is meaningful.
 - [ ] Complete the Play Data Safety form. Must match the actual data model — this app handles `CHILD_SENSITIVE` data (child names, avatars, activity history).
 - [ ] Complete Play's **Families / Designed for Families** policy questionnaire and target-audience declaration. A kids-inclusive audience triggers extra requirements: no ads SDKs, restricted data collection, verified content rating.
 - [ ] Content rating questionnaire (IARC).
 - [ ] Store listing: title, short description, full description, feature graphic (1024×500), phone + 7"/10" tablet screenshots, app icon (512×512).
 - [ ] Point the listing's privacy policy URL at the live `/privacy-policy` route.
 - [ ] Internal testing track → closed testing → production rollout.
+
+The operator handoff, commands, release audit, policy worksheet, smoke tests, and asset inventory are in `docs/release/android-play-store.md`.
 
 ### Risks
 - Play's Families policy review is the most likely source of delay; account/identity verification and content-rating review add days.
@@ -89,7 +95,8 @@ Same Expo codebase; `ios.bundleIdentifier = com.orcwood.familychores`.
 - [ ] Create the App Store Connect app record with the matching bundle id.
 - [ ] Add iOS build + submit profiles to `eas.json`; configure distribution certificate and provisioning profile (EAS-managed is fine).
 - [ ] TestFlight internal build; verify the same checklist as Android plus Sign in with Apple considerations.
-- [ ] **Decide on Sign in with Apple.** App Review guideline 4.8 requires an equivalent privacy-preserving login option when the app offers third-party sign-in (Google) as the *only* option. This is currently a Google-only app — expect rejection without it. Implementing it means a new auth path alongside `/api/auth/google/gsi` plus a Firebase Identity Toolkit provider. **This is the single largest engineering risk in items 1–2.**
+- [ ] **Sign in with Apple — scoped in `docs/release/sign-in-with-apple.md` (2026-08-12).** Decision: implement it. The provider swap is small (`signInWithIdp` with `providerId=apple.com`; everything downstream is provider-agnostic), but Apple's Hide My Email breaks the email-keyed family-join path and silently drops invited children into brand-new empty families. Fixing the join path to use invite tokens instead of email equality is the real work — and it overlaps directly with item 4.
+      Guideline 4.8 requires an equivalent privacy-preserving login option when third-party sign-in is the only option, and adding email/password instead does not satisfy it (it doesn't let the user keep their email private). Google sign-in is unchanged; this adds a second door. **Still the single largest engineering risk in items 1–2.**
 - [ ] App Privacy ("nutrition label") questionnaire — must align with the Play Data Safety answers.
 - [ ] Kids Category decision. Entering the Kids Category bans third-party analytics and advertising and requires a parental gate for external links/purchases; staying out of it but targeting families still triggers scrutiny under guideline 1.3.
 - [ ] Age rating questionnaire.
@@ -177,8 +184,11 @@ This item is about making **growth-oriented invitations** first-class on top of 
 - Support console visibility for referral/invite state.
 - Changelog entry.
 
+### Decided (2026-08-10)
+- **Referral rewards are two-sided**, and pay out only on acceptance. Both the inviting family and the accepting family receive the achievement + cosmetic unlock.
+- Rationale: a one-sided reward turns the invite into a solicitation — the sender visibly gains something the recipient doesn't, which is exactly the shape of spam and reads that way to the person receiving it. A two-sided reward makes the invite a gift, which both converts better and keeps the mechanic honest on a product used by children. Paying only on acceptance (never on send) keeps the incentive pointed at real connections.
+
 ### Open questions
-- Referral incentive for both sides, or only the referrer? (Recommend both — one-sided referral rewards read as spam bait.)
 - Does a referral grant anything beyond cosmetics (e.g. future premium trial)?
 
 ### Acceptance
@@ -201,7 +211,8 @@ Builds directly on Family Friends. Today connected families share only a read-on
 2. **Shout-outs — phase 2**
    - A parent-authored short message about a specific child (own family or a connected family's child), e.g. recognizing kindness.
    - **Free text crossing a family boundary about a child is the highest-risk surface in this roadmap.** Requirements: parent/admin authorship only, length cap, no links, recipient-parent visibility before the child sees it (or parent-approval gate), report/block, full audit, and a support moderation queue. Recommend routing shout-outs through the existing `supportRequests`-style moderation posture rather than inventing a new one.
-   - Consider launching with **templated** shout-outs (pick from a localized phrase list) before free text — same emotional payoff, none of the moderation exposure. Recommended for V1.
+   - **DECIDED (2026-08-10): V1 ships templated shout-outs only** — the parent picks from a localized phrase list ("was really kind to my kid today", "showed great sportsmanship") and selects the child it's about. No free-text field crosses a family boundary in V1.
+   - Rationale: the templates deliver essentially the whole emotional payoff — a named child gets specific recognition from another family's parent — while removing the need for a moderation queue, a report/block flow, and human review of adult-written text about other people's children before V1 can ship. It also makes the localization tractable: a fixed phrase list translates cleanly into `fr-FR`/`es-US`, whereas free text never localizes at all. Revisit free text only once there's a moderation surface to catch it.
 3. **Cross-family prizes — phase 3**
    - Friend-created Family Awards can already be *copied* into a viewer's own awards (`/api/family-friends/awards/copy`). The natural extension: a parent grants a small award/coin bonus to a connected family's child, which the receiving parent must approve before it lands in the wallet.
    - **The receiving parent's approval is mandatory** — no external adult may move value into a child's wallet unilaterally. Wallet mutations continue through `users/{uid}/walletLedger` with audit.
@@ -240,7 +251,7 @@ The functional surface is broad and complete; the visual language is closer to a
 - [ ] Define the visual direction first: palette, illustration style, typography, motion vocabulary (durations/easings as tokens). One decision doc + a sample screen before any broad implementation.
 - [ ] Refresh the marketing homepage / hero — the highest-leverage single page, and the backdrop for the item-3 videos.
 - [ ] Kid dashboard: chore cards as game objects, progress meters, streak visuals.
-- [ ] Completion celebration: extend the existing confetti system (`lib/confetti`) into a fuller reward moment (coin fly-to-wallet, sound opt-in).
+- [ ] Completion celebration: extend the existing confetti system (`lib/confetti`) into a fuller reward moment (coin fly-to-wallet, sound opt-in). This engine has three consumers — chore completion, item 7's stage-up moments, and item 8's Week in Review fireworks — so build it once, here.
 - [ ] Wallet/coin animations on balance change (`CoinIcon` is already shared).
 - [ ] Store/avatar: reveal-on-unlock treatment.
 - [ ] Achievements + Pillars of Responsibility: badge shelf, level-up moment, title reveal (identity titles already exist in `lib/responsibility/titles.ts`).
@@ -293,20 +304,27 @@ This is the same class of bug documented at the top of `apps/web/src/lib/family/
 
 Concretely: derive initial stage from **observed usage** (does the family have routines? awards? friends? Google Tasks linked?), take the max of that and the computed floor, and never allow a family's stage to move backward.
 
-### Proposed ladder (a starting point — the ordering is the real product question)
-| Stage | Unlocks | Advances when the family… |
+### The ladder — DECIDED for V1 (2026-08-10)
+
+**Every advancement condition must be completable by the parent alone, right now, with no dependency on a child, another family, or any other person.**
+
+This is a corollary of the no-waiting rule that the first draft of this ladder violated three times: "approve your first completed chore" waits on a child to do a chore, "use the Approval Inbox once" waits on a submission existing, and "connect a first friend family" waits on another family to accept an invitation. Each would have stalled a motivated parent behind someone else's behavior — precisely the failure the rule exists to prevent. Advancement now triggers on the parent-side action; the child-side event is what earns XP, not what unlocks capability.
+
+| Stage | Unlocks | Advances when the parent… |
 | --- | --- | --- |
-| 1 · Getting started | One-off chores, assign to a child, complete → approve, coins/wallet | Approves their first completed chore |
+| 1 · Getting started | One-off chores, assign to a child, complete → approve, coins/wallet | Creates and assigns their first chore |
 | 2 · Building rhythm | Due dates, recurrence, custom weekly schedules | Creates their first recurring chore |
-| 3 · Motivation | Store, avatars/colors/confetti, Family Awards | Creates or redeems a first Family Award |
+| 3 · Motivation | Store, avatars/colors/confetti, Family Awards | Creates their first Family Award |
 | 4 · Structure | Routines / multi-step checklists | Creates their first routine |
-| 5 · Growth | Pillars of Responsibility, identity titles, achievements surfaced | Assigns chores across multiple pillars/categories |
-| 6 · Oversight | Approval Inbox, insights/stats, kiosk mode | Uses the Approval Inbox once |
-| 7 · Community | Family Friends, community awards, high-fives/shout-outs (item 5) | Connects a first friend family |
+| 5 · Growth | Pillars of Responsibility, identity titles, achievements surfaced | Assigns a chore to a responsibility pillar |
+| 6 · Oversight | Approval Inbox, insights/stats, kiosk mode | Opens the Approval Inbox |
+| 7 · Community | Family Friends, community awards, high-fives/shout-outs (item 5) | Sends a friend-family invitation |
 | 8 · Automation | Google Tasks sync, ghost chores | Links an integration |
 | Post-ladder | Nothing gated; XP → prestige/cosmetics only | Ongoing (friend invites accepted, milestones) |
 
-Deliberate choices baked into that table: nothing in stage 1 requires reading documentation; the coin economy appears before the store (earning before spending); Family Friends sits late because cross-family features carry the most safety surface (see item 5); and each advancement condition is a single action the parent can take immediately.
+Deliberate choices baked into that table: nothing in stage 1 requires reading documentation; the coin economy appears before the store (earning before spending); structure (routines) comes after motivation, because a parent who has seen kids respond to rewards is ready to invest in multi-step routines and one who hasn't is not; Family Friends sits late because cross-family features carry the most safety surface (see item 5); and every condition is one action, on one screen, available immediately.
+
+Treat the *ordering* as settled for V1 and the *unlock contents* as tunable — moving a single feature between stages is cheap, reshuffling the sequence after families have walked it is not.
 
 ### XP after the ladder
 Post-unlock XP is where the "earn experience for a family friend accepting an invite" idea lives, and it dovetails with item 4's referral incentives — one XP/reward pipeline, not two. Candidate awards: a friend family accepting an invite, a child hitting a Responsibility milestone, a family streak, first use of a newly shipped feature. Cosmetic payouts only (family badge/frame/title on the dashboard, avatar and theme unlocks).
@@ -341,6 +359,97 @@ A new family sees a genuinely simple stage-1 app and can walk the entire ladder 
 
 ---
 
+## 8. Weekly email cron + "Week in Review" celebration
+
+**Status:** Partial · **Owner:** TBD
+
+Splits cleanly into two halves with very different sizes: **(A)** schedule the existing weekly email — small, nearly done; **(B)** build the Week in Review celebration page — a real feature.
+
+### Current state (more is built than it looks)
+- `POST /api/internal/newsletters/weekly/send` — secret-authed (`NEWSLETTER_INTERNAL_SECRET`, Bearer or `x-internal-secret`), calls `sendWeeklyFamilyHighlightsForAllFamilies()`.
+- `NEWSLETTER_INTERNAL_SECRET` is already declared in `apps/web/apphosting.yaml` as a runtime secret.
+- Idempotent per recipient/week via deterministic ids (`weekly_{weekStart}_{recipientUid}`); outcomes recorded at `families/{familyId}/newsletterSends/{sendId}` as sent/skipped/failed.
+- "Only active users" already works, via skip reasons `opt_out`, `no_activity`, `invalid_email`, `duplicate_sent`, `missing_support_email`, plus opt-in preferences (`/api/newsletter/preferences`).
+- Metrics computed per family by `computeWeeklyFamilyHighlightMetrics`: chores completed, coins earned, rewards redeemed, family awards claimed, achievements unlocked, pending approvals, most-active helper (with avatar + color), and recent highlights.
+- Localized send per recipient (`recipientLocale`), SES provider, `weekly-family-highlights.ts` email template.
+- Support console already has preview, test-send, send-family, and summary routes.
+
+**The only thing missing from part A is the scheduler itself.** Nothing currently calls that endpoint on a timer.
+
+### A. Cron the weekly send
+
+- [ ] Create a Cloud Scheduler job hitting `POST /api/internal/newsletters/weekly/send` with the secret header, on a fixed weekly cadence (recommend Sunday evening or Monday morning in the primary audience's timezone — a "week in review" lands best right after the week closes).
+- [ ] Prefer OIDC/service-account auth on the Cloud Run backend over a shared bearer secret if the App Hosting setup allows it; keep the secret check as defense in depth.
+- [ ] Add run observability: structured start/finish logs, per-run counts (sent/skipped/failed by reason), and an alert when a run fails or sends zero for an unexpected reason. Surface the last run in the support console next to the existing summary.
+- [ ] Document the schedule and the manual re-run procedure.
+
+#### Two correctness issues to handle before turning the cron on
+
+1. **The idempotency key depends on a rolling window.** `getPreviousWeeklyWindow()` returns a rolling 7-day window ending *today* (UTC), so `weekStart` changes every day — and `weekStart` is part of the dedupe id. That means the deterministic id protects against *same-day* retries only. If the job ever runs on two different UTC days (a retry after midnight, a manual re-run the next day, a schedule change), every recipient gets a second email. Fix by keying the send on a **fixed week identifier** (e.g. ISO `YYYY-Www`) rather than a rolling start date. This becomes doubly important for part B, below.
+2. **`sendWeeklyFamilyHighlightsForAllFamilies` reads `adminListDocuments("families", 500)` and loops families sequentially.** That silently caps the send at 500 families and puts the whole run in one HTTP request against Cloud Run's request timeout. Fine today, a quiet failure later — and "quiet" is the problem: families past the cap simply never get email and nothing reports it. Move to a paged cursor with batched concurrency, and either make the endpoint resumable or fan out per-family work. At minimum, log loudly when the family count hits the page limit.
+
+### B. "Week in Review" — the celebration
+
+A grand, shareable weekly recap: **every family member and what they achieved this week**, with fireworks, music, and celebration. Linked from the email, and available in the app all week long.
+
+#### Data work
+- Current metrics are family-aggregate plus a single most-active helper. Week in Review needs a **per-member breakdown** — chores completed, coins earned, achievements unlocked, routines finished, streaks, responsibility/pillar progress, and a personal standout moment per member. Extend `WeeklyFamilyHighlightMetrics` with a `members[]` array rather than bolting on more `mostActiveHelper*` scalar fields.
+- **Snapshot the week at generation time** into an immutable record (`families/{familyId}/weekInReview/{YYYY-Www}`), and render the page from that snapshot. Three reasons: the email and the page must show identical numbers days apart; a recomputed rolling window would change the "week" every time it's opened; and snapshots let families browse past weeks later.
+- This makes the fixed-week-identifier fix from part A a hard prerequisite, not a nicety. A page that is "available to see all week" cannot be backed by a window that slides daily.
+- Classification: `CHILD_SENSITIVE` (per-child activity history). `FAMILY_PRIVATE` for family aggregates.
+
+#### Access and privacy
+- The email link lands on a page full of children's names, avatars, and activity. **It must not be readable from the URL alone.** Require an authenticated session and family membership; if the link should survive a logged-out click, use a short-lived signed token that authenticates *into* the app rather than one that renders child data directly — the Family Friends invitation flow already establishes the expiring single-use token pattern to copy.
+- No public/shareable-outside-the-family variant in V1. If sharing is wanted later, it needs a scrubbed projection under the public-content rules (no child names, no family identifiers) and parental consent — treat that as its own item.
+
+#### Experience
+- Entry points: the email CTA, an in-app banner or nav entry available for the whole week, and a discovery badge when a new week is ready. Register it in `lib/discovery/sections.ts` rather than adding one-off badge logic (that file is the single source of truth by convention).
+- Per-member cards with avatar, member color (`dashboardPrimaryColor` is already on the member doc and already used by the completion chart), their week's numbers, and their standout moment.
+- Fireworks/confetti built on the existing `lib/confetti` system, extended — not a second celebration engine. This is the same celebration vocabulary item 6 defines and item 7's stage-up moments need; build it once.
+- **Music must be opt-in and never autoplay.** Browsers block autoplaying audio anyway, so a muted-by-default state with an obvious play control is both the compliant and the correct choice — a page that blasts music in a quiet room is a page people stop opening. Persist the preference.
+- Honor `prefers-reduced-motion` with a genuine static fallback (project rule, and this page is the single most motion-heavy surface in the app).
+- Handle the empty/low-activity week gracefully. A family that had a rough week should get encouragement, not a scoreboard of zeros — and **never a per-member ranking that makes one child the visible loser.** Celebrate each member against their own week.
+- Performance budget: this page will be opened on phones from an email client. Fireworks must not make it unusable on a low-end Android.
+
+### Cross-cutting requirements
+Localization ×3 in both locale copies (email subject/body already localize per recipient; all new page copy needs the same) · web + mobile parity via `/api/v1` · audit not required for a read-only recap, but cron runs and support-triggered sends should stay observable · `CHILD_SENSITIVE` classification declared · support console visibility for cron runs and per-family snapshots · changelog entry · tests for the per-member aggregation and the fixed-week keying.
+
+### Open questions
+- Week boundary: ISO week (Mon–Sun) or Sun–Sat, and computed in UTC or the family's timezone? (Recommend the family's local week — a recap whose boundaries don't match how the family experienced the week feels wrong, and the codebase already passes `tzOffsetMinutes` for completion stats.)
+- Does the recap notify children in-app, or is it parent-opened and shared aloud? (Recommend parent-opened for V1 — it's designed as a family moment.)
+- Retention: how many past weeks stay browsable?
+
+### Acceptance
+The weekly email sends automatically on a schedule with no duplicate sends across retries, per-run outcomes are visible in the support console, and every recipient's link opens an authenticated Week in Review showing each family member's week — celebratory, localized, reduced-motion-safe, silent until asked, and stable for the entire week.
+
+---
+
+## 9. Android build size evaluation
+
+**Status:** Not started · **Owner:** TBD · **Raised:** 2026-08-12 (observed 326MB build)
+
+### Now that internal testing is live, measure before optimizing
+The production profile builds an **app bundle**, and the app is installing from Play. That means Play is already doing per-ABI, per-density delivery, and the **Play Console now reports the real download and install size per device** — which is the only number that matters to users. Read that first: it may show there is nothing to fix, in which case this item closes without a code change. Optimizing against a locally-measured artifact size would be optimizing the wrong number.
+
+### What the repo currently says
+- `apps/mobile/android/gradle.properties` sets `reactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64` — **all four ABIs, including the emulator-only x86 and x86_64.** Because production ships an AAB, these inflate the uploaded bundle but *not* the per-device download. Dropping x86/x86_64 from production is still worth doing (smaller uploads, faster builds), but it is no longer the prime suspect for a user-visible size problem.
+- `android.enableMinifyInReleaseBuilds` defaults to **false** and `android.enableShrinkResourcesInReleaseBuilds` defaults to **false** (`apps/mobile/android/app/build.gradle:69,116`). R8 minification and resource shrinking are both **off** in release builds. This is the most likely *real* win and it does affect delivered size.
+- The local debug artifact measures **60MB** (`android/app/build/outputs/apk/debug/app-debug.apk`), so 326MB is not what this build path produces locally — the number is coming from somewhere else (a universal APK, an on-device install size, or a dev-client build).
+- `apps/mobile/assets` totals 560KB. Assets are not the problem.
+
+### Work
+- [ ] Establish which number 326MB actually is — AAB file size, universal APK, Play-reported download size, or on-device install size. These differ by several multiples and only the Play download size matters to users.
+- [ ] Drop `x86,x86_64` from `reactNativeArchitectures` for production builds (keep them for emulator/dev profiles).
+- [ ] Turn on `android.enableMinifyInReleaseBuilds` and `android.enableShrinkResourcesInReleaseBuilds`, then re-test thoroughly — R8 can break reflection-based native modules, so this needs a full smoke pass, not just a successful build.
+- [ ] Confirm the production build ships an **AAB**, not a universal APK, so Play does per-device delivery.
+- [ ] Inspect the artifact contents (Android Studio's APK Analyzer or `bundletool`) to see what actually dominates — native libs, Hermes bytecode, or resources.
+- [ ] Record the before/after download size in `docs/release/android-play-store.md`.
+
+### Resolved: the debug-signing concern
+`apps/mobile/android/app/build.gradle` configures the **release** build type with `signingConfig signingConfigs.debug`. That is Expo's prebuild default, and it is moot in practice: every `eas.json` profile sets `credentialsSource: "remote"`, and a successful Play install proves the uploaded bundle was signed with real EAS-managed credentials. It would only bite a *locally* produced release build, which is not the shipping path. Left as-is.
+
+---
+
 ## Cross-cutting checklist for every item above
 
 Every user-facing change in this roadmap must satisfy the standing rules in `AGENTS.md`:
@@ -359,8 +468,7 @@ Every user-facing change in this roadmap must satisfy the standing rules in `AGE
 
 Small, real, and not owned by any item above:
 
-- Root `app.json` android package (`com.anonymous.choresgame`) conflicts with `apps/mobile/app.config.js` (`com.orcwood.familychores`). Fix before any release build.
-- No `apps/mobile/eas.json` — hard blocker for items 1 and 2.
+- The unused root `android/` project is legacy-only and must not be built — supported builds run from `apps/mobile` with `com.orcwood.familychores`. Worth deleting outright so no future build or agent picks it up by mistake.
 - `AGENTS.md` defines entitlement types (`beta`, `referral`, `premium`, …) but no entitlements module exists in `apps/web/src/lib`. Item 4 is the first thing that needs one and item 7 is the second — they should share a single capability gate rather than each growing their own.
 - Achievement art is ~40+ placeholder SVGs. Item 6 should absorb this.
 - `docs/openapi.todo.md` and `apps/mobile/docs/unity-integration.todo.md` are open TODO stubs not represented on this roadmap.

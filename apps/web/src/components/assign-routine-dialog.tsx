@@ -16,6 +16,7 @@ import {
   type RoutineEditableStep,
 } from "@/components/routine-steps-editor";
 import { TailwindSelect, type TailwindSelectOption } from "@/components/tailwind-select";
+import { readFamilySummaryCache } from "@/lib/family/summary-cache";
 import {
   type ChoreRecurrenceWeekday,
   type ChoreRecurrenceType,
@@ -76,6 +77,7 @@ export function AssignRoutineDialog({
   const { t } = useLocale();
   const [routines, setRoutines] = useState<RoutineTemplate[]>([]);
   const [members, setMembers] = useState<RoutineMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -113,6 +115,16 @@ export function AssignRoutineDialog({
       return;
     }
     let cancelled = false;
+    // Paint the assignee select immediately from the shared family-summary
+    // cache (usually warmed by the dashboard) and only show the loading state
+    // on a genuinely cold open. /api/routines still owns the authoritative
+    // member list — this just decides what renders first.
+    const cachedSummary = readFamilySummaryCache();
+    if (cachedSummary && cachedSummary.members.length > 0) {
+      setMembers(cachedSummary.members.filter((member) => member.id));
+    } else {
+      setMembersLoading(true);
+    }
     (async () => {
       try {
         const response = await fetch("/api/routines", { cache: "no-store" });
@@ -129,6 +141,10 @@ export function AssignRoutineDialog({
       } catch (error) {
         if (!cancelled) {
           setLoadError(error instanceof Error ? error.message : "routines_unavailable");
+        }
+      } finally {
+        if (!cancelled) {
+          setMembersLoading(false);
         }
       }
     })();
@@ -531,15 +547,24 @@ export function AssignRoutineDialog({
             <span className="text-sm font-medium text-slate-700">
               {t("responsibility.assignDialog.playerLabel")}
             </span>
-            <TailwindSelect
-              ariaLabel={t("responsibility.assignDialog.playerLabel")}
-              value={assigneeId}
-              onChange={(value) => setAssigneeId(value)}
-              options={memberOptions}
-              className="w-full"
-              buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
-              menuClassName="border-slate-300"
-            />
+            {membersLoading && memberOptions.length === 0 ? (
+              <div
+                role="status"
+                aria-live="polite"
+                aria-label={t("common.status.loadingFamilyMembers")}
+                className="h-10 w-full animate-pulse rounded-md border border-slate-200 bg-slate-100"
+              />
+            ) : (
+              <TailwindSelect
+                ariaLabel={t("responsibility.assignDialog.playerLabel")}
+                value={assigneeId}
+                onChange={(value) => setAssigneeId(value)}
+                options={memberOptions}
+                className="w-full"
+                buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                menuClassName="border-slate-300"
+              />
+            )}
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-slate-700">

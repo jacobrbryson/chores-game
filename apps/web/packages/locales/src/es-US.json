@@ -83,7 +83,8 @@
       "none": "Ninguno"
     },
     "status": {
-      "loading": "Cargando..."
+      "loading": "Cargando...",
+      "loadingFamilyMembers": "Cargando miembros de la familia…"
     }
   },
   "nav": {

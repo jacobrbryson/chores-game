@@ -83,7 +83,8 @@
       "none": "None"
     },
     "status": {
-      "loading": "Loading..."
+      "loading": "Loading...",
+      "loadingFamilyMembers": "Loading family members…"
     }
   },
   "nav": {

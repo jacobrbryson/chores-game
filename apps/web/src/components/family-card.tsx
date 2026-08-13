@@ -11,6 +11,7 @@ import {
 } from "@/components/dashboard-onboarding";
 import { TodayChoresPanel } from "@/components/today-chores-panel";
 import type { FamilySnapshotChore, FamilySummaryResponse } from "@/lib/family/types";
+import { writeFamilySummaryCache } from "@/lib/family/summary-cache";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
 import { shouldReloadFamilySummary } from "@/lib/ws/realtime-refresh";
 
@@ -206,6 +207,13 @@ export function FamilyCard() {
       }
       const payload = (await response.json()) as FamilySummaryResponse;
       setSummary(payload);
+      // Warm the shared cache so the chore/routine dialogs can paint their
+      // assignee selects instantly instead of waiting on their own cold fetch.
+      writeFamilySummaryCache({
+        members: payload.members ?? [],
+        categories: payload.categories ?? [],
+        viewerUid: payload.viewerUid ?? "",
+      });
     } catch (loadError) {
       const message =
         loadError instanceof Error ? loadError.message : "summary_unavailable";

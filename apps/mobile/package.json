@@ -9,6 +9,10 @@
     "dev:client": "expo start --offline --dev-client",
     "android": "node scripts/run-android-dev.mjs",
     "ios": "expo run:ios",
+    "build:android:development": "eas build --platform android --profile development",
+    "build:android:preview": "eas build --platform android --profile preview",
+    "build:android:production": "eas build --platform android --profile production",
+    "submit:android:production": "eas submit --platform android --profile production --latest",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

@@ -222,6 +222,11 @@ The `supportRequests` collection is the single source of truth for all user-subm
 - Support manages content; the SEO dashboard reports metadata, readiness, sitemap, and lifecycle health.
 
 ## Recent Decisions (2026-02-15)
+- Android Play release-engineering baseline (2026-08-11):
+  - The only supported Expo/EAS project root is `apps/mobile`; Android application id `com.orcwood.familychores` is canonical. The stale root Expo manifest was removed, and the unused legacy root `android/` tree must not be used for builds.
+  - EAS profiles produce development and preview APKs plus a production AAB. Production uses EAS-managed upload credentials, remote version-code auto-incrementing, and a draft internal-track submit profile so Play releases remain operator-controlled.
+  - Release builds request only the existing network/vibration permissions; legacy storage and overlay permissions are blocked. No new data, collection, or data classification is introduced.
+  - Google Play account setup, identity verification, Play App Signing enrollment, OAuth signing-certificate registration, policy declarations, listing assets, testing tracks, and rollout remain manual and are documented in `docs/release/android-play-store.md`.
 - Scheduled routine rollover fix (2026-08-11):
   - An active daily, weekly, monthly, or custom recurring routine expires and materializes a fresh occurrence when its next scheduled date arrives, even when the prior occurrence was only partly complete. Instant recurrences remain completion-driven.
   - Rollover archives only unresolved open/skipped step chores. Submitted, approved, and otherwise completed step chores remain intact so step coins, approval, Responsibility XP, and history are never clawed back; an expired partial occurrence does not earn the routine completion bonus.

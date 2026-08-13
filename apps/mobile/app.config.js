@@ -25,21 +25,32 @@ module.exports = {
     name: "Family Chores Mobile",
     slug: "family-chores-mobile",
     scheme: "familychores",
+    extra: {
+      eas: {
+        projectId: "c5dbfef1-e830-4990-a00c-49fab177fcd5",
+      },
+    },
     icon: icon512,
     splash: {
       image: icon512,
       resizeMode: "contain",
       backgroundColor: "#ebf4fb",
     },
-    plugins: [
-      [
-        "@react-native-google-signin/google-signin",
-        iosUrlScheme ? { iosUrlScheme } : {},
-      ],
-    ],
+    // EAS disables local .env loading while it resolves the project before
+    // fetching remote environment variables. The Google Sign-In config plugin
+    // exits Expo config when iosUrlScheme is empty, including for Android-only
+    // commands, so include it only when the iOS client is actually configured.
+    plugins: iosUrlScheme
+      ? [["@react-native-google-signin/google-signin", { iosUrlScheme }]]
+      : [],
     android: {
       package: "com.orcwood.familychores",
       icon: icon512,
+      blockedPermissions: [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+      ],
       adaptiveIcon: {
         foregroundImage: icon512,
         backgroundColor: "#ebf4fb",

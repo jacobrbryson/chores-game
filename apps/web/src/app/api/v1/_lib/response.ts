@@ -8,8 +8,29 @@ export function fail(code: string, message: string, status = 400, details?: unkn
   return NextResponse.json({ ok: false, error: { code, message, details } }, { status });
 }
 
+export function resolveInternalProxyUrl(
+  requestUrl: string,
+  path: string,
+  port = process.env.PORT,
+) {
+  const normalizedPort = port?.trim() ?? "";
+  const portNumber = Number(normalizedPort);
+  const hasValidPort =
+    /^\d+$/.test(normalizedPort) &&
+    Number.isInteger(portNumber) &&
+    portNumber >= 1 &&
+    portNumber <= 65_535;
+
+  // Cloud Run terminates TLS before forwarding requests to the Next.js server.
+  // Next.js can therefore expose an https request URL containing the container's
+  // internal HTTP port. Calling that URL directly fails with
+  // ERR_SSL_WRONG_VERSION_NUMBER, so server-side v1 proxies use loopback HTTP.
+  const baseUrl = hasValidPort ? `http://127.0.0.1:${portNumber}` : requestUrl;
+  return new URL(path, baseUrl);
+}
+
 export async function proxyJson(request: NextRequest, path: string, init?: RequestInit) {
-  const url = new URL(path, request.url);
+  const url = resolveInternalProxyUrl(request.url, path);
   const method = init?.method ?? request.method;
   // Prefer an explicit body from the caller. Only read the incoming request
   // stream when no body was supplied — reading it here after the caller has
@@ -33,7 +54,7 @@ export async function proxyJson(request: NextRequest, path: string, init?: Reque
 // emitted. Used by routes that rotate the `session_user` cookie (e.g. account
 // switching) so the mobile client receives the new session cookie.
 export async function proxyJsonWithCookies(request: NextRequest, path: string, init?: RequestInit) {
-  const url = new URL(path, request.url);
+  const url = resolveInternalProxyUrl(request.url, path);
   const method = init?.method ?? request.method;
   // See proxyJson: prefer an explicit caller body; only read the request stream
   // when none was supplied, to avoid double-reading an already-consumed body.

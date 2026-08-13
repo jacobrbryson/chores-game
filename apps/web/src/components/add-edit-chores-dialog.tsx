@@ -22,6 +22,10 @@ import {
 } from "@/lib/chores/recurrence";
 import type { ChoreType } from "@/lib/chores/types";
 import type { FamilyCategory } from "@/lib/family/types";
+import {
+  readFamilySummaryCache,
+  writeFamilySummaryCache,
+} from "@/lib/family/summary-cache";
 import { responsibilityPillarSelectOptions } from "@/lib/responsibility/labels";
 import type { ResponsibilityPillar } from "@/lib/responsibility/types";
 
@@ -110,37 +114,6 @@ export const FAMILY_ASSIGNEE_OPTION_ID = "__family__";
 const ADDITIONAL_OPTIONS_STORAGE_KEY = "chores_additional_options_open_v2";
 const LAST_COIN_VALUE_STORAGE_KEY = "chores_last_coin_value";
 const LAST_CATEGORY_IDS_STORAGE_KEY = "chores_last_category_ids";
-
-// ---------------------------------------------------------------------------
-// Module-level family-summary cache (stale-while-revalidate).
-// Shared across all dialog instances so the second open is always instant.
-// ---------------------------------------------------------------------------
-type FamilySummaryCache = {
-  members: FamilyMemberOption[];
-  categories: FamilyCategory[];
-  viewerUid: string;
-  cachedAt: number;
-};
-
-const FAMILY_SUMMARY_CACHE_TTL_MS = 5 * 60 * 1_000; // 5 minutes
-let familySummaryCache: FamilySummaryCache | null = null;
-
-function readFamilySummaryCache(): FamilySummaryCache | null {
-  if (!familySummaryCache) return null;
-  if (Date.now() - familySummaryCache.cachedAt > FAMILY_SUMMARY_CACHE_TTL_MS) {
-    familySummaryCache = null;
-    return null;
-  }
-  return familySummaryCache;
-}
-
-function writeFamilySummaryCache(
-  members: FamilyMemberOption[],
-  categories: FamilyCategory[],
-  viewerUid: string,
-) {
-  familySummaryCache = { members, categories, viewerUid, cachedAt: Date.now() };
-}
 
 function todayIsoDate() {
   const now = new Date();
@@ -299,6 +272,7 @@ export function AddEditChoresDialog({
     maxHeight: number;
   } | null>(null);
   const [members, setMembers] = useState<FamilyMemberOption[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
   const [categories, setCategories] = useState<FamilyCategory[]>([]);
   const [assigneeHydrated, setAssigneeHydrated] = useState(false);
   const effectiveDueDate = showAdditionalOptions ? dueDate : todayIsoDate();
@@ -526,33 +500,47 @@ export function AddEditChoresDialog({
 
   async function loadMembers() {
     // --- Instant path: apply cached data synchronously so the dialog renders
-    //     with assignee options already populated before the network response. ---
+    //     with assignee options already populated before the network response.
+    //     The cache is shared app-wide, so a dashboard visit has usually
+    //     already warmed it and this path covers the common case. ---
     const cached = readFamilySummaryCache();
     if (cached) {
       applyMemberPayload(cached.members, cached.categories, cached.viewerUid);
+    } else {
+      // Only a genuinely cold open shows the loading state — a warm cache must
+      // never flash a skeleton over options we can already render.
+      setMembersLoading(true);
     }
 
     // --- Background revalidation: always fetch fresh data. ---
-    const tzOffsetMinutes = new Date().getTimezoneOffset();
-    const response = await fetch(`/api/family/summary?tzOffsetMinutes=${tzOffsetMinutes}`, {
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      // If the cache already covered us, swallow the error silently.
-      if (cached) return;
-      const body = (await response.json()) as { error?: string };
-      throw new Error(body.error ?? `FAMILY_HTTP_${response.status}`);
+    try {
+      const tzOffsetMinutes = new Date().getTimezoneOffset();
+      const response = await fetch(`/api/family/summary?tzOffsetMinutes=${tzOffsetMinutes}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        // If the cache already covered us, swallow the error silently.
+        if (cached) return;
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? `FAMILY_HTTP_${response.status}`);
+      }
+      const payload = (await response.json()) as {
+        members?: FamilyMemberOption[];
+        categories?: FamilyCategory[];
+        viewerUid?: string;
+      };
+      const allMembers = payload.members ?? [];
+      const allCategories = payload.categories ?? [];
+      const viewerUid = payload.viewerUid ?? "";
+      writeFamilySummaryCache({
+        members: allMembers,
+        categories: allCategories,
+        viewerUid,
+      });
+      applyMemberPayload(allMembers, allCategories, viewerUid);
+    } finally {
+      setMembersLoading(false);
     }
-    const payload = (await response.json()) as {
-      members?: FamilyMemberOption[];
-      categories?: FamilyCategory[];
-      viewerUid?: string;
-    };
-    const allMembers = payload.members ?? [];
-    const allCategories = payload.categories ?? [];
-    const viewerUid = payload.viewerUid ?? "";
-    writeFamilySummaryCache(allMembers, allCategories, viewerUid);
-    applyMemberPayload(allMembers, allCategories, viewerUid);
   }
 
   // Reveal Additional Options from the locally stored preference, but only ever
@@ -1188,6 +1176,14 @@ export function AddEditChoresDialog({
               <div className="grid gap-3 md:grid-cols-2">
               <label className="flex w-full flex-col gap-1.5">
                 <span className="text-sm font-medium text-slate-700">{t("choreDialog.assigneeLabel")}</span>
+                {membersLoading && assigneeOptions.length === 0 ? (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    aria-label={t("common.status.loadingFamilyMembers")}
+                    className="h-10 w-full animate-pulse rounded-md border border-slate-200 bg-slate-100"
+                  />
+                ) : (
                 <TailwindMultiSelect
                   ariaLabel={t("choreDialog.assigneeLabel")}
                   values={assigneeIds}
@@ -1212,6 +1208,7 @@ export function AddEditChoresDialog({
                   buttonClassName="rounded-md border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                   menuClassName="border-slate-300"
                 />
+                )}
                 {hasGoogleTaskAssigneeChangeWarning ? (
                   <Alert tone="warning">
                     {t("choreDialog.googleTasksWarning", { name: previousGoogleTasksOwnerName })}

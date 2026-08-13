@@ -1,5 +1,13 @@
 [
   {
+    "id": "faster-assignee-picker",
+    "date": "2026-08-12",
+    "type": "Bug Fix",
+    "subject": "Assignee lists load faster",
+    "description": "Choosing who a chore or routine is for no longer waits on a slow list. Family members now appear instantly in most cases, and a clear loading placeholder shows while the list is still on its way.",
+    "image": "/file.svg"
+  },
+  {
     "id": "partial-routine-scheduled-reset",
     "date": "2026-08-11",
     "type": "Bug Fix",
