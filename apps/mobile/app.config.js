@@ -40,9 +40,12 @@ module.exports = {
     // fetching remote environment variables. The Google Sign-In config plugin
     // exits Expo config when iosUrlScheme is empty, including for Android-only
     // commands, so include it only when the iOS client is actually configured.
-    plugins: iosUrlScheme
-      ? [["@react-native-google-signin/google-signin", { iosUrlScheme }]]
-      : [],
+    plugins: [
+      ...(iosUrlScheme
+        ? [["@react-native-google-signin/google-signin", { iosUrlScheme }]]
+        : []),
+      "expo-apple-authentication",
+    ],
     android: {
       package: "com.orcwood.familychores",
       icon: icon512,
@@ -59,6 +62,7 @@ module.exports = {
     ios: {
       bundleIdentifier: "com.orcwood.familychores",
       icon: icon512,
+      usesAppleSignIn: true,
     },
     web: {
       favicon,

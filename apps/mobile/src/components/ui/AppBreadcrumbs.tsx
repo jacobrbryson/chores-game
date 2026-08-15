@@ -2,6 +2,7 @@ import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { getMobileBreadcrumbTrail } from "@packages/core/src/breadcrumbs";
 import { colors, radius, spacing, typography } from "@/theme";
+import { useMobileLocale } from "@/lib/locale";
 
 const brandIcon = require("../../../../web/public/icons/web-app-manifest-192x192.png");
 
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export function AppBreadcrumbs({ pageLabel, subtitle, onPressRoot }: Props) {
+  const { t } = useMobileLocale();
   const items = getMobileBreadcrumbTrail(pageLabel);
 
   return (
@@ -27,7 +29,7 @@ export function AppBreadcrumbs({ pageLabel, subtitle, onPressRoot }: Props) {
                 onPressRoot ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Go to dashboard"
+                    accessibilityLabel={t("breadcrumbs.goToDashboard")}
                     onPress={onPressRoot}
                     style={({ pressed }) => [styles.rootChip, pressed && styles.rootChipPressed]}>
                     <Image source={brandIcon} style={styles.logo} />

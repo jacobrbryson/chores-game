@@ -4,6 +4,7 @@ import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
+import { keyableEmail } from "@/lib/auth/private-relay";
 import {
   boolField,
   createOrReplaceDocument,
@@ -276,11 +277,14 @@ export async function DELETE(
           idToken,
           ["deleted", "deletedAt"],
         );
-        if (memberEmail) {
+        // A private-relay address is never a document key, so there is no
+        // inviteLookup record keyed on it to revoke.
+        const revokeLookupEmail = keyableEmail(memberEmail);
+        if (revokeLookupEmail) {
           await createOrReplaceDocument(
-            `inviteLookup/${memberEmail}`,
+            `inviteLookup/${revokeLookupEmail}`,
             {
-              email: stringField(memberEmail),
+              email: stringField(revokeLookupEmail),
               familyId: stringField(familyId),
               status: stringField("revoked"),
               updatedAt: timestampField(now),

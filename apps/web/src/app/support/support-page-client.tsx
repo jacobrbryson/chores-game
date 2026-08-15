@@ -17,6 +17,7 @@ import { SupportChoreUsagePanel } from "@/components/support-chore-usage-panel";
 import { SupportMetricsStrip, type SupportMetric } from "@/components/support-metrics-strip";
 import { SupportNewslettersPanel } from "@/components/support-newsletters-panel";
 import { SupportStaleInvitesPanel } from "@/components/support-stale-invites-panel";
+import { SupportInviteCodesPanel } from "@/components/support-invite-codes-panel";
 import { SupportDuplicateChildrenPanel } from "@/components/support-duplicate-children-panel";
 import { SupportResponsibilityPanel } from "@/components/support-responsibility-panel";
 import { SupportOperationsPanel } from "@/components/support-operations-panel";
@@ -741,6 +742,7 @@ export default function SupportPageClient({ module }: { module: SupportModuleId 
           </section>
           <SupportDuplicateChildrenPanel onCountChange={setDuplicateChildrenCount} />
           <SupportStaleInvitesPanel onCountChange={setStaleInvitesCount} />
+          <SupportInviteCodesPanel />
         </>
       ) : null}
 

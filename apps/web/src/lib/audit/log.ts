@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { adminCreateOrReplaceDocument } from "@/lib/firestore/admin";
 import {
   createOrReplaceDocument,
   mapField,
@@ -14,9 +15,8 @@ export type AuditActor = {
   role?: "admin" | "player" | "system" | string;
 };
 
-type AuditLogInput = {
+type AuditLogFields = {
   familyId: string;
-  idToken: string;
   eventType: string;
   actor?: AuditActor;
   userId?: string;
@@ -28,6 +28,8 @@ type AuditLogInput = {
   reason?: string;
   requestId?: string;
 };
+
+type AuditLogInput = AuditLogFields & { idToken: string };
 
 function primitiveField(value: string | number | boolean | undefined): FirestoreValue {
   if (typeof value === "number") {
@@ -47,16 +49,13 @@ function objectMapField(value: Record<string, string | number | boolean | undefi
   );
 }
 
-export async function writeAuditLog(input: AuditLogInput) {
-  if (!input.familyId || !input.eventType) {
-    return;
-  }
+function auditLogPath(familyId: string, now: string) {
+  return `families/${familyId}/auditLogs/${now.replace(/[^0-9]/g, "")}_${randomUUID()}`;
+}
 
-  const now = new Date().toISOString();
-  await createOrReplaceDocument(
-    `families/${input.familyId}/auditLogs/${now.replace(/[^0-9]/g, "")}_${randomUUID()}`,
-    {
-      familyId: stringField(input.familyId),
+function auditLogFields(input: AuditLogFields, now: string) {
+  return {
+    familyId: stringField(input.familyId),
       eventType: stringField(input.eventType),
       actorUid: stringField(input.actor?.uid ?? ""),
       actorEmail: stringField(input.actor?.email ?? ""),
@@ -68,25 +67,64 @@ export async function writeAuditLog(input: AuditLogInput) {
       source: stringField(input.source ?? ""),
       reason: stringField(input.reason ?? ""),
       requestId: stringField(input.requestId ?? ""),
-      previous: objectMapField(input.previous),
-      next: objectMapField(input.next),
-      createdAt: timestampField(now),
-    },
+    previous: objectMapField(input.previous),
+    next: objectMapField(input.next),
+    createdAt: timestampField(now),
+  };
+}
+
+export async function writeAuditLog(input: AuditLogInput) {
+  if (!input.familyId || !input.eventType) {
+    return;
+  }
+  const now = new Date().toISOString();
+  await createOrReplaceDocument(
+    auditLogPath(input.familyId, now),
+    auditLogFields(input, now),
     input.idToken,
   );
+}
+
+/**
+ * Audit writer for actions taken by someone who is not yet a member of the
+ * family — notably invite redemption, where the actor has no membership a
+ * user-scoped token could be authorized against. Same record shape; only the
+ * credential differs.
+ */
+export async function writeAdminAuditLog(input: AuditLogFields) {
+  if (!input.familyId || !input.eventType) {
+    return;
+  }
+  const now = new Date().toISOString();
+  await adminCreateOrReplaceDocument(
+    auditLogPath(input.familyId, now),
+    auditLogFields(input, now),
+  );
+}
+
+function warnAuditSkipped(input: AuditLogFields, error: unknown) {
+  const reason = error instanceof Error ? error.message : "unknown";
+  console.warn("[AUDIT_LOG_WRITE_SKIPPED]", {
+    familyId: input.familyId,
+    eventType: input.eventType,
+    choreId: input.choreId ?? "",
+    userId: input.userId ?? "",
+    reason: reason.slice(0, 180),
+  });
 }
 
 export async function writeAuditLogBestEffort(input: AuditLogInput) {
   try {
     await writeAuditLog(input);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "unknown";
-    console.warn("[AUDIT_LOG_WRITE_SKIPPED]", {
-      familyId: input.familyId,
-      eventType: input.eventType,
-      choreId: input.choreId ?? "",
-      userId: input.userId ?? "",
-      reason: reason.slice(0, 180),
-    });
+    warnAuditSkipped(input, error);
+  }
+}
+
+export async function writeAdminAuditLogBestEffort(input: AuditLogFields) {
+  try {
+    await writeAdminAuditLog(input);
+  } catch (error) {
+    warnAuditSkipped(input, error);
   }
 }

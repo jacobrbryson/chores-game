@@ -28,6 +28,7 @@ import {
 } from "@/lib/family/summary-cache";
 import { responsibilityPillarSelectOptions } from "@/lib/responsibility/labels";
 import type { ResponsibilityPillar } from "@/lib/responsibility/types";
+import { visibleChoreCategories } from "@packages/core";
 
 type Suggestion = {
   description: string;
@@ -361,29 +362,16 @@ export function AddEditChoresDialog({
   // categories are always available, member-specific categories appear only
   // when that member is among the assignees. Categories already selected on the
   // chore stay visible so an existing selection is never silently dropped.
-  const visibleCategories = useMemo(() => {
-    const memberIds = new Set(members.map((member) => member.id));
-    const selectedMemberIds = new Set(
-      assigneeIds.filter((id) => id !== FAMILY_ASSIGNEE_OPTION_ID),
-    );
-    const selectedCategoryIds = new Set(categoryIds);
-    return categories.filter((category) => {
-      const categoryMemberIds =
-        category.memberIds && category.memberIds.length > 0
-          ? category.memberIds
-          : category.memberId
-            ? [category.memberId]
-            : [];
-      const isFamilyWide =
-        categoryMemberIds.length === 0 ||
-        categoryMemberIds.every((memberId) => !memberIds.has(memberId));
-      return (
-        isFamilyWide ||
-        categoryMemberIds.some((memberId) => selectedMemberIds.has(memberId)) ||
-        selectedCategoryIds.has(category.id)
-      );
-    });
-  }, [categories, members, assigneeIds, categoryIds]);
+  const visibleCategories = useMemo(
+    () =>
+      visibleChoreCategories({
+        categories,
+        familyMemberIds: members.map((member) => member.id),
+        selectedAssigneeIds: assigneeIds.filter((id) => id !== FAMILY_ASSIGNEE_OPTION_ID),
+        selectedCategoryIds: categoryIds,
+      }),
+    [categories, members, assigneeIds, categoryIds],
+  );
   const categorySelectOptions = useMemo<TailwindSelectOption[]>(
     () =>
       visibleCategories.map((category) => ({

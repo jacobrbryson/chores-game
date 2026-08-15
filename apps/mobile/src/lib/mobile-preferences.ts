@@ -96,10 +96,10 @@ function isStatusFilter(value: unknown): value is StatusFilter {
   return value === "" || value === "needs_approval" || value === "completed";
 }
 
-export type DashboardTab = "feed" | "chores";
+export type DashboardTab = "feed" | "chores" | "routines";
 
 function isDashboardTab(value: unknown): value is DashboardTab {
-  return value === "feed" || value === "chores";
+  return value === "feed" || value === "chores" || value === "routines";
 }
 
 // Chores is the default dashboard tab; selection sticks per signed-in viewer.

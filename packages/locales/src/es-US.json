@@ -57,6 +57,13 @@
       "failure": "Tengo problemas para reunir ideas ahora mismo. Usemos algunas de mis sugerencias guardadas."
     }
   },
+  "auth": {
+    "signInWithApple": "Iniciar sesión con Apple",
+    "signingInWithApple": "Iniciando sesión con Apple…",
+    "appleSignInFailed": "No se pudo completar el inicio de sesión con Apple. Inténtalo de nuevo.",
+    "serverUnreachable": "No se pudo conectar con el servidor. Revisa tu conexión a Internet e inténtalo de nuevo.",
+    "familySetupRequired": "Iniciaste sesión, pero aún no pudimos vincular esta cuenta con una familia. Ingresa el código de invitación que te compartió un padre o madre para unirte."
+  },
   "common": {
     "actions": {
       "add": "Agregar",
@@ -74,6 +81,7 @@
       "remove": "Quitar",
       "retry": "Intentar de nuevo",
       "save": "Guardar",
+      "showMore": "Mostrar más",
       "start": "Comenzar",
       "saving": "Guardando…"
     },
@@ -218,6 +226,18 @@
       "all": "Todos",
       "player": "Jugador",
       "admin": "Padre (admin)"
+    },
+    "subtitle": "Progreso y desbloqueos",
+    "audienceHeading": "Público",
+    "board": "Tablero de logros",
+    "emptyFiltered": "Ningún logro coincide con los filtros actuales.",
+    "unlocked": "Desbloqueado",
+    "adminOnly": "Solo administradores",
+    "restrictedHint": "Disponible para padres y tutores",
+    "progressOfTarget": "{progress} / {target}",
+    "audienceShort": {
+      "player": "JUGADOR",
+      "admin": "PADRE"
     }
   },
   "discovery": {
@@ -369,7 +389,11 @@
     "pillarHideLabel": "Ocultar el pilar de responsabilidad ({pillar})",
     "addMenuLabel": "Agregar",
     "addMenuChore": "Tarea",
-    "addMenuRoutine": "Rutina"
+    "addMenuRoutine": "Rutina",
+    "loadingDashboard": "Cargando el panel...",
+    "moveUp": "Subir",
+    "moveDown": "Bajar",
+    "scopeFamilyShort": "Familia"
   },
   "feed": {
     "ariaLabel": "Novedades de la familia",
@@ -401,19 +425,82 @@
   "familyFriends": {
     "title": "Familias amigas",
     "description": "Conéctate con familias que conoces y celebren juntos sus logros positivos.",
-    "invite": { "email": "Correo del administrador familiar", "placeholder": "padre@ejemplo.com" },
-    "incoming": { "title": "Solicitudes por confirmar", "from": "Invitación de {name}", "dashboardTitle": "{family} quiere ser una familia amiga" },
-    "outgoing": { "title": "Solicitudes enviadas" },
-    "connected": { "title": "Familias conectadas", "since": "Familias amigas desde {date}", "empty": "Aún no hay familias amigas. Invita a una familia que conozcas." },
-    "latest": { "title": "Últimos logros de amigos", "description": "Anima a las familias que más te importan.", "viewAll": "Ver el feed completo" },
-    "feed": { "fromFamily": "De {family}" },
-    "actions": { "invite": "Invitar familia", "sending": "Enviando...", "confirm": "Confirmar", "confirming": "Confirmando...", "resend": "Reenviar", "cancel": "Cancelar", "remove": "Eliminar amistad", "keep": "Seguir conectados" },
-    "awards": { "copy": "Copiar a mis premios familiares", "copying": "Copiando...", "copied": "Premio familiar copiado a tu familia." },
-    "routines": { "cta": "Copiar a mis rutinas familiares", "dialogTitle": "¿Copiar esta rutina?", "confirmBody": "Esto copiará \"{routine}\" de {family}, incluidas todas sus tareas secundarias, a tus rutinas familiares.", "previewHeading": "Vista previa y personalización de tareas", "assignNow": "Asignar esta rutina a miembros de la familia ahora", "assigneesLabel": "Asignar a", "assigneesPlaceholder": "Elige miembros de la familia...", "chooseAssignees": "Elige al menos un miembro de la familia para asignarle esta rutina.", "chooseSteps": "Conserva o agrega al menos una tarea antes de copiar esta rutina.", "copy": "Copiar rutina", "copyAndAssign": "Copiar y asignar", "copying": "Copiando...", "copied": "Rutina copiada a tus rutinas familiares.", "copiedAssigned": "Rutina copiada y asignada.", "unnamed": "esta rutina" },
-    "remove": { "title": "Eliminar familia amiga", "body": "¿Desconectarse de {family}? Sus familias dejarán de compartir actividad." },
-    "disabled": { "actionPending": "Todavía se está guardando otra acción de Familias amigas." },
-    "errors": { "action": "Falló la actualización de Familias amigas: {error}" },
-    "notices": { "sent": "Invitación enviada por correo y dentro de la aplicación si el destinatario tiene una cuenta.", "email_warning": "La solicitud se guardó, pero no se pudo confirmar el envío del correo. Puedes reenviarlo.", "sent_in_app_only": "Invitación guardada. Esta familia desactivó los correos de invitación, así que la verá en sus notificaciones dentro de la aplicación.", "accept": "Ahora sus familias son amigas.", "resend": "Invitación reenviada.", "cancel": "Invitación cancelada.", "removed": "Familia amiga eliminada." }
+    "invite": {
+      "email": "Correo del administrador familiar",
+      "placeholder": "padre@ejemplo.com"
+    },
+    "incoming": {
+      "title": "Solicitudes por confirmar",
+      "from": "Invitación de {name}",
+      "dashboardTitle": "{family} quiere ser una familia amiga"
+    },
+    "outgoing": {
+      "title": "Solicitudes enviadas"
+    },
+    "connected": {
+      "title": "Familias conectadas",
+      "since": "Familias amigas desde {date}",
+      "empty": "Aún no hay familias amigas. Invita a una familia que conozcas."
+    },
+    "latest": {
+      "title": "Últimos logros de amigos",
+      "description": "Anima a las familias que más te importan.",
+      "viewAll": "Ver el feed completo"
+    },
+    "feed": {
+      "fromFamily": "De {family}"
+    },
+    "actions": {
+      "invite": "Invitar familia",
+      "sending": "Enviando...",
+      "confirm": "Confirmar",
+      "confirming": "Confirmando...",
+      "resend": "Reenviar",
+      "cancel": "Cancelar",
+      "remove": "Eliminar amistad",
+      "keep": "Seguir conectados"
+    },
+    "awards": {
+      "copy": "Copiar a mis premios familiares",
+      "copying": "Copiando...",
+      "copied": "Premio familiar copiado a tu familia."
+    },
+    "routines": {
+      "cta": "Copiar a mis rutinas familiares",
+      "dialogTitle": "¿Copiar esta rutina?",
+      "confirmBody": "Esto copiará \"{routine}\" de {family}, incluidas todas sus tareas secundarias, a tus rutinas familiares.",
+      "previewHeading": "Vista previa y personalización de tareas",
+      "assignNow": "Asignar esta rutina a miembros de la familia ahora",
+      "assigneesLabel": "Asignar a",
+      "assigneesPlaceholder": "Elige miembros de la familia...",
+      "chooseAssignees": "Elige al menos un miembro de la familia para asignarle esta rutina.",
+      "chooseSteps": "Conserva o agrega al menos una tarea antes de copiar esta rutina.",
+      "copy": "Copiar rutina",
+      "copyAndAssign": "Copiar y asignar",
+      "copying": "Copiando...",
+      "copied": "Rutina copiada a tus rutinas familiares.",
+      "copiedAssigned": "Rutina copiada y asignada.",
+      "unnamed": "esta rutina"
+    },
+    "remove": {
+      "title": "Eliminar familia amiga",
+      "body": "¿Desconectarse de {family}? Sus familias dejarán de compartir actividad."
+    },
+    "disabled": {
+      "actionPending": "Todavía se está guardando otra acción de Familias amigas."
+    },
+    "errors": {
+      "action": "Falló la actualización de Familias amigas: {error}"
+    },
+    "notices": {
+      "sent": "Invitación enviada por correo y dentro de la aplicación si el destinatario tiene una cuenta.",
+      "email_warning": "La solicitud se guardó, pero no se pudo confirmar el envío del correo. Puedes reenviarlo.",
+      "sent_in_app_only": "Invitación guardada. Esta familia desactivó los correos de invitación, así que la verá en sus notificaciones dentro de la aplicación.",
+      "accept": "Ahora sus familias son amigas.",
+      "resend": "Invitación reenviada.",
+      "cancel": "Invitación cancelada.",
+      "removed": "Familia amiga eliminada."
+    }
   },
   "choreDialog": {
     "addTitle": "Agregar tareas",
@@ -452,7 +539,9 @@
       "days": "Dias",
       "weeks": "Semanas",
       "months": "Meses"
-    }
+    },
+    "assignedToEveryone": "Asignada a todos",
+    "loadingChoreDetails": "Cargando detalles de la tarea..."
   },
   "choresPage": {
     "loading": "Cargando tareas",
@@ -512,7 +601,8 @@
       "expand": "Expandir controles de tareas",
       "collapse": "Contraer controles de tareas",
       "filters": "Filtros",
-      "sorting": "Orden"
+      "sorting": "Orden",
+      "searchPlaceholderMobile": "Buscar tareas (3+ caracteres)"
     },
     "filters": {
       "all": "Todas",
@@ -626,6 +716,15 @@
     "results": {
       "showing": "Mostrando {from}–{to} de {total}",
       "filteredFrom": "filtrado de {totalUnfiltered}"
+    },
+    "allChoresTitle": "Todas las tareas",
+    "assigneeFallback": "Asignado",
+    "thisChore": "esta tarea",
+    "details": {
+      "show": "Mostrar detalles",
+      "hide": "Ocultar detalles",
+      "showAriaLabel": "Mostrar detalles de {title}",
+      "hideAriaLabel": "Ocultar detalles de {title}"
     }
   },
   "notificationsPage": {
@@ -734,7 +833,16 @@
       "avatar": "Avatar",
       "confetti": "Confeti",
       "quest": "Mision"
-    }
+    },
+    "subtitle": "Colores, avatares, confeti y premios familiares",
+    "categoriesHeading": "Categorías de la tienda",
+    "noFamilyAwardsAdmin": "Aún no hay premios familiares. Agrégalos desde la pantalla Familia.",
+    "coinsAmount": "{coins} monedas",
+    "defaultCelebration": "Celebración predeterminada",
+    "themeNowActive": "{item} ya está activo",
+    "optionApplied": "{item} aplicado",
+    "googleAvatarApplied": "Avatar de Google aplicado",
+    "noEligibleRecipients": "Ningún miembro de la familia puede canjear este premio ahora."
   },
   "profile": {
     "signedIn": "Sesion iniciada",
@@ -1256,6 +1364,22 @@
     "removing": "Quitando...",
     "membersLoadError": "No se pudieron cargar los miembros: {error}",
     "membersTitle": "Miembros de la familia",
+    "addCategory": "Agregar categoría",
+    "editCategory": "Editar categoría",
+    "editMember": "Editar miembro de la familia",
+    "roleAdmin": "Padre/Madre",
+    "rolePlayer": "Hijo/a",
+    "statusInvited": "Invitación pendiente",
+    "memberNameLabel": "Nombre",
+    "memberEmailLabel": "Correo electrónico",
+    "memberRoleLabel": "Rol",
+    "categoryNameLabel": "Nombre de la categoría",
+    "categoryColorLabel": "Color de la etiqueta",
+    "categoryMembersLabel": "Limitar a miembros de la familia",
+    "categoryWholeFamily": "Toda la familia",
+    "categoryWholeFamilyHint": "Déjalo vacío para que esta categoría esté disponible para todos.",
+    "deleteCategoryTitle": "Eliminar categoría",
+    "deleteCategoryBody": "¿Eliminar {name}? Se quitará de las tareas que la usen.",
     "memberColumn": "Miembro",
     "statusColumn": "Estado / ultimo acceso",
     "statsColumn": "Estadisticas",
@@ -1335,7 +1459,11 @@
       "viewConsentHistory": "Ver historial de consentimiento",
       "backToPrivacy": "Volver a Privacidad",
       "requestDeletionAction": "Solicitar eliminaci?n de la familia...",
-      "exportStarted": "La exportacion de datos familiares ha comenzado."
+      "exportStarted": "La exportacion de datos familiares ha comenzado.",
+      "adminOnly": "Solo los padres pueden administrar la configuración de privacidad.",
+      "shareExport": "Compartir datos familiares",
+      "shareExportHelp": "Los datos de tu familia se preparan en formato JSON y se envían al menú de compartir de tu dispositivo, para que puedas guardarlos o enviarlos donde quieras.",
+      "consentIntro": "Registrar el consentimiento acepta los Términos del servicio y la Política de privacidad actuales en nombre de tu familia."
     },
     "awards": {
       "submitToCommunity": "Enviar a Premios comunitarios",
@@ -1349,7 +1477,34 @@
         "rejected": "Rechazado",
         "withdrawn": "Retirado",
         "hidden": "Oculto"
-      }
+      },
+      "title": "Premios familiares",
+      "intro": "Los premios familiares son recompensas personalizadas que los niños pueden canjear con monedas.",
+      "empty": "Aún no hay premios familiares.",
+      "addAward": "Agregar premio",
+      "addTitle": "Agregar premio familiar",
+      "editTitle": "Editar premio familiar",
+      "imageLabel": "Imagen del premio",
+      "descriptionLabel": "Descripción",
+      "descriptionPlaceholder": "Tiempo de pantalla extra (30 minutos)",
+      "coinCostLabel": "Cantidad de monedas",
+      "individualLimitLabel": "Límite por persona",
+      "familyLimitLabel": "Límite familiar",
+      "limitHint": "Usa 0 o déjalo en blanco para ilimitado.",
+      "limitUnlimited": "Ilimitado",
+      "coinCost": "{coins} monedas",
+      "limitsSummary": "Por persona: {individual} · Familia: {family}",
+      "disabledBadge": "Desactivado",
+      "disableAction": "Desactivar",
+      "disablingAction": "Desactivando...",
+      "enableAction": "Activar",
+      "enablingAction": "Activando...",
+      "disableTitle": "Desactivar premio familiar",
+      "disablePrompt": "¿Ocultar \"{name}\" de la tienda? Los canjes anteriores se conservan y puedes activarlo de nuevo más tarde.",
+      "deleteTitle": "Eliminar premio familiar",
+      "deletePrompt": "¿Eliminar \"{name}\"? Esta acción no se puede deshacer.",
+      "loadError": "No se pudieron cargar los premios familiares: {error}",
+      "updateError": "Error al actualizar el premio: {error}"
     }
   },
   "communityAwards": {
@@ -1401,7 +1556,8 @@
     "choresSubtitle": "Ordena, filtra y aprueba tareas",
     "profileSubtitle": "Los detalles de tu cuenta y la personalizacion.",
     "supportSubtitle": "Estado operativo entre familias, actividad reciente y diagnosticos de soporte.",
-    "dashboardSubtitle": "Ver, crear y administrar tareas activas"
+    "dashboardSubtitle": "Ver, crear y administrar tareas activas",
+    "goToDashboard": "Ir al panel"
   },
   "quests": {
     "loadingQuest": "Cargando mision...",
@@ -1804,6 +1960,39 @@
     },
     "errors": {
       "generic": "Algo salió mal. Inténtalo de nuevo."
+    }
+  },
+  "familyInvite": {
+    "codeTitle": "Código de invitación",
+    "codeHelp": "Comparte este código con {name}. Funciona con cualquier cuenta con la que inicie sesión, se puede usar una sola vez y vence en 30 días.",
+    "linkLabel": "Enlace de invitación",
+    "copyCode": "Copiar código",
+    "copyLink": "Copiar enlace",
+    "copied": "Copiado"
+  },
+  "joinFamily": {
+    "title": "Únete a tu familia",
+    "description": "Ingresa el código de invitación que te compartió un padre o madre. Funciona sin importar con qué correo electrónico iniciaste sesión.",
+    "codeLabel": "Código de invitación",
+    "codePlaceholder": "ABCD-2345-WXYZ",
+    "submit": "Unirme a la familia",
+    "submitting": "Uniéndote...",
+    "success": "Te uniste a {family}.",
+    "successGeneric": "Te uniste a tu familia.",
+    "alreadyMember": "Ya eres parte de esta familia.",
+    "help": "¿No tienes código? Pídele a un padre o madre que vuelva a enviarte la invitación: recibirá un código para compartir contigo.",
+    "cta": "¿Tienes un código de invitación?",
+    "errors": {
+      "invalidCode": "Ese código no parece correcto. Los códigos de invitación tienen 12 caracteres, como ABCD-2345-WXYZ.",
+      "inviteNotFound": "No encontramos ese código de invitación. Verifícalo con quien te invitó.",
+      "inviteAlreadyUsed": "Ese código de invitación ya se usó. Pide uno nuevo a un padre o madre.",
+      "inviteRevoked": "Esa invitación se canceló. Pide a un padre o madre que te invite de nuevo.",
+      "inviteExpired": "Ese código de invitación venció. Pide a un padre o madre que vuelva a enviar la invitación.",
+      "inviteLocked": "Demasiados intentos con este código. Pide a un padre o madre que vuelva a enviar la invitación.",
+      "alreadyInAnotherFamily": "Esta cuenta ya pertenece a otra familia.",
+      "familyMemberLimitReached": "Esa familia ya está llena.",
+      "unauthorized": "Tu sesión venció. Inicia sesión de nuevo.",
+      "failed": "No pudimos completar la unión. Inténtalo de nuevo."
     }
   }
 }

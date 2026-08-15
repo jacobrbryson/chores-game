@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CSSProperties, Dispatch, FormEvent, ReactNode, SetStateAction, useEffect, useMemo, useState } from "react";
+import { CATEGORY_COLOR_PALETTE } from "@packages/core";
 import { Alert } from "@/components/alert";
 import { AppMenu } from "@/components/app-menu";
 import { Avatar } from "@/components/avatar";
@@ -15,6 +16,7 @@ import { FamilyFriendsSection } from "@/components/family-friends-section";
 import { FamilySectionTabs, type FamilySectionTabId } from "@/components/family/family-section-tabs";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { useLocale } from "@/components/locale-provider";
+import { InviteCodeCallout, type InviteCodeDetails } from "@/components/invite-code-callout";
 import { ModalShell } from "@/components/modal-shell";
 import { TailwindMultiSelect } from "@/components/tailwind-multi-select";
 import type { TailwindSelectOption } from "@/components/tailwind-select";
@@ -176,40 +178,6 @@ const initialMemberState: AddMemberState = {
   role: "player",
 };
 
-const CATEGORY_COLOR_PALETTE: string[] = [
-  // Reds
-  "#ef4444", "#dc2626", "#b91c1c", "#991b1b",
-  // Oranges
-  "#f97316", "#ea580c", "#c2410c", "#fb923c",
-  // Yellows / Ambers
-  "#f59e0b", "#d97706", "#b45309", "#fbbf24",
-  // Limes / Greens
-  "#84cc16", "#65a30d", "#16a34a", "#15803d",
-  // Teals / Cyans
-  "#14b8a6", "#0d9488", "#06b6d4", "#0891b2",
-  // Blues
-  "#3b82f6", "#2563eb", "#1d4ed8", "#1e40af",
-  // Indigos
-  "#6366f1", "#4f46e5", "#4338ca", "#3730a3",
-  // Violets / Purples
-  "#8b5cf6", "#7c3aed", "#6d28d9", "#a855f7",
-  // Pinks / Roses
-  "#ec4899", "#db2777", "#be185d", "#f472b6",
-  // Roses
-  "#f43f5e", "#e11d48", "#be123c", "#fb7185",
-  // Emeralds
-  "#10b981", "#059669", "#047857", "#34d399",
-  // Sky
-  "#0ea5e9", "#0284c7", "#0369a1", "#38bdf8",
-  // Slates / Grays
-  "#64748b", "#475569", "#334155", "#1e293b",
-  // Stone / Warmth
-  "#78716c", "#57534e", "#44403c", "#a8a29e",
-  // Warm accents
-  "#d946ef", "#c026d3", "#a21caf", "#e879f9",
-  // Additional warm neutrals
-  "#f87171", "#fca5a5", "#86efac", "#93c5fd",
-];
 
 const initialCategoryFormState: CategoryFormState = {
   name: "",
@@ -378,6 +346,11 @@ export default function FamilyPage() {
   const [form, setForm] = useState<AddMemberState>(initialMemberState);
   const [saving, setSaving] = useState(false);
   const [showAddMemberForm, setShowAddMemberForm] = useState(false);
+  // The raw invite code exists only in the create/re-invite response — Firestore
+  // keeps a hash — so it is held here until the parent has copied it.
+  const [issuedInvite, setIssuedInvite] = useState<
+    { memberName: string; invite: InviteCodeDetails } | null
+  >(null);
   const [activeFamilyTab, setActiveFamilyTab] = usePersistedTab<FamilySectionTabId>({
     storageKey: "family-page-active-tab",
     defaultTab: "members",
@@ -468,10 +441,14 @@ export default function FamilyPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        invite?: InviteCodeDetails | null;
+      };
       if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? `ADD_MEMBER_HTTP_${response.status}`);
       }
+      setIssuedInvite(body.invite ? { memberName: form.name, invite: body.invite } : null);
       setForm(initialMemberState);
       setShowAddMemberForm(false);
       await loadSummary();
@@ -946,6 +923,22 @@ export default function FamilyPage() {
                   <div className="family-page-grid">
                     {activeFamilyTab === "members" ? (
                     <section aria-label={t("family.membersTitle")}>
+                      {issuedInvite ? (
+                        <div className="mb-4">
+                          <InviteCodeCallout
+                            invite={issuedInvite.invite}
+                            memberName={issuedInvite.memberName}
+                            labels={{
+                              codeTitle: t("familyInvite.codeTitle"),
+                              codeHelp: t("familyInvite.codeHelp"),
+                              linkLabel: t("familyInvite.linkLabel"),
+                              copyCode: t("familyInvite.copyCode"),
+                              copyLink: t("familyInvite.copyLink"),
+                              copied: t("familyInvite.copied"),
+                            }}
+                          />
+                        </div>
+                      ) : null}
                       <div className="family-table-wrap family-table-desktop">
                         <table className="family-table">
                           <thead>

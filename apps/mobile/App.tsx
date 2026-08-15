@@ -14,15 +14,25 @@ import {
 import { MobileLocaleProvider, useMobileLocale } from "@/lib/locale";
 import { colors, spacing, typography } from "@/theme";
 import { AchievementsScreen } from "@/screens/AchievementsScreen";
+import { ApprovalsScreen } from "@/screens/ApprovalsScreen";
 import { ChoresScreen } from "@/screens/ChoresScreen";
 import { HomeScreen } from "@/screens/HomeScreen";
 import { LoginPlaceholderScreen } from "@/screens/LoginPlaceholderScreen";
+import { ManageFamilyScreen } from "@/screens/ManageFamilyScreen";
 import { MobileKioskScreen } from "@/screens/MobileKioskScreen";
+import { NotificationsScreen } from "@/screens/NotificationsScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { RewardsScreen } from "@/screens/RewardsScreen";
 import { Button, MainNavigation } from "@/components/ui";
 
-type TabKey = MainNavigationItemId | "profile" | "login" | "all-chores";
+type TabKey =
+  | MainNavigationItemId
+  | "profile"
+  | "login"
+  | "all-chores"
+  | "approvals"
+  | "notifications"
+  | "manage-family";
 
 const EMPTY_DISCOVERY: MobileDiscoverySummary = { sections: {}, totalCount: 0 };
 
@@ -71,6 +81,9 @@ function AppContent({
     "checking" | "authenticated" | "unauthenticated" | "unreachable"
   >("checking");
   const [sessionMe, setSessionMe] = useState<SessionMe | null>(null);
+  // Set when the dashboard approval card hands off a queue that still needs coin
+  // values, so the Approvals screen resumes the Approve All flow on arrival.
+  const [approvalsAutoApproveAll, setApprovalsAutoApproveAll] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [coinBalance, setCoinBalance] = useState(0);
   const [discovery, setDiscovery] = useState<MobileDiscoverySummary>(EMPTY_DISCOVERY);
@@ -167,6 +180,17 @@ function AppContent({
       case "achievements": return <AchievementsScreen onGoDashboard={goDashboard} />;
       case "profile": return <ProfileScreen onGoDashboard={goDashboard} />;
       case "all-chores": return <ChoresScreen onGoDashboard={goDashboard} />;
+      case "approvals": return (
+        <ApprovalsScreen
+          onGoDashboard={goDashboard}
+          autoApproveAll={approvalsAutoApproveAll}
+          onApprovalsChanged={loadDiscovery}
+        />
+      );
+      case "notifications": return (
+        <NotificationsScreen onGoDashboard={goDashboard} onSeenChanged={loadDiscovery} />
+      );
+      case "manage-family": return <ManageFamilyScreen onGoDashboard={goDashboard} />;
       case "login": return <LoginPlaceholderScreen />;
       default: return (
         <HomeScreen
@@ -174,11 +198,16 @@ function AppContent({
           feedUnseenCount={getDiscoverySectionCount(discovery, "feed")}
           onOpenAllChores={() => setTab("all-chores")}
           onOpenStore={() => setTab("store")}
+          onOpenApprovals={(options) => {
+            setApprovalsAutoApproveAll(Boolean(options?.approveAll));
+            setTab("approvals");
+          }}
+          onOpenProfile={() => setTab("profile")}
           onDiscoveryRefresh={loadDiscovery}
         />
       );
     }
-  }, [authState, tab, sessionMe?.uid, discovery, loadDiscovery]);
+  }, [authState, tab, sessionMe?.uid, discovery, loadDiscovery, approvalsAutoApproveAll]);
 
   // Tapping a nav destination counts as viewing it: mark that section seen and
   // refresh the badges. Chores is handled on the Home dashboard itself.
@@ -257,7 +286,16 @@ function AppContent({
       <SafeAreaView style={styles.safe}>
         {authState === "authenticated" ? (
           <MainNavigation
-            activeTab={tab === "profile" || tab === "login" ? "more" : tab === "all-chores" ? "dashboard" : tab}
+            activeTab={
+              tab === "profile" ||
+              tab === "login" ||
+              tab === "notifications" ||
+              tab === "manage-family"
+                ? "more"
+                : tab === "all-chores" || tab === "approvals"
+                  ? "dashboard"
+                  : tab
+            }
             name={sessionMe?.name}
             email={sessionMe?.email}
             avatarUrl={avatarUrl}
@@ -270,6 +308,8 @@ function AppContent({
             discoveryCounts={discoveryCounts}
             onNavigate={handleNavigate}
             onOpenProfile={() => setTab("profile")}
+            onOpenNotifications={() => setTab("notifications")}
+            onOpenManageFamily={() => setTab("manage-family")}
             onAccountChanged={() => {
               setTab("dashboard");
               const sessionRequest = refreshSession();

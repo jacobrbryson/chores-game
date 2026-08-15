@@ -57,6 +57,13 @@
       "failure": "J'ai du mal à rassembler des idées en ce moment. Utilisons quelques-unes de mes suggestions enregistrées."
     }
   },
+  "auth": {
+    "signInWithApple": "Se connecter avec Apple",
+    "signingInWithApple": "Connexion avec Apple…",
+    "appleSignInFailed": "La connexion avec Apple n'a pas pu être effectuée. Veuillez réessayer.",
+    "serverUnreachable": "Impossible de joindre le serveur. Vérifiez votre connexion Internet et réessayez.",
+    "familySetupRequired": "Vous êtes connecté, mais nous n'avons pas encore pu associer ce compte à une famille. Saisissez le code d'invitation qu'un parent vous a communiqué pour rejoindre la famille."
+  },
   "common": {
     "actions": {
       "add": "Ajouter",
@@ -74,6 +81,7 @@
       "remove": "Retirer",
       "retry": "Réessayer",
       "save": "Enregistrer",
+      "showMore": "Afficher plus",
       "start": "Commencer",
       "saving": "Enregistrement…"
     },
@@ -218,6 +226,18 @@
       "all": "Tous",
       "player": "Joueur",
       "admin": "Parent (admin)"
+    },
+    "subtitle": "Progression et déblocages",
+    "audienceHeading": "Public",
+    "board": "Tableau des succès",
+    "emptyFiltered": "Aucun succès ne correspond aux filtres actuels.",
+    "unlocked": "Débloqué",
+    "adminOnly": "Parents uniquement",
+    "restrictedHint": "Réservé aux parents et tuteurs",
+    "progressOfTarget": "{progress} / {target}",
+    "audienceShort": {
+      "player": "JOUEUR",
+      "admin": "PARENT"
     }
   },
   "discovery": {
@@ -369,7 +389,11 @@
     "pillarHideLabel": "Masquer le pilier de responsabilité ({pillar})",
     "addMenuLabel": "Ajouter",
     "addMenuChore": "Corvée",
-    "addMenuRoutine": "Routine"
+    "addMenuRoutine": "Routine",
+    "loadingDashboard": "Chargement du tableau de bord...",
+    "moveUp": "Monter",
+    "moveDown": "Descendre",
+    "scopeFamilyShort": "Famille"
   },
   "feed": {
     "ariaLabel": "Actualités de la famille",
@@ -401,19 +425,82 @@
   "familyFriends": {
     "title": "Familles amies",
     "description": "Connectez-vous aux familles que vous connaissez et célébrez ensemble les réussites.",
-    "invite": { "email": "E-mail d’un administrateur familial", "placeholder": "parent@exemple.com" },
-    "incoming": { "title": "Demandes à confirmer", "from": "Invitation de {name}", "dashboardTitle": "{family} souhaite devenir une famille amie" },
-    "outgoing": { "title": "Demandes envoyées" },
-    "connected": { "title": "Familles connectées", "since": "Familles amies depuis le {date}", "empty": "Aucune famille amie pour le moment. Invitez une famille que vous connaissez." },
-    "latest": { "title": "Dernières réussites des amis", "description": "Encouragez les familles qui comptent pour vous.", "viewAll": "Voir tout le fil" },
-    "feed": { "fromFamily": "De la famille {family}" },
-    "actions": { "invite": "Inviter une famille", "sending": "Envoi...", "confirm": "Confirmer", "confirming": "Confirmation...", "resend": "Renvoyer", "cancel": "Annuler", "remove": "Retirer l’ami", "keep": "Rester connectés" },
-    "awards": { "copy": "Copier dans mes récompenses", "copying": "Copie...", "copied": "Récompense copiée dans votre famille." },
-    "routines": { "cta": "Copier dans mes routines familiales", "dialogTitle": "Copier cette routine ?", "confirmBody": "Cette action copiera \"{routine}\" de {family}, ainsi que toutes ses tâches enfants, dans vos routines familiales.", "previewHeading": "Prévisualiser et personnaliser les tâches", "assignNow": "Attribuer cette routine à des membres de la famille maintenant", "assigneesLabel": "Attribuer à", "assigneesPlaceholder": "Choisir des membres de la famille...", "chooseAssignees": "Choisissez au moins un membre de la famille à qui attribuer cette routine.", "chooseSteps": "Conservez ou ajoutez au moins une tâche avant de copier cette routine.", "copy": "Copier la routine", "copyAndAssign": "Copier et attribuer", "copying": "Copie...", "copied": "Routine copiée dans vos routines familiales.", "copiedAssigned": "Routine copiée et attribuée.", "unnamed": "cette routine" },
-    "remove": { "title": "Retirer une famille amie", "body": "Se déconnecter de {family} ? Vos familles ne partageront plus leur activité." },
-    "disabled": { "actionPending": "Une autre action Familles amies est encore en cours." },
-    "errors": { "action": "Échec de la mise à jour des familles amies : {error}" },
-    "notices": { "sent": "Invitation envoyée par e-mail et dans l’application si le destinataire a un compte.", "email_warning": "La demande est enregistrée, mais l’envoi de l’e-mail n’a pas été confirmé. Vous pouvez la renvoyer.", "sent_in_app_only": "Invitation enregistrée. Cette famille a désactivé les e-mails d’invitation ; elle la retrouvera dans ses notifications dans l’application.", "accept": "Vos familles sont maintenant amies.", "resend": "Invitation renvoyée.", "cancel": "Invitation annulée.", "removed": "Famille amie retirée." }
+    "invite": {
+      "email": "E-mail d’un administrateur familial",
+      "placeholder": "parent@exemple.com"
+    },
+    "incoming": {
+      "title": "Demandes à confirmer",
+      "from": "Invitation de {name}",
+      "dashboardTitle": "{family} souhaite devenir une famille amie"
+    },
+    "outgoing": {
+      "title": "Demandes envoyées"
+    },
+    "connected": {
+      "title": "Familles connectées",
+      "since": "Familles amies depuis le {date}",
+      "empty": "Aucune famille amie pour le moment. Invitez une famille que vous connaissez."
+    },
+    "latest": {
+      "title": "Dernières réussites des amis",
+      "description": "Encouragez les familles qui comptent pour vous.",
+      "viewAll": "Voir tout le fil"
+    },
+    "feed": {
+      "fromFamily": "De la famille {family}"
+    },
+    "actions": {
+      "invite": "Inviter une famille",
+      "sending": "Envoi...",
+      "confirm": "Confirmer",
+      "confirming": "Confirmation...",
+      "resend": "Renvoyer",
+      "cancel": "Annuler",
+      "remove": "Retirer l’ami",
+      "keep": "Rester connectés"
+    },
+    "awards": {
+      "copy": "Copier dans mes récompenses",
+      "copying": "Copie...",
+      "copied": "Récompense copiée dans votre famille."
+    },
+    "routines": {
+      "cta": "Copier dans mes routines familiales",
+      "dialogTitle": "Copier cette routine ?",
+      "confirmBody": "Cette action copiera \"{routine}\" de {family}, ainsi que toutes ses tâches enfants, dans vos routines familiales.",
+      "previewHeading": "Prévisualiser et personnaliser les tâches",
+      "assignNow": "Attribuer cette routine à des membres de la famille maintenant",
+      "assigneesLabel": "Attribuer à",
+      "assigneesPlaceholder": "Choisir des membres de la famille...",
+      "chooseAssignees": "Choisissez au moins un membre de la famille à qui attribuer cette routine.",
+      "chooseSteps": "Conservez ou ajoutez au moins une tâche avant de copier cette routine.",
+      "copy": "Copier la routine",
+      "copyAndAssign": "Copier et attribuer",
+      "copying": "Copie...",
+      "copied": "Routine copiée dans vos routines familiales.",
+      "copiedAssigned": "Routine copiée et attribuée.",
+      "unnamed": "cette routine"
+    },
+    "remove": {
+      "title": "Retirer une famille amie",
+      "body": "Se déconnecter de {family} ? Vos familles ne partageront plus leur activité."
+    },
+    "disabled": {
+      "actionPending": "Une autre action Familles amies est encore en cours."
+    },
+    "errors": {
+      "action": "Échec de la mise à jour des familles amies : {error}"
+    },
+    "notices": {
+      "sent": "Invitation envoyée par e-mail et dans l’application si le destinataire a un compte.",
+      "email_warning": "La demande est enregistrée, mais l’envoi de l’e-mail n’a pas été confirmé. Vous pouvez la renvoyer.",
+      "sent_in_app_only": "Invitation enregistrée. Cette famille a désactivé les e-mails d’invitation ; elle la retrouvera dans ses notifications dans l’application.",
+      "accept": "Vos familles sont maintenant amies.",
+      "resend": "Invitation renvoyée.",
+      "cancel": "Invitation annulée.",
+      "removed": "Famille amie retirée."
+    }
   },
   "choreDialog": {
     "addTitle": "Ajouter des tâches",
@@ -452,7 +539,9 @@
       "days": "Jours",
       "weeks": "Semaines",
       "months": "Mois"
-    }
+    },
+    "assignedToEveryone": "Assignée à tout le monde",
+    "loadingChoreDetails": "Chargement des détails de la tâche..."
   },
   "choresPage": {
     "loading": "Chargement des taches",
@@ -512,7 +601,8 @@
       "expand": "Developper les commandes des taches",
       "collapse": "Reduire les commandes des taches",
       "filters": "Filtres",
-      "sorting": "Tri"
+      "sorting": "Tri",
+      "searchPlaceholderMobile": "Rechercher des tâches (3+ caractères)"
     },
     "filters": {
       "all": "Toutes",
@@ -626,6 +716,15 @@
     "results": {
       "showing": "Affichage de {from}–{to} sur {total}",
       "filteredFrom": "filtré sur {totalUnfiltered}"
+    },
+    "allChoresTitle": "Toutes les tâches",
+    "assigneeFallback": "Personne assignée",
+    "thisChore": "cette tâche",
+    "details": {
+      "show": "Afficher les détails",
+      "hide": "Masquer les détails",
+      "showAriaLabel": "Afficher les détails de {title}",
+      "hideAriaLabel": "Masquer les détails de {title}"
     }
   },
   "notificationsPage": {
@@ -734,7 +833,16 @@
       "avatar": "Avatar",
       "confetti": "Confettis",
       "quest": "Quête"
-    }
+    },
+    "subtitle": "Couleurs, avatars, confettis et récompenses familiales",
+    "categoriesHeading": "Catégories de la boutique",
+    "noFamilyAwardsAdmin": "Aucune récompense familiale pour l'instant. Ajoutez-en depuis l'écran Famille.",
+    "coinsAmount": "{coins} pièces",
+    "defaultCelebration": "Célébration par défaut",
+    "themeNowActive": "{item} est maintenant actif",
+    "optionApplied": "{item} appliqué",
+    "googleAvatarApplied": "Avatar Google appliqué",
+    "noEligibleRecipients": "Aucun membre de la famille ne peut échanger cette récompense pour le moment."
   },
   "profile": {
     "signedIn": "Connecté",
@@ -1256,6 +1364,22 @@
     "removing": "Suppression...",
     "membersLoadError": "Impossible de charger les membres : {error}",
     "membersTitle": "Membres de la famille",
+    "addCategory": "Ajouter une catégorie",
+    "editCategory": "Modifier la catégorie",
+    "editMember": "Modifier le membre de la famille",
+    "roleAdmin": "Parent",
+    "rolePlayer": "Enfant",
+    "statusInvited": "Invitation en attente",
+    "memberNameLabel": "Nom",
+    "memberEmailLabel": "E-mail",
+    "memberRoleLabel": "Rôle",
+    "categoryNameLabel": "Nom de la catégorie",
+    "categoryColorLabel": "Couleur de la puce",
+    "categoryMembersLabel": "Limiter aux membres de la famille",
+    "categoryWholeFamily": "Toute la famille",
+    "categoryWholeFamilyHint": "Laissez vide pour rendre cette catégorie disponible à tous.",
+    "deleteCategoryTitle": "Supprimer la catégorie",
+    "deleteCategoryBody": "Supprimer {name} ? Elle sera retirée des tâches qui l'utilisent.",
     "memberColumn": "Membre",
     "statusColumn": "Statut / dernière connexion",
     "statsColumn": "Statistiques",
@@ -1335,7 +1459,11 @@
       "viewConsentHistory": "Voir l'historique du consentement",
       "backToPrivacy": "Retour a Confidentialite",
       "requestDeletionAction": "Demander la suppression de la famille...",
-      "exportStarted": "L'exportation des donnees familiales a commence."
+      "exportStarted": "L'exportation des donnees familiales a commence.",
+      "adminOnly": "Seuls les parents peuvent gérer les paramètres de confidentialité.",
+      "shareExport": "Partager les données familiales",
+      "shareExportHelp": "Les données de votre famille sont préparées au format JSON et transmises au menu de partage de votre appareil, pour les enregistrer ou les envoyer où vous voulez.",
+      "consentIntro": "Enregistrer le consentement accepte les conditions d'utilisation et la politique de confidentialité actuelles au nom de votre famille."
     },
     "awards": {
       "submitToCommunity": "Soumettre aux prix communautaires",
@@ -1349,7 +1477,34 @@
         "rejected": "Rejete",
         "withdrawn": "Retire",
         "hidden": "Masque"
-      }
+      },
+      "title": "Récompenses familiales",
+      "intro": "Les récompenses familiales sont des prix personnalisés que les enfants peuvent échanger contre des pièces.",
+      "empty": "Aucune récompense familiale pour l'instant.",
+      "addAward": "Ajouter une récompense",
+      "addTitle": "Ajouter une récompense familiale",
+      "editTitle": "Modifier la récompense familiale",
+      "imageLabel": "Image de la récompense",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "Temps d'écran supplémentaire (30 minutes)",
+      "coinCostLabel": "Nombre de pièces",
+      "individualLimitLabel": "Limite par personne",
+      "familyLimitLabel": "Limite familiale",
+      "limitHint": "Utilisez 0 ou laissez vide pour un nombre illimité.",
+      "limitUnlimited": "Illimité",
+      "coinCost": "{coins} pièces",
+      "limitsSummary": "Par personne : {individual} · Famille : {family}",
+      "disabledBadge": "Désactivée",
+      "disableAction": "Désactiver",
+      "disablingAction": "Désactivation...",
+      "enableAction": "Activer",
+      "enablingAction": "Activation...",
+      "disableTitle": "Désactiver la récompense familiale",
+      "disablePrompt": "Masquer « {name} » de la boutique ? Les échanges passés sont conservés et vous pourrez la réactiver plus tard.",
+      "deleteTitle": "Supprimer la récompense familiale",
+      "deletePrompt": "Supprimer « {name} » ? Cette action est irréversible.",
+      "loadError": "Impossible de charger les récompenses familiales : {error}",
+      "updateError": "Échec de la mise à jour de la récompense : {error}"
     }
   },
   "communityAwards": {
@@ -1401,7 +1556,8 @@
     "choresSubtitle": "Triez, filtrez et approuvez les tâches",
     "profileSubtitle": "Les détails de votre compte et vos réglages de personnalisation.",
     "supportSubtitle": "Sante operationnelle inter-familles, activite recente et diagnostics de support.",
-    "dashboardSubtitle": "Voir, créer et gérer les tâches actives"
+    "dashboardSubtitle": "Voir, créer et gérer les tâches actives",
+    "goToDashboard": "Aller au tableau de bord"
   },
   "quests": {
     "loadingQuest": "Chargement de la quête...",
@@ -1804,6 +1960,39 @@
     },
     "errors": {
       "generic": "Une erreur est survenue. Veuillez réessayer."
+    }
+  },
+  "familyInvite": {
+    "codeTitle": "Code d'invitation",
+    "codeHelp": "Partagez ce code avec {name}. Il fonctionne quel que soit le compte utilisé pour se connecter, ne peut servir qu'une fois et expire dans 30 jours.",
+    "linkLabel": "Lien d'invitation",
+    "copyCode": "Copier le code",
+    "copyLink": "Copier le lien",
+    "copied": "Copié"
+  },
+  "joinFamily": {
+    "title": "Rejoignez votre famille",
+    "description": "Saisissez le code d'invitation qu'un parent vous a communiqué. Il fonctionne quelle que soit l'adresse e-mail utilisée pour vous connecter.",
+    "codeLabel": "Code d'invitation",
+    "codePlaceholder": "ABCD-2345-WXYZ",
+    "submit": "Rejoindre la famille",
+    "submitting": "Connexion en cours...",
+    "success": "Vous avez rejoint {family}.",
+    "successGeneric": "Vous avez rejoint votre famille.",
+    "alreadyMember": "Vous faites déjà partie de cette famille.",
+    "help": "Pas de code ? Demandez à un parent de renvoyer votre invitation : il recevra un code à vous transmettre.",
+    "cta": "Vous avez un code d'invitation ?",
+    "errors": {
+      "invalidCode": "Ce code semble incorrect. Les codes d'invitation comportent 12 caractères, par exemple ABCD-2345-WXYZ.",
+      "inviteNotFound": "Nous n'avons pas trouvé ce code d'invitation. Vérifiez-le auprès du parent qui vous a invité.",
+      "inviteAlreadyUsed": "Ce code d'invitation a déjà été utilisé. Demandez-en un nouveau.",
+      "inviteRevoked": "Cette invitation a été annulée. Demandez à un parent de vous réinviter.",
+      "inviteExpired": "Ce code d'invitation a expiré. Demandez à un parent de renvoyer votre invitation.",
+      "inviteLocked": "Trop de tentatives avec ce code. Demandez à un parent de renvoyer votre invitation.",
+      "alreadyInAnotherFamily": "Ce compte appartient déjà à une autre famille.",
+      "familyMemberLimitReached": "Cette famille est déjà complète.",
+      "unauthorized": "Votre session a expiré. Veuillez vous reconnecter.",
+      "failed": "Nous n'avons pas pu finaliser l'adhésion. Veuillez réessayer."
     }
   }
 }

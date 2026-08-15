@@ -2385,6 +2385,32 @@ textarea:disabled {
   transition: width 700ms ease-out;
 }
 
+.apple-signin-stack {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+}
+
+.apple-signin-button {
+  width: 280px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  border: 1px solid #000;
+  border-radius: 8px;
+  background: #000;
+  color: #fff;
+  font: 500 16px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.apple-signin-button:disabled { cursor: not-allowed; opacity: 0.6; }
+.apple-signin-logo { width: 21px; height: 21px; }
+.apple-signin-error { max-width: 280px; color: #b91c1c; font-size: 0.78rem; }
+.nav-apple-signin .apple-signin-button { width: 200px; }
+
 .responsibility-progress-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

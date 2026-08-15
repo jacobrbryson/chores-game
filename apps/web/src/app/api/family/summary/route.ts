@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
+import { keyableEmail } from "@/lib/auth/private-relay";
 import {
   documentIdFromName,
-  findFirstFamilyIdByMemberEmail,
   findFirstFamilyIdByMemberUid,
   type FirestoreDocument,
   type FirestoreValue,
@@ -422,31 +422,11 @@ export async function GET(request: NextRequest) {
         const viewerGoogleTasksLinked = readBoolean(userDoc?.fields, "googleTasksLinked");
         let familyId = familyIds[0];
         if (!familyId) {
-          let inviteLookupFamilyId = "";
-          if (session.email) {
-            try {
-              const inviteLookupDoc = await getDocument(
-                `inviteLookup/${session.email.trim().toLowerCase()}`,
-                idToken,
-              );
-              const status = readString(inviteLookupDoc.fields, "status");
-              const candidateFamilyId = readString(inviteLookupDoc.fields, "familyId");
-              if ((status === "invited" || status === "claimed") && candidateFamilyId) {
-                inviteLookupFamilyId = candidateFamilyId;
-              }
-            } catch (error) {
-              const reason = error instanceof Error ? error.message : "";
-              if (!reason.includes("FIRESTORE_HTTP_404")) {
-                throw error;
-              }
-            }
-          }
-          const uidRecoveredFamilyId = await findFirstFamilyIdByMemberUid(session.uid, idToken);
-          const emailRecoveredFamilyId = uidRecoveredFamilyId || inviteLookupFamilyId
-            ? ""
-            : await findFirstFamilyIdByMemberEmail(session.email, idToken);
-          const recoveredFamilyId =
-            uidRecoveredFamilyId || inviteLookupFamilyId || emailRecoveredFamilyId;
+          // Recovery is uid-only since the email-keying migration. The former
+          // inviteLookup/{email} and member-email fallbacks could never match an
+          // Apple private-relay address, and matching on an address is what let
+          // a second Google account land in someone else's family.
+          const recoveredFamilyId = await findFirstFamilyIdByMemberUid(session.uid, idToken);
           if (!recoveredFamilyId) {
             return emptySummary(
               session.uid,

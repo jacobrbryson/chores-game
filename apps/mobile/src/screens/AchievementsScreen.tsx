@@ -6,6 +6,7 @@ import {
   saveAchievementsPreferences,
 } from "@/lib/mobile-preferences";
 import { colors, spacing, typography } from "@/theme";
+import { useMobileLocale } from "@/lib/locale";
 import { MobileAchievementCard, type MobileAchievement } from "@/components/MobileAchievementCard";
 import { AppScreen, Badge, Button, Card, EmptyState, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
 
@@ -23,17 +24,8 @@ type Props = {
   onGoDashboard?: () => void;
 };
 
-function audienceLabel(value: AudienceFilter) {
-  if (value === "player") {
-    return "Player";
-  }
-  if (value === "admin") {
-    return "Parent";
-  }
-  return "All";
-}
-
 export function AchievementsScreen({ right, onGoDashboard }: Props) {
+  const { t } = useMobileLocale();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [items, setItems] = useState<MobileAchievement[]>([]);
@@ -126,19 +118,23 @@ export function AchievementsScreen({ right, onGoDashboard }: Props) {
   }, [audienceFilter, items, viewerRole]);
 
   return (
-    <AppScreen title="Achievements" subtitle="Progress and unlocks" right={right} onPressBreadcrumbRoot={onGoDashboard}>
-      {loading ? <LoadingState label="Loading achievements..." /> : null}
-      {error ? <ErrorState message={`Could not load achievements: ${error}`} /> : null}
+    <AppScreen
+      title={t("nav.achievements")}
+      subtitle={t("achievements.subtitle")}
+      right={right}
+      onPressBreadcrumbRoot={onGoDashboard}>
+      {loading ? <LoadingState label={t("achievements.loading")} /> : null}
+      {error ? <ErrorState message={t("achievements.loadError", { error })} /> : null}
       {!loading && !error ? (
         <>
           {viewerRole === "admin" ? (
             <Card>
-              <SectionHeader title="Audience" />
+              <SectionHeader title={t("achievements.audienceHeading")} />
               <View style={styles.filterRow}>
                 {(["all", "player", "admin"] as const).map((value) => (
                   <Button
                     key={value}
-                    label={audienceLabel(value)}
+                    label={t(`achievements.tabs.${value}`)}
                     variant={audienceFilter === value ? "primary" : "secondary"}
                     onPress={() => setAudienceFilter(value)}
                   />
@@ -150,11 +146,11 @@ export function AchievementsScreen({ right, onGoDashboard }: Props) {
           <Card>
             <View style={styles.summaryRow}>
               <View style={styles.summaryBadges}>
-                <Badge label={`Total ${totals.total}`} />
-                <Badge label={`Completed ${totals.completed}`} tone="success" />
+                <Badge label={t("achievements.total", { count: totals.total })} />
+                <Badge label={t("achievements.completedCount", { count: totals.completed })} tone="success" />
               </View>
               <View style={styles.toggleWrap}>
-                <Text style={styles.toggleLabel}>Hide Complete</Text>
+                <Text style={styles.toggleLabel}>{t("achievements.hideComplete")}</Text>
                 <Switch
                   value={hideComplete}
                   onValueChange={setHideComplete}
@@ -166,9 +162,9 @@ export function AchievementsScreen({ right, onGoDashboard }: Props) {
           </Card>
 
           <Card>
-            <SectionHeader title="Achievement Board" />
+            <SectionHeader title={t("achievements.board")} />
             {orderedItems.length === 0 ? (
-              <EmptyState message="No achievements match the current filters." />
+              <EmptyState message={t("achievements.emptyFiltered")} />
             ) : (
               <View style={styles.list}>
                 {orderedItems.map((item) => (

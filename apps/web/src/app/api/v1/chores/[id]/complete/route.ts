@@ -14,7 +14,17 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   if (upstream.status >= 400) {
     return fail(String(upstream.json?.error ?? "upstream_error"), "Failed to complete chore", upstream.status, upstream.json);
   }
-  // Forward New Skill Bonus metadata so mobile can celebrate the first-time bonus.
-  const newSkillBonus = (upstream.json as { newSkillBonus?: unknown } | undefined)?.newSkillBonus;
-  return ok({ id, status: "Submitted", ...(newSkillBonus ? { newSkillBonus } : {}) });
+  // Forward New Skill Bonus metadata so mobile can celebrate the first-time bonus,
+  // and the Responsibility XP block (including the identity `title` payload) so it
+  // can run the same title celebration the web kiosk does.
+  const payload = upstream.json as
+    | { newSkillBonus?: unknown; responsibilityXp?: unknown; routineProgress?: unknown }
+    | undefined;
+  return ok({
+    id,
+    status: "Submitted",
+    ...(payload?.newSkillBonus ? { newSkillBonus: payload.newSkillBonus } : {}),
+    ...(payload?.responsibilityXp ? { responsibilityXp: payload.responsibilityXp } : {}),
+    ...(payload?.routineProgress ? { routineProgress: payload.routineProgress } : {}),
+  });
 }

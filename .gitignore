@@ -11,3 +11,6 @@ test-results/
 out/
 .turbo/
 **/.git-backup-*/
+# Migration dry-run output. May contain CHILD_SENSITIVE addresses when the run
+# is invoked with --include-emails.
+.dry-run/

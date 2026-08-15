@@ -12,11 +12,12 @@ const footerLinks = [
 
 type Props = {
   googleButton: React.ReactNode;
+  appleButton?: React.ReactNode;
   error?: string;
   configError?: string;
 };
 
-export function MobileLoginLayout({ googleButton, error, configError }: Props) {
+export function MobileLoginLayout({ googleButton, appleButton, error, configError }: Props) {
   return (
     <View style={styles.screen}>
       <View style={styles.logoSection}>
@@ -28,6 +29,7 @@ export function MobileLoginLayout({ googleButton, error, configError }: Props) {
       </View>
       <View style={styles.actionSection}>
         {googleButton}
+        {appleButton}
         <Text style={styles.description}>
           Turn everyday chores into a family game. Kids complete tasks, earn coins, and unlock rewards while parents keep the household moving.
         </Text>

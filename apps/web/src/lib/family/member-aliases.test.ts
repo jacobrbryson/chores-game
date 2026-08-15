@@ -9,12 +9,20 @@ describe("family member aliases", () => {
     name: "Taylor Example",
   };
 
-  it("resolves a member by document id, uid, or normalized email", () => {
+  it("resolves a member by document id or uid, case-insensitively", () => {
     const membersByAlias = buildFamilyMemberAliasMap([member]);
 
     expect(membersByAlias.get(normalizeFamilyMemberAlias("member-doc-id"))).toBe(member);
     expect(membersByAlias.get(normalizeFamilyMemberAlias("firebase-uid"))).toBe(member);
-    expect(membersByAlias.get(normalizeFamilyMemberAlias(" KID@example.COM "))).toBe(member);
+  });
+
+  // The email alias was the last compatibility shim for email-keyed identity.
+  // With it gone, an address resolves to nobody — so a stale email-valued
+  // assigneeId shows as unassigned rather than silently naming a person.
+  it("no longer resolves a member by their email address", () => {
+    const membersByAlias = buildFamilyMemberAliasMap([member]);
+
+    expect(membersByAlias.get(normalizeFamilyMemberAlias(" KID@example.COM "))).toBeUndefined();
   });
 
   it("does not add empty aliases", () => {

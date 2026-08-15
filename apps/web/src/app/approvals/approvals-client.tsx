@@ -10,7 +10,9 @@ import { ModalShell } from "@/components/modal-shell";
 import { useLocale } from "@/components/locale-provider";
 import { RESPONSIBILITY_PILLAR_EMOJI } from "@/lib/responsibility/types";
 import {
+  APPROVAL_COIN_QUICK_VALUES as COIN_QUICK_VALUES,
   approvalAssigneeIds,
+  defaultCoinsByAssignee,
   groupApprovalsByChild,
   isCoinValueHidden,
   needsCoinAssignment,
@@ -23,8 +25,6 @@ import {
 } from "@/lib/approvals/inbox";
 import { useApprovalActions } from "@/lib/approvals/use-approval-actions";
 import { useApprovalInbox } from "@/lib/approvals/use-approval-inbox";
-
-const COIN_QUICK_VALUES = [5, 10, 15, 20];
 
 type SuccessSummary = {
   count: number;
@@ -58,16 +58,6 @@ function formatRelativeTime(value: string | undefined, locale: string, fallback:
     duration /= division.amount;
   }
   return fallback;
-}
-
-function defaultCoinsByAssignee(chore: ApprovalChore): Record<string, number> {
-  const ids = approvalAssigneeIds(chore);
-  const base = ids.length > 0 ? Math.ceil((chore.coinValue ?? 0) / ids.length) : chore.coinValue ?? 0;
-  const next: Record<string, number> = {};
-  for (const id of ids) {
-    next[id] = base;
-  }
-  return next;
 }
 
 export default function ApprovalsClient() {

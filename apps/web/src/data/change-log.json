@@ -1,5 +1,77 @@
 [
   {
+    "id": "chore-assignments-follow-the-person",
+    "date": "2026-08-15",
+    "type": "Bug Fix",
+    "subject": "Chores stay with the right person after they join",
+    "description": "A chore assigned to someone before they accepted their invitation is now theirs to complete the moment they join, whatever email address they sign in with. Invitations sent before invite codes existed have been retired — if someone you invited a while ago never joined, send them a fresh invite and they'll get a code and a link that works with any account.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "mobile-approval-inbox",
+    "date": "2026-08-13",
+    "type": "Feature",
+    "subject": "Approval Inbox comes to the mobile app",
+    "description": "Parents can review everything waiting for approval from their phone. A card on the mobile dashboard shows who finished what, Approve All clears the easy ones in a tap, and chores that still need a coin value walk you through them one at a time so nothing is ever approved for zero coins.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "mobile-identity-titles",
+    "date": "2026-08-13",
+    "type": "Feature",
+    "subject": "Responsibility titles now show up on your phone",
+    "description": "The titles kids earn as they build life skills are on mobile too. A \"Your Journey\" card on the dashboard shows the title they hold and how close the next one is, earned titles appear on profiles and on the kiosk and switch-profile tiles, and finishing a chore that unlocks a new title celebrates it right there.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "mobile-manage-family-full",
+    "date": "2026-08-13",
+    "type": "Feature",
+    "subject": "Manage Family on mobile now covers awards, friends, and privacy",
+    "description": "The mobile Manage Family screen has the same tabs as the website. Parents can create and edit Family Awards (including disabling one without losing its history), manage Family Friends, and handle privacy: review consent status, see what data is stored, share a copy of your family's data, and request or cancel deletion.",
+    "image": "/store3/family-rewards.png"
+  },
+  {
+    "id": "mobile-localization-sweep",
+    "date": "2026-08-13",
+    "type": "Bug Fix",
+    "subject": "Mobile app now speaks French and Spanish everywhere",
+    "description": "Achievements, All Chores, the Store, and the dashboard chore list were still showing English to families using French or Spanish. Every screen in the mobile app now follows your language setting, and dates and relative times are formatted for your locale.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "mobile-chore-editor-parity",
+    "date": "2026-08-13",
+    "type": "Bug Fix",
+    "subject": "Mobile chore editor no longer clears while you type",
+    "description": "Adding or editing a chore on the phone kept resetting the description mid-sentence. The form now holds what you type, saves instantly so you can add several chores in a row, and includes the Responsibility Pillar and New Skill Bonus options that the web app already had.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "mobile-routines-and-family",
+    "date": "2026-08-13",
+    "type": "Feature",
+    "subject": "Routines, Notifications, and Manage Family now work inside the mobile app",
+    "description": "Parents can create and edit Routines from a new Dashboard tab on their phone. Notifications and Manage Family open as real mobile screens instead of bouncing out to the website, and admins can redeem a Family Award on behalf of a child from the mobile Store.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "family-invite-codes",
+    "date": "2026-08-13",
+    "type": "Feature",
+    "subject": "Join your family with an invite code",
+    "description": "Every invitation now comes with a single-use code and link that a parent can share. Whoever was invited can join with any account they sign in with, so a different email address no longer leaves them stuck outside the family. Codes last 30 days and can be resent at any time.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "sign-in-with-apple",
+    "date": "2026-08-13",
+    "type": "Feature",
+    "subject": "Sign in with Apple is now available",
+    "description": "Families can use Sign in with Apple on the web and iPhone while Google sign-in continues to work as before. Apple users can keep their email private.",
+    "image": "/file.svg"
+  },
+  {
     "id": "faster-assignee-picker",
     "date": "2026-08-12",
     "type": "Bug Fix",

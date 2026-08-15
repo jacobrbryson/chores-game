@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AppScreen, DiscoveryBadge } from "@/components/ui";
+import { MobileApprovalInboxCard } from "@/components/MobileApprovalInboxCard";
 import { MobileDashboardChoresPanel } from "@/components/MobileDashboardChoresPanel";
+import { MobileIdentityJourneyWidget } from "@/components/MobileIdentityJourneyWidget";
 import { MobileFeedPanel } from "@/components/MobileFeedPanel";
 import { MobileFamilyFriendsHighlights } from "@/components/MobileFamilyFriendsHighlights";
+import { MobileJoinFamilyPanel } from "@/components/MobileJoinFamilyPanel";
+import { MobileRoutinesPanel } from "@/components/MobileRoutinesPanel";
 import {
   loadDashboardTabPreference,
   saveDashboardTabPreference,
@@ -19,6 +23,8 @@ type Props = {
   onGoDashboard?: () => void;
   onOpenAllChores?: () => void;
   onOpenStore?: () => void;
+  onOpenApprovals?: (options?: { approveAll?: boolean }) => void;
+  onOpenProfile?: () => void;
   feedUnseenCount?: number;
   // Called after the dashboard marks a discovery section seen so the bottom-nav
   // badges (owned by App) refresh.
@@ -34,6 +40,8 @@ export function HomeScreen({
   viewerKey,
   onOpenAllChores,
   onOpenStore,
+  onOpenApprovals,
+  onOpenProfile,
   feedUnseenCount = 0,
   onDiscoveryRefresh,
 }: Props) {
@@ -60,7 +68,10 @@ export function HomeScreen({
     if (tab === null) {
       return;
     }
-    const section = activeTab === "feed" ? "feed" : "chores";
+    const section = activeTab === "feed" ? "feed" : activeTab === "routines" ? "" : "chores";
+    if (!section) {
+      return;
+    }
     void markDiscoverySeen([section]).then(() => onDiscoveryRefresh?.());
   }, [activeTab, onDiscoveryRefresh, tab]);
 
@@ -70,10 +81,24 @@ export function HomeScreen({
   }
 
   return (
-    <AppScreen title="Dashboard" right={right}>
+    <AppScreen title={t("nav.dashboard")} right={right}>
+      {/* Shown only when this account resolved to no family — the invite-code
+          way in for anyone whose sign-in address differs from the invited one. */}
+      <MobileJoinFamilyPanel onJoined={onDiscoveryRefresh} />
       <MobileFamilyFriendsHighlights />
+      {/* Approval Inbox card sits above the tabs so pending approvals are the
+          first thing a parent sees, matching the web dashboard. */}
+      {onOpenApprovals ? (
+        <MobileApprovalInboxCard
+          onOpenApprovals={onOpenApprovals}
+          onApprovalsChanged={onDiscoveryRefresh}
+        />
+      ) : null}
+      {/* "Your Journey" — the player's leading Responsibility Pillar title and
+          how close they are to the next one. Hidden until a pillar has XP. */}
+      <MobileIdentityJourneyWidget onOpenProfile={onOpenProfile} />
       <View style={styles.tabs}>
-        {(["chores", "feed"] as const).map((id) => {
+        {(["chores", "routines", "feed"] as const).map((id) => {
           const active = activeTab === id;
           return (
             <Pressable
@@ -95,7 +120,13 @@ export function HomeScreen({
       </View>
       {/* Render only once the stored tab resolves so we don't flash the wrong panel. */}
       {tab === null ? null : activeTab === "feed" ? (
-        <MobileFeedPanel onViewChore={onOpenAllChores} onViewReward={onOpenStore} />
+        <MobileFeedPanel
+          onViewChore={onOpenAllChores}
+          onViewReward={onOpenStore}
+          onReviewApproval={onOpenApprovals ? () => onOpenApprovals() : undefined}
+        />
+      ) : activeTab === "routines" ? (
+        <MobileRoutinesPanel />
       ) : (
         <MobileDashboardChoresPanel onOpenAllChores={onOpenAllChores} />
       )}

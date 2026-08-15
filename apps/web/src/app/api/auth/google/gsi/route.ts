@@ -8,15 +8,17 @@ import {
 } from "@/lib/auth/session";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
-import { buildGoogleUserAuthFields } from "@/lib/auth/google-user-fields";
+import {
+  buildIdpSessionUser,
+  signInWithFirebaseIdp,
+  upsertIdpUser,
+  type FirebaseIdpSession,
+} from "@/lib/auth/idp-signin";
 import { getCanonicalAppOrigin } from "@/lib/app-origin";
-import { createFamilyForUser } from "@/lib/family/bootstrap";
 import { seedDiscoveryStateForNewUser } from "@/lib/discovery/service";
 import {
   boolField,
-  findFirstFamilyIdByMemberEmail,
   getDocument,
-  listDocuments,
   patchDocument,
   readBoolean,
   readInteger,
@@ -34,15 +36,6 @@ type GoogleTokenInfo = {
   name?: string;
   picture?: string;
   sub: string;
-};
-
-type FirebaseSession = {
-  displayName?: string;
-  email?: string;
-  idToken: string;
-  refreshToken?: string;
-  localId: string;
-  photoUrl?: string;
 };
 
 function redirectToPath(
@@ -79,209 +72,9 @@ async function verifyGoogleCredential(idToken: string) {
   return tokenInfo;
 }
 
-async function signInWithFirebase(googleIdToken: string, requestUri: string) {
-  const apiKey = process.env.FIREBASE_WEB_API_KEY;
-  if (!apiKey) {
-    throw new Error("FIREBASE_API_KEY_MISSING");
-  }
-
-  const response = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        postBody: `id_token=${encodeURIComponent(googleIdToken)}&providerId=google.com`,
-        requestUri,
-        returnSecureToken: true,
-        returnIdpCredential: false,
-      }),
-      cache: "no-store",
-    },
-  );
-
-  if (!response.ok) {
-    let detail = "";
-    try {
-      const json = (await response.json()) as {
-        error?: { message?: string };
-      };
-      detail = json.error?.message ?? "";
-    } catch {
-      detail = "";
-    }
-    throw new Error(
-      `FIREBASE_AUTH_FAILED_${response.status}${detail ? `_${detail}` : ""}`,
-    );
-  }
-
-  return (await response.json()) as FirebaseSession;
-}
-
-async function resolveActiveFamilyMembership(
-  familyId: string,
-  uid: string,
-  idToken: string,
-): Promise<{ memberId: string; role: SessionUser["role"] } | null> {
-  try {
-    const memberDoc = await getDocument(`families/${familyId}/members/${uid}`, idToken);
-    if (readBoolean(memberDoc.fields, "deleted")) {
-      return null;
-    }
-    if (readString(memberDoc.fields, "status") !== "active") {
-      return null;
-    }
-    return {
-      memberId: uid,
-      role: readString(memberDoc.fields, "role") === "admin" ? "admin" : "player",
-    };
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "";
-    if (!reason.includes("FIRESTORE_HTTP_404")) {
-      throw error;
-    }
-  }
-
-  const memberDocs = await listDocuments(`families/${familyId}/members`, idToken, 200);
-  const matchedMember = memberDocs.find((doc) => {
-    if (readBoolean(doc.fields, "deleted")) {
-      return false;
-    }
-    if (readString(doc.fields, "status") !== "active") {
-      return false;
-    }
-    return readString(doc.fields, "uid") === uid;
-  });
-  if (!matchedMember) {
-    return null;
-  }
-  return {
-    memberId: matchedMember.name.split("/").pop() ?? uid,
-    role: readString(matchedMember.fields, "role") === "admin" ? "admin" : "player",
-  };
-}
-
-async function upsertFirebaseUser(
-  session: FirebaseSession,
-  tokenInfo: GoogleTokenInfo,
-) {
-  const now = new Date().toISOString();
-  const normalizedEmail = (tokenInfo.email ?? session.email ?? "").trim().toLowerCase();
-  let existingFamilyIds: string[] = [];
-  let existingUserRole: SessionUser["role"] = "player";
-  let existingUserLocale = "";
-  let hasExistingUserDoc = false;
-  try {
-    const existingUserDoc = await getDocument(`users/${session.localId}`, session.idToken);
-    hasExistingUserDoc = true;
-    existingFamilyIds = readStringArray(existingUserDoc.fields, "familyIds");
-    existingUserRole = readString(existingUserDoc.fields, "role") === "admin" ? "admin" : "player";
-    existingUserLocale = readString(existingUserDoc.fields, "locale").trim();
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "";
-    if (!reason.includes("FIRESTORE_HTTP_404")) {
-      throw error;
-    }
-  }
-
-  let linkedFamilyId = existingFamilyIds[0] ?? "";
-  if (!linkedFamilyId && normalizedEmail) {
-    try {
-      const inviteLookupDoc = await getDocument(`inviteLookup/${normalizedEmail}`, session.idToken);
-      const inviteLookupStatus = readString(inviteLookupDoc.fields, "status");
-      const inviteLookupFamilyId = readString(inviteLookupDoc.fields, "familyId");
-      if (inviteLookupStatus === "invited" && inviteLookupFamilyId) {
-        linkedFamilyId = inviteLookupFamilyId;
-      }
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "";
-      if (!reason.includes("FIRESTORE_HTTP_404")) {
-        throw error;
-      }
-    }
-  }
-  if (!linkedFamilyId && normalizedEmail) {
-    linkedFamilyId = await findFirstFamilyIdByMemberEmail(normalizedEmail, session.idToken);
-  }
-  const shouldBootstrapFamily = !hasExistingUserDoc && !linkedFamilyId;
-  if (shouldBootstrapFamily) {
-    linkedFamilyId = await createFamilyForUser({
-      uid: session.localId,
-      userName: tokenInfo.name ?? session.displayName ?? "",
-      userEmail: normalizedEmail,
-      idToken: session.idToken,
-    });
-  }
-  let familyLocale = "";
-  if (linkedFamilyId) {
-    try {
-      const familyDoc = await getDocument(`families/${linkedFamilyId}`, session.idToken);
-      familyLocale = readString(familyDoc.fields, "defaultLocale").trim();
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "";
-      if (!reason.includes("FIRESTORE_HTTP_404")) {
-        throw error;
-      }
-    }
-  }
-  const linkedFamilyMembership = linkedFamilyId
-    ? await resolveActiveFamilyMembership(linkedFamilyId, session.localId, session.idToken)
-    : null;
-  const effectiveRole: SessionUser["role"] = shouldBootstrapFamily
-    ? "admin"
-    : linkedFamilyMembership?.role ?? (existingUserRole === "admin" ? "admin" : "player");
-  const effectiveLocale = resolveLocalePreference({
-    requestedLocale: existingUserLocale,
-    familyLocale,
-    fallbackLocale: DEFAULT_LOCALE,
-  });
-
-  const authFields = buildGoogleUserAuthFields({
-    uid: session.localId,
-    role: effectiveRole,
-    locale: effectiveLocale,
-    email: normalizedEmail,
-    displayName: tokenInfo.name ?? session.displayName ?? "",
-    photoUrl: tokenInfo.picture ?? session.photoUrl ?? "",
-    familyId: linkedFamilyId,
-    now,
-  });
-  await patchDocument(
-    `users/${session.localId}`,
-    authFields,
-    session.idToken,
-    Object.keys(authFields),
-  );
-
-  if (linkedFamilyId) {
-    try {
-      await patchDocument(
-        `families/${linkedFamilyId}/members/${session.localId}`,
-        {
-          lastSignInAt: timestampField(now),
-        },
-        session.idToken,
-        ["lastSignInAt"],
-      );
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "";
-      if (!reason.includes("FIRESTORE_HTTP_404") && !reason.includes("FIRESTORE_HTTP_403")) {
-        throw error;
-      }
-    }
-  }
-
-  return {
-    role: effectiveRole,
-    memberId: linkedFamilyMembership?.memberId ?? session.localId,
-    locale: effectiveLocale,
-    isNewUser: !hasExistingUserDoc,
-  };
-}
-
 async function linkManagedChildToGoogleAccount(input: {
   requestSession: SessionUser;
-  firebaseSession: FirebaseSession;
+  firebaseSession: FirebaseIdpSession;
   tokenInfo: GoogleTokenInfo;
 }) {
   const now = new Date().toISOString();
@@ -436,11 +229,12 @@ export async function POST(request: NextRequest) {
   try {
     const tokenInfo = await verifyGoogleCredential(credential);
     const publicOrigin = getCanonicalAppOrigin();
-    const firebaseSession = await signInWithFirebase(
-      credential,
-      publicOrigin,
-    );
-    const normalizedEmail = (tokenInfo.email ?? firebaseSession.email ?? "").trim().toLowerCase();
+    const firebaseSession = await signInWithFirebaseIdp({
+      idToken: credential,
+      providerId: "google.com",
+      requestUri: publicOrigin,
+      includeErrorDetail: true,
+    });
     if (intent === "link_account") {
       if (!currentSession) {
         return redirectToPath(request, "/profile", { googleAccountError: "unauthorized" });
@@ -454,22 +248,22 @@ export async function POST(request: NextRequest) {
       setSessionUserCookie(redirect, nextSession);
       return redirect;
     }
-    let resolvedRole: SessionUser["role"] = "player";
-    let resolvedMemberId = firebaseSession.localId;
-    let resolvedLocale = DEFAULT_LOCALE;
-    let isNewUser = false;
-    if (firebaseSession) {
-      const result = await upsertFirebaseUser(firebaseSession, tokenInfo);
-      resolvedRole = result.role;
-      resolvedMemberId = result.memberId;
-      resolvedLocale = result.locale;
-      isNewUser = result.isNewUser;
-    }
-    if (isNewUser) {
+    const result = await upsertIdpUser({
+      session: firebaseSession,
+      identity: {
+        subject: tokenInfo.sub,
+        email: tokenInfo.email,
+        name: tokenInfo.name,
+        picture: tokenInfo.picture,
+      },
+      provider: "google",
+      touchMemberLastSignIn: true,
+    });
+    if (result.isNewUser) {
       try {
         await seedDiscoveryStateForNewUser(
           firebaseSession.localId,
-          resolvedMemberId,
+          result.memberId,
           firebaseSession.idToken,
         );
       } catch (error) {
@@ -477,18 +271,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const redirect = redirectToPath(request, "/");
-    const sessionCookie: SessionUser = {
-      uid: firebaseSession.localId,
-      memberId: resolvedMemberId,
-      role: resolvedRole,
-      locale: resolvedLocale,
-      email: normalizedEmail,
-      name: tokenInfo.name ?? firebaseSession.displayName ?? "",
-      picture: tokenInfo.picture ?? firebaseSession.photoUrl ?? "",
-      firebaseIdToken: firebaseSession.idToken,
-      firebaseRefreshToken: firebaseSession.refreshToken,
-    };
+    const redirect = redirectToPath(
+      request,
+      "/",
+      result.familyResolution === "needs_family_setup" ? { auth_state: "needs_family_setup" } : {},
+    );
+    const sessionCookie = buildIdpSessionUser(firebaseSession, result);
     setSessionUserCookie(redirect, sessionCookie);
     return redirect;
   } catch (error) {

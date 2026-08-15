@@ -358,9 +358,14 @@ export function FamilyCard() {
             <article className="family-panel">
               <h3>{t("dashboard.getStartedTitle")}</h3>
               <p className="small">{t("dashboard.getStartedBody")}</p>
-              <div className="mt-3">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Link href="/family" className="btn btn-primary">
                   {t("dashboard.finishFamilySetup")}
+                </Link>
+                {/* Someone who was invited must not be funnelled into creating
+                    a second, empty family — this is their way into the real one. */}
+                <Link href="/join" className="btn btn-secondary">
+                  {t("joinFamily.cta")}
                 </Link>
               </div>
             </article>

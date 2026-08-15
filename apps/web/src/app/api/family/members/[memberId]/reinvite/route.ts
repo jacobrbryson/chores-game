@@ -14,6 +14,15 @@ import {
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
+import { writeAuditLogBestEffort } from "@/lib/audit/log";
+import { keyableEmail } from "@/lib/auth/private-relay";
+import { createFamilyInvite } from "@/lib/family/invite-repository";
+import {
+  buildFamilyInviteUrl,
+  createFamilyInviteCode,
+  createFamilyInviteId,
+  formatFamilyInviteCode,
+} from "@/lib/family/invite-tokens";
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -99,10 +108,60 @@ export async function POST(
         }
 
         const now = new Date().toISOString();
-        const emailKeyedMemberId = memberEmail;
+        // Never key a document on a private-relay address.
+        const keyEmail = keyableEmail(memberEmail);
+
+        // A fresh single-use code is minted on every re-invite, so a code that
+        // leaked or expired stops working once the parent resends. This is the
+        // path that works regardless of which address the invitee signs in with.
+        const inviteId = createFamilyInviteId();
+        const code = createFamilyInviteCode();
+        let familyName = "";
+        try {
+          familyName = readString((await getDocument(`families/${familyId}`, idToken)).fields, "name");
+        } catch {
+          // Presentation metadata only.
+        }
+        const createdInvite = await createFamilyInvite({
+          inviteId,
+          code,
+          familyId,
+          familyName,
+          memberId: keyEmail || memberId,
+          invitedName: memberName,
+          invitedEmail: keyEmail,
+          role: memberRole,
+          createdByUid: session.uid,
+          now,
+        });
+        const invite = {
+          code,
+          formattedCode: formatFamilyInviteCode(code),
+          url: buildFamilyInviteUrl(code),
+          expiresAt: createdInvite.expiresAt,
+        };
+        await writeAuditLogBestEffort({
+          familyId,
+          idToken,
+          eventType: "family_invite_created",
+          actor: { uid: session.uid, email: session.email, name: session.name, role: "admin" },
+          userId: memberId,
+          source: "family_reinvite_api",
+          reason: "reinvite",
+          next: {
+            inviteId,
+            memberId,
+            role: memberRole,
+            invitedEmail: keyEmail,
+            privateRelayEmail: Boolean(memberEmail) && !keyEmail,
+            expiresAt: createdInvite.expiresAt,
+          },
+        });
+
+        const emailKeyedMemberId = keyEmail;
 
         // Migrate older random-id invite docs to email-keyed IDs so invitees can resolve membership.
-        if (!memberUid && emailKeyedMemberId !== memberId) {
+        if (emailKeyedMemberId && !memberUid && emailKeyedMemberId !== memberId) {
           await createOrReplaceDocument(
             `families/${familyId}/members/${emailKeyedMemberId}`,
             {
@@ -127,9 +186,9 @@ export async function POST(
             ["deleted", "deletedAt"],
           );
           await createOrReplaceDocument(
-            `inviteLookup/${memberEmail}`,
+            `inviteLookup/${emailKeyedMemberId}`,
             {
-              email: stringField(memberEmail),
+              email: stringField(emailKeyedMemberId),
               familyId: stringField(familyId),
               role: stringField(memberRole),
               status: stringField("invited"),
@@ -137,7 +196,7 @@ export async function POST(
             },
             idToken,
           );
-          return { kind: "ok" as const, reinvitedAt: now };
+          return { kind: "ok" as const, reinvitedAt: now, invite };
         }
 
         await patchDocument(
@@ -149,19 +208,21 @@ export async function POST(
           idToken,
           ["status", "reinvitedAt"],
         );
-        await createOrReplaceDocument(
-          `inviteLookup/${memberEmail}`,
-          {
-            email: stringField(memberEmail),
-            familyId: stringField(familyId),
-            role: stringField(memberRole),
-            status: stringField("invited"),
-            updatedAt: timestampField(now),
-          },
-          idToken,
-        );
+        if (keyEmail) {
+          await createOrReplaceDocument(
+            `inviteLookup/${keyEmail}`,
+            {
+              email: stringField(keyEmail),
+              familyId: stringField(familyId),
+              role: stringField(memberRole),
+              status: stringField("invited"),
+              updatedAt: timestampField(now),
+            },
+            idToken,
+          );
+        }
 
-        return { kind: "ok" as const, reinvitedAt: now };
+        return { kind: "ok" as const, reinvitedAt: now, invite };
       });
 
     if (data.kind === "family_not_found") {
@@ -180,7 +241,11 @@ export async function POST(
       return NextResponse.json({ error: "not_allowed" }, { status: 403 });
     }
 
-    const response = NextResponse.json({ success: true, reinvitedAt: data.reinvitedAt });
+    const response = NextResponse.json({
+      success: true,
+      reinvitedAt: data.reinvitedAt,
+      invite: data.invite,
+    });
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);
     }

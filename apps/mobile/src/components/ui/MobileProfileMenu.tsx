@@ -22,6 +22,10 @@ type Props = {
   authenticatedName?: string;
   currentMemberId?: string;
   onOpenProfile?: () => void;
+  // Native destinations for menu entries that used to deep-link into the web
+  // app. When a handler is absent the menu still falls back to the web page.
+  onOpenNotifications?: () => void;
+  onOpenManageFamily?: () => void;
   onLoggedOut?: () => void;
   // Called after switching into a child, returning to the parent, or changing
   // kiosk state so the host can refresh the session and reset navigation.
@@ -51,6 +55,8 @@ export function MobileProfileMenu({
   authenticatedName = "",
   currentMemberId = "",
   onOpenProfile,
+  onOpenNotifications,
+  onOpenManageFamily,
   onLoggedOut,
   onAccountChanged,
   triggerVariant = "avatar",
@@ -76,7 +82,17 @@ export function MobileProfileMenu({
   }
 
   const actions: MenuAction[] = [
-    { label: t("nav.notifications"), onPress: () => openWebPath("/notifications") },
+    {
+      label: t("nav.notifications"),
+      onPress: () => {
+        setOpen(false);
+        if (onOpenNotifications) {
+          onOpenNotifications();
+          return;
+        }
+        void openWebPath("/notifications");
+      },
+    },
     {
       label: t("nav.profile"),
       onPress: () => {
@@ -84,7 +100,17 @@ export function MobileProfileMenu({
         onOpenProfile?.();
       },
     },
-    { label: t("nav.manageFamily"), onPress: () => openWebPath("/family") },
+    {
+      label: t("nav.manageFamily"),
+      onPress: () => {
+        setOpen(false);
+        if (onOpenManageFamily) {
+          onOpenManageFamily();
+          return;
+        }
+        void openWebPath("/family");
+      },
+    },
     {
       label: t("support.bug.menuLabel"),
       onPress: () => {
@@ -155,7 +181,7 @@ export function MobileProfileMenu({
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Open profile menu"
+        accessibilityLabel={t("profileMenu.openMenu")}
         onPress={() => setOpen(true)}
         style={({ pressed }) => [
           styles.trigger,

@@ -246,6 +246,30 @@ export async function adminListAllDocuments(
   return documents;
 }
 
+// Lists the child collection ids under a document, or under the database root
+// when `parentPath` is omitted. Read-only. Used by the email-keying migration
+// dry run to discover which collections exist instead of trusting a
+// hand-maintained list. Pages through nextPageToken so the answer is complete.
+export async function adminListCollectionIds(parentPath = "") {
+  const url = parentPath
+    ? `${baseDocumentsUrl()}/${parentPath}:listCollectionIds`
+    : `${baseDocumentsUrl()}:listCollectionIds`;
+  const collectionIds: string[] = [];
+  let pageToken = "";
+  do {
+    const response = await requestFirestoreAdmin<{
+      collectionIds?: string[];
+      nextPageToken?: string;
+    }>(url, {
+      method: "POST",
+      body: JSON.stringify({ pageSize: 100, ...(pageToken ? { pageToken } : {}) }),
+    });
+    collectionIds.push(...(response.collectionIds ?? []));
+    pageToken = response.nextPageToken ?? "";
+  } while (pageToken);
+  return collectionIds;
+}
+
 export async function adminGetDocument(path: string) {
   return requestFirestoreAdmin<FirestoreDocument>(`${baseDocumentsUrl()}/${path}`);
 }

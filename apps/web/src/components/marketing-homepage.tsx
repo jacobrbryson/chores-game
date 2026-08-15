@@ -1,12 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
+import { AppleSignInButton } from "@/components/apple-signin-button";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 
 type MarketingHomepageProps = {
   googleClientId?: string;
   gsiLoginUri?: string;
   signInErrorMessage?: string;
+  appleClientId?: string;
+  appleRedirectUri?: string;
+  appleLabel: string;
+  applePendingLabel: string;
+  appleFailedMessage: string;
 };
 
 // A playful peek at the family feed — the product's personality, not a
@@ -190,6 +196,11 @@ export function MarketingHomepage({
   googleClientId,
   gsiLoginUri,
   signInErrorMessage,
+  appleClientId,
+  appleRedirectUri,
+  appleLabel,
+  applePendingLabel,
+  appleFailedMessage,
 }: MarketingHomepageProps) {
   const hasGoogleCta = Boolean(googleClientId && gsiLoginUri);
 
@@ -228,6 +239,15 @@ export function MarketingHomepage({
               Start your family
             </Link>
           )}
+          {appleClientId && appleRedirectUri ? (
+            <AppleSignInButton
+              clientId={appleClientId}
+              redirectUri={appleRedirectUri}
+              label={appleLabel}
+              pendingLabel={applePendingLabel}
+              failedMessage={appleFailedMessage}
+            />
+          ) : null}
         </div>
         <p className="mh2-hero-note">
           Free to start. Sign in with Google and assign your first chore in under five minutes.
@@ -462,6 +482,15 @@ export function MarketingHomepage({
                 Get started
               </Link>
             )}
+            {appleClientId && appleRedirectUri ? (
+              <AppleSignInButton
+                clientId={appleClientId}
+                redirectUri={appleRedirectUri}
+                label={appleLabel}
+                pendingLabel={applePendingLabel}
+                failedMessage={appleFailedMessage}
+              />
+            ) : null}
             <Link href="/chores" className="btn btn-secondary">
               Read the chores guide first
             </Link>

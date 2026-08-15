@@ -57,6 +57,13 @@
       "failure": "I'm having trouble gathering ideas right now. Let's use some of my saved suggestions instead."
     }
   },
+  "auth": {
+    "signInWithApple": "Sign in with Apple",
+    "signingInWithApple": "Signing in with Apple…",
+    "appleSignInFailed": "Sign in with Apple could not be completed. Please try again.",
+    "serverUnreachable": "Couldn't reach the server. Check your internet connection and try again.",
+    "familySetupRequired": "You're signed in, but we couldn't match this account to a family yet. Enter the invite code a parent shared with you to join."
+  },
   "common": {
     "actions": {
       "add": "Add",
@@ -74,6 +81,7 @@
       "remove": "Remove",
       "retry": "Try Again",
       "save": "Save",
+      "showMore": "Show more",
       "start": "Start",
       "saving": "Saving…"
     },
@@ -218,6 +226,18 @@
       "all": "All",
       "player": "Player",
       "admin": "Parent (Admin)"
+    },
+    "subtitle": "Progress and unlocks",
+    "audienceHeading": "Audience",
+    "board": "Achievement Board",
+    "emptyFiltered": "No achievements match the current filters.",
+    "unlocked": "Unlocked",
+    "adminOnly": "Admin Only",
+    "restrictedHint": "Available to parents and guardians",
+    "progressOfTarget": "{progress} / {target}",
+    "audienceShort": {
+      "player": "PLAYER",
+      "admin": "PARENT"
     }
   },
   "discovery": {
@@ -369,7 +389,11 @@
     "addMenuChore": "Chore",
     "addMenuRoutine": "Routine",
     "pillarShowLabel": "Show Responsibility Pillar ({pillar})",
-    "pillarHideLabel": "Hide Responsibility Pillar ({pillar})"
+    "pillarHideLabel": "Hide Responsibility Pillar ({pillar})",
+    "loadingDashboard": "Loading dashboard...",
+    "moveUp": "Move Up",
+    "moveDown": "Move Down",
+    "scopeFamilyShort": "Family"
   },
   "feed": {
     "ariaLabel": "Family activity feed",
@@ -401,19 +425,82 @@
   "familyFriends": {
     "title": "Family Friends",
     "description": "Connect with families you know and celebrate positive wins together.",
-    "invite": { "email": "Family admin email", "placeholder": "parent@example.com" },
-    "incoming": { "title": "Requests to confirm", "from": "Invited by {name}", "dashboardTitle": "{family} wants to be Family Friends" },
-    "outgoing": { "title": "Sent requests" },
-    "connected": { "title": "Connected families", "since": "Family Friends since {date}", "empty": "No Family Friends yet. Invite a family you know to get started." },
-    "latest": { "title": "Friends’ latest wins", "description": "Cheer on the families you care about.", "viewAll": "View the full feed" },
-    "feed": { "fromFamily": "From {family}" },
-    "actions": { "invite": "Invite family", "sending": "Sending...", "confirm": "Confirm", "confirming": "Confirming...", "resend": "Resend", "cancel": "Cancel", "remove": "Remove friend", "keep": "Keep connected" },
-    "awards": { "copy": "Copy to my Family Awards", "copying": "Copying...", "copied": "Family Award copied to your family." },
-    "routines": { "cta": "Copy to my Family Routines", "dialogTitle": "Copy this routine?", "confirmBody": "This will copy \"{routine}\" from {family}, including all of its child chores, into your Family Routines.", "previewHeading": "Preview and customize chores", "assignNow": "Assign this routine to family members now", "assigneesLabel": "Assign to", "assigneesPlaceholder": "Choose family members...", "chooseAssignees": "Choose at least one family member to assign this routine to.", "chooseSteps": "Keep or add at least one chore before copying this routine.", "copy": "Copy Routine", "copyAndAssign": "Copy and Assign", "copying": "Copying...", "copied": "Routine copied to your Family Routines.", "copiedAssigned": "Routine copied and assigned.", "unnamed": "this routine" },
-    "remove": { "title": "Remove Family Friend", "body": "Disconnect from {family}? Your families will stop sharing activity." },
-    "disabled": { "actionPending": "Another Family Friends action is still being saved." },
-    "errors": { "action": "Family Friends update failed: {error}" },
-    "notices": { "sent": "Invitation sent by email and in the app when the recipient has an account.", "email_warning": "The request was saved, but email delivery could not be confirmed. You can resend it.", "sent_in_app_only": "Invitation saved. This family turned off Family Friend invite emails, so it is waiting in their in-app notifications.", "accept": "Your families are now Family Friends.", "resend": "Invitation sent again.", "cancel": "Invitation cancelled.", "removed": "Family Friend removed." }
+    "invite": {
+      "email": "Family admin email",
+      "placeholder": "parent@example.com"
+    },
+    "incoming": {
+      "title": "Requests to confirm",
+      "from": "Invited by {name}",
+      "dashboardTitle": "{family} wants to be Family Friends"
+    },
+    "outgoing": {
+      "title": "Sent requests"
+    },
+    "connected": {
+      "title": "Connected families",
+      "since": "Family Friends since {date}",
+      "empty": "No Family Friends yet. Invite a family you know to get started."
+    },
+    "latest": {
+      "title": "Friends’ latest wins",
+      "description": "Cheer on the families you care about.",
+      "viewAll": "View the full feed"
+    },
+    "feed": {
+      "fromFamily": "From {family}"
+    },
+    "actions": {
+      "invite": "Invite family",
+      "sending": "Sending...",
+      "confirm": "Confirm",
+      "confirming": "Confirming...",
+      "resend": "Resend",
+      "cancel": "Cancel",
+      "remove": "Remove friend",
+      "keep": "Keep connected"
+    },
+    "awards": {
+      "copy": "Copy to my Family Awards",
+      "copying": "Copying...",
+      "copied": "Family Award copied to your family."
+    },
+    "routines": {
+      "cta": "Copy to my Family Routines",
+      "dialogTitle": "Copy this routine?",
+      "confirmBody": "This will copy \"{routine}\" from {family}, including all of its child chores, into your Family Routines.",
+      "previewHeading": "Preview and customize chores",
+      "assignNow": "Assign this routine to family members now",
+      "assigneesLabel": "Assign to",
+      "assigneesPlaceholder": "Choose family members...",
+      "chooseAssignees": "Choose at least one family member to assign this routine to.",
+      "chooseSteps": "Keep or add at least one chore before copying this routine.",
+      "copy": "Copy Routine",
+      "copyAndAssign": "Copy and Assign",
+      "copying": "Copying...",
+      "copied": "Routine copied to your Family Routines.",
+      "copiedAssigned": "Routine copied and assigned.",
+      "unnamed": "this routine"
+    },
+    "remove": {
+      "title": "Remove Family Friend",
+      "body": "Disconnect from {family}? Your families will stop sharing activity."
+    },
+    "disabled": {
+      "actionPending": "Another Family Friends action is still being saved."
+    },
+    "errors": {
+      "action": "Family Friends update failed: {error}"
+    },
+    "notices": {
+      "sent": "Invitation sent by email and in the app when the recipient has an account.",
+      "email_warning": "The request was saved, but email delivery could not be confirmed. You can resend it.",
+      "sent_in_app_only": "Invitation saved. This family turned off Family Friend invite emails, so it is waiting in their in-app notifications.",
+      "accept": "Your families are now Family Friends.",
+      "resend": "Invitation sent again.",
+      "cancel": "Invitation cancelled.",
+      "removed": "Family Friend removed."
+    }
   },
   "choreDialog": {
     "addTitle": "Add Chores",
@@ -452,7 +539,9 @@
       "days": "Days",
       "weeks": "Weeks",
       "months": "Months"
-    }
+    },
+    "assignedToEveryone": "Assigned to everyone",
+    "loadingChoreDetails": "Loading chore details..."
   },
   "choresPage": {
     "loading": "Loading chores",
@@ -512,7 +601,8 @@
       "expand": "Expand chore controls",
       "collapse": "Collapse chore controls",
       "filters": "Filters",
-      "sorting": "Sorting"
+      "sorting": "Sorting",
+      "searchPlaceholderMobile": "Search chores (3+ chars)"
     },
     "filters": {
       "all": "All",
@@ -626,6 +716,15 @@
     "results": {
       "showing": "Showing {from}–{to} of {total}",
       "filteredFrom": "filtered from {totalUnfiltered}"
+    },
+    "allChoresTitle": "All Chores",
+    "assigneeFallback": "Assignee",
+    "thisChore": "this chore",
+    "details": {
+      "show": "Show details",
+      "hide": "Hide details",
+      "showAriaLabel": "Show details for {title}",
+      "hideAriaLabel": "Hide details for {title}"
     }
   },
   "notificationsPage": {
@@ -734,7 +833,16 @@
       "avatar": "Avatar",
       "confetti": "Confetti",
       "quest": "Quest"
-    }
+    },
+    "subtitle": "Colors, avatars, confetti, and family awards",
+    "categoriesHeading": "Store Categories",
+    "noFamilyAwardsAdmin": "No family rewards yet. Add them from the Family screen.",
+    "coinsAmount": "{coins} coins",
+    "defaultCelebration": "Default celebration",
+    "themeNowActive": "{item} is now active",
+    "optionApplied": "{item} applied",
+    "googleAvatarApplied": "Google avatar applied",
+    "noEligibleRecipients": "No family member can redeem this reward right now."
   },
   "profile": {
     "signedIn": "Signed In",
@@ -1256,6 +1364,22 @@
     "removing": "Removing...",
     "membersLoadError": "Could not load members: {error}",
     "membersTitle": "Family members",
+    "addCategory": "Add Category",
+    "editCategory": "Edit Category",
+    "editMember": "Edit Family Member",
+    "roleAdmin": "Parent",
+    "rolePlayer": "Child",
+    "statusInvited": "Invite pending",
+    "memberNameLabel": "Name",
+    "memberEmailLabel": "Email",
+    "memberRoleLabel": "Role",
+    "categoryNameLabel": "Category name",
+    "categoryColorLabel": "Chip color",
+    "categoryMembersLabel": "Limit to family members",
+    "categoryWholeFamily": "Whole family",
+    "categoryWholeFamilyHint": "Leave empty to make this category available to everyone.",
+    "deleteCategoryTitle": "Delete Category",
+    "deleteCategoryBody": "Delete {name}? It will be removed from any chores using it.",
     "memberColumn": "Member",
     "statusColumn": "Status / Last Sign In",
     "statsColumn": "Stats",
@@ -1335,7 +1459,11 @@
       "viewConsentHistory": "View Consent History",
       "backToPrivacy": "Back to Privacy",
       "requestDeletionAction": "Request Family Deletion...",
-      "exportStarted": "Family data export started."
+      "exportStarted": "Family data export started.",
+      "adminOnly": "Only parents can manage privacy settings.",
+      "shareExport": "Share Family Data",
+      "shareExportHelp": "Your family's data is prepared as JSON and handed to your device's share sheet, so you can save or send it wherever you like.",
+      "consentIntro": "Recording consent accepts the current Terms of Service and Privacy Policy on behalf of your family."
     },
     "awards": {
       "submitToCommunity": "Submit to Community Awards",
@@ -1349,7 +1477,34 @@
         "rejected": "Rejected",
         "withdrawn": "Withdrawn",
         "hidden": "Hidden"
-      }
+      },
+      "title": "Family Awards",
+      "intro": "Family awards are custom prizes kids can redeem with coins.",
+      "empty": "No family awards yet.",
+      "addAward": "Add Award",
+      "addTitle": "Add Family Award",
+      "editTitle": "Edit Family Award",
+      "imageLabel": "Award image",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "Extra screen time (30 minutes)",
+      "coinCostLabel": "Coin Amount",
+      "individualLimitLabel": "Per Person Limit",
+      "familyLimitLabel": "Family Limit",
+      "limitHint": "Use 0 or leave blank for unlimited.",
+      "limitUnlimited": "Unlimited",
+      "coinCost": "{coins} coins",
+      "limitsSummary": "Per person: {individual} · Family: {family}",
+      "disabledBadge": "Disabled",
+      "disableAction": "Disable",
+      "disablingAction": "Disabling...",
+      "enableAction": "Enable",
+      "enablingAction": "Enabling...",
+      "disableTitle": "Disable Family Award",
+      "disablePrompt": "Hide \"{name}\" from the store? Past redemptions are kept and you can enable it again later.",
+      "deleteTitle": "Delete Family Award",
+      "deletePrompt": "Delete \"{name}\"? This cannot be undone.",
+      "loadError": "Could not load family awards: {error}",
+      "updateError": "Award update failed: {error}"
     }
   },
   "communityAwards": {
@@ -1401,7 +1556,8 @@
     "choresSubtitle": "Sort, filter, and approve chores",
     "profileSubtitle": "Your account details and personalization settings.",
     "supportSubtitle": "Cross-family operational health, recent activity, and support diagnostics.",
-    "dashboardSubtitle": "View, create, and manage active chores"
+    "dashboardSubtitle": "View, create, and manage active chores",
+    "goToDashboard": "Go to dashboard"
   },
   "quests": {
     "loadingQuest": "Loading quest...",
@@ -1804,6 +1960,39 @@
     },
     "errors": {
       "generic": "Something went wrong. Please try again."
+    }
+  },
+  "familyInvite": {
+    "codeTitle": "Invite code",
+    "codeHelp": "Share this code with {name}. It works with whichever account they sign in with, can be used once, and expires in 30 days.",
+    "linkLabel": "Invite link",
+    "copyCode": "Copy code",
+    "copyLink": "Copy link",
+    "copied": "Copied"
+  },
+  "joinFamily": {
+    "title": "Join your family",
+    "description": "Enter the invite code a parent shared with you. It works no matter which email address you signed in with.",
+    "codeLabel": "Invite code",
+    "codePlaceholder": "ABCD-2345-WXYZ",
+    "submit": "Join family",
+    "submitting": "Joining...",
+    "success": "You've joined {family}.",
+    "successGeneric": "You've joined your family.",
+    "alreadyMember": "You're already a member of this family.",
+    "help": "No code? Ask a parent to resend your invitation — they'll get a code to share with you.",
+    "cta": "Have an invite code?",
+    "errors": {
+      "invalidCode": "That code doesn't look right. Invite codes are 12 characters, like ABCD-2345-WXYZ.",
+      "inviteNotFound": "We couldn't find that invite code. Double-check it with the parent who invited you.",
+      "inviteAlreadyUsed": "That invite code has already been used. Ask a parent for a new one.",
+      "inviteRevoked": "That invitation was cancelled. Ask a parent to invite you again.",
+      "inviteExpired": "That invite code has expired. Ask a parent to resend your invitation.",
+      "inviteLocked": "Too many attempts with this code. Ask a parent to resend your invitation.",
+      "alreadyInAnotherFamily": "This account already belongs to a different family.",
+      "familyMemberLimitReached": "That family is already full.",
+      "unauthorized": "Your session expired. Please sign in again.",
+      "failed": "We couldn't finish joining. Please try again."
     }
   }
 }

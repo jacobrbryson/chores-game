@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
 import { DashboardHome } from "@/components/dashboard-home";
 import { MarketingHomepage } from "@/components/marketing-homepage";
+import { Alert } from "@/components/alert";
+import { JoinFamilyPanel } from "@/components/join-family-panel";
+import { buildJoinFamilyLabels } from "@/lib/family/join-labels";
 import { cookies } from "next/headers";
 import { parseSessionToken } from "@/lib/auth/session";
 import { DEFAULT_OG_IMAGE, SITE_URL } from "@/lib/seo";
+import { createTranslator, DEFAULT_LOCALE } from "@packages/locales";
 
 type HomeProps = {
-	searchParams?: Promise<{ error?: string }>;
+	searchParams?: Promise<{ error?: string; auth_state?: string }>;
 };
 
 const HOME_TITLE =
@@ -73,12 +77,22 @@ export default async function Home({ searchParams }: HomeProps) {
 		process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID;
 	const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
 	const gsiLoginUri = appUrl ? `${appUrl}/api/auth/google/gsi` : undefined;
+	const appleClientId = process.env.NEXT_PUBLIC_APPLE_SERVICES_ID ?? process.env.APPLE_SERVICES_ID;
+	const appleRedirectUri = appUrl ? `${appUrl}/` : undefined;
+	const t = createTranslator({ locale: sessionUser?.locale ?? DEFAULT_LOCALE });
 
 	return (
 		<>
 			{sessionUser ? (
 				<main className="dashboard">
-					<DashboardHome viewerKey={sessionUser.uid} />
+					{params.auth_state === "needs_family_setup" ? (
+						<div className="content-shell flex flex-col gap-4 py-4">
+							<Alert tone="info">{t("auth.familySetupRequired")}</Alert>
+							<JoinFamilyPanel labels={buildJoinFamilyLabels(t)} />
+						</div>
+					) : (
+						<DashboardHome viewerKey={sessionUser.uid} />
+					)}
 				</main>
 			) : (
 				<>
@@ -90,6 +104,11 @@ export default async function Home({ searchParams }: HomeProps) {
 						googleClientId={googleClientId}
 						gsiLoginUri={gsiLoginUri}
 						signInErrorMessage={signInErrorMessage}
+						appleClientId={appleClientId}
+						appleRedirectUri={appleRedirectUri}
+						appleLabel={t("auth.signInWithApple")}
+						applePendingLabel={t("auth.signingInWithApple")}
+						appleFailedMessage={t("auth.appleSignInFailed")}
 					/>
 				</>
 			)}

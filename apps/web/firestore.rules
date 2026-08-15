@@ -60,30 +60,18 @@ service cloud.firestore {
       return /databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid);
     }
 
-    function memberDocPathByEmail(familyId) {
-      return /databases/$(database)/documents/families/$(familyId)/members/$(request.auth.token.email.lower());
-    }
-
+    // Membership is resolved by uid only. The former email-keyed path
+    // (memberDocPathByEmail / hasEmailMemberDoc / hasClaimableEmailInvite) was
+    // removed once every email-keyed member document was migrated or expired:
+    // request.auth.token.email is an Apple private-relay address for a
+    // Hide My Email user, so authorization must never depend on it.
+    // Invitees now join through the invite-code flow
+    // (POST /api/family/invitations/redeem), which writes membership uid-keyed
+    // with admin credentials and compares no addresses.
     function hasUidMemberDoc(familyId) {
       return isSignedIn()
         && exists(memberDocPathByUid(familyId))
         && get(memberDocPathByUid(familyId)).data.deleted != true;
-    }
-
-    function hasEmailMemberDoc(familyId) {
-      return isSignedIn()
-        && request.auth.token.email != null
-        && request.auth.token.email != ""
-        && exists(memberDocPathByEmail(familyId))
-        && get(memberDocPathByEmail(familyId)).data.deleted != true;
-    }
-
-    function hasClaimableEmailInvite(familyId) {
-      return hasEmailMemberDoc(familyId)
-        && (
-          get(memberDocPathByEmail(familyId)).data.status == "invited"
-          || get(memberDocPathByEmail(familyId)).data.status == "claimed"
-        );
     }
 
     function hasClaimableUidInvite(familyId) {
@@ -92,12 +80,6 @@ service cloud.firestore {
           get(memberDocPathByUid(familyId)).data.status == "invited"
           || get(memberDocPathByUid(familyId)).data.status == "claimed"
         );
-    }
-
-    function inviteRoleAllowsClaim(familyId) {
-      return get(memberDocPathByEmail(familyId)).data.role == null
-        ? request.resource.data.role == "player"
-        : request.resource.data.role == get(memberDocPathByEmail(familyId)).data.role;
     }
 
     function uidInviteRoleAllowsClaim(familyId) {
@@ -115,39 +97,19 @@ service cloud.firestore {
     }
 
     function isFamilyMember(familyId) {
-      return hasUidMemberDoc(familyId) || hasEmailMemberDoc(familyId);
+      return hasUidMemberDoc(familyId);
     }
 
+    // Chore assignment is uid-keyed. Email-valued assigneeId / assigneeIds
+    // entries were rewritten to uids by
+    // scripts/rewrite-email-chore-assignees.ts, so no completion path needs to
+    // compare addresses any more.
     function isRequesterAssigneeId(assigneeId) {
-      return isSignedIn()
-        && (
-          assigneeId == request.auth.uid
-          || (
-            request.auth.token.email != null
-            && request.auth.token.email != ""
-            && assigneeId == request.auth.token.email.lower()
-          )
-        );
-    }
-
-    function requesterMemberIdsForFamily() {
-      let uidMemberId = request.auth.uid;
-      let emailMemberId = request.auth.token.email != null && request.auth.token.email != ""
-        ? request.auth.token.email.lower()
-        : "";
-      return [uidMemberId, emailMemberId];
+      return isSignedIn() && assigneeId == request.auth.uid;
     }
 
     function isRequesterInAssigneeIds(assigneeIds) {
-      let aliases = requesterMemberIdsForFamily();
-      return assigneeIds is list
-        && (
-          assigneeIds.hasAny([aliases[0]])
-          || (
-            aliases[1] != ""
-            && assigneeIds.hasAny([aliases[1]])
-          )
-        );
+      return assigneeIds is list && assigneeIds.hasAny([request.auth.uid]);
     }
 
     function canRequesterCompleteChore(familyId, choreData) {
@@ -230,21 +192,11 @@ service cloud.firestore {
     }
 
     function isFamilyAdmin(familyId) {
-      return (
-        hasUidMemberDoc(familyId)
+      return hasUidMemberDoc(familyId)
         && get(memberDocPathByUid(familyId)).data.role == "admin"
         && (
           get(memberDocPathByUid(familyId)).data.status == null
           || get(memberDocPathByUid(familyId)).data.status == "active"
-        )
-      )
-        || (
-          hasEmailMemberDoc(familyId)
-          && get(memberDocPathByEmail(familyId)).data.role == "admin"
-          && (
-            get(memberDocPathByEmail(familyId)).data.status == null
-            || get(memberDocPathByEmail(familyId)).data.status == "active"
-          )
         );
     }
 
@@ -345,9 +297,16 @@ service cloud.firestore {
         && request.resource.data.locale is string
         && request.resource.data.displayName is string
         && request.resource.data.photoUrl is string
-        && request.resource.data.provider == "google"
+        && request.resource.data.provider in ["google", "apple"]
         && request.resource.data.lastSignInAt is timestamp
         && request.resource.data.email is string
+        // The one remaining request.auth.token.email use, kept deliberately.
+        // This is a self-document integrity check — it stops a user writing an
+        // arbitrary address into their OWN users/{uid} doc — not cross-identity
+        // authorization, and dropping it would loosen the rule rather than
+        // tighten it. It is also correct for Hide My Email: the relay address is
+        // what the token carries AND what contactEmail() persists, so the two
+        // still match.
         && (
           request.auth.token.email == null
           || request.resource.data.email.lower() == request.auth.token.email.lower()
@@ -644,17 +603,7 @@ service cloud.firestore {
 
     function requesterMatchesChoreAssignee(choreData) {
       return isRequesterAssigneeId(choreData.assigneeId)
-        || (
-          choreData.assigneeIds is list
-          && (
-            choreData.assigneeIds.hasAny([request.auth.uid])
-            || (
-              request.auth.token.email != null
-              && request.auth.token.email != ""
-              && choreData.assigneeIds.hasAny([request.auth.token.email.lower()])
-            )
-          )
-        );
+        || (choreData.assigneeIds is list && choreData.assigneeIds.hasAny([request.auth.uid]));
     }
 
     function isValidChoreCompleteLedgerCreate(uid, entryId, actorIsAdmin) {
@@ -870,14 +819,6 @@ service cloud.firestore {
           )
           || (
             isSelf(memberId)
-            && hasClaimableEmailInvite(familyId)
-            && request.resource.data.uid == request.auth.uid
-            && request.resource.data.email.lower() == request.auth.token.email.lower()
-            && inviteRoleAllowsClaim(familyId)
-            && request.resource.data.status == "active"
-          )
-          || (
-            isSelf(memberId)
             && hasClaimableUidInvite(familyId)
             && request.resource.data.uid == request.auth.uid
             && uidInviteEmailAllowsClaim(familyId)
@@ -886,14 +827,6 @@ service cloud.firestore {
           );
 
         allow update: if isFamilyAdmin(familyId)
-          || (
-            isSelf(memberId)
-            && hasClaimableEmailInvite(familyId)
-            && request.resource.data.uid == request.auth.uid
-            && request.resource.data.email.lower() == request.auth.token.email.lower()
-            && inviteRoleAllowsClaim(familyId)
-            && request.resource.data.status == "active"
-          )
           || (
             isSelf(memberId)
             && hasClaimableUidInvite(familyId)
@@ -1410,9 +1343,12 @@ service cloud.firestore {
     }
 
     match /inviteLookup/{email} {
-      allow read: if isSignedIn()
-        && request.auth.token.email != null
-        && request.auth.token.email.lower() == email;
+      // Legacy email-keyed invite index. Nothing reads it any more — sign-in,
+      // family summary, and invite acceptance all resolve membership by uid —
+      // so reads are denied rather than gated on request.auth.token.email.
+      // Admin writes remain so the existing revoke path can still mark records
+      // revoked; the collection is retired once those writers are removed.
+      allow read: if false;
 
       allow create, update: if isSignedIn()
         && request.resource.data.familyId is string

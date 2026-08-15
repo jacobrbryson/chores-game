@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:rules": "firebase emulators:exec --only firestore --project chores-game-rules-test \"vitest run --config vitest.rules.config.ts\"",
+    "test:email-keying-dry-run": "firebase emulators:exec --only firestore --project chores-game-dry-run \"node ../../scripts/test-data/seed-email-keying-fixture.mjs && node --experimental-strip-types --no-warnings=ExperimentalWarning --import ../../scripts/lib/ts-alias-register.mjs ../../scripts/email-keying-dry-run.ts --out ../../.dry-run/fixture --include-emails\""
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1061.0",
@@ -24,12 +26,15 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9.39.0",
     "eslint-config-next": "^15.2.0",
+    "firebase": "^12.17.1",
+    "firebase-tools": "^15.7.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.5"

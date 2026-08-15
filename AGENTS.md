@@ -222,6 +222,20 @@ The `supportRequests` collection is the single source of truth for all user-subm
 - Support manages content; the SEO dashboard reports metadata, readiness, sitemap, and lifecycle health.
 
 ## Recent Decisions (2026-02-15)
+- Family invite codes / email-keying Phase 2 part 1 (2026-08-13):
+  - Every invitation now also issues a generated invite id and a single-use, 30-day expiring join code. The code is the credential; only its SHA-256 hash is persisted, in a new server-only top-level `familyInvites` collection. The raw code is returned to the inviting parent exactly once and is never readable afterwards.
+  - Redemption (`POST /api/family/invitations/redeem`, mobile `POST /api/v1/families/join`) compares no email addresses. An invitee who signs in with a different address than they were invited at — an Apple private relay, or a second Google account — joins through the code or the `/join?code=…` link. Membership is written uid-keyed with admin credentials because the redeemer is not yet a family member.
+  - Invites are single-use and lock out after 10 failed attempts. Redemption refuses to move a user who already belongs to a different family, and is idempotent for a user re-redeeming into the family they are already in.
+  - Apple private-relay addresses (`@privaterelay.appleid.com`) are never used as a Firestore document key, never written to `inviteLookup`, and never treated as the family-visible address. They remain the account's contact address for transactional mail.
+  - This pass is additive: existing email-keyed member docs, `inviteLookup` records, and pending invites keep working unchanged, and `buildFamilyMemberAliasMap` keeps its email alias as the compatibility shim. Backfilling email-keyed docs, rewriting email-valued chore `assigneeIds`, and dropping `request.auth.token.email` from `firestore.rules` are a separate migration pass documented in `docs/release/sign-in-with-apple.md`.
+  - A general Firestore security-rules test suite now exists (`apps/web/tests/rules/`, `npm run test:rules`) running against the Firestore emulator via a pinned `firebase-tools@13` devDependency (15.x requires Java 21; the toolchain has Java 17). It pins current membership and chore-completion authorization, including the email-keyed paths and cross-family denial, as the safety net for that migration. It is excluded from the default `npm run test`.
+  - Data classification: `familyInvites` records and invited emails are `ADMIN_ONLY`; invite codes and their hashes are `SYSTEM_SECRET`; invitee name and contact email retain the existing `CHILD_SENSITIVE` classification. Invite creation, redemption, and redemption failures are audit logged.
+- Sign in with Apple Phase 1 (2026-08-13):
+  - Web and native iOS offer Sign in with Apple alongside the unchanged Google sign-in path. Android remains Google-only.
+  - Apple identity tokens are verified against cached Apple JWKS with an explicit Services ID / iOS bundle-ID audience allowlist, issuer, expiry, signature, and SHA-256 nonce validation before Firebase exchange.
+  - Provider-independent Firebase IDP exchange, user upsert, family resolution, and session issuance live in the shared auth module. Apple names are retained when later authorizations omit the first-authorization-only name payload.
+  - Authentication no longer silently creates a family when no existing membership or email invite matches. It returns `needs_family_setup`; invite tokens/codes, join-family UI, and cross-provider linking remain future work.
+  - Apple auth identifiers are `SYSTEM_SECRET`; user name, relay/real email, provider, and sign-in activity retain the existing `CHILD_SENSITIVE` classification. No new collections are introduced.
 - Android Play release-engineering baseline (2026-08-11):
   - The only supported Expo/EAS project root is `apps/mobile`; Android application id `com.orcwood.familychores` is canonical. The stale root Expo manifest was removed, and the unused legacy root `android/` tree must not be used for builds.
   - EAS profiles produce development and preview APKs plus a production AAB. Production uses EAS-managed upload credentials, remote version-code auto-incrementing, and a draft internal-track submit profile so Play releases remain operator-controlled.
@@ -291,6 +305,9 @@ The `supportRequests` collection is the single source of truth for all user-subm
   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
   - `GOOGLE_ANDROID_CLIENT_ID` (required for server-side verification of Android Google Sign-In ID tokens)
   - `GOOGLE_IOS_CLIENT_ID` (required for server-side verification of iOS Google Sign-In ID tokens)
+  - `APPLE_SERVICES_ID` (required server-side allowlisted audience for web Sign in with Apple identity tokens)
+  - `NEXT_PUBLIC_APPLE_SERVICES_ID` (required Services ID used by the web Sign in with Apple JavaScript flow)
+  - `APPLE_IOS_BUNDLE_ID` (required server-side allowlisted audience for native iOS Apple identity tokens; production value is `com.orcwood.familychores`)
   - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (recommended for Expo/browser-based Google auth flows)
   - `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` (required for native Android mobile Google Sign-In)
   - `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` (required for native iOS mobile Google Sign-In)

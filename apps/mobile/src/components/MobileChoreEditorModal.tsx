@@ -1,11 +1,23 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  filterChoreCategoriesByQuery,
+  responsibilityPillarSelectOptions,
+  visibleChoreCategories,
+  type ResponsibilityPillar,
+} from "@packages/core";
 import type { MobileChoreDetail, MobileFamilyCategory, MobileFamilyMember } from "@/lib/api";
 import { useMobileLocale } from "@/lib/locale";
 import { loadChoreEditorPreferences, saveChoreEditorPreferences } from "@/lib/mobile-preferences";
 import { colors, radius, spacing, typography } from "@/theme";
 import { Badge, Button } from "@/components/ui";
 import { MobileMemberMultiSelect } from "@/components/MobileMemberMultiSelect";
+
+// Above this many categories the picker gains a search box and collapses to a
+// capped preview, so a family with a large catalog does not get an unbounded
+// wall of chips inside the sheet.
+const CATEGORY_SEARCH_THRESHOLD = 8;
+const CATEGORY_COLLAPSED_LIMIT = 12;
 
 type ChoreRecurrenceType = "none" | "daily" | "weekly" | "monthly" | "custom";
 type RecurrenceUnit = "day" | "week" | "month";
@@ -23,6 +35,8 @@ export type MobileChoreEditorSubmitPayload = {
   categoryIds: string[];
   coinValue: number;
   requireApproval: boolean;
+  newSkillEnabled: boolean;
+  responsibilityPillar: ResponsibilityPillar | "";
   recurrenceType: ChoreRecurrenceType;
   recurrenceInterval?: number;
   recurrenceUnit?: RecurrenceUnit;
@@ -130,7 +144,7 @@ function recurrenceUnitOptionLabel(
   return t(singular ? "chores.recurrence.unitMonth" : "chores.recurrence.unitMonths");
 }
 
-export function MobileChoreEditorModal({
+function MobileChoreEditorModalComponent({
   categories,
   chore,
   defaultAssigneeIds,
@@ -147,10 +161,17 @@ export function MobileChoreEditorModal({
   const [description, setDescription] = useState("");
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState(todayIsoDate());
+  // `details` has no input of its own (the web dialog dropped the field too),
+  // but it is still hydrated and submitted so editing a chore never wipes
+  // details captured elsewhere.
   const [details, setDetails] = useState("");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [categoryQuery, setCategoryQuery] = useState("");
+  const [showAllCategories, setShowAllCategories] = useState(false);
   const [coinValue, setCoinValue] = useState("5");
   const [requireApproval, setRequireApproval] = useState(false);
+  const [newSkillEnabled, setNewSkillEnabled] = useState(false);
+  const [responsibilityPillar, setResponsibilityPillar] = useState<ResponsibilityPillar | "">("");
   const [recurrenceType, setRecurrenceType] = useState<ChoreRecurrenceType>("none");
   const [recurrenceInterval, setRecurrenceInterval] = useState("1");
   const [recurrenceUnit, setRecurrenceUnit] = useState<RecurrenceUnit>("day");
@@ -166,6 +187,14 @@ export function MobileChoreEditorModal({
   const isFamilySelection = activeMembers.length > 0 && selectedAssigneeIds.length === activeMembers.length;
   const hasMultipleAssignees = isFamilySelection || selectedAssigneeIds.length > 1;
 
+  // Hydration reads these through refs so that a parent re-render handing us a
+  // new array/object identity cannot retrigger the reset effect below. Before
+  // this, `defaultAssigneeIds={[member.id]}` allocated a fresh array on every
+  // dashboard render, which re-ran hydration and wiped whatever the user was
+  // part-way through typing.
+  const hydrationInputsRef = useRef({ chore, defaultAssigneeIds, activeMembers, mode });
+  hydrationInputsRef.current = { chore, defaultAssigneeIds, activeMembers, mode };
+
   useEffect(() => {
     let cancelled = false;
     void loadChoreEditorPreferences(viewerKey).then((preferences) => {
@@ -178,54 +207,70 @@ export function MobileChoreEditorModal({
     };
   }, [viewerKey]);
 
+  // Hydrate when the sheet opens, and again when the chore being edited
+  // resolves (edit mode opens before the detail fetch returns). Keyed on the
+  // chore *id*, never on object identity.
+  const choreId = chore?.id ?? "";
   useEffect(() => {
     if (!open) {
       return;
     }
+    const {
+      chore: currentChore,
+      defaultAssigneeIds: currentDefaults,
+      activeMembers: currentMembers,
+      mode: currentMode,
+    } = hydrationInputsRef.current;
     const preferredAssigneeIds =
-      mode === "create"
-        ? (defaultAssigneeIds ?? []).filter((value) => activeMembers.some((member) => member.id === value))
+      currentMode === "create"
+        ? (currentDefaults ?? []).filter((value) => currentMembers.some((member) => member.id === value))
         : [];
-    setDescription(chore?.title ?? "");
+    setDescription(currentChore?.title ?? "");
     setSelectedAssigneeIds(
-      chore?.assigneeScope === "family"
-        ? activeMembers.map((member) => member.id)
-        : chore?.assigneeIds?.length
-          ? chore.assigneeIds
-          : chore?.assigneeId
-            ? [chore.assigneeId]
+      currentChore?.assigneeScope === "family"
+        ? currentMembers.map((member) => member.id)
+        : currentChore?.assigneeIds?.length
+          ? currentChore.assigneeIds
+          : currentChore?.assigneeId
+            ? [currentChore.assigneeId]
             : preferredAssigneeIds,
     );
-    setDueDate(chore?.dueDate || todayIsoDate());
-    setDetails(chore?.details ?? "");
-    setSelectedCategoryIds(chore?.categoryIds ?? []);
-    setCoinValue(String(chore?.coinValue ?? 5));
-    setRequireApproval(Boolean(chore?.requireApproval));
-    setRecurrenceType((chore?.recurrenceType as ChoreRecurrenceType | undefined) ?? "none");
-    setRecurrenceInterval(String(chore?.recurrenceInterval ?? 1));
-    setRecurrenceUnit((chore?.recurrenceUnit as RecurrenceUnit | undefined) ?? "day");
+    setDueDate(currentChore?.dueDate || todayIsoDate());
+    setDetails(currentChore?.details ?? "");
+    setSelectedCategoryIds(currentChore?.categoryIds ?? []);
+    setCategoryQuery("");
+    setShowAllCategories(false);
+    setCoinValue(String(currentChore?.coinValue ?? 5));
+    setRequireApproval(Boolean(currentChore?.requireApproval));
+    // Matches the web dialog: existing chores default the bonus on, brand-new
+    // ones start off so a parent opts in deliberately.
+    setNewSkillEnabled(currentChore ? currentChore.newSkillEnabled ?? true : false);
+    setResponsibilityPillar(currentChore?.responsibilityPillar ?? "");
+    setRecurrenceType((currentChore?.recurrenceType as ChoreRecurrenceType | undefined) ?? "none");
+    setRecurrenceInterval(String(currentChore?.recurrenceInterval ?? 1));
+    setRecurrenceUnit((currentChore?.recurrenceUnit as RecurrenceUnit | undefined) ?? "day");
     setRecurrenceDays(
-      Array.isArray(chore?.recurrenceDays)
-        ? normalizeRecurrenceDays(chore.recurrenceDays as RecurrenceWeekday[])
+      Array.isArray(currentChore?.recurrenceDays)
+        ? normalizeRecurrenceDays(currentChore.recurrenceDays as RecurrenceWeekday[])
         : [],
     );
     setCustomRecurrenceOpen(false);
     setError("");
-  }, [activeMembers, chore, defaultAssigneeIds, mode, open]);
+  }, [open, choreId, mode]);
 
-  function toggleAdditionalOptions() {
+  const toggleAdditionalOptions = useCallback(() => {
     setShowAdditionalOptions((current) => {
       const next = !current;
       void saveChoreEditorPreferences(viewerKey, { additionalOptionsExpanded: next });
       return next;
     });
-  }
+  }, [viewerKey]);
 
-  function toggleCategory(categoryId: string) {
+  const toggleCategory = useCallback((categoryId: string) => {
     setSelectedCategoryIds((current) =>
       current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId],
     );
-  }
+  }, []);
 
   function selectRecurrence(value: ChoreRecurrenceType) {
     setRecurrenceType(value);
@@ -256,6 +301,38 @@ export function MobileChoreEditorModal({
       return normalizeRecurrenceDays([...current, day]);
     });
   }
+
+  // Same visibility rule as the web dialog (shared in @packages/core): only
+  // family-wide categories plus those scoped to a selected assignee, and never
+  // hide something already selected on this chore.
+  const availableCategories = useMemo(
+    () =>
+      visibleChoreCategories({
+        categories,
+        familyMemberIds: activeMembers.map((member) => member.id),
+        selectedAssigneeIds,
+        selectedCategoryIds,
+      }),
+    [categories, activeMembers, selectedAssigneeIds, selectedCategoryIds],
+  );
+  const searchableCategories = availableCategories.length > CATEGORY_SEARCH_THRESHOLD;
+  const matchingCategories = useMemo(
+    () => filterChoreCategoriesByQuery(availableCategories, categoryQuery),
+    [availableCategories, categoryQuery],
+  );
+  // Selected chips always stay rendered so a collapsed list never hides a
+  // choice the parent already made.
+  const renderedCategories = useMemo(() => {
+    if (showAllCategories || matchingCategories.length <= CATEGORY_COLLAPSED_LIMIT) {
+      return matchingCategories;
+    }
+    const selected = matchingCategories.filter((category) => selectedCategoryIds.includes(category.id));
+    const unselected = matchingCategories.filter((category) => !selectedCategoryIds.includes(category.id));
+    return [...selected, ...unselected].slice(0, Math.max(CATEGORY_COLLAPSED_LIMIT, selected.length));
+  }, [matchingCategories, selectedCategoryIds, showAllCategories]);
+  const hiddenCategoryCount = matchingCategories.length - renderedCategories.length;
+
+  const pillarOptions = useMemo(() => responsibilityPillarSelectOptions(t), [t]);
 
   async function handleSubmit() {
     const normalizedDescription = description.trim();
@@ -288,6 +365,8 @@ export function MobileChoreEditorModal({
       categoryIds: selectedCategoryIds,
       coinValue: parsedCoinValue,
       requireApproval: hasMultipleAssignees ? true : requireApproval,
+      newSkillEnabled,
+      responsibilityPillar,
       recurrenceType,
       recurrenceInterval: recurrenceType === "custom" ? parsedRecurrenceInterval : undefined,
       recurrenceUnit: recurrenceType === "custom" ? recurrenceUnit : undefined,
@@ -309,7 +388,7 @@ export function MobileChoreEditorModal({
           <Text style={styles.title}>{mode === "edit" ? t("choreDialog.editTitle") : t("choreDialog.addTitle")}</Text>
           {loading ? (
             <View style={styles.loadingState}>
-              <Text style={styles.loadingText}>Loading chore details...</Text>
+              <Text style={styles.loadingText}>{t("choreDialog.loadingChoreDetails")}</Text>
             </View>
           ) : (
             <>
@@ -328,7 +407,7 @@ export function MobileChoreEditorModal({
                     selectedIds={selectedAssigneeIds}
                     onChange={setSelectedAssigneeIds}
                   />
-                  {isFamilySelection ? <Badge label="Assigned to everyone" /> : null}
+                  {isFamilySelection ? <Badge label={t("choreDialog.assignedToEveryone")} /> : null}
                 </View>
 
                 <View style={styles.field}>
@@ -357,26 +436,47 @@ export function MobileChoreEditorModal({
                     </View>
 
                     <View style={styles.field}>
-                      <Text style={styles.label}>{t("choreDialog.detailsLabel")}</Text>
-                      <TextInput
-                        value={details}
-                        onChangeText={setDetails}
-                        placeholder={t("choreDialog.detailsPlaceholder")}
-                        style={[styles.input, styles.textArea]}
-                        multiline
-                        textAlignVertical="top"
-                      />
+                      <Text style={styles.label}>{t("responsibility.choreDialog.label")}</Text>
+                      <View style={styles.chipRow}>
+                        {pillarOptions.map((option) => {
+                          const active = responsibilityPillar === option.value;
+                          return (
+                            <Pressable
+                              key={option.value || "none"}
+                              accessibilityRole="radio"
+                              accessibilityState={{ selected: active }}
+                              onPress={() => setResponsibilityPillar(option.value)}
+                              style={[styles.chip, active ? styles.chipActive : null]}>
+                              <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      <Text style={styles.helperText}>{t("responsibility.choreDialog.hint")}</Text>
                     </View>
 
                     <View style={styles.field}>
                       <Text style={styles.label}>{t("choreDialog.categoriesLabel")}</Text>
+                      {searchableCategories ? (
+                        <TextInput
+                          value={categoryQuery}
+                          onChangeText={setCategoryQuery}
+                          placeholder={t("choreDialog.categoriesPlaceholder")}
+                          style={styles.input}
+                          autoCorrect={false}
+                        />
+                      ) : null}
                       <View style={styles.chipRow}>
-                        {categories.length === 0 ? <Badge label={t("choreDialog.noCategories")} /> : null}
-                        {categories.map((category) => {
+                        {availableCategories.length === 0 ? <Badge label={t("choreDialog.noCategories")} /> : null}
+                        {renderedCategories.map((category) => {
                           const active = selectedCategoryIds.includes(category.id);
                           return (
                             <Pressable
                               key={category.id}
+                              accessibilityRole="checkbox"
+                              accessibilityState={{ checked: active }}
                               onPress={() => toggleCategory(category.id)}
                               style={[
                                 styles.chip,
@@ -389,22 +489,36 @@ export function MobileChoreEditorModal({
                           );
                         })}
                       </View>
+                      {hiddenCategoryCount > 0 ? (
+                        <Pressable onPress={() => setShowAllCategories(true)} style={styles.linkButton}>
+                          <Text style={styles.linkButtonText}>
+                            {t("common.actions.showMore")} ({hiddenCategoryCount})
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                      {categoryQuery.trim() && matchingCategories.length === 0 ? (
+                        <Text style={styles.helperText}>{t("choreDialog.noCategories")}</Text>
+                      ) : null}
                     </View>
 
-                    <View style={styles.field}>
-                      <Text style={styles.label}>{t("choreDialog.requireApprovalLabel")}</Text>
-                      <Pressable
-                        onPress={() => {
-                          if (!hasMultipleAssignees) {
-                            setRequireApproval((current) => !current);
-                          }
-                        }}
-                        style={[styles.chip, (requireApproval || hasMultipleAssignees) ? styles.chipActive : null]}>
-                        <Text style={[styles.chipText, (requireApproval || hasMultipleAssignees) ? styles.chipTextActive : null]}>
-                          {hasMultipleAssignees ? t("choreDialog.requireApprovalMultiHint") : requireApproval ? "Approval required" : "Approval optional"}
-                        </Text>
-                      </Pressable>
-                    </View>
+                    <CheckboxRow
+                      label={t("choreDialog.requireApprovalLabel")}
+                      hint={
+                        hasMultipleAssignees
+                          ? t("choreDialog.requireApprovalMultiHint")
+                          : t("choreDialog.requireApprovalHint")
+                      }
+                      checked={hasMultipleAssignees ? true : requireApproval}
+                      disabled={hasMultipleAssignees}
+                      onToggle={() => setRequireApproval((current) => !current)}
+                    />
+
+                    <CheckboxRow
+                      label={t("choreDialog.newSkillLabel")}
+                      hint={t("choreDialog.newSkillHint")}
+                      checked={newSkillEnabled}
+                      onToggle={() => setNewSkillEnabled((current) => !current)}
+                    />
 
                     <View style={styles.field}>
                       <Text style={styles.label}>{t("choreDialog.recurrenceLabel")}</Text>
@@ -510,6 +624,43 @@ export function MobileChoreEditorModal({
   );
 }
 
+// Checkbox + label + hint, matching the web dialog's Require Approval / New
+// Skill Bonus rows so the two editors read the same way.
+function CheckboxRow({
+  label,
+  hint,
+  checked,
+  disabled = false,
+  onToggle,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked, disabled }}
+      disabled={disabled}
+      onPress={onToggle}
+      style={[styles.checkboxRow, disabled ? styles.checkboxRowDisabled : null]}>
+      <View style={[styles.checkboxBox, checked ? styles.checkboxBoxChecked : null]}>
+        {checked ? <Text style={styles.checkboxMark}>✓</Text> : null}
+      </View>
+      <View style={styles.checkboxCopy}>
+        <Text style={styles.label}>{label}</Text>
+        {hint ? <Text style={styles.helperText}>{hint}</Text> : null}
+      </View>
+    </Pressable>
+  );
+}
+
+// Memoized: the dashboard re-renders on every chore mutation and WebSocket
+// activity event, and this sheet is expensive to re-render while open.
+export const MobileChoreEditorModal = React.memo(MobileChoreEditorModalComponent);
+
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.28)", justifyContent: "center", padding: spacing.lg },
   sheet: { maxHeight: "92%", borderRadius: radius.lg, backgroundColor: "#fff", padding: spacing.md, gap: spacing.sm },
@@ -520,7 +671,6 @@ const styles = StyleSheet.create({
   label: { color: colors.text, fontSize: typography.small, fontWeight: "800" },
   helperText: { color: colors.muted, fontSize: typography.tiny, fontWeight: "700" },
   input: { minHeight: 44, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.sm, color: colors.text, backgroundColor: "#fff" },
-  textArea: { minHeight: 92, paddingTop: spacing.sm },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   additionalOptionsButton: { flexDirection: "row", alignItems: "center", gap: spacing.xs, alignSelf: "flex-start" },
   additionalOptionsIcon: { color: colors.brandStrong, fontSize: typography.h3, fontWeight: "900", lineHeight: 20 },
@@ -539,4 +689,30 @@ const styles = StyleSheet.create({
   errorText: { color: colors.danger, fontSize: typography.small, fontWeight: "700" },
   loadingState: { minHeight: 120, alignItems: "center", justifyContent: "center" },
   loadingText: { color: colors.muted, fontSize: typography.body, fontWeight: "700" },
+  linkButton: { alignSelf: "flex-start", minHeight: 36, justifyContent: "center" },
+  linkButtonText: { color: colors.brandStrong, fontSize: typography.small, fontWeight: "800" },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: "#f8fafc",
+    padding: spacing.sm,
+  },
+  checkboxRowDisabled: { opacity: 0.6 },
+  checkboxBox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxBoxChecked: { borderColor: colors.brandStrong, backgroundColor: colors.brandStrong },
+  checkboxMark: { color: "#fff", fontSize: 13, fontWeight: "900", lineHeight: 16 },
+  checkboxCopy: { flex: 1, gap: 2 },
 });

@@ -25,6 +25,8 @@ type Props = {
   discoveryCounts?: Partial<Record<MainNavigationItemId, number>>;
   onNavigate: (tab: MainNavigationItemId) => void;
   onOpenProfile: () => void;
+  onOpenNotifications?: () => void;
+  onOpenManageFamily?: () => void;
   onLoggedOut: () => void;
   onAccountChanged?: () => void;
 };
@@ -97,6 +99,8 @@ export function MainNavigation({
   discoveryCounts,
   onNavigate,
   onOpenProfile,
+  onOpenNotifications,
+  onOpenManageFamily,
   onLoggedOut,
   onAccountChanged,
 }: Props) {
@@ -120,6 +124,8 @@ export function MainNavigation({
                 triggerVariant="main-nav"
                 triggerLabel={t(`nav.${item.id}` as const)}
                 onOpenProfile={onOpenProfile}
+                onOpenNotifications={onOpenNotifications}
+                onOpenManageFamily={onOpenManageFamily}
                 onLoggedOut={onLoggedOut}
                 onAccountChanged={onAccountChanged}
               />

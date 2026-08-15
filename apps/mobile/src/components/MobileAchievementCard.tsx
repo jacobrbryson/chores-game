@@ -2,6 +2,7 @@ import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { toAppAssetUrl } from "@/lib/api";
 import { colors, radius, spacing, typography } from "@/theme";
+import { useMobileLocale } from "@/lib/locale";
 import { Badge, ProgressBar } from "@/components/ui";
 
 export type MobileAchievement = {
@@ -21,19 +22,25 @@ export type MobileAchievement = {
   restricted: boolean;
 };
 
-function formatCompletedDate(value?: string) {
+function formatCompletedDate(
+  value: string | undefined,
+  locale: string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+) {
   if (!value) {
-    return "Completed";
+    return t("achievements.completed");
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "Completed";
+    return t("achievements.completed");
   }
-  return `Completed ${new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(date)}`;
+  return t("achievements.completedOn", {
+    date: new Intl.DateTimeFormat(locale, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(date),
+  });
 }
 
 function usesNativeSafeImage(url: string) {
@@ -69,11 +76,12 @@ function buildMonogram(value: string) {
 }
 
 export function MobileAchievementCard({ achievement }: { achievement: MobileAchievement }) {
+  const { locale, t } = useMobileLocale();
   const achievementImageUrl = resolveAchievementImageUrl(achievement.imageUrl);
   const statusLabel = achievement.completed
-    ? "Unlocked"
+    ? t("achievements.unlocked")
     : achievement.restricted
-      ? "Admin Only"
+      ? t("achievements.adminOnly")
       : `${achievement.percentComplete}%`;
 
   return (
@@ -99,7 +107,9 @@ export function MobileAchievementCard({ achievement }: { achievement: MobileAchi
             <View style={styles.fallbackOrbPrimary} />
             <View style={styles.fallbackOrbSecondary} />
             <Text style={styles.fallbackAudience}>
-              {achievement.audience === "admin" ? "PARENT" : "PLAYER"}
+              {achievement.audience === "admin"
+                ? t("achievements.audienceShort.admin")
+                : t("achievements.audienceShort.player")}
             </Text>
             <Text style={styles.fallbackMonogram}>{buildMonogram(achievement.wittyTitle || achievement.title)}</Text>
           </View>
@@ -116,14 +126,19 @@ export function MobileAchievementCard({ achievement }: { achievement: MobileAchi
       </View>
       <View style={styles.footer}>
         {achievement.completed ? (
-          <Text style={styles.completedText}>{formatCompletedDate(achievement.completedAt)}</Text>
+          <Text style={styles.completedText}>
+            {formatCompletedDate(achievement.completedAt, locale, t)}
+          </Text>
         ) : (
           <>
             <ProgressBar value={achievement.percentComplete} />
             <Text style={styles.progressText}>
               {achievement.restricted
-                ? "Available to parents and guardians"
-                : `${achievement.progress} / ${achievement.target}`}
+                ? t("achievements.restrictedHint")
+                : t("achievements.progressOfTarget", {
+                    progress: achievement.progress,
+                    target: achievement.target,
+                  })}
             </Text>
           </>
         )}

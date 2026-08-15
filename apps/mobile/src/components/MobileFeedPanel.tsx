@@ -9,6 +9,9 @@ import { MobileCopyFriendRoutineModal } from "@/components/MobileCopyFriendRouti
 type MobileFeedPanelProps = {
   onViewChore?: () => void;
   onViewReward?: () => void;
+  // Only passed for parents — completed-chore events deep-link to the Approval
+  // Inbox when it is reachable for this viewer.
+  onReviewApproval?: () => void;
   scope?: "all" | "friends";
   compact?: boolean;
 };
@@ -69,7 +72,13 @@ function formatRelativeTime(value: string, locale: string, fallback: string) {
   }
 }
 
-export function MobileFeedPanel({ onViewChore, onViewReward, scope = "all", compact = false }: MobileFeedPanelProps) {
+export function MobileFeedPanel({
+  onViewChore,
+  onViewReward,
+  onReviewApproval,
+  scope = "all",
+  compact = false,
+}: MobileFeedPanelProps) {
   const { locale, t } = useMobileLocale();
   const [items, setItems] = useState<MobileFeedItem[]>([]);
   const [page, setPage] = useState(1);
@@ -164,10 +173,23 @@ export function MobileFeedPanel({ onViewChore, onViewReward, scope = "all", comp
       ) : null}
       {items.map((item) => {
         const emoji = FEED_TYPE_EMOJI[item.type] ?? "•";
-        const handleAction =
-          item.action === "view_reward" ? onViewReward : item.action === "view_chore" ? onViewChore : undefined;
-        const actionLabel =
-          item.action === "view_reward" ? t("feed.actions.viewReward") : t("feed.actions.viewChore");
+        // A completed chore is what a parent reviews in the Approval Inbox, so
+        // deep-link those events straight there (the screen is parent-only).
+        // Other chore/reward events keep their existing destinations.
+        const isApprovalEvent =
+          item.type === "chore_completed" && !item.sourceFamily?.isFriend && Boolean(onReviewApproval);
+        const handleAction = isApprovalEvent
+          ? onReviewApproval
+          : item.action === "view_reward"
+            ? onViewReward
+            : item.action === "view_chore"
+              ? onViewChore
+              : undefined;
+        const actionLabel = isApprovalEvent
+          ? t("feed.actions.reviewApproval")
+          : item.action === "view_reward"
+            ? t("feed.actions.viewReward")
+            : t("feed.actions.viewChore");
         return (
           <Card key={item.id} style={styles.card}>
             <View style={styles.row}>

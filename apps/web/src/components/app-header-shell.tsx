@@ -2,11 +2,17 @@
 
 import { AppBrand } from "@/components/app-brand";
 import { GoogleSignInButton } from "@/components/google-signin-button";
+import { AppleSignInButton } from "@/components/apple-signin-button";
 import { MainNavigation } from "@/components/main-navigation";
 
 type AppHeaderShellProps = {
   googleClientId?: string;
   gsiLoginUri?: string;
+  appleClientId?: string;
+  appleRedirectUri?: string;
+  appleLabel: string;
+  applePendingLabel: string;
+  appleFailedMessage: string;
   sessionUser:
     | {
         name: string;
@@ -24,6 +30,11 @@ type AppHeaderShellProps = {
 export function AppHeaderShell({
   googleClientId,
   gsiLoginUri,
+  appleClientId,
+  appleRedirectUri,
+  appleLabel,
+  applePendingLabel,
+  appleFailedMessage,
   sessionUser,
   profileInitial,
   authenticatedName,
@@ -75,6 +86,16 @@ export function AppHeaderShell({
                   Google sign-in is not configured. Set `NEXT_PUBLIC_APP_URL` and Google client IDs.
                 </p>
               )}
+              {appleClientId && appleRedirectUri ? (
+                <AppleSignInButton
+                  clientId={appleClientId}
+                  redirectUri={appleRedirectUri}
+                  label={appleLabel}
+                  pendingLabel={applePendingLabel}
+                  failedMessage={appleFailedMessage}
+                  className="nav-apple-signin"
+                />
+              ) : null}
             </div>
           </div>
         )}

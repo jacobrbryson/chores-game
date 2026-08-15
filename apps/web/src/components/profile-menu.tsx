@@ -732,7 +732,7 @@ export function ProfileMenu({
       <ModalShell open={switchPickerOpen} onRequestClose={closeSwitchPicker}>
         <div className="family-modal-card">
           <div className="modal-dialog-title-row family-modal-title-row">
-            <h3 className="family-modal-title">{t("profileMenu.switchChildTitle")}</h3>
+            <h3 className="family-modal-title">{t("nav.switchTo")}</h3>
             <Button
               type="button"
               className="modal-close-button"
@@ -744,7 +744,7 @@ export function ProfileMenu({
           </div>
           <div className="flex w-full flex-col gap-3">
             {inFamily ? (
-              <div className="switch-mode-tabs" role="tablist" aria-label={t("profileMenu.switchChildTitle")}>
+              <div className="switch-mode-tabs" role="tablist" aria-label={t("nav.switchTo")}>
                 <Button
                   type="button"
                   role="tab"

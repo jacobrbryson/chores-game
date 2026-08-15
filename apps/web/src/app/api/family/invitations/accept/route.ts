@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
+import { keyableEmail } from "@/lib/auth/private-relay";
 import {
   boolField,
   createOrReplaceDocument,
-  findFirstFamilyIdByMemberEmail,
+  findFirstFamilyIdByMemberUid,
   getDocument,
   patchDocument,
   readBoolean,
@@ -80,7 +81,11 @@ export async function POST(request: NextRequest) {
     return jsonReauthRequired();
   }
 
-  const normalizedEmail = session.email.trim().toLowerCase();
+  // This is the legacy email-matching accept path, kept working unchanged for
+  // pending invites and older clients. A private-relay address can never match
+  // an email-keyed invite, so it is rejected here and routed to the invite-code
+  // join flow (`POST /api/family/invitations/redeem`) instead.
+  const normalizedEmail = keyableEmail(session.email);
   if (!normalizedEmail) {
     return NextResponse.json({ error: "session_email_missing" }, { status: 400 });
   }
@@ -101,27 +106,18 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // The inviteLookup/{email} and member-email fallbacks were removed with
+        // the email-keying migration; both read documents whose keys are no
+        // longer authoritative, and inviteLookup reads are now denied by rules.
+        // A user with no uid-keyed membership joins through the invite-code
+        // flow (`POST /api/family/invitations/redeem`).
         if (!familyId) {
-          try {
-            const inviteLookupDoc = await getDocument(`inviteLookup/${normalizedEmail}`, idToken);
-            const status = readString(inviteLookupDoc.fields, "status");
-            const candidateFamilyId = readString(inviteLookupDoc.fields, "familyId");
-            if ((status === "invited" || status === "claimed") && candidateFamilyId) {
-              familyId = candidateFamilyId;
-              familyIdSource = "inviteLookup";
-            }          } catch (error) {
-            const reason = error instanceof Error ? error.message : "";            if (!reason.includes("FIRESTORE_HTTP_404")) {
-              throw error;
-            }
+          familyId = await findFirstFamilyIdByMemberUid(session.uid, idToken);
+          if (familyId) {
+            familyIdSource = "member_uid_query";
           }
         }
-
         if (!familyId) {
-          familyId = await findFirstFamilyIdByMemberEmail(normalizedEmail, idToken);
-          if (familyId) {
-            familyIdSource = "member_email_query";
-          }
-        }        if (!familyId) {
           return { kind: "invite_not_found" as const };
         }
 

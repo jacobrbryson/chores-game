@@ -164,7 +164,9 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
   const [editingChore, setEditingChore] = useState<MobileChoreDetail | null>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
-  const [createSaving, setCreateSaving] = useState(false);
+  // Ids of optimistically-added chores whose create request is still in flight.
+  // Rows in this set render as pending and are not actionable yet.
+  const [pendingChoreIds, setPendingChoreIds] = useState<string[]>([]);
 
   async function load(options?: { silent?: boolean }) {
     setError("");
@@ -236,6 +238,12 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
   }, [selectedMemberId, sortKey, sortDirection, chores]);
 
   const selectedMember = members.find((member) => member.id === selectedMemberId) ?? null;
+  // Stable identity: a fresh array here re-runs the chore editor's hydration
+  // effect and wipes whatever the user is typing.
+  const defaultAssigneeIds = useMemo(
+    () => (selectedMember ? [selectedMember.id] : undefined),
+    [selectedMember?.id],
+  );
   const filteredChores = useMemo(() => {
     const scoped =
       selectedMemberId === "family" || !selectedMember
@@ -295,19 +303,60 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
     }
   }
 
+  // Optimistic create: close the sheet and show the chore immediately, then
+  // reconcile against the server in the background. Parents add chores in
+  // bursts, and making each one block on a round-trip plus a full dashboard
+  // refetch made that feel broken.
   async function addChore(payload: MobileChoreEditorSubmitPayload) {
     setError("");
-    setCreateSaving(true);
+    setAddOpen(false);
+
+    const pendingId = `pending-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const assigneeId = payload.assigneeScope === "family" ? "" : payload.assigneeIds[0] ?? payload.assigneeId;
+    const assignee = members.find((member) => member.id === assigneeId);
+    const optimisticChore: MobileFamilyChore = {
+      id: pendingId,
+      title: payload.description,
+      status: "Open",
+      assigneeId,
+      assigneeIds: payload.assigneeIds,
+      assigneeScope: payload.assigneeScope,
+      assigneeName: assignee?.name,
+      assigneePrimaryColor: assignee?.dashboardPrimaryColor,
+      assigneeAvatarId: assignee?.avatarId,
+      assigneeAvatarPhotoUrl: assignee?.avatarPhotoUrl,
+      categoryIds: payload.categoryIds,
+      categories: payload.categoryIds
+        .map((categoryId) => categories.find((category) => category.id === categoryId))
+        .filter((category): category is MobileFamilyCategory => Boolean(category)),
+      coinValue: payload.coinValue,
+      requireApproval: payload.requireApproval,
+      choreType: payload.assigneeScope === "single" ? "normal" : "group",
+      dueDate: payload.dueDate,
+      details: payload.details,
+      recurrenceType: payload.recurrenceType,
+      recurrenceInterval: payload.recurrenceInterval,
+      recurrenceUnit: payload.recurrenceUnit,
+      recurrenceDays: payload.recurrenceDays,
+      responsibilityPillar: payload.responsibilityPillar,
+      newSkillEnabled: payload.newSkillEnabled,
+    };
+    setChores((current) => [...current, optimisticChore]);
+    setPendingChoreIds((current) => [...current, pendingId]);
+
     try {
       await createMobileChore(payload);
-      setAddOpen(false);
-      await load();
+      // Refetch so the placeholder is replaced by the real record (server id,
+      // recurrence expansion, group-chore fan-out).
+      await load({ silent: true });
     } catch (nextError) {
       const message = nextError instanceof Error ? nextError.message : "create_chore_failed";
+      // Roll the placeholder back so the list never keeps a chore that was
+      // never persisted.
+      setChores((current) => current.filter((item) => item.id !== pendingId));
       setError(message);
-      throw nextError instanceof Error ? nextError : new Error(message);
     } finally {
-      setCreateSaving(false);
+      setPendingChoreIds((current) => current.filter((id) => id !== pendingId));
     }
   }
 
@@ -392,8 +441,8 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
     }
   }
 
-  if (loading) return <LoadingState label="Loading dashboard..." />;
-  if (error && chores.length === 0) return <ErrorState message={`Could not load chores: ${error}`} />;
+  if (loading) return <LoadingState label={t("dashboard.loadingDashboard")} />;
+  if (error && chores.length === 0) return <ErrorState message={t("choresPage.loadError", { error })} />;
 
   const selectedMenuChore = chorePage.visibleItems.find((chore) => chore.id === menuChoreId) ?? null;
   const selectedMenuIndex = selectedMenuChore
@@ -417,25 +466,33 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
               ) : (
                 <FamilyAvatar />
               )}
-              <Text style={styles.scopeText} numberOfLines={1}>{selectedMember?.name ?? "Family"}</Text>
+              <Text style={styles.scopeText} numberOfLines={1}>
+                {selectedMember?.name ?? t("dashboard.scopeFamilyShort")}
+              </Text>
               {selectedMember?.stats?.currentCoins !== undefined ? <CoinPill value={selectedMember.stats.currentCoins} /> : null}
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Dashboard options"
+              accessibilityLabel={t("dashboard.toolbarOptions")}
               onPress={() => setOptionsOpen(true)}
               style={({ pressed }) => [styles.scopeMenuButton, pressed ? styles.actionPressed : null]}>
               <HamburgerIcon />
             </Pressable>
           </View>
         </View>
-        <Button label="Add Chore" variant="success" leadingIcon={<PlusIcon />} onPress={() => setAddOpen(true)} />
+        <Button label={t("dashboard.addChore")} variant="success" leadingIcon={<PlusIcon />} onPress={() => setAddOpen(true)} />
         <View style={styles.toolbarDivider} />
       </View>
       {error ? <ErrorState message={error} /> : null}
       {chorePage.visibleItems.length === 0 ? (
         <>
-          <EmptyState message={selectedMember ? `No chores assigned to ${selectedMember.name} right now.` : "No open chores right now."} />
+          <EmptyState
+            message={
+              selectedMember
+                ? t("dashboard.noChoresAssigned", { name: selectedMember.name })
+                : t("dashboard.noOpenChores")
+            }
+          />
           <MobileGhostChores
             assigneeId={selectedMember?.id}
             assigneeName={selectedMember?.name}
@@ -446,13 +503,24 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
       ) : (
         <View style={styles.list}>
           {chorePage.visibleItems.map((chore) => {
+            // Optimistically-added chores have no server id yet, so completing
+            // or editing them would 404. Show them, but keep them inert until
+            // the create request lands.
+            const isPending = pendingChoreIds.includes(chore.id);
             const canComplete =
-              viewerRole === "admin" ||
-              (chore.assigneeIds ?? []).some((id) => viewerAliasSet.has(normalizeAlias(id))) ||
-              Boolean(chore.assigneeId && viewerAliasSet.has(normalizeAlias(chore.assigneeId)));
+              !isPending &&
+              (viewerRole === "admin" ||
+                (chore.assigneeIds ?? []).some((id) => viewerAliasSet.has(normalizeAlias(id))) ||
+                Boolean(chore.assigneeId && viewerAliasSet.has(normalizeAlias(chore.assigneeId))));
             const imageUrl = avatarUrl(chore.assigneeAvatarId, chore.assigneeAvatarPhotoUrl);
             return (
-              <View key={chore.id} style={[styles.choreCard, chore.assigneePrimaryColor ? { borderLeftColor: chore.assigneePrimaryColor } : null]}>
+              <View
+                key={chore.id}
+                style={[
+                  styles.choreCard,
+                  chore.assigneePrimaryColor ? { borderLeftColor: chore.assigneePrimaryColor } : null,
+                  isPending ? styles.chorePending : null,
+                ]}>
                 <View style={styles.choreTop}>
                   <Avatar name={chore.assigneeName || "Family member"} imageUrl={imageUrl} color={chore.assigneePrimaryColor} />
                   <View style={styles.choreCopy}>
@@ -477,19 +545,25 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
                         pressed && canComplete && !busyId ? styles.actionPressed : null,
                       ]}>
                       <Text style={styles.completeButtonText}>
-                        {busyId === chore.id ? "Saving..." : busyId ? "Please wait..." : "Mark as Complete"}
+                        {isPending
+                          ? t("common.actions.saving")
+                          : busyId === chore.id
+                            ? "Saving..."
+                            : busyId
+                              ? "Please wait..."
+                              : "Mark as Complete"}
                       </Text>
                     </Pressable>
                     {viewerRole === "admin" ? (
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="Chore options"
-                        disabled={Boolean(busyId)}
+                        accessibilityLabel={t("choresPage.menu.choreOptions")}
+                        disabled={Boolean(busyId) || isPending}
                         onPress={() => setMenuChoreId(chore.id)}
                         style={({ pressed }) => [
                           styles.menuButton,
-                          Boolean(busyId) && styles.actionDisabled,
-                          pressed && !busyId ? styles.actionPressed : null,
+                          (Boolean(busyId) || isPending) && styles.actionDisabled,
+                          pressed && !busyId && !isPending ? styles.actionPressed : null,
                         ]}>
                         <Text style={styles.menuButtonText}>☰</Text>
                       </Pressable>
@@ -501,10 +575,10 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
           })}
         </View>
       )}
-      {chorePage.hasMore ? <Button label="Load More" variant="secondary" onPress={() => setVisibleCount((current) => current + PAGE_SIZE)} /> : null}
+      {chorePage.hasMore ? <Button label={t("dashboard.loadMore")} variant="secondary" onPress={() => setVisibleCount((current) => current + PAGE_SIZE)} /> : null}
       {celebrating ? (
         <View pointerEvents="none" style={styles.celebration}>
-          <Text style={styles.celebrationText}>All Done!</Text>
+          <Text style={styles.celebrationText}>{t("dashboard.allDonePopupTitle")}</Text>
         </View>
       ) : null}
       <Modal visible={scopeOpen} transparent animationType="fade" onRequestClose={() => setScopeOpen(false)}>
@@ -515,7 +589,7 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
               onPress={() => { setSelectedMemberId("family"); setScopeOpen(false); }}
               style={({ pressed }) => [styles.scopeOption, pressed ? styles.actionPressed : null]}>
               <FamilyAvatar />
-              <Text style={styles.scopeOptionText}>Family</Text>
+              <Text style={styles.scopeOptionText}>{t("dashboard.scopeFamilyShort")}</Text>
             </Pressable>
             {members.map((member) => (
               <Pressable
@@ -560,7 +634,7 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
         <Pressable style={styles.backdrop} onPress={() => setOptionsOpen(false)}>
           <View style={styles.sheet}>
             <Button
-              label="Sort"
+              label={t("dashboard.sort")}
               variant="secondary"
               leadingIcon={<SortIcon />}
               onPress={() => {
@@ -569,7 +643,7 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
               }}
             />
             <Button
-              label="View All Chores"
+              label={t("dashboard.viewAllChores")}
               variant="secondary"
               leadingIcon={<TableIcon />}
               onPress={() => {
@@ -583,10 +657,12 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
       <Modal visible={Boolean(selectedMenuChore)} transparent animationType="fade" onRequestClose={() => setMenuChoreId("")}>
         <Pressable style={styles.backdrop} onPress={() => setMenuChoreId("")}>
           <Pressable style={styles.sheet} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>{selectedMenuChore?.title ?? "Chore options"}</Text>
-            <Button label="Edit" variant="secondary" onPress={() => void openEditModal(menuChoreId)} />
+            <Text style={styles.sheetTitle}>
+              {selectedMenuChore?.title ?? t("choresPage.menu.choreOptions")}
+            </Text>
+            <Button label={t("common.actions.edit")} variant="secondary" onPress={() => void openEditModal(menuChoreId)} />
             <Button
-              label={busyId === selectedMenuChore?.id ? "Deleting..." : "Delete"}
+              label={t(busyId === selectedMenuChore?.id ? "choresPage.actions.deleting" : "common.actions.delete")}
               variant="danger"
               disabled={busyId === selectedMenuChore?.id}
               onPress={() => {
@@ -599,7 +675,7 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
             />
             <View style={styles.sheetDivider} />
             <Button
-              label="Move Up"
+              label={t("dashboard.moveUp")}
               variant="secondary"
               disabled={!canMoveMenuChore || selectedMenuIndex === 0}
               onPress={() => {
@@ -611,7 +687,7 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
               }}
             />
             <Button
-              label="Move Down"
+              label={t("dashboard.moveDown")}
               variant="secondary"
               disabled={!canMoveMenuChore || selectedMenuIndex === filteredChores.length - 1}
               onPress={() => {
@@ -628,13 +704,15 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
       <Modal visible={Boolean(pendingDeleteChore)} transparent animationType="fade" onRequestClose={() => setPendingDeleteChore(null)}>
         <Pressable style={styles.backdrop} onPress={() => setPendingDeleteChore(null)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>Delete Chore</Text>
+            <Text style={styles.sheetTitle}>{t("choresPage.modals.deleteTitle")}</Text>
             <Text style={styles.confirmText}>
-              Delete <Text style={styles.confirmTextStrong}>{pendingDeleteChore?.title ?? "this chore"}</Text>?
+              {t("choresPage.modals.deletePrompt", {
+                title: pendingDeleteChore?.title ?? t("choresPage.thisChore"),
+              })}
             </Text>
-            <Button label="Cancel" variant="secondary" onPress={() => setPendingDeleteChore(null)} />
+            <Button label={t("common.actions.cancel")} variant="secondary" onPress={() => setPendingDeleteChore(null)} />
             <Button
-              label={busyId === pendingDeleteChore?.id ? "Deleting..." : "Delete"}
+              label={t(busyId === pendingDeleteChore?.id ? "choresPage.actions.deleting" : "common.actions.delete")}
               variant="danger"
               disabled={busyId === pendingDeleteChore?.id}
               onPress={() => {
@@ -740,8 +818,7 @@ export function MobileDashboardChoresPanel({ onOpenAllChores }: MobileDashboardC
         mode="create"
         members={members}
         categories={categories}
-        defaultAssigneeIds={selectedMember ? [selectedMember.id] : undefined}
-        saving={createSaving}
+        defaultAssigneeIds={defaultAssigneeIds}
         onClose={() => setAddOpen(false)}
         onSubmit={addChore}
         viewerKey={preferencesViewerKeyRef.current || "default"}
@@ -809,6 +886,7 @@ const styles = StyleSheet.create({
   tableIconRowBottom: { top: 10 },
   list: { gap: spacing.sm },
   choreCard: { gap: spacing.sm, borderWidth: 1, borderLeftWidth: 5, borderColor: colors.line, borderLeftColor: colors.brand, borderRadius: radius.lg, padding: spacing.sm, backgroundColor: "#fff" },
+  chorePending: { opacity: 0.55 },
   choreTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   choreCopy: { flex: 1, gap: 3 },
   choreTitle: { color: colors.text, fontSize: typography.body, fontWeight: "900" },

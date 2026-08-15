@@ -1,36 +1,14 @@
-// Responsibility Pillars: a first-class domain concept describing which life
-// skill a chore or routine develops. Pillars are intentionally separate from
-// user-defined chore Categories — Categories answer "where does this chore
-// belong?", pillars answer "what life skill does this chore develop?".
-export const RESPONSIBILITY_PILLARS = [
-  "home_care",
-  "self_care",
-  "organization",
-  "family_contribution",
-  "life_skills",
-] as const;
+// The pillar list, emoji, and normalizer live in @packages/core so the web
+// dialog and the mobile chore editor render the exact same picker. Re-exported
+// here so existing `@/lib/responsibility/types` imports keep working.
+import type { ResponsibilityPillar } from "@packages/core";
 
-export type ResponsibilityPillar = (typeof RESPONSIBILITY_PILLARS)[number];
-
-export const RESPONSIBILITY_PILLAR_EMOJI: Record<ResponsibilityPillar, string> = {
-  home_care: "🏠",
-  self_care: "🌱",
-  organization: "📋",
-  family_contribution: "🤝",
-  life_skills: "🛠️",
-};
-
-// Pillar assignment is always optional. Unknown or empty values normalize to
-// "" so existing chores (and any malformed data) keep working untouched.
-export function normalizeResponsibilityPillar(value: unknown): ResponsibilityPillar | "" {
-  if (typeof value !== "string") {
-    return "";
-  }
-  const trimmed = value.trim();
-  return (RESPONSIBILITY_PILLARS as readonly string[]).includes(trimmed)
-    ? (trimmed as ResponsibilityPillar)
-    : "";
-}
+export {
+  RESPONSIBILITY_PILLARS,
+  RESPONSIBILITY_PILLAR_EMOJI,
+  normalizeResponsibilityPillar,
+  type ResponsibilityPillar,
+} from "@packages/core";
 
 export const RESPONSIBILITY_XP_EVENT_TYPES = [
   "chore_completed",

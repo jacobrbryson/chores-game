@@ -13,6 +13,8 @@ import {
 import {
   fetchKioskStatus,
   fetchSwitchableMembers,
+  selectableKioskMembers,
+  selectableSwitchMembers,
   setupAccountSwitchPin,
   startAccountSwitch,
   startKiosk,
@@ -20,6 +22,8 @@ import {
   type SwitchableMember,
 } from "@/lib/api";
 import { useMobileLocale } from "@/lib/locale";
+import { useFamilyResponsibilityIdentities } from "@/lib/responsibility-identity";
+import { MobileIdentitySummaryStrip } from "@/components/MobileIdentitySummaryStrip";
 import { AvatarBadge } from "@/components/ui/AvatarBadge";
 import { Button } from "@/components/ui/Button";
 import { colors, radius, spacing, typography } from "@/theme";
@@ -53,6 +57,15 @@ export function MobileSwitchAccountModal({ visible, onClose, onSwitched }: Switc
   const [kioskPinRequired, setKioskPinRequired] = React.useState(false);
   const [kioskSelectedIds, setKioskSelectedIds] = React.useState<string[]>([]);
   const [selected, setSelected] = React.useState<SwitchableMember | null>(null);
+  // Earned pillar titles per member, so each tile shows who that child is
+  // becoming — the same recognition chips the web profile menu renders.
+  const identitiesByUid = useFamilyResponsibilityIdentities(visible);
+  // "Switch To..." only accepts child profiles; Kiosk Mode accepts parents too,
+  // so each tab renders its own eligible roster off the same fetch.
+  const visibleMembers = React.useMemo(
+    () => (mode === "kiosk" ? selectableKioskMembers(members) : selectableSwitchMembers(members)),
+    [members, mode],
+  );
   const [pin, setPin] = React.useState("");
   const [confirmPin, setConfirmPin] = React.useState("");
   const [requiresPinSetup, setRequiresPinSetup] = React.useState(false);
@@ -178,7 +191,7 @@ export function MobileSwitchAccountModal({ visible, onClose, onSwitched }: Switc
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => undefined}>
           <View style={styles.header}>
-            <Text style={styles.title}>{t("profileMenu.switchChildTitle")}</Text>
+            <Text style={styles.title}>{t("nav.switchTo")}</Text>
             <Pressable accessibilityRole="button" onPress={onClose} hitSlop={8}>
               <Text style={styles.close}>×</Text>
             </Pressable>
@@ -225,11 +238,13 @@ export function MobileSwitchAccountModal({ visible, onClose, onSwitched }: Switc
                   <Text style={styles.loadingText}>{t("profileMenu.loadingChildProfiles")}</Text>
                 </View>
               ) : null}
-              {!loading && !loadError && members.length === 0 ? (
-                <Text style={styles.intro}>{t("profileMenu.noChildProfiles")}</Text>
+              {!loading && !loadError && visibleMembers.length === 0 ? (
+                <Text style={styles.intro}>
+                  {mode === "kiosk" ? t("kiosk.noPlayers") : t("profileMenu.noChildProfiles")}
+                </Text>
               ) : null}
               {!loading
-                ? members.map((member) => {
+                ? visibleMembers.map((member) => {
                     const checked = kioskSelectedIds.includes(member.id);
                     return (
                       <Pressable
@@ -257,6 +272,13 @@ export function MobileSwitchAccountModal({ visible, onClose, onSwitched }: Switc
                               ? t("profileMenu.readyToSwitch")
                               : t("profileMenu.invitePending")}
                           </Text>
+                          {member.uid && identitiesByUid[member.uid] ? (
+                            <MobileIdentitySummaryStrip
+                              identities={identitiesByUid[member.uid]}
+                              limit={2}
+                              variant="chips"
+                            />
+                          ) : null}
                         </View>
                         {mode === "kiosk" ? (
                           <View style={[styles.check, checked && styles.checkOn]}>

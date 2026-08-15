@@ -27,6 +27,15 @@ import {
 import { DEFAULT_LOCALE } from "@/lib/locale";
 import { trackAchievementEvent } from "@/lib/achievements/service";
 import { shouldBlockOnboardingFirstChild } from "@/lib/family/onboarding";
+import { writeAuditLogBestEffort } from "@/lib/audit/log";
+import { keyableEmail } from "@/lib/auth/private-relay";
+import { createFamilyInvite } from "@/lib/family/invite-repository";
+import {
+  buildFamilyInviteUrl,
+  createFamilyInviteCode,
+  createFamilyInviteId,
+  formatFamilyInviteCode,
+} from "@/lib/family/invite-tokens";
 
 type AddMemberBody = {
   name?: string;
@@ -171,7 +180,11 @@ export async function POST(request: NextRequest) {
           tertiary: "#1b2a41",
         };
         const isManagedLocalPlayer = role === "player" && !email;
-        const memberId = email || randomUUID();
+        // An Apple private-relay address is a contact detail, never an identity
+        // key: keying on it manufactures an invite document the inviting parent
+        // can never match and the Stale Invites panel later has to clean up.
+        const keyEmail = keyableEmail(email);
+        const memberId = keyEmail || randomUUID();
         const existingMembers = await listDocuments(`families/${familyId}/members`, idToken, 300);
         const activeMemberCount = existingMembers.filter(
           (doc) => !readBoolean(doc.fields, "deleted"),
@@ -271,11 +284,14 @@ export async function POST(request: NextRequest) {
             idToken,
           );
         }
-        if (email) {
+        // Legacy email-keyed index. Still written so pending invites and older
+        // clients keep resolving exactly as they do today; the invite code
+        // below is the path that does not depend on email equality.
+        if (keyEmail) {
           await createOrReplaceDocument(
-            `inviteLookup/${email}`,
+            `inviteLookup/${keyEmail}`,
             {
-              email: stringField(email),
+              email: stringField(keyEmail),
               familyId: stringField(familyId),
               role: stringField(role),
               status: stringField("invited"),
@@ -283,6 +299,56 @@ export async function POST(request: NextRequest) {
             },
             idToken,
           );
+        }
+
+        let invite: { code: string; formattedCode: string; url: string; expiresAt: string } | null =
+          null;
+        if (!isManagedLocalPlayer) {
+          let familyName = "";
+          try {
+            familyName = readString(
+              (await getDocument(`families/${familyId}`, idToken)).fields,
+              "name",
+            );
+          } catch {
+            // Presentation metadata only; the invite itself does not need it.
+          }
+          const inviteId = createFamilyInviteId();
+          const code = createFamilyInviteCode();
+          const created = await createFamilyInvite({
+            inviteId,
+            code,
+            familyId,
+            familyName,
+            memberId,
+            invitedName: name,
+            invitedEmail: keyEmail,
+            role,
+            createdByUid: session.uid,
+            now,
+          });
+          invite = {
+            code,
+            formattedCode: formatFamilyInviteCode(code),
+            url: buildFamilyInviteUrl(code),
+            expiresAt: created.expiresAt,
+          };
+          await writeAuditLogBestEffort({
+            familyId,
+            idToken,
+            eventType: "family_invite_created",
+            actor: { uid: session.uid, email: session.email, name: session.name, role: "admin" },
+            userId: memberId,
+            source: "family_members_api",
+            next: {
+              inviteId,
+              memberId,
+              role,
+              invitedEmail: keyEmail,
+              privateRelayEmail: Boolean(email) && !keyEmail,
+              expiresAt: created.expiresAt,
+            },
+          });
         }
         if (isManagedLocalPlayer && session.role === "admin") {
           await trackAchievementEvent({
@@ -306,6 +372,7 @@ export async function POST(request: NextRequest) {
             role,
             status: isManagedLocalPlayer ? "active" : "invited",
           },
+          invite,
         };
       });
 
@@ -328,7 +395,7 @@ export async function POST(request: NextRequest) {
     }
 
     const response = NextResponse.json(
-      { familyId: data.familyId, member: data.member },
+      { familyId: data.familyId, member: data.member, invite: data.invite },
       { status: 201 },
     );
     if (refreshed) {

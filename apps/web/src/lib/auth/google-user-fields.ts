@@ -1,10 +1,6 @@
 import type { SessionUser } from "./session";
-import {
-  stringArrayField,
-  stringField,
-  timestampField,
-  type FirestoreValue,
-} from "@/lib/firestore/rest";
+import { buildIdpUserAuthFields } from "./idp-user-fields";
+import type { FirestoreValue } from "@/lib/firestore/rest";
 
 type BuildGoogleUserAuthFieldsInput = {
   uid: string;
@@ -31,20 +27,15 @@ export function buildGoogleUserAuthFields({
   familyId = "",
   now,
 }: BuildGoogleUserAuthFieldsInput): Record<string, FirestoreValue> {
-  return {
-    uid: stringField(uid),
-    role: stringField(role),
-    locale: stringField(locale),
-    email: stringField(email),
-    displayName: stringField(displayName),
-    photoUrl: stringField(photoUrl),
-    provider: stringField("google"),
-    lastSignInAt: timestampField(now),
-    ...(familyId
-      ? {
-          familyIds: stringArrayField([familyId]),
-          lastFamilyUpdateAt: timestampField(now),
-        }
-      : {}),
-  };
+  return buildIdpUserAuthFields({
+    uid,
+    role,
+    locale,
+    email,
+    displayName,
+    photoUrl,
+    provider: "google",
+    familyId,
+    now,
+  });
 }

@@ -15,7 +15,7 @@ import { useMobileLocale } from "@/lib/locale";
 import { colors, spacing, typography } from "@/theme";
 import { AppScreen, AvatarBadge, Button, Card, CoinPill, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
 import { MobileProfileFamilySummary } from "@/components/MobileProfileFamilySummary";
-import { MobileFamilyFriendsManager } from "@/components/MobileFamilyFriendsManager";
+import { MobileProfileIdentityCard } from "@/components/MobileProfileIdentityCard";
 
 type ProfileData = {
   name: string;
@@ -188,6 +188,10 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
             </View>
           </Card>
 
+          {/* "Who they are" — earned Responsibility Pillar titles. Hidden until
+              at least one title is earned, matching the web profile. */}
+          <MobileProfileIdentityCard />
+
           <Card>
             <SectionHeader title={t("profile.detailsTitle")} />
             <Text style={styles.detail}>{t("profile.role")}: {state.data.role}</Text>
@@ -251,7 +255,9 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
             claimingAwardId={claimingAwardId}
             onClaimAward={(awardId) => void onClaimAward(awardId)}
           />
-          <MobileFamilyFriendsManager />
+          {/* Family Friends lives on the Manage Family screen's Friends tab, the
+              same place web keeps it (/family). It used to be duplicated here
+              only because that tab did not exist on mobile yet. */}
         </>
       ) : null}
     </AppScreen>

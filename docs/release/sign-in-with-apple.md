@@ -115,6 +115,116 @@ For V1 the honest answer is to keep it simple and make it visible: show which pr
 
 Guideline 5.1.1(v) requires apps that support account creation to also offer **account deletion from inside the app**. The current privacy flow schedules deletion 30 days out and, per `CLAUDE.md`, the actual purge is not yet implemented. Whether a scheduled-deletion request satisfies review is uncertain, and it is a separate rejection risk from 4.8. Worth resolving in the same pass as item 2 rather than discovering it during review.
 
+## Full email-keying audit (added 2026-08-13, after Phase 1 landed)
+
+Phase 1 shipped: `/api/auth/apple` + `/api/auth/apple/mobile`, `lib/auth/apple-token.ts`, the shared `lib/auth/idp-signin.ts` extraction, and the bootstrap guard (`FamilyResolution = "resolved" | "needs_family_setup"` — authentication no longer silently manufactures a family).
+
+The original scope named the application-route layer. A full sweep found **five more layers**, and one of them is more significant than everything already catalogued.
+
+### 1. Firestore security rules — the layer that was missed
+
+`apps/web/firestore.rules` keys **authorization itself** on `request.auth.token.email` — **17 occurrences** (an earlier estimate of "roughly eight" undercounted; the notable ones are below):
+
+- `memberDocPathByEmail()` resolves membership to `members/{request.auth.token.email.lower()}` (line 64).
+- Membership resolution returns the pair `[uidMemberId, emailMemberId]` (line 135–138).
+- Player self-completion of a chore checks `assigneeId == request.auth.token.email.lower()` (line 128) and `choreData.assigneeIds.hasAny([request.auth.token.email.lower()])` (line 654).
+- Member-doc creation constrains `request.resource.data.email.lower() == request.auth.token.email.lower()` (line 350–353).
+
+This matters more than the route layer because it is **server-enforced authorization, not app convenience**. For an Apple private-relay user, `request.auth.token.email` *is* the relay address, so every grant that depends on matching the invited address silently fails — including a child's ability to complete a chore that was assigned to them by email before they accepted.
+
+Changing these rules is the riskiest edit in the whole effort: too strict locks families out, too loose opens cross-family access. There is currently **no general Firestore rules test suite** (only `lib/voting/firestore-rules.test.ts`), so one should exist before this is touched.
+
+### 2. Chore assignment identity
+
+`assigneeIds` can contain an email address — that is precisely why the rules check it. Chores assigned to an invited-but-not-yet-accepted member are keyed by email, so any migration has to rewrite chore assignee references, not just member documents.
+
+### 3. Alias matching as a compatibility shim
+
+`lib/family/member-aliases.ts` (`buildFamilyMemberAliasMap`) deliberately maps id, uid, **and email** to the same member so the rest of the app can paper over the two keying schemes. It is the seam that currently hides the problem, and it should be the *last* thing removed, not the first.
+
+### 4. Google Tasks sync
+
+The 2026-08-09 changelog entry ("Google Tasks completions reach the app again … including family members who joined from an email invitation") is this exact seam having already caused a production bug once.
+
+### 5. Privacy export / deletion
+
+`api/family/privacy/export/route.ts` matches members by email when assembling an export. A member whose identity is a relay address will export incorrectly.
+
+### Also missing: private-relay detection
+
+There is **no handling of `@privaterelay.appleid.com` anywhere in the codebase**. At minimum, a relay address should never be written into an email-keyed document path or treated as a reachable contact address — it is routable for transactional email but is not the address the family knows the person by, and writing it into `inviteLookup/` or `members/{email}` creates junk documents that the Stale Invites panel will later have to clean up.
+
+### Phase 2 order of operations
+
+1. Add a general Firestore rules test suite covering current membership/chore-completion behavior — the safety net for everything below.
+2. Stop *creating* new email-keyed docs: invitations get a generated id plus an expiring token (option A), and `inviteLookup/{email}` stops being the join mechanism.
+3. Add private-relay detection; never persist a relay address as a member email or document key.
+4. Backfill existing email-keyed member docs to uid-keyed, and rewrite `assigneeIds` email references.
+5. Only then drop `request.auth.token.email` from the rules.
+6. Remove the email alias from `buildFamilyMemberAliasMap` last, once nothing depends on it.
+
+Steps 1–3 are safe to do now and are what stop the bleeding. Steps 4–6 are a migration and want their own plan.
+
+## Phase 2 part 1 — what shipped (2026-08-13)
+
+Steps 1–3 above are done. Nothing existing was migrated or removed; this pass is
+purely additive.
+
+- **Rules test suite** (`apps/web/tests/rules/`, `npm run test:rules`). 31 tests
+  against the Firestore emulator pinning membership resolution (uid-keyed and
+  email-keyed), invite claiming, `inviteLookup` access, and chore-completion
+  authorization including `assigneeId`/`assigneeIds` email matching and
+  cross-family denial. Two tests deliberately pin the *broken* private-relay
+  behavior so the migration has to consciously change them.
+- **Invite codes** (`lib/family/invite-tokens.ts`, `invite-repository.ts`,
+  `invite-redemption.ts`). Every invitation now also gets an invite id and a
+  single-use 12-character Crockford-base32 code, stored only as a SHA-256 hash in
+  a new server-only `familyInvites` collection, expiring in 30 days with an
+  attempt lockout. The same code is what `/join?code=…` carries.
+- **Redemption** via `POST /api/family/invitations/redeem` (web) and
+  `POST /api/v1/families/join` (mobile). It compares no email addresses at all.
+  Membership is written uid-keyed with admin credentials, because the redeemer is
+  by definition not yet a member of the family.
+- **Private-relay detection** (`lib/auth/private-relay.ts`) applied at every site
+  that keyed or persisted a normalized email. A relay address is never a document
+  key and never the family-visible address; it survives as `contactEmail` only.
+
+### Corrections to the audit above
+
+- The audit said "nine call sites across six route files". The actual count of
+  sites that *key or persist* on a normalized email is **seven across five
+  files**: `api/family/members`, `api/family/members/[memberId]` (revoke),
+  `api/family/members/[memberId]/reinvite` (twice), `api/family/invitations/accept`,
+  `api/family/summary`, and `lib/auth/idp-signin`. Alias *matching* sites are more
+  numerous but do not persist anything.
+- The audit's rules line numbers have drifted: `memberDocPathByEmail` is line 63,
+  the member-id pair is 133–139, player self-completion is 121–131 and 645–658,
+  and the member-doc email constraint is 343–364.
+- Adding a rules test suite was assumed to be a large lift. It was not: Java 17 is
+  already installed and `firebase-tools@13` runs the emulator on it. Only the
+  current firebase-tools 15.x requires Java 21, so the CLI is pinned as a
+  devDependency rather than requiring a JDK upgrade.
+
+### What the follow-up migration pass still has to do
+
+1. Backfill existing `members/{email}` docs to `members/{uid}` for members who
+   have a known uid, soft-deleting the email-keyed original. Members with no uid
+   yet (genuinely pending invites) must keep their email-keyed doc until they
+   redeem.
+2. Rewrite `assigneeId` / `assigneeIds` entries that hold an email address to the
+   corresponding uid, across `chores` and `routineAssignments`. This is the step
+   the rules tests exist to protect: get it wrong and a child silently loses the
+   ability to complete their own chores.
+3. Retire `inviteLookup/{email}` once nothing reads it — currently
+   `idp-signin`, `api/family/summary`, and `api/family/invitations/accept` do.
+4. Only then drop `request.auth.token.email` from `firestore.rules`
+   (`memberDocPathByEmail`, `hasEmailMemberDoc`, `hasClaimableEmailInvite`,
+   `isRequesterAssigneeId`, `requesterMemberIdsForFamily`,
+   `requesterMatchesChoreAssignee`, and the `isFamilyAdmin` email branch), and
+   flip the two private-relay tests in the rules suite from denied to allowed.
+5. Remove the email alias from `buildFamilyMemberAliasMap` last.
+6. Fix `api/family/privacy/export` member matching, which still matches by email.
+
 ## Open decisions
 
 - Does Sign in with Apple appear on **web** too, or iOS only? (Recommend both — it keeps one account model, and a user who signs up on iOS with Apple otherwise cannot get back into their family on the web app at all.)

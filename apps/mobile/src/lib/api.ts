@@ -1,4 +1,9 @@
 import { DEFAULT_LOCALE, normalizeLocale } from "@packages/locales";
+import {
+  normalizeResponsibilityPillar,
+  type FamilyReward,
+  type ResponsibilityPillar,
+} from "@packages/core";
 import { createApiClient } from "@packages/api-client";
 import type { AppLocale } from "@packages/locales";
 import { Platform } from "react-native";
@@ -115,6 +120,31 @@ export async function markDiscoverySeen(sections: string[]): Promise<void> {
   } catch {
     // Mark-seen must never block mobile navigation.
   }
+}
+
+export type MobileJoinFamilyResult = {
+  familyId: string;
+  familyName: string;
+  role: string;
+  alreadyMember: boolean;
+};
+
+/**
+ * Redeems a family invite code. This is the join path that does not depend on
+ * the signed-in address matching the invited one, so it works for Apple Hide My
+ * Email relays and for a second Google account.
+ */
+export async function joinFamilyWithInviteCode(code: string): Promise<MobileJoinFamilyResult> {
+  const data = (await apiFetch("/families/join", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  })) as Partial<MobileJoinFamilyResult>;
+  return {
+    familyId: typeof data.familyId === "string" ? data.familyId : "",
+    familyName: typeof data.familyName === "string" ? data.familyName : "",
+    role: typeof data.role === "string" ? data.role : "player",
+    alreadyMember: Boolean(data.alreadyMember),
+  };
 }
 
 export function getDiscoverySectionCount(summary: MobileDiscoverySummary, sectionKey: string): number {
@@ -250,6 +280,169 @@ export async function fetchMobileFeed(page = 1, limit = 20, scope: "all" | "frie
       hasMore: Boolean(pagination.hasMore),
     },
   };
+}
+
+// --- Manage Family: members ---------------------------------------------
+
+export async function addMobileFamilyMember(body: {
+  name: string;
+  email?: string;
+  role: "admin" | "player";
+}) {
+  return apiFetch("/families/members", {
+    method: "POST",
+    body: JSON.stringify({ ...body, source: "mobile_family_management" }),
+  });
+}
+
+export async function updateMobileFamilyMember(memberId: string, body: Record<string, unknown>) {
+  return apiFetch(`/families/members/${encodeURIComponent(memberId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function removeMobileFamilyMember(memberId: string) {
+  return apiFetch(`/families/members/${encodeURIComponent(memberId)}`, {
+    method: "DELETE",
+  });
+}
+
+// --- Manage Family: chore categories ------------------------------------
+
+export type MobileCategoriesState = {
+  items: MobileFamilyCategory[];
+  viewerRole: "admin" | "player";
+};
+
+export async function fetchMobileFamilyCategories(): Promise<MobileCategoriesState> {
+  const json = await apiFetch("/families/categories");
+  return {
+    items: Array.isArray(json?.items) ? (json.items as MobileFamilyCategory[]) : [],
+    viewerRole: json?.viewerRole === "admin" ? "admin" : "player",
+  };
+}
+
+export async function createMobileFamilyCategory(body: {
+  name: string;
+  color: string;
+  memberIds?: string[];
+}) {
+  return apiFetch("/families/categories", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateMobileFamilyCategory(categoryId: string, body: Record<string, unknown>) {
+  return apiFetch(`/families/categories/${encodeURIComponent(categoryId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteMobileFamilyCategory(categoryId: string) {
+  return apiFetch(`/families/categories/${encodeURIComponent(categoryId)}`, {
+    method: "DELETE",
+  });
+}
+
+export type MobileNotification = {
+  id: string;
+  kind: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  seen: boolean;
+  triggeredByViewer: boolean;
+  inviteId?: string;
+};
+
+export type MobileNotificationsPage = {
+  items: MobileNotification[];
+  unseenCount: number;
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+};
+
+export async function fetchMobileNotifications(page = 1, limit = 30): Promise<MobileNotificationsPage> {
+  const json = await apiFetch(`/notifications?page=${page}&limit=${limit}`);
+  return {
+    items: Array.isArray(json?.items) ? (json.items as MobileNotification[]) : [],
+    unseenCount: typeof json?.unseenCount === "number" ? json.unseenCount : 0,
+    pagination: json?.pagination ?? { page, pageSize: limit, total: 0, totalPages: 1 },
+  };
+}
+
+export async function markMobileNotificationsSeen(ids: string[]) {
+  if (ids.length === 0) {
+    return;
+  }
+  return apiFetch("/notifications", {
+    method: "PATCH",
+    body: JSON.stringify({ ids }),
+  });
+}
+
+export type MobileRoutineStep = {
+  id: string;
+  title: string;
+  coinValue?: number;
+  requireApproval?: boolean;
+};
+
+export type MobileRoutine = {
+  id: string;
+  name: string;
+  description: string;
+  pillar: ResponsibilityPillar | "";
+  steps: MobileRoutineStep[];
+  completionBonusXp: number;
+  completionBonusCoins: number;
+  assigneeIds: string[];
+  active: boolean;
+  timesUsed: number;
+  timesCompleted: number;
+};
+
+export type MobileRoutinesState = {
+  items: MobileRoutine[];
+  members: Array<{ id: string; name: string; role: "admin" | "player"; status: "active" | "invited" }>;
+  viewerRole: "admin" | "player";
+};
+
+export async function fetchMobileRoutines(): Promise<MobileRoutinesState> {
+  const json = await apiFetch("/routines");
+  return {
+    items: Array.isArray(json?.items) ? (json.items as MobileRoutine[]) : [],
+    members: Array.isArray(json?.members) ? json.members : [],
+    viewerRole: json?.viewerRole === "admin" ? "admin" : "player",
+  };
+}
+
+export async function createMobileRoutine(body: {
+  name: string;
+  description?: string;
+  pillar?: ResponsibilityPillar | "";
+  steps: Array<{ id?: string; title: string; coinValue?: number; requireApproval?: boolean }>;
+  completionBonusCoins?: number;
+}) {
+  return apiFetch("/routines", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateMobileRoutine(routineId: string, body: Record<string, unknown>) {
+  return apiFetch(`/routines/${encodeURIComponent(routineId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteMobileRoutine(routineId: string) {
+  return apiFetch(`/routines/${encodeURIComponent(routineId)}`, {
+    method: "DELETE",
+  });
 }
 
 export type MobileFamilyFriend = {
@@ -431,6 +624,17 @@ export type MobileStoreCategory = {
   options: MobileStoreOption[];
 };
 
+// A family member an admin can redeem a Family Award on behalf of, with the
+// balance the award would be charged against and which awards they qualify for.
+export type MobileRedemptionMember = {
+  id: string;
+  uid: string;
+  name: string;
+  email: string;
+  balance: number;
+  availableRewardIds: string[];
+};
+
 export type MobileStoreState = {
   balance: number;
   ownedOptionIds: string[];
@@ -445,6 +649,9 @@ export type MobileStoreState = {
   googlePhotoUrl?: string;
   selectedConfettiOptionId: string;
   viewerRole?: "admin" | "player";
+  viewerUid: string;
+  // Only populated for admins; players redeem against their own balance.
+  redemptionMembers: MobileRedemptionMember[];
   categories: MobileStoreCategory[];
 };
 
@@ -493,6 +700,10 @@ export type MobileFamilyCategory = {
   id: string;
   name: string;
   color: string;
+  // Member-scoped categories. Empty/absent means the category is family-wide.
+  // Drives the chore editor's assignee-based category filtering.
+  memberIds?: string[];
+  memberId?: string;
 };
 
 export type MobileFamilyChore = {
@@ -518,6 +729,10 @@ export type MobileFamilyChore = {
   recurrenceInterval?: number;
   recurrenceUnit?: string;
   recurrenceDays?: string[];
+  // Which life skill this chore develops. "" / undefined means unassigned.
+  responsibilityPillar?: ResponsibilityPillar | "";
+  // Whether completing this chore for the first time awards the New Skill bonus.
+  newSkillEnabled?: boolean;
   source?: "manual" | "google_tasks";
   createdAt?: string;
   // Routine linkage: set when this chore is a materialized step of a routine
@@ -758,6 +973,19 @@ export async function fetchMobileStoreState(): Promise<MobileStoreState> {
     googlePhotoUrl: typeof summary?.googlePhotoUrl === "string" ? summary.googlePhotoUrl : "",
     selectedConfettiOptionId: typeof summary?.selectedConfettiOptionId === "string" ? summary.selectedConfettiOptionId : "",
     viewerRole: summary?.viewerRole === "admin" ? "admin" : "player",
+    viewerUid: typeof summary?.viewerUid === "string" ? summary.viewerUid : "",
+    redemptionMembers: Array.isArray(summary?.redemptionMembers)
+      ? (summary.redemptionMembers as MobileRedemptionMember[]).map((member) => ({
+          id: typeof member?.id === "string" ? member.id : "",
+          uid: typeof member?.uid === "string" ? member.uid : "",
+          name: typeof member?.name === "string" ? member.name : "",
+          email: typeof member?.email === "string" ? member.email : "",
+          balance: typeof member?.balance === "number" ? member.balance : 0,
+          availableRewardIds: Array.isArray(member?.availableRewardIds)
+            ? member.availableRewardIds.filter((value: unknown) => typeof value === "string")
+            : [],
+        }))
+      : [],
     categories: Array.isArray(summary?.categories) ? summary.categories as MobileStoreCategory[] : [],
   };
 }
@@ -1001,6 +1229,10 @@ export async function fetchMobileChore(choreId: string): Promise<MobileChoreDeta
     recurrenceDays: Array.isArray(chore.recurrenceDays)
       ? chore.recurrenceDays.filter((value: unknown) => typeof value === "string")
       : [],
+    responsibilityPillar: normalizeResponsibilityPillar(chore.responsibilityPillar),
+    // Chores created before the New Skill bonus shipped have no stored flag;
+    // the web dialog treats those as enabled, so mirror that default here.
+    newSkillEnabled: chore.newSkillEnabled === undefined ? true : Boolean(chore.newSkillEnabled),
     source: chore.source === "google_tasks" ? "google_tasks" : "manual",
     createdAt: typeof chore.createdAt === "string" ? chore.createdAt : undefined,
   };
@@ -1028,7 +1260,11 @@ export async function reorderMobileChores(orderedChoreIds: string[]) {
 
 export type SwitchableMember = {
   id: string;
+  // Player uid. Empty for invited members, whose member doc is keyed by email
+  // until they accept. Used to look up per-member Responsibility Identities.
+  uid: string;
   name: string;
+  role: "admin" | "player";
   status: "active" | "invited";
   avatarUrl: string;
   primaryColor: string;
@@ -1044,23 +1280,37 @@ export function memberAvatarUrl(member: { avatarId?: string; avatarPhotoUrl?: st
   return member.avatarPhotoUrl?.trim() ?? "";
 }
 
-// Players the signed-in guardian can switch into ("Switch To..."). Mirrors the
-// web profile menu: player-role members excluding the viewer themselves.
+// Family members the signed-in guardian can act as, excluding themselves.
+//
+// Both roles are returned because the two consumers want different subsets:
+// "Switch To..." is admin -> child only (the account-switch API rejects anything
+// else with `player_only`), while Kiosk Mode accepts any family member — the
+// backend pins a parent profile to player-level kiosk permissions. Callers
+// filter by `role`; see selectableSwitchMembers / selectableKioskMembers.
 export async function fetchSwitchableMembers(): Promise<SwitchableMember[]> {
   const summary = await fetchMobileFamilySummary();
   const viewerUid = summary.viewerUid;
   return summary.members
-    .filter(
-      (member) =>
-        member.role === "player" && member.id !== viewerUid && member.uid !== viewerUid,
-    )
+    .filter((member) => member.id !== viewerUid && member.uid !== viewerUid)
     .map((member) => ({
       id: member.id,
+      uid: member.uid ?? "",
       name: member.name,
+      role: member.role === "admin" ? "admin" : "player",
       status: member.status === "active" ? "active" : "invited",
       avatarUrl: memberAvatarUrl(member),
       primaryColor: member.dashboardPrimaryColor ?? "",
     }));
+}
+
+// "Switch To..." can only target child profiles.
+export function selectableSwitchMembers(members: SwitchableMember[]) {
+  return members.filter((member) => member.role === "player");
+}
+
+// Kiosk Mode can target any family member, parents included.
+export function selectableKioskMembers(members: SwitchableMember[]) {
+  return members;
 }
 
 // Switch the current session into a child profile. Throws with the upstream
@@ -1147,6 +1397,24 @@ export async function signInWithGoogleIdToken(idToken: string) {
   return json.data;
 }
 
+export async function signInWithAppleIdToken(input: {
+  idToken: string;
+  rawNonce: string;
+  user?: { givenName?: string | null; familyName?: string | null };
+}) {
+  const response = await fetchWithTimeout(`${appBaseUrl}/api/auth/apple/mobile`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok || !json?.ok) {
+    throw new Error(String(json?.error ?? "mobile_apple_auth_failed"));
+  }
+  return json.data;
+}
+
 export async function signOut() {
   const response = await fetchWithTimeout(`${appBaseUrl}/api/auth/logout`, {
     method: "POST",
@@ -1164,4 +1432,90 @@ export async function signOut() {
       console.warn("[MOBILE_GOOGLE_SIGNOUT_WARNING]", error);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Family Awards (parent-side management)
+// ---------------------------------------------------------------------------
+
+export type MobileFamilyRewardsState = {
+  items: FamilyReward[];
+  viewerRole: "admin" | "player";
+};
+
+export async function fetchMobileFamilyRewards(): Promise<MobileFamilyRewardsState> {
+  const json = (await apiFetch("/families/rewards")) as Partial<MobileFamilyRewardsState>;
+  return {
+    items: Array.isArray(json.items) ? json.items : [],
+    viewerRole: json.viewerRole === "admin" ? "admin" : "player",
+  };
+}
+
+export async function createMobileFamilyReward(body: Record<string, unknown>) {
+  return apiFetch("/families/rewards", { method: "POST", body: JSON.stringify(body) });
+}
+
+export async function updateMobileFamilyReward(rewardId: string, body: Record<string, unknown>) {
+  return apiFetch(`/families/rewards/${encodeURIComponent(rewardId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteMobileFamilyReward(rewardId: string) {
+  return apiFetch(`/families/rewards/${encodeURIComponent(rewardId)}`, { method: "DELETE" });
+}
+
+// ---------------------------------------------------------------------------
+// Family privacy & consent
+// ---------------------------------------------------------------------------
+
+export type MobilePrivacyOverview = {
+  acceptedTermsVersion: string;
+  acceptedPrivacyVersion: string;
+  acceptedLegalVersion: string;
+  parentalConsentAt: string;
+  parentalConsentByUserId: string;
+  parentalConsentByDisplayName: string;
+  familyCreatedAt: string;
+  lastActivityAt: string;
+  deletionRequestedAt: string;
+  deletionScheduledFor: string;
+  currentTermsVersion: string;
+  currentPrivacyVersion: string;
+  currentLegalVersion: string;
+  consentUpToDate: boolean;
+};
+
+export type MobilePrivacyState = {
+  noFamily: boolean;
+  viewerRole: "admin" | "player";
+  overview: MobilePrivacyOverview;
+  dataSummary: { categories: Array<{ key: string; count: number | null }> };
+};
+
+export async function fetchMobileFamilyPrivacy(): Promise<MobilePrivacyState> {
+  return (await apiFetch("/families/privacy")) as MobilePrivacyState;
+}
+
+export async function recordMobileFamilyConsent() {
+  return apiFetch("/families/privacy/consent", {
+    method: "POST",
+    body: JSON.stringify({ dataRegion: "US" }),
+  });
+}
+
+export async function requestMobileFamilyDeletion() {
+  return apiFetch("/families/privacy/deletion", { method: "POST" });
+}
+
+export async function cancelMobileFamilyDeletion() {
+  return apiFetch("/families/privacy/deletion", { method: "DELETE" });
+}
+
+// Mobile has no download destination, so the export comes back as JSON and the
+// caller hands it to the OS share sheet.
+export async function fetchMobileFamilyDataExport(): Promise<unknown> {
+  const json = (await apiFetch("/families/privacy/export")) as { export?: unknown };
+  return json?.export ?? json;
 }

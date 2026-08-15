@@ -22,10 +22,18 @@ import {
   type MobileFamilyMember,
 } from "@/lib/api";
 import { useMobileLocale } from "@/lib/locale";
+import { useFamilyResponsibilityIdentities } from "@/lib/responsibility-identity";
+import { MobileIdentitySummaryStrip } from "@/components/MobileIdentitySummaryStrip";
 import { collapseRoutineChores } from "@/lib/routine-chores";
 import { connectFamilySocket, type FamilyActivityEvent } from "@/lib/ws";
 import { MobileAllDoneCelebration } from "@/components/MobileAllDoneCelebration";
 import { CONFETTI_DURATION_MS, MobileConfetti } from "@/components/MobileConfetti";
+import {
+  MobileIdentityTitleCelebration,
+  identityCelebrationDurationMs,
+  readIdentityTitleCelebration,
+  type MobileIdentityTitleCelebrationData,
+} from "@/components/MobileIdentityTitleCelebration";
 import { MobileRoutineProgressDialog } from "@/components/MobileRoutineProgressDialog";
 import { AvatarBadge, Button, CoinPill } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme";
@@ -43,6 +51,10 @@ type Props = {
 
 type RosterMember = {
   id: string;
+  // Player uid, used to look up that player's Responsibility Identities. Kiosk
+  // rosters only contain accepted members, whose member doc id is the uid, but
+  // read it explicitly rather than relying on that.
+  uid: string;
   name: string;
   avatarUrl: string;
   primaryColor: string;
@@ -85,6 +97,9 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
   const [actionError, setActionError] = React.useState("");
   const [members, setMembers] = React.useState<MobileFamilyMember[]>([]);
   const [roster, setRoster] = React.useState<RosterMember[]>([]);
+  // Earned pillar titles per player, shown on the roster tiles so a shared
+  // tablet recognizes who each child is becoming (matches the web kiosk entry).
+  const identitiesByUid = useFamilyResponsibilityIdentities();
   const [allChores, setAllChores] = React.useState<MobileFamilyChore[]>([]);
   const [coinsByMember, setCoinsByMember] = React.useState<Record<string, number>>({});
   const [realtime, setRealtime] = React.useState<{ authToken: string; familyId: string } | null>(null);
@@ -107,8 +122,11 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
   const [burstKey, setBurstKey] = React.useState(0);
   const [burstLabel, setBurstLabel] = React.useState("");
   const [celebrating, setCelebrating] = React.useState(false);
+  const [identityCelebration, setIdentityCelebration] =
+    React.useState<MobileIdentityTitleCelebrationData | null>(null);
   const burstTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const identityTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(
     () => () => {
@@ -118,9 +136,25 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
       if (refreshTimer.current) {
         clearTimeout(refreshTimer.current);
       }
+      if (identityTimer.current) {
+        clearTimeout(identityTimer.current);
+      }
     },
     [],
   );
+
+  // Show the Responsibility Identity celebration for a beat, then let it go —
+  // the same auto-dismiss the web kiosk uses.
+  function showIdentityCelebration(data: MobileIdentityTitleCelebrationData) {
+    setIdentityCelebration(data);
+    if (identityTimer.current) {
+      clearTimeout(identityTimer.current);
+    }
+    identityTimer.current = setTimeout(() => {
+      setIdentityCelebration(null);
+      identityTimer.current = null;
+    }, identityCelebrationDurationMs(data));
+  }
 
   function celebrate(label = "") {
     setBurstLabel(label);
@@ -157,6 +191,7 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
           }
           return {
             id,
+            uid: member.uid || id,
             name: member.name,
             avatarUrl: memberAvatarUrl(member),
             primaryColor: member.dashboardPrimaryColor ?? "",
@@ -333,7 +368,11 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
     setCompletedIds((current) => ({ ...current, [chore.id]: true }));
     celebrate();
     try {
-      await completeMobileChore(chore.id);
+      const completion = await completeMobileChore(chore.id);
+      const identityData = readIdentityTitleCelebration(completion);
+      if (identityData) {
+        showIdentityCelebration(identityData);
+      }
       const coinValue = chore.coinValue ?? 0;
       if (coinValue > 0 && activeId) {
         setCoinsByMember((current) => ({
@@ -436,6 +475,13 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
                     <Text style={[styles.rosterName, active && styles.rosterNameActive]} numberOfLines={1}>
                       {member.name}
                     </Text>
+                    {identitiesByUid[member.uid] ? (
+                      <MobileIdentitySummaryStrip
+                        identities={identitiesByUid[member.uid]}
+                        limit={active ? 2 : 1}
+                        variant="chips"
+                      />
+                    ) : null}
                     {active ? <CoinPill value={activeCoins} /> : null}
                   </Pressable>
                 );
@@ -547,6 +593,12 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
         onChanged={() => void load()}
       />
 
+      {identityCelebration ? (
+        <View pointerEvents="none" style={styles.identityCelebrationSlot}>
+          <MobileIdentityTitleCelebration data={identityCelebration} />
+        </View>
+      ) : null}
+
       {celebrating ? <MobileConfetti key={burstKey} label={burstLabel || undefined} /> : null}
     </View>
   );
@@ -554,6 +606,12 @@ export function MobileKioskScreen({ activeMemberId, onExited, onSwitched }: Prop
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
+  identityCelebrationSlot: {
+    position: "absolute",
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: spacing.lg,
+  },
   bar: {
     flexDirection: "row",
     alignItems: "center",

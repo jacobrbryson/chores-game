@@ -20,7 +20,7 @@ import {
   resolveAssigneeAvatarPhotoUrl,
   resolveAssigneePrimaryColor,
 } from "@/lib/chores/assignees";
-import { readOptionalSortOrder } from "@/lib/chores/input";
+import { readOptionalSortOrder, resolveStoredNewSkillEnabled } from "@/lib/chores/input";
 
 // Builds the detailed single-chore payload returned by GET /api/chores/[choreId].
 // Resolves the assignee presentation fields and the chore's categories.
@@ -84,6 +84,10 @@ export async function buildChoreDetailPayload(params: {
     recurrenceDays: readStringArray(fields, "recurrenceDays"),
     responsibilityPillar:
       normalizeResponsibilityPillar(readString(fields, "responsibilityPillar")) || undefined,
+    // The chore list endpoint already returns this; the detail endpoint needs it
+    // too so the mobile edit sheet can hydrate the New Skill Bonus checkbox
+    // instead of falling back to the "enabled" default.
+    newSkillEnabled: resolveStoredNewSkillEnabled(fields),
     routineAssignmentId: readString(fields, "routineAssignmentId") || undefined,
     routineId: readString(fields, "routineId") || undefined,
     routineName: readString(fields, "routineName") || undefined,

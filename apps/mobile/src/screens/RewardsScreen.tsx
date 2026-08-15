@@ -9,17 +9,29 @@ import {
   type MobileStoreState,
 } from "@/lib/api";
 import { colors, radius, spacing, typography } from "@/theme";
+import { useMobileLocale } from "@/lib/locale";
 import { MobileCommunityAwardsLibrary } from "@/components/MobileCommunityAwardsLibrary";
 import { AppScreen, AvatarBadge, Button, Card, CoinPill, EmptyState, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
 import { filterActiveMobileStoreCategories } from "@/lib/mobile-feature-surface";
 
 const STORE_CATEGORY_ORDER = ["family_awards", "customize_colors", "customize_avatar", "victory_confetti"];
-const STORE_CATEGORY_LABELS: Record<string, string> = {
-  family_awards: "Family",
-  customize_colors: "Colors",
-  customize_avatar: "Avatars",
-  victory_confetti: "Confetti",
+const STORE_CATEGORY_LABEL_KEYS: Record<string, string> = {
+  family_awards: "store.tabs.family",
+  customize_colors: "store.tabs.colors",
+  customize_avatar: "store.tabs.avatar",
+  victory_confetti: "store.tabs.confetti",
+  quest_items: "store.tabs.quest",
 };
+
+// Raw failure codes the store action endpoints return, mapped onto shared copy so
+// mobile shows the same sentences the web store does instead of the bare code.
+const STORE_ERROR_KEYS: Record<string, string> = {
+  insufficient_funds: "store.notEnoughCoins",
+  recipient_required: "store.rewardRecipientRequired",
+  no_eligible_recipients: "store.noEligibleRecipients",
+};
+
+type Translate = (key: string, params?: Record<string, string | number>) => string;
 
 const FAMILY_REWARD_IMAGE_PATHS: Record<string, string> = {
   screen_time: "/rewards/screens.png",
@@ -69,8 +81,9 @@ function getActionLabel(input: {
   category: MobileStoreCategory;
   option: MobileStoreOption;
   pendingOptionId: string;
+  t: Translate;
 }) {
-  const { store, category, option, pendingOptionId } = input;
+  const { store, category, option, pendingOptionId, t } = input;
   const isPending = pendingOptionId === option.id;
   const optionPrice = getOptionPrice(category, option);
   const canAfford = store.balance >= optionPrice;
@@ -92,36 +105,37 @@ function getActionLabel(input: {
     (option.itemStackable === true || (store.questItemQuantities[option.id] ?? 0) === 0);
 
   if (category.kind === "reward") {
-    if (isPending) return "Redeeming...";
-    return canAfford ? "Redeem" : "Not enough coins";
+    if (isPending) return t("store.redeeming");
+    return canAfford ? t("store.redeem") : t("store.notEnoughCoins");
   }
   if (category.kind === "quest_item") {
-    if (isPending) return "Buying...";
-    if (!questItemCanBuy) return "Owned";
-    return canAfford ? "Buy" : "Not enough coins";
+    if (isPending) return t("store.buying");
+    if (!questItemCanBuy) return t("store.owned");
+    return canAfford ? t("store.buy") : t("store.notEnoughCoins");
   }
   if (isQuestUnlockOption && !owned) {
-    return option.unlockLabel || "Quest Award";
+    return option.unlockLabel || t("store.questAward");
   }
   if (isPending) {
-    return "Saving...";
+    return t("common.actions.saving");
   }
   if (owned || isDefaultConfettiOption) {
     if (applied) {
-      return category.kind === "color" ? "Theme active" : "Applied";
+      return category.kind === "color" ? t("store.themeActive") : t("store.applied");
     }
     if (category.kind === "color") {
-      return "Set theme";
+      return t("store.setTheme");
     }
     if (category.kind === "confetti" && isDefaultConfettiOption) {
-      return "Disable confetti";
+      return t("store.disableConfetti");
     }
-    return "Apply";
+    return t("store.apply");
   }
-  return canAfford ? "Buy" : "Not enough coins";
+  return canAfford ? t("store.buy") : t("store.notEnoughCoins");
 }
 
 export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
+  const { t } = useMobileLocale();
   const [store, setStore] = useState<MobileStoreState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -134,6 +148,14 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
     option: MobileStoreOption;
     isAdmin: boolean;
   } | null>(null);
+  // Admin-only "Redeem for..." step, mirroring the web store: pick which child
+  // the Family Award is charged to and whether it is consumed right away.
+  const [rewardRedemption, setRewardRedemption] = useState<{
+    category: MobileStoreCategory;
+    option: MobileStoreOption;
+  } | null>(null);
+  const [redemptionMemberId, setRedemptionMemberId] = useState("");
+  const [consumeReward, setConsumeReward] = useState(false);
 
   async function loadStore(showLoading = true) {
     if (showLoading) {
@@ -180,6 +202,12 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
     }
     return orderedCategories.find((category) => category.id === selectedCategoryId) ?? orderedCategories[0];
   }, [orderedCategories, selectedCategoryId]);
+
+  const actionErrorText = actionError
+    ? STORE_ERROR_KEYS[actionError]
+      ? t(STORE_ERROR_KEYS[actionError])
+      : actionError
+    : "";
 
   async function runStoreAction(
     optionId: string,
@@ -235,6 +263,23 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
     const isAdmin = store.viewerRole === "admin";
 
     if (isRewardOption) {
+      // Admins redeem on behalf of a family member, so the charge goes against
+      // that member's wallet rather than the parent's own balance.
+      if (isAdmin) {
+        const eligibleMembers = store.redemptionMembers.filter((member) =>
+          member.availableRewardIds.includes(option.id),
+        );
+        if (eligibleMembers.length === 0) {
+          setActionError("no_eligible_recipients");
+          return;
+        }
+        const viewerMember = eligibleMembers.find((member) => member.uid === store.viewerUid);
+        setRedemptionMemberId((viewerMember ?? eligibleMembers[0]).id);
+        setConsumeReward(false);
+        setActionError("");
+        setRewardRedemption({ category, option });
+        return;
+      }
       if (!canAfford) {
         setActionError("insufficient_funds");
         return;
@@ -276,7 +321,12 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
             : { action: "set_confetti", optionId: option.id };
       await runStoreAction(option.id, async () => {
         await postMobileStoreAction(actionBody);
-      }, { message: category.kind === "color" ? `${option.label} is now active` : `${option.label} applied` });
+      }, {
+        message:
+          category.kind === "color"
+            ? t("store.themeNowActive", { item: option.label })
+            : t("store.optionApplied", { item: option.label }),
+      });
       return;
     }
 
@@ -294,21 +344,56 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
     }, { showDialog: { category, option, isAdmin } });
   }
 
+  async function confirmRewardRedemption() {
+    if (!store || !rewardRedemption || pendingOptionId) {
+      return;
+    }
+    const { category, option } = rewardRedemption;
+    const recipient = store.redemptionMembers.find((member) => member.id === redemptionMemberId);
+    if (!recipient) {
+      setActionError("recipient_required");
+      return;
+    }
+    if (recipient.balance < getOptionPrice(category, option)) {
+      setActionError("insufficient_funds");
+      return;
+    }
+    const shouldConsume = consumeReward;
+    setRewardRedemption(null);
+    await runStoreAction(
+      option.id,
+      async () => {
+        await postMobileStoreAction({
+          action: "purchase_option",
+          categoryId: category.id,
+          optionId: option.id,
+          recipientMemberId: recipient.id,
+          consumeReward: shouldConsume,
+        });
+      },
+      { showDialog: { category, option, isAdmin: true } },
+    );
+  }
+
   async function handleGoogleAvatarPress() {
     await runStoreAction("google-avatar", async () => {
       await postMobileStoreAction({ action: "set_google_avatar" });
-    }, { message: "Google avatar applied" });
+    }, { message: t("store.googleAvatarApplied") });
   }
 
   return (
-    <AppScreen title="Store" subtitle="Colors, avatars, confetti, and family awards" right={right} onPressBreadcrumbRoot={onGoDashboard}>
-      {loading ? <LoadingState label="Loading store..." /> : null}
-      {error ? <ErrorState message={`Could not load store: ${error}`} /> : null}
+    <AppScreen
+      title={t("nav.store")}
+      subtitle={t("store.subtitle")}
+      right={right}
+      onPressBreadcrumbRoot={onGoDashboard}>
+      {loading ? <LoadingState label={t("store.loading")} /> : null}
+      {error ? <ErrorState message={t("store.loadError", { error })} /> : null}
       {!loading && !error && store ? (
         <>
           <Card>
             <View style={styles.topRow}>
-              <SectionHeader title="Store Categories" />
+              <SectionHeader title={t("store.categoriesHeading")} />
               <CoinPill value={store.balance} />
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
@@ -317,7 +402,11 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
                 return (
                   <Button
                     key={category.id}
-                    label={STORE_CATEGORY_LABELS[category.id] ?? category.name}
+                    label={
+                      STORE_CATEGORY_LABEL_KEYS[category.id]
+                        ? t(STORE_CATEGORY_LABEL_KEYS[category.id])
+                        : category.name
+                    }
                     variant={active ? "primary" : "secondary"}
                     onPress={() => {
                       setSelectedCategoryId(category.id);
@@ -337,34 +426,34 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
                 <Text style={styles.categoryTitle}>{selectedCategory.name}</Text>
                 <Text style={styles.categoryDescription}>{selectedCategory.description}</Text>
               </View>
-              {actionError ? <ErrorState message={`Store update failed: ${actionError}`} /> : null}
+              {actionError ? <ErrorState message={t("store.updateError", { error: actionErrorText })} /> : null}
               {actionSuccess ? <Text style={styles.successText}>{actionSuccess}</Text> : null}
               {selectedCategory.kind === "reward" && selectedCategory.options.length === 0 ? (
                 <EmptyState
-                  message={
-                    store.viewerRole === "admin"
-                      ? "No family rewards yet. Add them from the Family screen."
-                      : "No family rewards are available right now."
-                  }
+                  message={t(
+                    store.viewerRole === "admin" ? "store.noFamilyAwardsAdmin" : "store.noFamilyAwards",
+                  )}
                 />
               ) : (
                 <View style={styles.optionGrid}>
                   {selectedCategory.kind === "avatar" && store.googlePhotoUrl ? (
                     <View style={styles.optionCard}>
                       <View style={styles.avatarPreviewWrap}>
-                        <AvatarBadge name="Google Avatar" imageUrl={store.googlePhotoUrl} size={72} />
+                        <AvatarBadge name={t("store.googleAvatar")} imageUrl={store.googlePhotoUrl} size={72} />
                       </View>
-                      <Text style={styles.optionTitle}>Google Avatar</Text>
-                      <Text style={styles.optionMeta}>Always available</Text>
+                      <Text style={styles.optionTitle}>{t("store.googleAvatar")}</Text>
+                      <Text style={styles.optionMeta}>{t("store.alwaysAvailable")}</Text>
                       <Button
-                        label={pendingOptionId === "google-avatar" ? "Saving..." : "Use Google avatar"}
+                        label={t(
+                          pendingOptionId === "google-avatar" ? "common.actions.saving" : "store.useGoogleAvatar",
+                        )}
                         disabled={pendingOptionId.length > 0}
                         onPress={() => void handleGoogleAvatarPress()}
                       />
                     </View>
                   ) : null}
                   {selectedCategory.options.map((option) => {
-                    const actionLabel = getActionLabel({ store, category: selectedCategory, option, pendingOptionId });
+                    const actionLabel = getActionLabel({ store, category: selectedCategory, option, pendingOptionId, t });
                     const optionPrice = getOptionPrice(selectedCategory, option);
                     const questCount = store.questItemQuantities[option.id] ?? 0;
                     const isQuestUnlockOption =
@@ -420,21 +509,23 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
                         <Text style={styles.optionTitle}>{option.label}</Text>
                         <Text style={styles.optionMeta}>
                           {selectedCategory.kind === "quest_item"
-                            ? option.itemDescription || "Usable in quests."
+                            ? option.itemDescription || t("store.usableInQuests")
                             : selectedCategory.kind === "reward"
-                              ? `${optionPrice} coins`
+                              ? t("store.coinsAmount", { coins: optionPrice })
                               : selectedCategory.kind === "color" && option.theme
                                 ? `${option.theme.primary.toUpperCase()} / ${option.theme.secondary.toUpperCase()}`
                                 : selectedCategory.kind === "confetti"
                                   ? option.isDefault
-                                    ? "Default celebration"
-                                    : `${optionPrice} coins`
+                                    ? t("store.defaultCelebration")
+                                    : t("store.coinsAmount", { coins: optionPrice })
                                   : isQuestUnlockOption && !store.ownedOptionIds.includes(option.id)
-                                    ? option.unlockLabel || "Quest Award"
-                                    : `${optionPrice} coins`}
+                                    ? option.unlockLabel || t("store.questAward")
+                                    : t("store.coinsAmount", { coins: optionPrice })}
                         </Text>
                         {selectedCategory.kind === "quest_item" && questCount > 0 ? (
-                          <Text style={styles.ownedCount}>Owned: {questCount}</Text>
+                          <Text style={styles.ownedCount}>
+                            {t("store.ownedQuantity", { count: questCount })}
+                          </Text>
                         ) : null}
                         <Button
                           label={actionLabel}
@@ -463,8 +554,11 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
           <View style={styles.modalBackdrop}>
             <View style={styles.successModal}>
               <View style={styles.successModalHeader}>
-                <Text style={styles.successTitle}>Congratulations!</Text>
-                <Pressable onPress={() => setPurchaseSuccess(null)} style={styles.closeButton}>
+                <Text style={styles.successTitle}>{t("store.purchaseSuccessTitle")}</Text>
+                <Pressable
+                  onPress={() => setPurchaseSuccess(null)}
+                  accessibilityLabel={t("common.actions.close")}
+                  style={styles.closeButton}>
                   <Text style={styles.closeButtonText}>✕</Text>
                 </Pressable>
               </View>
@@ -502,32 +596,34 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
               </View>
               <Text style={styles.successMessage}>
                 <Text style={styles.successItemName}>{purchaseSuccess.option.label}</Text>
-                {" has been added to your "}
+                {` ${t("store.purchaseSuccessHasBeenAdded")} `}
                 <Text style={styles.successDestLink}>
-                  {purchaseSuccess.category.kind === "quest_item"
-                    ? "Inventory"
-                    : purchaseSuccess.category.kind === "reward"
-                      ? "Unclaimed Family Awards"
-                      : "Profile"}
+                  {t(
+                    purchaseSuccess.category.kind === "quest_item"
+                      ? "store.purchaseSuccessInventory"
+                      : purchaseSuccess.category.kind === "reward"
+                        ? "store.purchaseSuccessAwards"
+                        : "store.purchaseSuccessProfile",
+                  )}
                 </Text>
                 .
               </Text>
               <View style={styles.successActions}>
                 {purchaseSuccess.category.kind === "quest_item" ? (
                   <Button
-                    label="Back to Quests"
+                    label={t("store.purchaseSuccessBackToQuests")}
                     variant="secondary"
                     onPress={() => setPurchaseSuccess(null)}
                   />
                 ) : purchaseSuccess.category.kind === "reward" && purchaseSuccess.isAdmin ? (
                   <Button
-                    label="Claim Now"
+                    label={t("store.purchaseSuccessClaimNow")}
                     variant="secondary"
                     onPress={() => setPurchaseSuccess(null)}
                   />
                 ) : (purchaseSuccess.category.kind === "color" || purchaseSuccess.category.kind === "avatar" || purchaseSuccess.category.kind === "confetti") ? (
                   <Button
-                    label="Equip Now"
+                    label={t("store.purchaseSuccessEquipNow")}
                     variant="secondary"
                     onPress={() => {
                       const cat = purchaseSuccess.category;
@@ -546,9 +642,91 @@ export function RewardsScreen({ right, onGoDashboard, onStoreUpdated }: Props) {
                   />
                 ) : null}
                 <Button
-                  label="Continue Shopping"
+                  label={t("store.purchaseSuccessContinueShopping")}
                   variant="primary"
                   onPress={() => setPurchaseSuccess(null)}
+                />
+              </View>
+            </View>
+          </View>
+        ) : null}
+      </Modal>
+
+      <Modal
+        visible={Boolean(rewardRedemption)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRewardRedemption(null)}>
+        {rewardRedemption && store ? (
+          <View style={styles.modalBackdrop}>
+            <View style={styles.successModal}>
+              <View style={styles.successModalHeader}>
+                <Text style={styles.successTitle}>
+                  {t("store.redeemRewardTitle", { reward: rewardRedemption.option.label })}
+                </Text>
+                <Pressable
+                  onPress={() => setRewardRedemption(null)}
+                  accessibilityLabel={t("common.actions.close")}
+                  style={styles.closeButton}>
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </Pressable>
+              </View>
+
+              <Text style={styles.redeemFieldLabel}>{t("store.redeemFor")}</Text>
+              <ScrollView style={styles.redeemMemberList} keyboardShouldPersistTaps="handled">
+                {store.redemptionMembers
+                  .filter((member) => member.availableRewardIds.includes(rewardRedemption.option.id))
+                  .map((member) => {
+                    const selected = member.id === redemptionMemberId;
+                    const price = getOptionPrice(rewardRedemption.category, rewardRedemption.option);
+                    const affordable = member.balance >= price;
+                    return (
+                      <Pressable
+                        key={member.id}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected }}
+                        onPress={() => setRedemptionMemberId(member.id)}
+                        style={[styles.redeemMemberRow, selected ? styles.redeemMemberRowSelected : null]}>
+                        <View style={[styles.redeemRadio, selected ? styles.redeemRadioOn : null]} />
+                        <Text style={styles.redeemMemberLabel}>
+                          {t("store.rewardRecipientOption", {
+                            name: member.name,
+                            coins: String(member.balance),
+                          })}
+                        </Text>
+                        {!affordable ? <Text style={styles.redeemShortfall}>!</Text> : null}
+                      </Pressable>
+                    );
+                  })}
+              </ScrollView>
+
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: consumeReward }}
+                onPress={() => setConsumeReward((current) => !current)}
+                style={styles.redeemConsumeRow}>
+                <View style={[styles.redeemCheckbox, consumeReward ? styles.redeemCheckboxOn : null]}>
+                  {consumeReward ? <Text style={styles.redeemCheckboxMark}>✓</Text> : null}
+                </View>
+                <View style={styles.redeemConsumeCopy}>
+                  <Text style={styles.redeemConsumeLabel}>{t("store.consumeRewardNow")}</Text>
+                  <Text style={styles.redeemConsumeHint}>{t("store.consumeRewardNowHelp")}</Text>
+                </View>
+              </Pressable>
+
+              {actionError ? <Text style={styles.redeemError}>{actionErrorText}</Text> : null}
+
+              <View style={styles.successActions}>
+                <Button
+                  label={t("common.actions.cancel")}
+                  variant="secondary"
+                  onPress={() => setRewardRedemption(null)}
+                />
+                <Button
+                  label={pendingOptionId ? t("store.redeeming") : t("store.confirmRedemption")}
+                  variant="primary"
+                  disabled={Boolean(pendingOptionId) || !redemptionMemberId}
+                  onPress={() => void confirmRewardRedemption()}
                 />
               </View>
             </View>
@@ -768,5 +946,97 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     gap: spacing.sm,
     flexWrap: "wrap",
+  },
+  redeemFieldLabel: {
+    fontSize: typography.small,
+    fontWeight: "800",
+    color: colors.text,
+  },
+  redeemMemberList: {
+    maxHeight: 220,
+  },
+  redeemMemberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.xs,
+    backgroundColor: "#fff",
+  },
+  redeemMemberRowSelected: {
+    borderColor: colors.brandStrong,
+    backgroundColor: "#eef6ff",
+  },
+  redeemRadio: {
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: colors.line,
+    backgroundColor: "#fff",
+  },
+  redeemRadioOn: {
+    borderColor: colors.brandStrong,
+    borderWidth: 6,
+  },
+  redeemMemberLabel: {
+    flex: 1,
+    fontSize: typography.body,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  redeemShortfall: {
+    color: colors.danger,
+    fontWeight: "900",
+  },
+  redeemConsumeRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: "#f8fafc",
+    padding: spacing.sm,
+  },
+  redeemCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  redeemCheckboxOn: {
+    borderColor: colors.brandStrong,
+    backgroundColor: colors.brandStrong,
+  },
+  redeemCheckboxMark: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "900",
+    lineHeight: 16,
+  },
+  redeemConsumeCopy: { flex: 1, gap: 2 },
+  redeemConsumeLabel: {
+    fontSize: typography.small,
+    fontWeight: "800",
+    color: colors.text,
+  },
+  redeemConsumeHint: {
+    fontSize: typography.tiny,
+    fontWeight: "700",
+    color: colors.muted,
+  },
+  redeemError: {
+    color: colors.danger,
+    fontSize: typography.small,
+    fontWeight: "700",
   },
 });

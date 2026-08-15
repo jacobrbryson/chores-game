@@ -106,18 +106,22 @@ export async function GET(request: NextRequest) {
           (doc) => readString(doc.fields, "status") === "invited",
         );
 
-        // Build a set of active member emails to detect stale invite orphans
-        // (email-keyed invite docs that were not cleaned up after acceptance).
-        const activeMemberEmails = new Set(
-          activeMemberDocs
-            .map((doc) => readString(doc.fields, "email").toLowerCase())
-            .filter(Boolean),
-        );
+        // Detect stale invite orphans — invite docs left behind after the person
+        // accepted. Identity is uid-keyed since the email-keying migration: this
+        // used to match on the `email` field, which exported the wrong records
+        // for anyone whose address was an Apple private relay, and could merge
+        // two people who happened to share an address.
+        const activeMemberIds = new Set<string>();
+        for (const doc of activeMemberDocs) {
+          const memberId = documentIdFromName(doc.name);
+          if (memberId) activeMemberIds.add(memberId);
+          const uid = readString(doc.fields, "uid");
+          if (uid) activeMemberIds.add(uid);
+        }
         const activeInviteDocs = inviteDocs.filter((doc) => {
-          const email = readString(doc.fields, "email").toLowerCase();
-          // A stale invite is one where the same email already has an active
-          // member record — the invite doc is an orphan from acceptance.
-          return !email || !activeMemberEmails.has(email);
+          const uid = readString(doc.fields, "uid");
+          const memberId = documentIdFromName(doc.name);
+          return !(uid && activeMemberIds.has(uid)) && !activeMemberIds.has(memberId);
         });
 
         const memberUids = activeMemberDocs

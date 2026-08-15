@@ -63,11 +63,13 @@ function FeaturedQuest({
   hasUnlockedQuestPack: boolean;
   onOpenQuest: (questId: string) => Promise<void>;
 }) {
+  const { t } = useMobileLocale();
+
   return (
     <Card style={styles.heroCard}>
       <Image source={{ uri: toAppAssetUrl(quest.coverImage || QUEST_PLACEHOLDER) }} style={styles.heroImage} />
       <View style={styles.heroOverlay}>
-        <Badge label="Featured Quest" />
+        <Badge label={t("quests.featuredQuest")} />
         <Text style={styles.heroTitle}>{quest.title}</Text>
         {quest.summary ? <Text style={styles.heroSummary}>{quest.summary}</Text> : null}
         <Text style={styles.heroMeta}>
@@ -121,9 +123,11 @@ function QuestTile({ quest, onOpenQuest }: { quest: MobileQuestLibraryEntry; onO
 }
 
 function LockedQuestRail() {
+  const { t } = useMobileLocale();
+
   return (
     <View style={styles.railWrap}>
-      <SectionHeader title="Locked Quests" />
+      <SectionHeader title={t("quests.lockedQuests")} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
         {Array.from({ length: 5 }).map((_, index) => (
           <View key={`locked-${index}`} style={[styles.tile, styles.tileLocked]}>

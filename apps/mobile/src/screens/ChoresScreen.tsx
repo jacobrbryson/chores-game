@@ -15,6 +15,7 @@ import {
 import { MobileChoreEditorModal, type MobileChoreEditorSubmitPayload } from "@/components/MobileChoreEditorModal";
 import { loadAllChoresPreferences, saveAllChoresPreferences } from "@/lib/mobile-preferences";
 import { colors, radius, spacing, typography } from "@/theme";
+import { useMobileLocale } from "@/lib/locale";
 import { shouldHideChoreCoinValue } from "@packages/core";
 import {
   AppScreen,
@@ -72,13 +73,15 @@ type Props = {
 
 const PAGE_SIZE = 20;
 
-const SORT_OPTIONS: Array<{ value: ChoreSortBy; label: string }> = [
-  { value: "completedAt", label: "Completed" },
-  { value: "title", label: "Title" },
-  { value: "status", label: "Status" },
-  { value: "assigneeName", label: "Assignee" },
-  { value: "dueDate", label: "Due" },
-  { value: "coinValue", label: "Coins" },
+type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+const SORT_OPTIONS: Array<{ value: ChoreSortBy; labelKey: string }> = [
+  { value: "completedAt", labelKey: "choresPage.sort.completed" },
+  { value: "title", labelKey: "choresPage.sort.title" },
+  { value: "status", labelKey: "choresPage.sort.status" },
+  { value: "assigneeName", labelKey: "choresPage.sort.assignee" },
+  { value: "dueDate", labelKey: "choresPage.sort.due" },
+  { value: "coinValue", labelKey: "choresPage.sort.coins" },
 ];
 
 function avatarUrl(avatarId?: string, avatarPhotoUrl?: string) {
@@ -94,17 +97,18 @@ function getStatusTone(status: string) {
   return "default";
 }
 
-function getStatusLabel(chore: Pick<ChoreRow, "status" | "requireApproval">) {
-  if (chore.status === "Submitted" && chore.requireApproval) return "Awaiting Approval";
-  if (chore.status === "Submitted" || chore.status === "Approved") return "Completed";
-  return chore.status || "Open";
+function getStatusLabel(chore: Pick<ChoreRow, "status" | "requireApproval">, t: Translate) {
+  if (chore.status === "Submitted" && chore.requireApproval) return t("choresPage.status.awaitingApproval");
+  if (chore.status === "Submitted" || chore.status === "Approved") return t("choresPage.status.completed");
+  if (chore.status === "Rejected") return t("choresPage.status.rejected");
+  return chore.status || t("choresPage.status.open");
 }
 
-function formatCompletedDate(value?: string) {
+function formatCompletedDate(value: string | undefined, locale: string) {
   if (!value) return "-";
   const parsed = Date.parse(value);
   if (Number.isNaN(parsed)) return "-";
-  return new Date(parsed).toLocaleDateString();
+  return new Date(parsed).toLocaleDateString(locale);
 }
 
 function getDisplayedCoinValue(chore: Pick<ChoreRow, "choreType" | "status" | "coinValue">) {
@@ -134,6 +138,7 @@ function buildQuery(params: Record<string, string>) {
 }
 
 export function ChoresScreen({ right, onGoDashboard }: Props) {
+  const { locale, t } = useMobileLocale();
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [preferencesViewerKey, setPreferencesViewerKey] = useState("");
   const [loading, setLoading] = useState(true);
@@ -303,7 +308,7 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
     const items = [
       {
         id: "all",
-        label: "All",
+        label: t("choresPage.filters.all"),
         active: statusFilter === "",
         onPress: () => onStatusFilter(""),
       },
@@ -312,7 +317,7 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
     if (viewerRole === "admin") {
       items.push({
         id: "needs_approval",
-        label: "Needs Approval",
+        label: t("choresPage.filters.needsApproval"),
         active: statusFilter === "needs_approval",
         onPress: () => onStatusFilter("needs_approval"),
       });
@@ -320,23 +325,23 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
 
     items.push({
       id: "completed",
-      label: "Completed",
+      label: t("choresPage.filters.completed"),
       active: statusFilter === "completed",
       onPress: () => onStatusFilter("completed"),
     });
 
     return items;
-  }, [statusFilter, viewerRole]);
+  }, [statusFilter, t, viewerRole]);
 
   const sortChipItems = useMemo(
     () =>
       SORT_OPTIONS.map((option) => ({
         id: option.value,
-        label: sortLabel(sortBy, sortDir, option.value, option.label),
+        label: sortLabel(sortBy, sortDir, option.value, t(option.labelKey)),
         active: sortBy === option.value,
         onPress: () => onSort(option.value),
       })),
-    [sortBy, sortDir],
+    [sortBy, sortDir, t],
   );
 
   async function approveChore(choreId: string) {
@@ -479,13 +484,17 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
   }
 
   return (
-    <AppScreen title="All Chores" subtitle="Sort, filter, and approve chores" right={right} onPressBreadcrumbRoot={onGoDashboard}>
+    <AppScreen
+      title={t("choresPage.allChoresTitle")}
+      subtitle={t("breadcrumbs.choresSubtitle")}
+      right={right}
+      onPressBreadcrumbRoot={onGoDashboard}>
       <Card style={styles.controlsCard}>
         <View style={styles.searchRow}>
           <TextInput
             value={searchInput}
             onChangeText={setSearchInput}
-            placeholder="Search chores (3+ chars)"
+            placeholder={t("choresPage.controls.searchPlaceholderMobile")}
             placeholderTextColor={colors.muted}
             style={[styles.searchInput, styles.searchInputExpanded]}
           />
@@ -498,32 +507,36 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
         {filtersExpanded ? (
           <>
             <View style={styles.optionRow}>
-              <Text style={styles.sectionLabel}>Filters</Text>
+              <Text style={styles.sectionLabel}>{t("choresPage.controls.filters")}</Text>
               <ChipOverflowRow items={filterChipItems} />
             </View>
             <View style={styles.optionRow}>
-              <Text style={styles.sectionLabel}>Sorting</Text>
+              <Text style={styles.sectionLabel}>{t("choresPage.controls.sorting")}</Text>
               <ChipOverflowRow items={sortChipItems} />
             </View>
           </>
         ) : null}
       </Card>
 
-      {loading ? <LoadingState label="Loading chores..." /> : null}
-      {error ? <ErrorState message={`Could not load chores: ${error}`} /> : null}
-      {actionError ? <ErrorState message={`Chore update failed: ${actionError}`} /> : null}
+      {loading ? <LoadingState label={t("choresPage.loading")} /> : null}
+      {error ? <ErrorState message={t("choresPage.loadError", { error })} /> : null}
+      {actionError ? <ErrorState message={t("choresPage.updateError", { error: actionError })} /> : null}
 
       {!loading && !error ? (
         <>
           {items.length === 0 ? (
             <Card>
-              <EmptyState message="No chores found." />
+              <EmptyState message={t("choresPage.empty")} />
             </Card>
           ) : (
             <Card style={styles.listCard}>
               <View style={styles.listHeader}>
-                <Text style={styles.summaryText}>{total} chore{total === 1 ? "" : "s"}</Text>
-                {statusFilter === "needs_approval" ? <Badge label="Approval queue" tone="warning" /> : null}
+                <Text style={styles.summaryText}>
+                  {t("choresPage.total", { count: total, suffix: total === 1 ? "" : "s" })}
+                </Text>
+                {statusFilter === "needs_approval" ? (
+                  <Badge label={t("choresPage.approvalQueue")} tone="warning" />
+                ) : null}
               </View>
               <View style={styles.list}>
                 {items.map((item) => {
@@ -534,11 +547,14 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
                       <View style={styles.choreRow}>
                         <Pressable
                           accessibilityRole="button"
-                          accessibilityLabel={`${expanded ? "Hide" : "Show"} details for ${item.title}`}
+                          accessibilityLabel={t(
+                            expanded ? "choresPage.details.hideAriaLabel" : "choresPage.details.showAriaLabel",
+                            { title: item.title },
+                          )}
                           onPress={() => setExpandedChoreId((current) => (current === item.id ? "" : item.id))}
                           style={({ pressed }) => [styles.choreSummaryButton, pressed ? styles.actionPressed : null]}>
                           <AvatarBadge
-                            name={item.assigneeName || "Assignee"}
+                            name={item.assigneeName || t("choresPage.assigneeFallback")}
                             imageUrl={avatarUrl(item.assigneeAvatarId, item.assigneeAvatarPhotoUrl)}
                             color={item.assigneePrimaryColor}
                             size={40}
@@ -546,13 +562,15 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
                           <View style={styles.choreSummaryCopy}>
                             <View style={styles.choreSummaryTitleRow}>
                               <Text style={styles.titleText} numberOfLines={1}>{item.title}</Text>
-                              <Badge label={getStatusLabel(item)} tone={getStatusTone(item.status)} />
+                              <Badge label={getStatusLabel(item, t)} tone={getStatusTone(item.status)} />
                             </View>
                             <View style={styles.choreSummaryMetaRow}>
                               <View style={styles.coinsInline}>
                                 {getDisplayedCoinValue(item) === "-" ? <Text style={styles.summaryMetaText}>-</Text> : <CoinPill value={item.coinValue ?? 0} />}
                               </View>
-                              <Text style={styles.summaryMetaText}>{expanded ? "Hide details" : "Show details"}</Text>
+                              <Text style={styles.summaryMetaText}>
+                                {t(expanded ? "choresPage.details.hide" : "choresPage.details.show")}
+                              </Text>
                             </View>
                           </View>
                           <Text style={styles.chevron}>{expanded ? "v" : ">"}</Text>
@@ -560,7 +578,7 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
                         {viewerRole === "admin" ? (
                           <Pressable
                             accessibilityRole="button"
-                            accessibilityLabel="Chore options"
+                            accessibilityLabel={t("choresPage.menu.choreOptions")}
                             disabled={Boolean(actionBusyId)}
                             onPress={() => setMenuChoreId(item.id)}
                             style={({ pressed }) => [
@@ -575,18 +593,27 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
                       {expanded ? (
                         <View style={styles.expandedSection}>
                           <View style={styles.detailGrid}>
-                            <DetailTile label="Assignee" value={item.assigneeName || "-"} />
-                            <DetailTile label="Due" value={item.dueDate || "-"} />
-                            <DetailTile label="Completed" value={formatCompletedDate(item.completedAt)} />
+                            <DetailTile label={t("choresPage.columns.assignee")} value={item.assigneeName || "-"} />
+                            <DetailTile label={t("choresPage.columns.due")} value={item.dueDate || "-"} />
                             <DetailTile
-                              label="Categories"
-                              value={(item.categories ?? []).length > 0 ? (item.categories ?? []).map((category) => category.name).join(", ") : "None"}
+                              label={t("choresPage.columns.completed")}
+                              value={formatCompletedDate(item.completedAt, locale)}
+                            />
+                            <DetailTile
+                              label={t("choresPage.columns.categories")}
+                              value={
+                                (item.categories ?? []).length > 0
+                                  ? (item.categories ?? []).map((category) => category.name).join(", ")
+                                  : t("common.labels.none")
+                              }
                             />
                           </View>
                           {viewerRole === "admin" && needsApproval ? (
                             <View style={styles.approvalActions}>
                               <Button
-                                label={actionBusyId === item.id ? "Approving..." : "Approve"}
+                                label={t(
+                                  actionBusyId === item.id ? "choresPage.actions.approving" : "choresPage.actions.approve",
+                                )}
                                 disabled={Boolean(actionBusyId)}
                                 variant="success"
                                 onPress={() => void approveChore(item.id)}
@@ -600,9 +627,9 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
                 })}
               </View>
               <View style={styles.pager}>
-                <Button label="Previous" variant="secondary" disabled={page <= 1} onPress={() => setPage((current) => Math.max(1, current - 1))} />
-                <Text style={styles.pagerText}>Page {page} of {totalPages}</Text>
-                <Button label="Next" variant="secondary" disabled={page >= totalPages} onPress={() => setPage((current) => Math.min(totalPages, current + 1))} />
+                <Button label={t("choresPage.pager.previous")} variant="secondary" disabled={page <= 1} onPress={() => setPage((current) => Math.max(1, current - 1))} />
+                <Text style={styles.pagerText}>{t("choresPage.pager.pageOf", { page, totalPages })}</Text>
+                <Button label={t("choresPage.pager.next")} variant="secondary" disabled={page >= totalPages} onPress={() => setPage((current) => Math.min(totalPages, current + 1))} />
               </View>
             </Card>
           )}
@@ -611,9 +638,11 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
       <Modal visible={Boolean(menuChoreId)} transparent animationType="fade" onRequestClose={() => setMenuChoreId("")}>
         <Pressable style={styles.backdrop} onPress={() => setMenuChoreId("")}>
           <Pressable style={styles.sheet} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>{items.find((item) => item.id === menuChoreId)?.title ?? "Chore options"}</Text>
+            <Text style={styles.sheetTitle}>
+              {items.find((item) => item.id === menuChoreId)?.title ?? t("choresPage.menu.choreOptions")}
+            </Text>
             <Button
-              label={actionBusyId === menuChoreId ? "Approving..." : "Approve"}
+              label={t(actionBusyId === menuChoreId ? "choresPage.actions.approving" : "choresPage.actions.approve")}
               variant="success"
               disabled={
                 !canApproveChore(items.find((item) => item.id === menuChoreId) ?? { status: "", requireApproval: false }) ||
@@ -628,7 +657,7 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
               }}
             />
             <Button
-              label={actionBusyId === menuChoreId ? "Rejecting..." : "Reject"}
+              label={t(actionBusyId === menuChoreId ? "choresPage.actions.rejecting" : "choresPage.actions.reject")}
               variant="secondary"
               disabled={
                 !canApproveChore(items.find((item) => item.id === menuChoreId) ?? { status: "", requireApproval: false }) ||
@@ -642,7 +671,7 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
               }}
             />
             <Button
-              label={actionBusyId === menuChoreId ? "Undoing..." : "Undo completion"}
+              label={t(actionBusyId === menuChoreId ? "choresPage.actions.undoing" : "choresPage.actions.undoCompletion")}
               variant="secondary"
               disabled={!canUndoCompletion(items.find((item) => item.id === menuChoreId)?.status ?? "") || actionBusyId === menuChoreId}
               onPress={() => {
@@ -653,9 +682,9 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
                 }
               }}
             />
-            <Button label="Edit" variant="secondary" onPress={() => void openEditModal(menuChoreId)} />
+            <Button label={t("common.actions.edit")} variant="secondary" onPress={() => void openEditModal(menuChoreId)} />
             <Button
-              label={actionBusyId === menuChoreId ? "Deleting..." : "Delete"}
+              label={t(actionBusyId === menuChoreId ? "choresPage.actions.deleting" : "common.actions.delete")}
               variant="danger"
               disabled={actionBusyId === menuChoreId}
               onPress={() => {
@@ -672,22 +701,26 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
       <Modal visible={Boolean(pendingRejectChore)} transparent animationType="fade" onRequestClose={() => setPendingRejectChore(null)}>
         <Pressable style={styles.backdrop} onPress={() => setPendingRejectChore(null)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>Reject Chore</Text>
+            <Text style={styles.sheetTitle}>{t("choresPage.modals.rejectTitle")}</Text>
             <Text style={styles.confirmText}>
-              Reject <Text style={styles.confirmTextStrong}>{pendingRejectChore?.title ?? "this chore"}</Text>? Feedback is optional.
+              {t("choresPage.modals.rejectPrompt", {
+                title: pendingRejectChore?.title ?? t("choresPage.thisChore"),
+              })}
             </Text>
             <TextInput
               value={rejectFeedback}
               onChangeText={setRejectFeedback}
-              placeholder="Tell them what needs to be fixed..."
+              placeholder={t("choresPage.modals.feedbackPlaceholder")}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
               style={[styles.searchInput, styles.rejectInput]}
             />
-            <Button label="Cancel" variant="secondary" onPress={() => setPendingRejectChore(null)} />
+            <Button label={t("common.actions.cancel")} variant="secondary" onPress={() => setPendingRejectChore(null)} />
             <Button
-              label={actionBusyId === pendingRejectChore?.id ? "Rejecting..." : "Reject"}
+              label={t(
+                actionBusyId === pendingRejectChore?.id ? "choresPage.actions.rejecting" : "choresPage.actions.reject",
+              )}
               variant="danger"
               disabled={actionBusyId === pendingRejectChore?.id}
               onPress={async () => {
@@ -708,13 +741,17 @@ export function ChoresScreen({ right, onGoDashboard }: Props) {
       <Modal visible={Boolean(pendingDeleteChore)} transparent animationType="fade" onRequestClose={() => setPendingDeleteChore(null)}>
         <Pressable style={styles.backdrop} onPress={() => setPendingDeleteChore(null)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>Delete Chore</Text>
+            <Text style={styles.sheetTitle}>{t("choresPage.modals.deleteTitle")}</Text>
             <Text style={styles.confirmText}>
-              Delete <Text style={styles.confirmTextStrong}>{pendingDeleteChore?.title ?? "this chore"}</Text>?
+              {t("choresPage.modals.deletePrompt", {
+                title: pendingDeleteChore?.title ?? t("choresPage.thisChore"),
+              })}
             </Text>
-            <Button label="Cancel" variant="secondary" onPress={() => setPendingDeleteChore(null)} />
+            <Button label={t("common.actions.cancel")} variant="secondary" onPress={() => setPendingDeleteChore(null)} />
             <Button
-              label={actionBusyId === pendingDeleteChore?.id ? "Deleting..." : "Delete"}
+              label={t(
+                actionBusyId === pendingDeleteChore?.id ? "choresPage.actions.deleting" : "common.actions.delete",
+              )}
               variant="danger"
               disabled={actionBusyId === pendingDeleteChore?.id}
               onPress={() => {
@@ -842,6 +879,5 @@ const styles = StyleSheet.create({
   sheet: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: "#fff", padding: spacing.lg, gap: spacing.sm },
   sheetTitle: { color: colors.text, fontSize: typography.h3, fontWeight: "900" },
   confirmText: { color: colors.muted, fontSize: typography.body, fontWeight: "700" },
-  confirmTextStrong: { color: colors.text, fontWeight: "900" },
   rejectInput: { minHeight: 110, paddingVertical: spacing.sm },
 });
