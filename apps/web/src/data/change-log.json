@@ -1,5 +1,37 @@
 [
   {
+    "id": "parent-can-update-child-email",
+    "date": "2026-08-17",
+    "type": "Feature",
+    "subject": "Parents can update a child's email address",
+    "description": "Fixed a wrong address on a child's profile? Parents can now change it from the child's profile page on the website, or from Manage Family in the mobile app. If the child has not signed in yet, the new address does not take effect until a fresh single-use invite code is used, and any code sent to the old address stops working straight away. If the child already signs in with their own account, the new address is saved as a contact detail and their sign-in stays exactly as it was.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "profile-switch-pin-can-be-saved",
+    "date": "2026-08-17",
+    "type": "Bug Fix",
+    "subject": "Your profile switch PIN now saves correctly",
+    "description": "Setting a 4-digit PIN silently failed on both the website and the mobile app, which meant Switch To always reported that no PIN was set up and Kiosk Mode let anyone leave without entering one. PINs now save properly, so switching into a child's profile and exiting Kiosk Mode both ask for your PIN again.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "aggregate-achievements-track-progress",
+    "date": "2026-08-17",
+    "type": "Bug Fix",
+    "subject": "Streak, daily, and weekly achievements count your chores again",
+    "description": "Achievements that add up chores over time — like Triple Sweep, Weekly Wipeout, the chore streaks, Category Explorer, and Family Teamwork — were stuck at 0%. They now count completed chores properly, and the date an achievement was earned is kept. Store unlock achievements also catch up on your next purchase if you already owned the items.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "feed-cards-drop-stale-links",
+    "date": "2026-08-17",
+    "type": "Bug Fix",
+    "subject": "Family Feed cards no longer link to the wrong place",
+    "description": "The link at the bottom of each feed card could point somewhere unrelated — another family's activity, or a single chore page for a card summarizing a whole day. Those links are gone. Copy buttons for a friend family's awards and routines still work as before.",
+    "image": "/file.svg"
+  },
+  {
     "id": "mobile-custom-avatar-display",
     "date": "2026-08-16",
     "type": "Bug Fix",

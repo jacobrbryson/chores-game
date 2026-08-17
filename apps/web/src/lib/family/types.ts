@@ -23,6 +23,8 @@ export type FamilySnapshotMember = {
   uid?: string;
   name: string;
   email: string;
+  /** Address awaiting invite-code redemption; not yet this member's address. */
+  pendingEmail?: string;
   role: "admin" | "player";
   status: "active" | "invited";
   locale?: AppLocale;

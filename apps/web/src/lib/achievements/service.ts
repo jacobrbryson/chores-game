@@ -9,6 +9,7 @@ import {
   readInteger,
   readString,
   readStringArray,
+  readTimestamp,
   stringField,
   timestampField,
   type FirestoreValue,
@@ -93,8 +94,12 @@ function toProgressDoc(
     target: normalizeInt(readInteger(fields, "target")),
     percentComplete: normalizeInt(readInteger(fields, "percentComplete")),
     completed: readBoolean(fields, "completed"),
-    completedAt: readString(fields, "completedAt") || undefined,
-    updatedAt: readString(fields, "updatedAt") || "",
+    // completedAt/updatedAt are written with timestampField (completedAt falls
+    // back to an empty stringValue when unset), so both wrappers must be read.
+    // readString alone always returned "", which erased the unlock date on the
+    // next write and left the UI with no "earned on" value.
+    completedAt: readTimestamp(fields, "completedAt") || undefined,
+    updatedAt: readTimestamp(fields, "updatedAt") || "",
     lastEventId: readString(fields, "lastEventId") || undefined,
   };
 }
@@ -320,7 +325,12 @@ export async function computeCompletionDerivedMaximums(params: {
     if (status !== "Submitted" && status !== "Approved") {
       continue;
     }
-    const completedAt = readString(chore.fields, "submittedAt") || readString(chore.fields, "updatedAt");
+    // submittedAt/updatedAt are written with timestampField, so Firestore REST
+    // returns them as timestampValue. readString only understands stringValue and
+    // would return "" for every chore, skipping the whole loop and pinning every
+    // derived maximum at 0. readTimestamp accepts both shapes.
+    const completedAt =
+      readTimestamp(chore.fields, "submittedAt") || readTimestamp(chore.fields, "updatedAt");
     if (!completedAt) {
       continue;
     }

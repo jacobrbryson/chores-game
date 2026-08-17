@@ -43,6 +43,7 @@ import { listFamilyRewards, type FamilyReward } from "@/lib/family/rewards";
 import { emitFamilyActivity } from "@/lib/notifications/events";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { trackAchievementEvent } from "@/lib/achievements/service";
+import { deriveStoreUnlockMaximums } from "@/lib/achievements/store-unlocks";
 import { buildOwnedItemsSummary } from "@/lib/items/owned-items";
 import { recordOperationMetric } from "@/lib/observability/metrics";
 import { buildRewardClaimFields } from "@/lib/store/reward-redemption";
@@ -1122,36 +1123,11 @@ export async function POST(request: NextRequest) {
             return { kind: "ok" as const };
           }
 
-          const categoryPurchasableOptionIds = category.options
-            .filter((entry) => !entry.isDefault)
-            .map((entry) => entry.id);
-          const ownedBeforeCount = categoryPurchasableOptionIds.filter((optionId) => ownedOptionIds.has(optionId)).length;
           ownedOptionIds.add(option.id);
-          const ownedAfterCount = categoryPurchasableOptionIds.filter((optionId) => ownedOptionIds.has(optionId)).length;
-          const unlockDeltas: Record<string, number> = {};
-          const unlockMaximums: Record<string, number> = {};
-          if (category.kind === "color") {
-            if (ownedBeforeCount === 0 && ownedAfterCount > 0) {
-              unlockDeltas.store_color_unlocks = 1;
-            }
-            if (categoryPurchasableOptionIds.length > 0 && ownedAfterCount >= categoryPurchasableOptionIds.length) {
-              unlockMaximums.store_color_collection_complete = 1;
-            }
-          } else if (category.kind === "avatar") {
-            if (ownedBeforeCount === 0 && ownedAfterCount > 0) {
-              unlockDeltas.store_avatar_unlocks = 1;
-            }
-            if (categoryPurchasableOptionIds.length > 0 && ownedAfterCount >= categoryPurchasableOptionIds.length) {
-              unlockMaximums.store_avatar_collection_complete = 1;
-            }
-          } else if (category.kind === "confetti") {
-            if (ownedBeforeCount === 0 && ownedAfterCount > 0) {
-              unlockDeltas.store_confetti_unlocks = 1;
-            }
-            if (categoryPurchasableOptionIds.length > 0 && ownedAfterCount >= categoryPurchasableOptionIds.length) {
-              unlockMaximums.store_confetti_collection_complete = 1;
-            }
-          }
+          // Derived from the full owned set across every store kind, so a single
+          // purchase also back-fills unlock achievements the player already
+          // earned before these counters existed.
+          const unlockMaximums = deriveStoreUnlockMaximums(ownedOptionIds);
           await patchDocument(
             `users/${uid}`,
             {
@@ -1171,7 +1147,6 @@ export async function POST(request: NextRequest) {
               eventId: `store_purchase_option_${option.id}`,
               metricDeltas: {
                 store_purchases: 1,
-                ...unlockDeltas,
               },
               metricMaximums: unlockMaximums,
             });

@@ -11,6 +11,7 @@ import {
   readBoolean,
   readInteger,
   readString,
+  readTimestamp,
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
@@ -210,7 +211,9 @@ export async function toggleVote(input: {
           uid: stringField(input.uid),
           familyId: input.familyId ? stringField(input.familyId) : nullField(),
           value: integerField(1),
-          createdAt: timestampField(existingVote ? readString(existingVote.fields, "createdAt") || now : now),
+          // Stored as a timestamp, so it must be read as one — readString
+          // returned "" and silently reset createdAt to now on every re-vote.
+          createdAt: timestampField(existingVote ? readTimestamp(existingVote.fields, "createdAt") || now : now),
           updatedAt: timestampField(now),
         },
       },

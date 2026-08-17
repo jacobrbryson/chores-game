@@ -110,16 +110,6 @@ function formatDayLabel(
   });
 }
 
-function feedActionHref(action: FeedActionType | null): string | null {
-  if (action === "view_chore") {
-    return "/chores";
-  }
-  if (action === "view_reward") {
-    return "/store";
-  }
-  return null;
-}
-
 function FeedSkeleton({ label, compact = false }: { label: string; compact?: boolean }) {
   return (
     <section className="feed-list" aria-label={label} aria-hidden="true">
@@ -275,11 +265,10 @@ export function FamilyFeedPanel({ scope = "all", compact = false }: FamilyFeedPa
       ) : null}
       <div className="feed-list">
       {items.map((item) => {
-        // A completed chore is what a parent reviews in the Approval Inbox, so
-        // deep-link those events straight there (the page redirects non-parents
-        // home). Other chore/reward events keep their existing destinations.
-        const isApprovalEvent = item.type === "chore_completed" && !item.sourceFamily.isFriend;
-        const href = isApprovalEvent ? "/approvals" : feedActionHref(item.action);
+        // Feed cards carry no destination link. A card can describe another
+        // family's activity (friend feed), and a day roll-up stands in for many
+        // chores at once, so no single "view chore"/"view reward" page is the
+        // right target. Real actions (copy award / copy routine) stay as buttons.
         // A finished routine and a daily roll-up both replace the per-chore cards
         // they cover, so both list the chores instead.
         const dayChores = item.metadata.dayChores ?? [];
@@ -305,11 +294,6 @@ export function FamilyFeedPanel({ scope = "all", compact = false }: FamilyFeedPa
               when: formatDayLabel(item.metadata.day ?? "", locale, t),
             })
           : item.message;
-        const actionLabel = isApprovalEvent
-          ? t("feed.actions.reviewApproval")
-          : item.action === "view_reward"
-            ? t("feed.actions.viewReward")
-            : t("feed.actions.viewChore");
         return (
           <article
             key={item.id}
@@ -364,11 +348,6 @@ export function FamilyFeedPanel({ scope = "all", compact = false }: FamilyFeedPa
                     </li>
                   ))}
                 </ul>
-              ) : null}
-              {href ? (
-                <Link href={href} className="feed-card-action">
-                  {actionLabel}
-                </Link>
               ) : null}
               {item.action === "copy_friend_award" && item.sourceFamily.isFriend && item.metadata.rewardId ? (
                 <span title={copyPendingId ? t("familyFriends.disabled.actionPending") : undefined}>

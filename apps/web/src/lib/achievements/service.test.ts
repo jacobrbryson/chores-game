@@ -1,46 +1,60 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  integerField,
+  readInteger,
+  stringArrayField,
+  stringField,
+  timestampField,
+  type FirestoreValue,
+} from "@/lib/firestore/rest";
 
-const mockCreateOrReplaceDocument = vi.fn();
-const mockGetDocument = vi.fn();
-const mockListDocuments = vi.fn();
-const mockListAllDocuments = vi.fn();
-const mockPublishAchievementUnlocked = vi.fn();
-
-const achievementDocs = new Map<string, Record<string, unknown>>();
-let achievementStateDoc: Record<string, unknown> | null = null;
-let choreDocs: Array<{ name: string; fields: Record<string, unknown> }> = [];
-
-type ArrayFieldValue = { arrayValue?: { values?: Array<{ stringValue?: string }> } };
-
-vi.mock("@/lib/firestore/rest", () => ({
-  createOrReplaceDocument: mockCreateOrReplaceDocument,
-  getDocument: mockGetDocument,
-  listDocuments: mockListDocuments,
-  listAllDocuments: mockListAllDocuments,
-  documentIdFromName: (name: string) => name.split("/").pop() ?? "",
-  integerField: (value: number) => value,
-  readBoolean: (fields: Record<string, unknown> | undefined, key: string) =>
-    Boolean(fields?.[key]),
-  readInteger: (fields: Record<string, unknown> | undefined, key: string) =>
-    typeof fields?.[key] === "number" ? Number(fields[key]) : 0,
-  readString: (fields: Record<string, unknown> | undefined, key: string) =>
-    typeof fields?.[key] === "string" ? String(fields[key]) : "",
-  readStringArray: (fields: Record<string, unknown> | undefined, key: string) => {
-    const value = fields?.[key];
-    if (Array.isArray(value)) {
-      return value.filter((entry): entry is string => typeof entry === "string");
-    }
-    const wrapped = value as ArrayFieldValue | undefined;
-    if (wrapped && typeof wrapped === "object" && wrapped.arrayValue) {
-      return (wrapped.arrayValue.values ?? [])
-        .map((entry) => entry.stringValue)
-        .filter((entry): entry is string => typeof entry === "string");
-    }
-    return [];
-  },
-  stringField: (value: string) => value,
-  timestampField: (value: string) => value,
+// Hoisted so the vi.mock factories below (which are lifted above the imports)
+// can close over them.
+const {
+  mockCreateOrReplaceDocument,
+  mockGetDocument,
+  mockListDocuments,
+  mockListAllDocuments,
+  mockPublishAchievementUnlocked,
+} = vi.hoisted(() => ({
+  mockCreateOrReplaceDocument: vi.fn(),
+  mockGetDocument: vi.fn(),
+  mockListDocuments: vi.fn(),
+  mockListAllDocuments: vi.fn(),
+  mockPublishAchievementUnlocked: vi.fn(),
 }));
+
+const achievementDocs = new Map<string, Record<string, FirestoreValue>>();
+let achievementStateDoc: Record<string, FirestoreValue> | null = null;
+let choreDocs: Array<{ name: string; fields: Record<string, FirestoreValue> }> = [];
+
+// Only the network-touching helpers are stubbed. The field builders and readers
+// are the real ones, so fixtures must use the same typed wrappers Firestore REST
+// actually returns — a reader/writer type mismatch (e.g. reading a timestampValue
+// with readString) fails here instead of silently returning "" in production.
+vi.mock("@/lib/firestore/rest", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/firestore/rest")>();
+  return {
+    ...actual,
+    createOrReplaceDocument: mockCreateOrReplaceDocument,
+    getDocument: mockGetDocument,
+    listDocuments: mockListDocuments,
+    listAllDocuments: mockListAllDocuments,
+  };
+});
+
+function boolValue(value: boolean): FirestoreValue {
+  return { booleanValue: value };
+}
+
+function progressOf(achievementId: string) {
+  return readInteger(achievementDocs.get(achievementId), "progress");
+}
+
+function completedFlag(achievementId: string) {
+  const field = achievementDocs.get(achievementId)?.completed;
+  return Boolean(field && "booleanValue" in field && field.booleanValue);
+}
 
 vi.mock("@/lib/ws/publish-achievement-unlocked", () => ({
   publishAchievementUnlocked: mockPublishAchievementUnlocked,
@@ -72,7 +86,11 @@ describe("achievement service", () => {
         return [
           {
             name: "projects/test/databases/(default)/documents/families/fam-1/members/player-1",
-            fields: { uid: "player-1", deleted: false, email: "player@example.com" },
+            fields: {
+              uid: stringField("player-1"),
+              deleted: boolValue(false),
+              email: stringField("player@example.com"),
+            },
           },
         ];
       }
@@ -90,15 +108,15 @@ describe("achievement service", () => {
         return { fields: achievementStateDoc };
       }
       if (path === "users/player-1") {
-        return { fields: { locale: "es-US" } };
+        return { fields: { locale: stringField("es-US") } };
       }
       if (path === "families/fam-1") {
-        return { fields: { defaultLocale: "en-US" } };
+        return { fields: { defaultLocale: stringField("en-US") } };
       }
       throw new Error(`UNEXPECTED_GET_${path}`);
     });
 
-    mockCreateOrReplaceDocument.mockImplementation(async (path: string, fields: Record<string, unknown>) => {
+    mockCreateOrReplaceDocument.mockImplementation(async (path: string, fields: Record<string, FirestoreValue>) => {
       if (path.startsWith("users/player-1/achievements/")) {
         achievementDocs.set(path.split("/").pop() ?? "", fields);
         return;
@@ -129,9 +147,8 @@ describe("achievement service", () => {
       eventId: "evt-1",
       metricDeltas: { chores_completed: 1 },
     });
-    const firstChoreDoc = achievementDocs.get("player_first_chore");
-    expect(firstChoreDoc?.progress).toBe(1);
-    expect(firstChoreDoc?.percentComplete).toBe(100);
+    expect(progressOf("player_first_chore")).toBe(1);
+    expect(readInteger(achievementDocs.get("player_first_chore"), "percentComplete")).toBe(100);
     expect(mockPublishAchievementUnlocked).toHaveBeenCalledTimes(1);
   });
 
@@ -200,25 +217,25 @@ describe("achievement service", () => {
       metricDeltas: { admin_chores_approved: 1 },
     });
 
-    expect((achievementDocs.get("player_first_chore")?.completed as { booleanValue: boolean }).booleanValue).toBe(true);
-    expect((achievementDocs.get("player_first_approval")?.completed as { booleanValue: boolean }).booleanValue).toBe(true);
-    expect((achievementDocs.get("player_first_coin")?.completed as { booleanValue: boolean }).booleanValue).toBe(true);
-    expect((achievementDocs.get("player_first_purchase")?.completed as { booleanValue: boolean }).booleanValue).toBe(true);
-    expect((achievementDocs.get("player_first_reward")?.completed as { booleanValue: boolean }).booleanValue).toBe(true);
-    expect((achievementDocs.get("admin_first_chore_created")?.completed as { booleanValue: boolean }).booleanValue).toBe(true);
-    expect((achievementDocs.get("admin_first_approval")?.completed as { booleanValue: boolean }).booleanValue).toBe(true);
+    expect(completedFlag("player_first_chore")).toBe(true);
+    expect(completedFlag("player_first_approval")).toBe(true);
+    expect(completedFlag("player_first_coin")).toBe(true);
+    expect(completedFlag("player_first_purchase")).toBe(true);
+    expect(completedFlag("player_first_reward")).toBe(true);
+    expect(completedFlag("admin_first_chore_created")).toBe(true);
+    expect(completedFlag("admin_first_approval")).toBe(true);
   });
 
   it("returns admin achievements as locked/restricted for player viewers", async () => {
     achievementDocs.set("admin_first_chore_created", {
-      achievementId: "admin_first_chore_created",
-      progress: 1,
-      target: 1,
-      percentComplete: 100,
-      completed: true,
-      completedAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-      lastEventId: "evt",
+      achievementId: stringField("admin_first_chore_created"),
+      progress: integerField(1),
+      target: integerField(1),
+      percentComplete: integerField(100),
+      completed: boolValue(true),
+      completedAt: timestampField("2026-01-01T00:00:00.000Z"),
+      updatedAt: timestampField("2026-01-01T00:00:00.000Z"),
+      lastEventId: stringField("evt"),
     });
     const { getAchievementViewForUser } = await import("./service");
     const response = await getAchievementViewForUser({
@@ -272,38 +289,40 @@ describe("achievement service", () => {
   it("counts family-scope and multi-assignee chores in completion-derived maximums", async () => {
     // Group, family, and multi-assignee chores persist an empty singular
     // assigneeId, so matching only on that field would leave these metrics at 0.
+    // submittedAt uses timestampField exactly as the chore-completion route
+    // writes it, so this fixture also pins that the reader accepts timestamps.
     choreDocs = [
       {
         name: "families/fam-1/chores/family-chore",
         fields: {
-          status: "Approved",
-          submittedAt: "2026-06-17T09:00:00.000Z",
-          assigneeScope: "family",
-          assigneeId: "",
-          assigneeIds: [],
-          categoryIds: { arrayValue: { values: [{ stringValue: "cat-kitchen" }] } },
+          status: stringField("Approved"),
+          submittedAt: timestampField("2026-06-17T09:00:00.000Z"),
+          assigneeScope: stringField("family"),
+          assigneeId: stringField(""),
+          assigneeIds: stringArrayField([]),
+          categoryIds: stringArrayField(["cat-kitchen"]),
         },
       },
       {
         name: "families/fam-1/chores/group-chore",
         fields: {
-          status: "Submitted",
-          submittedAt: "2026-06-17T18:00:00.000Z",
-          assigneeScope: "multiple",
-          assigneeId: "",
-          assigneeIds: ["player-1", "player-2"],
-          categoryIds: { arrayValue: { values: [{ stringValue: "cat-yard" }] } },
+          status: stringField("Submitted"),
+          submittedAt: timestampField("2026-06-17T18:00:00.000Z"),
+          assigneeScope: stringField("multiple"),
+          assigneeId: stringField(""),
+          assigneeIds: stringArrayField(["player-1", "player-2"]),
+          categoryIds: stringArrayField(["cat-yard"]),
         },
       },
       {
         name: "families/fam-1/chores/other-player-chore",
         fields: {
-          status: "Approved",
-          submittedAt: "2026-06-17T10:00:00.000Z",
-          assigneeScope: "single",
-          assigneeId: "player-2",
-          assigneeIds: ["player-2"],
-          categoryIds: { arrayValue: { values: [{ stringValue: "cat-misc" }] } },
+          status: stringField("Approved"),
+          submittedAt: timestampField("2026-06-17T10:00:00.000Z"),
+          assigneeScope: stringField("single"),
+          assigneeId: stringField("player-2"),
+          assigneeIds: stringArrayField(["player-2"]),
+          categoryIds: stringArrayField(["cat-misc"]),
         },
       },
     ];

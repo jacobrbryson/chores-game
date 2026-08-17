@@ -523,9 +523,27 @@ service cloud.firestore {
         );
     }
 
+    // The 4-digit profile-switch / Kiosk Mode PIN. Only the hash is ever stored,
+    // and only the owning account may write it: a parent sets their own PIN, and
+    // it gates switching into a child profile and exiting Kiosk Mode. Deliberately
+    // NOT covered by canAdminManageUser — another admin must never set or clear
+    // someone else's PIN.
+    function isValidSelfUserAccountSwitchPinUpdate(uid) {
+      return isSelf(uid)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "accountSwitchPinHash",
+          "accountSwitchPinUpdatedAt"
+        ])
+        && request.resource.data.accountSwitchPinHash is string
+        && request.resource.data.accountSwitchPinHash.size() > 0
+        && request.resource.data.accountSwitchPinHash.size() <= 128
+        && request.resource.data.accountSwitchPinUpdatedAt is timestamp;
+    }
+
     function isValidSelfUserUpdate(uid) {
       return isValidSelfUserProfileUpdate(uid)
         || isValidSelfUserPreferencesUpdate(uid)
+        || isValidSelfUserAccountSwitchPinUpdate(uid)
         || isValidSelfUserStoreUpdate(uid)
         || isValidSelfUserWalletUpdate(uid)
         || isValidSelfUserGoogleTasksUpdate(uid)

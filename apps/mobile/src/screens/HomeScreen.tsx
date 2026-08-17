@@ -22,7 +22,6 @@ type Props = {
   viewerKey?: string;
   onGoDashboard?: () => void;
   onOpenAllChores?: () => void;
-  onOpenStore?: () => void;
   onOpenApprovals?: (options?: { approveAll?: boolean }) => void;
   onOpenProfile?: () => void;
   feedUnseenCount?: number;
@@ -39,7 +38,6 @@ export function HomeScreen({
   right,
   viewerKey,
   onOpenAllChores,
-  onOpenStore,
   onOpenApprovals,
   onOpenProfile,
   feedUnseenCount = 0,
@@ -121,11 +119,7 @@ export function HomeScreen({
       </View>
       {/* Render only once the stored tab resolves so we don't flash the wrong panel. */}
       {tab === null ? null : activeTab === "feed" ? (
-        <MobileFeedPanel
-          onViewChore={onOpenAllChores}
-          onViewReward={onOpenStore}
-          onReviewApproval={onOpenApprovals ? () => onOpenApprovals() : undefined}
-        />
+        <MobileFeedPanel />
       ) : activeTab === "routines" ? (
         <MobileRoutinesPanel />
       ) : (

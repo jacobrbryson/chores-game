@@ -19,6 +19,12 @@ export type FamilyResolvedMember = {
   uid?: string;
   name: string;
   email: string;
+  /**
+   * An address an admin has asked to move this member to. It is NOT their
+   * address yet: it only replaces `email` once the matching invite code is
+   * redeemed (see api/family/members/[memberId]/email).
+   */
+  pendingEmail?: string;
   role: "admin" | "player";
   status: "active" | "invited";
   locale?: AppLocale;
@@ -102,6 +108,7 @@ export async function listFamilyMembers(
       uid: readString(doc.fields, "uid") || undefined,
       name: readString(doc.fields, "name") || "Unnamed member",
       email: readString(doc.fields, "email"),
+      pendingEmail: readString(doc.fields, "pendingEmail") || undefined,
       role: toMemberRole(readString(doc.fields, "role")),
       status: toMemberStatus(readString(doc.fields, "status")),
       locale: normalizeLocale(readString(doc.fields, "locale").trim()) || undefined,

@@ -335,6 +335,33 @@ export async function removeMobileFamilyMember(memberId: string) {
   });
 }
 
+export type MobileMemberEmailChangeResult = {
+  /**
+   * "verification_required": parked in pendingEmail until the returned
+   * single-use invite code is redeemed. "contact_only": applied immediately,
+   * but the member's sign-in is unchanged (we cannot move an external identity).
+   */
+  mode: "verification_required" | "contact_only";
+  canInviteToSignIn: boolean;
+  email: string;
+  pendingEmail: string;
+  invite: { formattedCode?: string } | null;
+};
+
+export async function changeMobileFamilyMemberEmail(memberId: string, email: string) {
+  const data = (await apiFetch(`/families/members/${encodeURIComponent(memberId)}/email`, {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  })) as Partial<MobileMemberEmailChangeResult>;
+  return {
+    mode: data?.mode === "verification_required" ? "verification_required" : "contact_only",
+    canInviteToSignIn: Boolean(data?.canInviteToSignIn),
+    email: data?.email ?? "",
+    pendingEmail: data?.pendingEmail ?? "",
+    invite: data?.invite ?? null,
+  } satisfies MobileMemberEmailChangeResult;
+}
+
 // --- Manage Family: chore categories ------------------------------------
 
 export type MobileCategoriesState = {
@@ -711,6 +738,8 @@ export type MobileFamilyMember = {
   uid?: string;
   name: string;
   email?: string;
+  /** Address awaiting invite-code redemption; not yet this member's address. */
+  pendingEmail?: string;
   role: "admin" | "player";
   status: "active" | "invited";
   locale?: AppLocale;

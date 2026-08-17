@@ -477,6 +477,7 @@ export async function GET(request: NextRequest) {
             uid: readString(doc.fields, "uid") || undefined,
             name: readString(doc.fields, "name") || "Unnamed member",
             email: readString(doc.fields, "email"),
+            pendingEmail: readString(doc.fields, "pendingEmail") || undefined,
             locale: readString(doc.fields, "locale") || undefined,
             dashboardPrimaryColor: readString(doc.fields, "dashboardPrimaryColor") || undefined,
             avatarId: readString(doc.fields, "avatarId") || undefined,
@@ -833,6 +834,7 @@ export async function GET(request: NextRequest) {
               uid: member.uid,
               name: member.name,
               email: member.email,
+              pendingEmail: member.pendingEmail,
               locale: memberLocale,
               resolvedLocale: resolveAppLocale({
                 memberLocale,

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { copyMobileFriendAward, fetchMobileFeed, type MobileFeedItem } from "@/lib/api";
 import { useMobileLocale } from "@/lib/locale";
 import { colors, radius, spacing, typography } from "@/theme";
@@ -7,11 +7,6 @@ import { AvatarBadge, Button, Card, EmptyState, ErrorState, LoadingState } from 
 import { MobileCopyFriendRoutineModal } from "@/components/MobileCopyFriendRoutineModal";
 
 type MobileFeedPanelProps = {
-  onViewChore?: () => void;
-  onViewReward?: () => void;
-  // Only passed for parents — completed-chore events deep-link to the Approval
-  // Inbox when it is reachable for this viewer.
-  onReviewApproval?: () => void;
   scope?: "all" | "friends";
   compact?: boolean;
 };
@@ -117,9 +112,6 @@ function formatRelativeTime(value: string, locale: string, fallback: string) {
 }
 
 export function MobileFeedPanel({
-  onViewChore,
-  onViewReward,
-  onReviewApproval,
   scope = "all",
   compact = false,
 }: MobileFeedPanelProps) {
@@ -217,23 +209,10 @@ export function MobileFeedPanel({
       ) : null}
       {items.map((item) => {
         const emoji = FEED_TYPE_EMOJI[item.type] ?? "•";
-        // A completed chore is what a parent reviews in the Approval Inbox, so
-        // deep-link those events straight there (the screen is parent-only).
-        // Other chore/reward events keep their existing destinations.
-        const isApprovalEvent =
-          item.type === "chore_completed" && !item.sourceFamily?.isFriend && Boolean(onReviewApproval);
-        const handleAction = isApprovalEvent
-          ? onReviewApproval
-          : item.action === "view_reward"
-            ? onViewReward
-            : item.action === "view_chore"
-              ? onViewChore
-              : undefined;
-        const actionLabel = isApprovalEvent
-          ? t("feed.actions.reviewApproval")
-          : item.action === "view_reward"
-            ? t("feed.actions.viewReward")
-            : t("feed.actions.viewChore");
+        // Feed cards carry no destination link. A card can describe another
+        // family's activity (friend feed), and a day roll-up stands in for many
+        // chores at once, so no single "view chore"/"view reward" screen is the
+        // right target. Real actions (copy award / copy routine) stay as buttons.
         // A finished routine and a daily roll-up both replace the per-chore cards
         // they cover, so both list the chores instead.
         const dayChores = item.metadata?.dayChores ?? [];
@@ -306,11 +285,6 @@ export function MobileFeedPanel({
                       </View>
                     ))}
                   </View>
-                ) : null}
-                {item.action && handleAction ? (
-                  <Pressable onPress={handleAction} hitSlop={6}>
-                    <Text style={styles.action}>{actionLabel}</Text>
-                  </Pressable>
                 ) : null}
                 {item.action === "copy_friend_award" && item.sourceFamily?.isFriend && item.metadata?.rewardId ? (
                   <Button
@@ -408,7 +382,6 @@ const styles = StyleSheet.create({
     textDecorationLine: "line-through",
   },
   stepMeta: { fontSize: typography.small, color: colors.muted },
-  action: { marginTop: 4, fontSize: typography.small, fontWeight: "800", color: colors.brand },
   sectionHeader: { marginBottom: spacing.xs },
   sectionTitle: { fontSize: typography.h3, fontWeight: "800", color: colors.text },
   sectionSubtitle: { fontSize: typography.small, color: colors.muted },

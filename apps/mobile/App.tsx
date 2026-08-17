@@ -198,7 +198,6 @@ function AppContent({
           viewerKey={sessionMe?.uid}
           feedUnseenCount={getDiscoverySectionCount(discovery, "feed")}
           onOpenAllChores={() => setTab("all-chores")}
-          onOpenStore={() => setTab("store")}
           onOpenApprovals={(options) => {
             setApprovalsAutoApproveAll(Boolean(options?.approveAll));
             setTab("approvals");

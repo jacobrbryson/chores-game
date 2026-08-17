@@ -53,6 +53,7 @@ type FamilyMemberProfileResponse = {
     uid?: string;
     name: string;
     email: string;
+    pendingEmail?: string;
     role: "admin" | "player";
     status: "active" | "invited";
     locale?: AppLocale;
@@ -106,6 +107,15 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
   const [birthYearInput, setBirthYearInput] = useState("");
   const [birthYearPending, setBirthYearPending] = useState(false);
   const [birthYearError, setBirthYearError] = useState("");
+  const [emailInput, setEmailInput] = useState("");
+  const [emailPending, setEmailPending] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [emailResult, setEmailResult] = useState<{
+    mode: "verification_required" | "contact_only";
+    canInviteToSignIn: boolean;
+    pendingEmail: string;
+    inviteCode: string;
+  } | null>(null);
 
   const loadProfile = useCallback(async () => {
     setIsLoading(true);
@@ -136,6 +146,11 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
   useEffect(() => {
     setBirthYearInput(profile?.member.birthYear ? String(profile.member.birthYear) : "");
   }, [profile?.member.birthYear]);
+
+  // Keep the email input in sync with the loaded value.
+  useEffect(() => {
+    setEmailInput(profile?.member.email ?? "");
+  }, [profile?.member.email]);
 
   const canManageThisMember = Boolean(
     profile &&
@@ -348,6 +363,64 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
     }
   }
 
+  async function onSaveEmail() {
+    if (!profile || emailPending) {
+      return;
+    }
+    setEmailPending(true);
+    setEmailError("");
+    setEmailResult(null);
+    try {
+      const response = await fetch(
+        `/api/family/members/${encodeURIComponent(profile.member.id)}/email`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: emailInput.trim() }),
+        },
+      );
+      const payload = (await response.json()) as {
+        error?: string;
+        mode?: "verification_required" | "contact_only";
+        canInviteToSignIn?: boolean;
+        email?: string;
+        pendingEmail?: string;
+        invite?: { formattedCode?: string } | null;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? `FAMILY_MEMBER_EMAIL_HTTP_${response.status}`);
+      }
+      setEmailResult({
+        mode: payload.mode ?? "contact_only",
+        canInviteToSignIn: payload.canInviteToSignIn === true,
+        pendingEmail: payload.pendingEmail ?? "",
+        inviteCode: payload.invite?.formattedCode ?? "",
+      });
+      // Only a contact-only change alters the live address; a pending change
+      // must keep showing the old one until the code is redeemed.
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              member: {
+                ...current.member,
+                email: payload.email ?? current.member.email,
+                pendingEmail: payload.pendingEmail || undefined,
+              },
+            }
+          : current,
+      );
+    } catch (errorValue) {
+      setEmailError(
+        t("family.memberEmailError", {
+          error: errorValue instanceof Error ? errorValue.message : "unknown",
+        }),
+      );
+    } finally {
+      setEmailPending(false);
+    }
+  }
+
   const derivedAge =
     profile?.member.birthYear && profile.member.birthYear > 0
       ? new Date().getUTCFullYear() - profile.member.birthYear
@@ -431,6 +504,66 @@ export function FamilyMemberProfileClient({ memberId }: FamilyMemberProfileClien
                       {localeError ? <span className="profile-name-error">{localeError}</span> : null}
                     </dd>
                   </div>
+                  {/* Players only: re-pointing another parent's address is a
+                      co-parent takeover, and the server rejects it too. */}
+                  {canManageThisMember && profile.member.role === "player" ? (
+                    <div>
+                      <dt>{t("family.memberEmailLabel")}</dt>
+                      <dd>
+                        <div className="flex flex-col items-start gap-1.5 pb-1">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="email"
+                              inputMode="email"
+                              autoComplete="off"
+                              className="h-10 w-[260px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+                              placeholder={t("family.memberEmailPlaceholder")}
+                              aria-label={t("family.memberEmailLabel")}
+                              value={emailInput}
+                              disabled={emailPending}
+                              onChange={(event) => setEmailInput(event.target.value)}
+                            />
+                            <Button
+                              type="button"
+                              className="btn btn-secondary h-10"
+                              disabled={
+                                emailPending ||
+                                emailInput.trim().toLowerCase() === profile.member.email.toLowerCase()
+                              }
+                              onClick={() => void onSaveEmail()}>
+                              {emailPending ? t("family.memberEmailSaving") : t("family.memberEmailSave")}
+                            </Button>
+                          </div>
+                          {profile.member.pendingEmail ? (
+                            <span className="small text-slate-500">
+                              {t("family.memberEmailPending", { email: profile.member.pendingEmail })}
+                            </span>
+                          ) : null}
+                          {emailResult?.mode === "verification_required" ? (
+                            <Alert tone="success">
+                              {t("family.memberEmailVerificationSent", {
+                                email: emailResult.pendingEmail,
+                              })}
+                              {emailResult.inviteCode ? (
+                                <>
+                                  {" "}
+                                  <strong>{emailResult.inviteCode}</strong>
+                                </>
+                              ) : null}
+                            </Alert>
+                          ) : null}
+                          {emailResult?.mode === "contact_only" ? (
+                            <Alert>
+                              {emailResult.canInviteToSignIn
+                                ? t("family.memberEmailContactOnlyManaged")
+                                : t("family.memberEmailContactOnlyLinked")}
+                            </Alert>
+                          ) : null}
+                          {emailError ? <span className="profile-name-error">{emailError}</span> : null}
+                        </div>
+                      </dd>
+                    </div>
+                  ) : null}
                   {profile.viewerRole === "admin" ? (
                     <div>
                       <dt>{t("family.birthYearLabel")}</dt>

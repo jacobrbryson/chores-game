@@ -8,6 +8,7 @@ import {
 } from "@packages/core";
 import {
   addMobileFamilyMember,
+  changeMobileFamilyMemberEmail,
   createMobileFamilyCategory,
   deleteMobileFamilyCategory,
   fetchMobileFamilyCategories,
@@ -67,6 +68,7 @@ export function ManageFamilyScreen({ right, onGoDashboard }: Props) {
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<"admin" | "player">("player");
   const [pendingRemoveMember, setPendingRemoveMember] = useState<MobileFamilyMember | null>(null);
+  const [memberEmailNotice, setMemberEmailNotice] = useState("");
 
   // Category add/edit sheet
   const [categorySheet, setCategorySheet] = useState<{ mode: "create" | "edit"; category?: MobileFamilyCategory } | null>(null);
@@ -136,8 +138,15 @@ export function ManageFamilyScreen({ right, onGoDashboard }: Props) {
     setMemberEmail(member.email ?? "");
     setMemberRole(member.role === "admin" ? "admin" : "player");
     setError("");
+    setMemberEmailNotice("");
     setMemberSheet({ mode: "edit", member });
   }
+
+  // Only a player's address is editable. Changing another parent's address is
+  // the co-parent takeover this must not enable, and the server rejects it too.
+  const canEditMemberEmail =
+    memberSheet?.mode === "create" ||
+    (memberSheet?.mode === "edit" && memberSheet.member?.role === "player");
 
   async function submitMember() {
     if (busy) {
@@ -155,9 +164,33 @@ export function ManageFamilyScreen({ right, onGoDashboard }: Props) {
     }
     setBusy(true);
     setError("");
+    setMemberEmailNotice("");
     try {
       if (memberSheet?.mode === "edit" && memberSheet.member) {
-        await updateMobileFamilyMember(memberSheet.member.id, { name, role: memberRole });
+        const member = memberSheet.member;
+        await updateMobileFamilyMember(member.id, { name, role: memberRole });
+        // The email change is a separate, more guarded call: it can require
+        // verification, so it must not be folded into the plain member patch.
+        const emailChanged = email !== (member.email ?? "").trim().toLowerCase();
+        if (emailChanged && canEditMemberEmail && email) {
+          const result = await changeMobileFamilyMemberEmail(member.id, email);
+          if (result.mode === "verification_required") {
+            setMemberEmailNotice(
+              `${t("family.memberEmailVerificationSent", { email: result.pendingEmail })}${
+                result.invite?.formattedCode ? ` ${result.invite.formattedCode}` : ""
+              }`,
+            );
+          } else {
+            setMemberEmailNotice(
+              result.canInviteToSignIn
+                ? t("family.memberEmailContactOnlyManaged")
+                : t("family.memberEmailContactOnlyLinked"),
+            );
+          }
+          // Keep the sheet open so the parent can read the code / explanation.
+          await load(true);
+          return;
+        }
       } else {
         await addMobileFamilyMember({ name, email: email || undefined, role: memberRole });
       }
@@ -430,11 +463,17 @@ export function ManageFamilyScreen({ right, onGoDashboard }: Props) {
                 <TextInput
                   value={memberEmail}
                   onChangeText={setMemberEmail}
-                  editable={memberSheet?.mode === "create"}
+                  editable={canEditMemberEmail}
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  style={[styles.input, memberSheet?.mode === "edit" ? styles.inputDisabled : null]}
+                  style={[styles.input, canEditMemberEmail ? null : styles.inputDisabled]}
                 />
+                {memberSheet?.mode === "edit" && memberSheet.member?.pendingEmail ? (
+                  <Text style={styles.rowMeta}>
+                    {t("family.memberEmailPending", { email: memberSheet.member.pendingEmail })}
+                  </Text>
+                ) : null}
+                {memberEmailNotice ? <Text style={styles.rowMeta}>{memberEmailNotice}</Text> : null}
               </View>
               <View style={styles.field}>
                 <Text style={styles.label}>{t("family.memberRoleLabel")}</Text>

@@ -164,7 +164,9 @@ async function loadAchievements(
     records.push({
       audience: catalogEntry.audience,
       completed: readBoolean(doc.fields, "completed"),
-      completedAt: readString(doc.fields, "completedAt") || undefined,
+      // Written with timestampField by the achievement service, so readString
+      // would always yield "".
+      completedAt: readTimestamp(doc.fields, "completedAt") || undefined,
     });
   }
   return records;

@@ -12,6 +12,7 @@ import {
   readBoolean,
   readInteger,
   readString,
+  readTimestamp,
   readStringArray,
   stringField,
   timestampField,
@@ -237,7 +238,9 @@ export async function PATCH(
         const existingSubmitToCommunityAwards = readBoolean(rewardDoc.fields, "submitToCommunityAwards");
         const existingSubmissionId = readString(rewardDoc.fields, "communityAwardSubmissionId");
         const existingSubmissionStatus = readString(rewardDoc.fields, "communityAwardSubmissionStatus");
-        const existingCreatedAt = readString(rewardDoc.fields, "createdAt");
+        // createdAt is stored with timestampField; readString would drop it and
+        // send an empty original-creation date to the community-awards submission.
+        const existingCreatedAt = readTimestamp(rewardDoc.fields, "createdAt");
         const existingIndividualLimit = normalizeFamilyRewardLimit(
           readInteger(rewardDoc.fields, "individualLimit"),
         );
