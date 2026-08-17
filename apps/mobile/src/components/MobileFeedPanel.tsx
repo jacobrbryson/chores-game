@@ -28,6 +28,50 @@ const FEED_TYPE_EMOJI: Record<string, string> = {
   family_award_created: "🎁",
 };
 
+// Cosmetic flair tier for a daily roll-up, mirroring feedDayRollupTier on the web.
+function dayRollupTier(choreCount: number) {
+  if (choreCount >= 10) {
+    return "unstoppable";
+  }
+  if (choreCount >= 6) {
+    return "fire";
+  }
+  return choreCount >= 3 ? "roll" : "steady";
+}
+
+function localDayKey(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+// "today" / "yesterday" / "on Aug 14" for a YYYY-MM-DD roll-up day. Parsed at
+// noon so the label never slips a day across timezones.
+function formatDayLabel(
+  day: string,
+  locale: string,
+  t: (key: string, params?: Record<string, string>) => string,
+) {
+  const now = new Date();
+  if (day === localDayKey(now)) {
+    return t("feed.dayRollup.today");
+  }
+  if (day === localDayKey(new Date(now.getTime() - 24 * 60 * 60 * 1000))) {
+    return t("feed.dayRollup.yesterday");
+  }
+  const parsed = new Date(`${day}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return day;
+  }
+  try {
+    return t("feed.dayRollup.onDate", {
+      date: parsed.toLocaleDateString(locale, { month: "short", day: "numeric" }),
+    });
+  } catch {
+    return t("feed.dayRollup.onDate", { date: day });
+  }
+}
+
 function avatarUrl(avatarId: string, avatarPhotoUrl: string) {
   if (avatarPhotoUrl) {
     return avatarPhotoUrl;
@@ -190,6 +234,31 @@ export function MobileFeedPanel({
           : item.action === "view_reward"
             ? t("feed.actions.viewReward")
             : t("feed.actions.viewChore");
+        // A finished routine and a daily roll-up both replace the per-chore cards
+        // they cover, so both list the chores instead.
+        const dayChores = item.metadata?.dayChores ?? [];
+        const listedChores = dayChores.length
+          ? dayChores
+          : item.type === "routine_completed"
+            ? item.metadata?.routineSteps ?? []
+            : [];
+        const isDayRollup = dayChores.length > 0 && Boolean(item.metadata?.day);
+        const isAddedRollup = isDayRollup && item.metadata?.dayKind === "created";
+        const cardTitle = isAddedRollup
+          ? t("feed.dayRollup.titleAdded")
+          : isDayRollup
+            ? t("feed.dayRollup.title")
+            : t(`feed.events.${item.type}`);
+        // The server sends an English headline for older clients; render the
+        // localized one here from the same metadata.
+        const rollupKey = isAddedRollup ? "added" : dayRollupTier(dayChores.length);
+        const message = isDayRollup
+          ? t(`feed.dayRollup.${rollupKey}`, {
+              name: item.actor?.name ?? "",
+              count: String(item.metadata?.dayChoreCount ?? dayChores.length),
+              when: formatDayLabel(item.metadata?.day ?? "", locale, t),
+            })
+          : item.message;
         return (
           <Card key={item.id} style={styles.card}>
             <View style={styles.row}>
@@ -212,13 +281,32 @@ export function MobileFeedPanel({
               </View>
               <View style={styles.body}>
                 <View style={styles.headline}>
-                  <Text style={styles.title}>{t(`feed.events.${item.type}`)}</Text>
+                  <Text style={styles.title}>{cardTitle}</Text>
                   <Text style={styles.time}>{formatRelativeTime(item.createdAt, locale, t("feed.justNow"))}</Text>
                 </View>
                 {item.sourceFamily?.isFriend ? (
                   <Text style={styles.friendFamily}>{t("familyFriends.feed.fromFamily", { family: item.sourceFamily.name })}</Text>
                 ) : null}
-                {item.message ? <Text style={styles.message}>{item.message}</Text> : null}
+                {message ? <Text style={styles.message}>{message}</Text> : null}
+                {listedChores.length ? (
+                  <View style={styles.steps}>
+                    {listedChores.map((step, index) => (
+                      <View key={step.choreId || `${item.id}-step-${index}`} style={styles.step}>
+                        <Text style={styles.stepEmoji}>{step.skipped ? "⏭️" : "✅"}</Text>
+                        <Text style={step.skipped ? styles.stepTitleSkipped : styles.stepTitle}>
+                          {step.title}
+                        </Text>
+                        <Text style={styles.stepMeta}>
+                          {step.skipped
+                            ? t("feed.routineSteps.skipped")
+                            : step.coinValue > 0
+                              ? t("feed.routineSteps.coins", { coins: String(step.coinValue) })
+                              : ""}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
                 {item.action && handleAction ? (
                   <Pressable onPress={handleAction} hitSlop={6}>
                     <Text style={styles.action}>{actionLabel}</Text>
@@ -301,6 +389,25 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontSize: typography.body, fontWeight: "800", color: colors.brandStrong },
   time: { fontSize: typography.small, color: colors.muted },
   message: { fontSize: typography.small, color: colors.text },
+  steps: {
+    marginTop: spacing.xs,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.accentSoft,
+    gap: 4,
+  },
+  step: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  stepEmoji: { fontSize: typography.small },
+  stepTitle: { flex: 1, fontSize: typography.small, color: colors.text },
+  stepTitleSkipped: {
+    flex: 1,
+    fontSize: typography.small,
+    color: colors.muted,
+    textDecorationLine: "line-through",
+  },
+  stepMeta: { fontSize: typography.small, color: colors.muted },
   action: { marginTop: 4, fontSize: typography.small, fontWeight: "800", color: colors.brand },
   sectionHeader: { marginBottom: spacing.xs },
   sectionTitle: { fontSize: typography.h3, fontWeight: "800", color: colors.text },

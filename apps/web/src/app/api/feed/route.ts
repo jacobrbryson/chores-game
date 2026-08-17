@@ -21,12 +21,20 @@ import {
 } from "@/lib/family-friends/model";
 import { listFamilyFriends } from "@/lib/family-friends/repository";
 import {
+  collapseCompletedRoutineSteps,
+  feedDayLabelKey,
+  feedDayRollupTier,
   feedTypeAction,
   feedTypeIcon,
+  groupDailyFeedActivity,
   isFeedEventVisibleToViewer,
   mapNotificationKindToFeedType,
+  parseFeedRoutineSteps,
   routineNameFromFeedMessage,
+  type FeedDayRollupGroup,
+  type FeedDayRollupKind,
   type FeedEventType,
+  type FeedRoutineStep,
 } from "@/lib/feed/feed-events";
 import { recordOperationMetric } from "@/lib/observability/metrics";
 
@@ -64,8 +72,111 @@ type FeedItem = {
     rewardImageId?: string;
     routineId?: string;
     routineName?: string;
+    routineSteps?: FeedRoutineStep[];
+    // Daily roll-up card: the chores one person finished (or added) on `day`.
+    day?: string;
+    dayKind?: FeedDayRollupKind;
+    dayChoreCount?: number;
+    dayCoinsEarned?: number;
+    dayChores?: FeedRoutineStep[];
   };
 };
+
+const MAX_TIMEZONE_OFFSET_MINUTES = 14 * 60;
+
+function parseTimezoneOffsetMinutes(value: string | null) {
+  if (value === null) {
+    return 0;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+  const rounded = Math.trunc(parsed);
+  return Math.abs(rounded) > MAX_TIMEZONE_OFFSET_MINUTES ? 0 : rounded;
+}
+
+// English headline for a daily roll-up. Feed messages are server-built English
+// (they come straight from stored activity records); up-to-date clients render
+// their own localized headline from the metadata and use this as the fallback.
+function dayRollupMessage(
+  group: FeedDayRollupGroup<FeedItem>,
+  kind: FeedDayRollupKind,
+  tzOffsetMinutes: number,
+): string {
+  const count = group.chores.length;
+  const labelKey = feedDayLabelKey(group.dayKey, tzOffsetMinutes);
+  const when =
+    labelKey === "today"
+      ? "today"
+      : labelKey === "yesterday"
+        ? "yesterday"
+        : `on ${new Date(`${group.dayKey}T12:00:00Z`).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            timeZone: "UTC",
+          })}`;
+  if (kind === "created") {
+    return `📝 ${group.actorName} added ${count} chores ${when}.`;
+  }
+  const tier = feedDayRollupTier(count);
+  if (tier === "steady") {
+    return `✅ ${group.actorName} completed ${count} chores ${when}.`;
+  }
+  const flair =
+    tier === "unstoppable"
+      ? "🚀 {name} is unstoppable"
+      : tier === "fire"
+        ? "🔥 {name} is on fire"
+        : "✨ {name} is on a roll";
+  return `${flair.replace("{name}", group.actorName)} with ${count} chores completed ${when}!`;
+}
+
+// One card standing in for a person's chores of one kind on a single day.
+function buildDayRollupItem(
+  group: FeedDayRollupGroup<FeedItem>,
+  kind: FeedDayRollupKind,
+  tzOffsetMinutes: number,
+): FeedItem {
+  // The card inherits the day's most recent completion, so it sorts into the
+  // feed exactly where that completion would have.
+  const newest = group.items.reduce((latest, item) =>
+    Date.parse(item.createdAt) > Date.parse(latest.createdAt) ? item : latest,
+  );
+  const type: FeedEventType = kind === "created" ? "chore_created" : "chore_completed";
+  return {
+    id: `${newest.sourceFamily.id}:day:${kind}:${group.actorKey}:${group.dayKey}`,
+    type,
+    title: newest.title,
+    message: dayRollupMessage(group, kind, tzOffsetMinutes),
+    actor: newest.actor,
+    icon: feedTypeIcon(type),
+    action: feedTypeAction(type),
+    createdAt: newest.createdAt,
+    sourceFamily: newest.sourceFamily,
+    metadata: {
+      day: group.dayKey,
+      dayKind: kind,
+      dayChoreCount: group.chores.length,
+      dayCoinsEarned: group.coinsEarned,
+      dayChores: group.chores,
+    },
+  } satisfies FeedItem;
+}
+
+// Collapses both kinds of repeat daily activity — chores finished and chores
+// added — into one card per person per day.
+function rollUpDailyActivity(items: FeedItem[], tzOffsetMinutes: number): FeedItem[] {
+  return (["completed", "created"] as const).reduce(
+    (current, kind) =>
+      groupDailyFeedActivity(current, {
+        groupType: kind === "created" ? "chore_created" : "chore_completed",
+        tzOffsetMinutes,
+        createSummary: (group) => buildDayRollupItem(group, kind, tzOffsetMinutes),
+      }),
+    items,
+  );
+}
 
 function jsonUnauthorized() {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -286,6 +397,9 @@ export async function GET(request: NextRequest) {
   const requestedLimit = parsePositiveInt(searchParams.get("limit"), DEFAULT_PAGE_SIZE);
   const pageSize = Math.min(MAX_PAGE_SIZE, requestedLimit);
   const friendsOnly = searchParams.get("scope") === "friends";
+  // Daily roll-ups are grouped by the viewer's calendar day, so "today" means
+  // today where they are. Defaults to UTC when the client sends no offset.
+  const tzOffsetMinutes = parseTimezoneOffsetMinutes(searchParams.get("tzOffsetMinutes"));
 
   const operationStartedAt = Date.now();
   try {
@@ -318,7 +432,7 @@ export async function GET(request: NextRequest) {
 
         const context = buildViewerContext(memberDocs, session.uid, session.email);
 
-        const ownVisible = notificationDocs
+        const ownFeedItems = notificationDocs
           .map((doc): FeedItem | null => {
             const type = mapNotificationKindToFeedType(readString(doc.fields, "kind"));
             if (!type) {
@@ -337,6 +451,7 @@ export async function GET(request: NextRequest) {
             }
             const choreId = readString(doc.fields, "choreId");
             const choreTitle = readString(doc.fields, "choreTitle");
+            const routineSteps = parseFeedRoutineSteps(readString(doc.fields, "routineStepsJson"));
             const display = normalizeCompletionDisplay({
               context,
               type,
@@ -370,10 +485,19 @@ export async function GET(request: NextRequest) {
                 ...(readString(doc.fields, "rewardImageId") ? { rewardImageId: readString(doc.fields, "rewardImageId") } : {}),
                 ...(readString(doc.fields, "routineId") ? { routineId: readString(doc.fields, "routineId") } : {}),
                 ...(readString(doc.fields, "routineName") ? { routineName: readString(doc.fields, "routineName") } : {}),
+                ...(routineSteps.length ? { routineSteps } : {}),
               },
             } satisfies FeedItem;
           })
           .filter((entry): entry is FeedItem => Boolean(entry));
+
+        // A finished routine is one card listing its chores, so drop the
+        // per-step completion/approval events it already covers. What is left is
+        // then rolled up per person per day, so a busy day is one card too.
+        const ownVisible = rollUpDailyActivity(
+          collapseCompletedRoutineSteps(ownFeedItems),
+          tzOffsetMinutes,
+        );
 
         const friendBatches = await Promise.all(
           friends.map(async (friend) => {
@@ -386,7 +510,7 @@ export async function GET(request: NextRequest) {
               adminListAllDocuments(`families/${friend.familyId}/members`, { cap: 200 }),
             ]);
             const friendContext = buildViewerContext(friendMembers, "", "");
-            return friendNotifications
+            const friendItems = friendNotifications
               .map((doc): FeedItem | null => {
                 const kind = readString(doc.fields, "kind");
                 if (!canShareFriendFeedKind(kind, context.role)) return null;
@@ -413,6 +537,12 @@ export async function GET(request: NextRequest) {
                 const routineName =
                   readString(doc.fields, "routineName") ||
                   routineNameFromFeedMessage(readString(doc.fields, "message"));
+                const routineSteps = parseFeedRoutineSteps(
+                  readString(doc.fields, "routineStepsJson"),
+                ).map((step) => ({
+                  ...step,
+                  title: redactFriendMemberNames(step.title, friendContext, actorNameForRedaction),
+                }));
                 return {
                   id: `${friend.familyId}:${documentIdFromName(doc.name)}`,
                   type,
@@ -437,10 +567,15 @@ export async function GET(request: NextRequest) {
                       ? { routineId: readString(doc.fields, "routineId") }
                       : {}),
                     ...(routineName ? { routineName } : {}),
+                    ...(routineSteps.length ? { routineSteps } : {}),
                   },
                 } satisfies FeedItem;
               })
               .filter((entry): entry is FeedItem => Boolean(entry));
+            return rollUpDailyActivity(
+              collapseCompletedRoutineSteps(friendItems),
+              tzOffsetMinutes,
+            );
           }),
         );
 

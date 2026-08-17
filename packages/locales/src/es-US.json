@@ -409,6 +409,22 @@
       "viewReward": "Ver recompensa",
       "reviewApproval": "Revisar aprobación"
     },
+    "routineSteps": {
+      "skipped": "Omitida",
+      "coins": "{coins} monedas"
+    },
+    "dayRollup": {
+      "title": "Tareas completadas",
+      "titleAdded": "Tareas añadidas",
+      "steady": "✅ {name} completó {count} tareas {when}.",
+      "roll": "✨ ¡{name} va con todo y completó {count} tareas {when}!",
+      "fire": "🔥 ¡{name} está imparable y completó {count} tareas {when}!",
+      "unstoppable": "🚀 ¡{name} está arrasando y completó {count} tareas {when}!",
+      "added": "📝 {name} añadió {count} tareas {when}.",
+      "today": "hoy",
+      "yesterday": "ayer",
+      "onDate": "el {date}"
+    },
     "events": {
       "family_award_created": "Nuevo premio familiar",
       "chore_created": "Nueva tarea añadida",

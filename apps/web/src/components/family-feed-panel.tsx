@@ -7,7 +7,14 @@ import { Button } from "@/components/button";
 import { CopyFriendRoutineDialog } from "@/components/copy-friend-routine-dialog";
 import { FamilyMemberAvatar } from "@/components/family-member-avatar";
 import { useLocale } from "@/components/locale-provider";
-import { feedTypeEmoji, type FeedActionType, type FeedEventType } from "@/lib/feed/feed-events";
+import {
+  feedDayLabelKey,
+  feedDayRollupTier,
+  feedTypeEmoji,
+  type FeedActionType,
+  type FeedEventType,
+  type FeedRoutineStep,
+} from "@/lib/feed/feed-events";
 
 type FeedActor = {
   uid: string;
@@ -34,6 +41,12 @@ type FeedItem = {
     rewardDescription?: string;
     routineId?: string;
     routineName?: string;
+    routineSteps?: FeedRoutineStep[];
+    day?: string;
+    dayKind?: "completed" | "created";
+    dayChoreCount?: number;
+    dayCoinsEarned?: number;
+    dayChores?: FeedRoutineStep[];
   };
 };
 
@@ -72,6 +85,29 @@ function formatRelativeTime(value: string, locale: string, fallback: string) {
     duration /= division.amount;
   }
   return fallback;
+}
+
+// "today" / "yesterday" / "on Aug 14" for a YYYY-MM-DD roll-up day. Rendered
+// from noon so the label never slips a day across timezones.
+function formatDayLabel(
+  day: string,
+  locale: string,
+  t: (key: string, params?: Record<string, string>) => string,
+) {
+  const labelKey = feedDayLabelKey(day, new Date().getTimezoneOffset());
+  if (labelKey === "today") {
+    return t("feed.dayRollup.today");
+  }
+  if (labelKey === "yesterday") {
+    return t("feed.dayRollup.yesterday");
+  }
+  const parsed = new Date(`${day}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return day;
+  }
+  return t("feed.dayRollup.onDate", {
+    date: parsed.toLocaleDateString(locale, { month: "short", day: "numeric" }),
+  });
 }
 
 function feedActionHref(action: FeedActionType | null): string | null {
@@ -128,6 +164,8 @@ export function FamilyFeedPanel({ scope = "all", compact = false }: FamilyFeedPa
       const params = new URLSearchParams({
         page: String(targetPage),
         limit: compact ? "3" : "20",
+        // Daily roll-ups are grouped by the viewer's calendar day.
+        tzOffsetMinutes: String(new Date().getTimezoneOffset()),
       });
       if (scope === "friends") params.set("scope", "friends");
       const response = await fetch(`/api/feed?${params.toString()}`, { cache: "no-store" });
@@ -242,6 +280,31 @@ export function FamilyFeedPanel({ scope = "all", compact = false }: FamilyFeedPa
         // home). Other chore/reward events keep their existing destinations.
         const isApprovalEvent = item.type === "chore_completed" && !item.sourceFamily.isFriend;
         const href = isApprovalEvent ? "/approvals" : feedActionHref(item.action);
+        // A finished routine and a daily roll-up both replace the per-chore cards
+        // they cover, so both list the chores instead.
+        const dayChores = item.metadata.dayChores ?? [];
+        const listedChores = dayChores.length
+          ? dayChores
+          : item.type === "routine_completed"
+            ? item.metadata.routineSteps ?? []
+            : [];
+        const isDayRollup = dayChores.length > 0 && Boolean(item.metadata.day);
+        const isAddedRollup = isDayRollup && item.metadata.dayKind === "created";
+        const cardTitle = isAddedRollup
+          ? t("feed.dayRollup.titleAdded")
+          : isDayRollup
+            ? t("feed.dayRollup.title")
+            : t(`feed.events.${item.type}`);
+        // The server sends an English headline for older clients; render the
+        // localized one here from the same metadata.
+        const rollupKey = isAddedRollup ? "added" : feedDayRollupTier(dayChores.length);
+        const message = isDayRollup
+          ? t(`feed.dayRollup.${rollupKey}`, {
+              name: item.actor?.name ?? "",
+              count: String(item.metadata.dayChoreCount ?? dayChores.length),
+              when: formatDayLabel(item.metadata.day ?? "", locale, t),
+            })
+          : item.message;
         const actionLabel = isApprovalEvent
           ? t("feed.actions.reviewApproval")
           : item.action === "view_reward"
@@ -272,9 +335,7 @@ export function FamilyFeedPanel({ scope = "all", compact = false }: FamilyFeedPa
             </div>
             <div className="feed-card-body">
               <div className="feed-card-headline">
-                <span className="feed-card-title">
-                  {t(`feed.events.${item.type}`)}
-                </span>
+                <span className="feed-card-title">{cardTitle}</span>
                 <time className="feed-card-time" dateTime={item.createdAt}>
                   {formatRelativeTime(item.createdAt, locale, t("feed.justNow"))}
                 </time>
@@ -284,7 +345,26 @@ export function FamilyFeedPanel({ scope = "all", compact = false }: FamilyFeedPa
                   {t("familyFriends.feed.fromFamily", { family: item.sourceFamily.name })}
                 </p>
               ) : null}
-              {item.message ? <p className="feed-card-message">{item.message}</p> : null}
+              {message ? <p className="feed-card-message">{message}</p> : null}
+              {listedChores.length ? (
+                <ul className="feed-card-steps">
+                  {listedChores.map((step, index) => (
+                    <li key={step.choreId || `${item.id}-step-${index}`} className="feed-card-step">
+                      <span aria-hidden="true">{step.skipped ? "⏭️" : "✅"}</span>
+                      <span className={step.skipped ? "feed-card-step-skipped" : undefined}>
+                        {step.title}
+                      </span>
+                      <span className="feed-card-step-meta">
+                        {step.skipped
+                          ? t("feed.routineSteps.skipped")
+                          : step.coinValue > 0
+                            ? t("feed.routineSteps.coins", { coins: String(step.coinValue) })
+                            : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               {href ? (
                 <Link href={href} className="feed-card-action">
                   {actionLabel}

@@ -8,6 +8,10 @@ export async function GET(request: NextRequest) {
   const page = incoming.get("page");
   const limit = incoming.get("limit");
   const scope = incoming.get("scope");
+  // Daily roll-ups are grouped by the viewer's calendar day, so the device's
+  // timezone offset has to reach the feed route — without it mobile would group
+  // by UTC and split a single evening across two days.
+  const tzOffsetMinutes = incoming.get("tzOffsetMinutes");
   if (page) {
     forwarded.set("page", page);
   }
@@ -15,6 +19,9 @@ export async function GET(request: NextRequest) {
     forwarded.set("limit", limit);
   }
   if (scope === "friends") forwarded.set("scope", "friends");
+  if (tzOffsetMinutes) {
+    forwarded.set("tzOffsetMinutes", tzOffsetMinutes);
+  }
   const query = forwarded.toString();
   const upstream = await proxyJson(request, `/api/feed${query ? `?${query}` : ""}`);
   if (upstream.status >= 400) {

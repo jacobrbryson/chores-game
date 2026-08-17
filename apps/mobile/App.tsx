@@ -8,6 +8,7 @@ import {
   fetchDiscoverySummary,
   getDiscoverySectionCount,
   markDiscoverySeen,
+  resolveMobileAvatarUrl,
   ServerUnreachableError,
   type MobileDiscoverySummary,
 } from "@/lib/api";
@@ -103,7 +104,7 @@ function AppContent({
         const nextSession = me as SessionMe;
         setSessionMe(nextSession);
         onLocaleChange(nextSession.resolvedLocale || nextSession.locale || DEFAULT_LOCALE);
-        setAvatarUrl(nextSession.avatarUrl || nextSession.picture || "");
+        setAvatarUrl(resolveMobileAvatarUrl(nextSession.avatarUrl || nextSession.picture));
         setCoinBalance(typeof nextSession.balance === "number" ? nextSession.balance : 0);
         setAuthState("authenticated");
       })

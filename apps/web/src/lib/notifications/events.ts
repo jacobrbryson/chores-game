@@ -59,7 +59,38 @@ type EmitFamilyActivityInput = {
   // celebrate it without re-deriving the state.
   newSkillBonusAwarded?: boolean;
   newSkillBonusAmount?: number;
+  // Routine completion roll-up (routine_completed only). The steps that made up
+  // the finished routine, snapshotted onto the event so the Family Feed can show
+  // one condensed card listing every chore instead of one card per step.
+  routineSteps?: RoutineActivityStep[];
 };
+
+export type RoutineActivityStep = {
+  choreId: string;
+  title: string;
+  coinValue: number;
+  skipped: boolean;
+};
+
+// Serialization caps for the routine roll-up. Routines are capped well below
+// this in practice; the limits keep one runaway routine from bloating a
+// notification document.
+const MAX_ROUTINE_ACTIVITY_STEPS = 40;
+const MAX_ROUTINE_STEP_TITLE = 120;
+
+export function serializeRoutineActivitySteps(steps: RoutineActivityStep[] | undefined) {
+  if (!steps?.length) {
+    return "";
+  }
+  return JSON.stringify(
+    steps.slice(0, MAX_ROUTINE_ACTIVITY_STEPS).map((step) => ({
+      choreId: step.choreId,
+      title: step.title.slice(0, MAX_ROUTINE_STEP_TITLE),
+      coinValue: Math.max(0, Math.trunc(step.coinValue || 0)),
+      skipped: step.skipped === true,
+    })),
+  );
+}
 
 function normalizeId(value: string) {
   return value.trim().toLowerCase();
@@ -98,6 +129,7 @@ export async function emitFamilyActivity(input: EmitFamilyActivityInput) {
       rewardImageId: stringField(input.rewardImageId ?? ""),
       routineId: stringField(input.routineId ?? ""),
       routineName: stringField(input.routineName ?? ""),
+      routineStepsJson: stringField(serializeRoutineActivitySteps(input.routineSteps)),
       relatedIds: stringArrayField(relatedIds),
       source: stringField(input.source ?? "app"),
       authenticatedUid: stringField(input.authenticatedUid ?? input.actorUid),

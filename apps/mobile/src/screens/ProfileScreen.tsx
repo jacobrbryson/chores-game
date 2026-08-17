@@ -9,6 +9,7 @@ import {
   getMobileNewsletterPreferences,
   patchMobileNewsletterPreferences,
   patchMobileProfile,
+  resolveMobileAvatarUrl,
   type MobileProfileSummary,
 } from "@/lib/api";
 import { useMobileLocale } from "@/lib/locale";
@@ -82,7 +83,7 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
             email: me.email || "",
             role: me.role || "player",
             balance: typeof me.balance === "number" ? me.balance : 0,
-            avatarUrl: me.avatarUrl || me.picture || "",
+            avatarUrl: resolveMobileAvatarUrl(me.avatarUrl || me.picture),
             achievementCount: count,
             locale: me.resolvedLocale || me.locale || "en-US",
           },

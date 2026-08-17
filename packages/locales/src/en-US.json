@@ -409,6 +409,22 @@
       "viewReward": "View reward",
       "reviewApproval": "Review approval"
     },
+    "routineSteps": {
+      "skipped": "Skipped",
+      "coins": "{coins} coins"
+    },
+    "dayRollup": {
+      "title": "Chores completed",
+      "titleAdded": "Chores added",
+      "steady": "✅ {name} completed {count} chores {when}.",
+      "roll": "✨ {name} is on a roll with {count} chores completed {when}!",
+      "fire": "🔥 {name} is on fire with {count} chores completed {when}!",
+      "unstoppable": "🚀 {name} is unstoppable with {count} chores completed {when}!",
+      "added": "📝 {name} added {count} chores {when}.",
+      "today": "today",
+      "yesterday": "yesterday",
+      "onDate": "on {date}"
+    },
     "events": {
       "chore_created": "New chore added",
       "chore_completed": "Chore completed",

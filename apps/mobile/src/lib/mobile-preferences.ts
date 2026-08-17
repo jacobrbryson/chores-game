@@ -32,6 +32,7 @@ const DASHBOARD_PREFIX = "mobile:dashboard:chores";
 const ALL_CHORES_PREFIX = "mobile:chores:list";
 const ACHIEVEMENTS_PREFIX = "mobile:achievements";
 const CHORE_EDITOR_PREFIX = "mobile:chore:editor";
+const APPROVAL_CAUGHT_UP_PREFIX = "mobile:approvals:caught-up";
 
 function dashboardTabKey(viewerKey: string) {
   return `${DASHBOARD_TAB_PREFIX}:${viewerKey || "default"}`;
@@ -51,6 +52,10 @@ function achievementsKey(viewerKey: string) {
 
 function choreEditorKey(viewerKey: string) {
   return `${CHORE_EDITOR_PREFIX}:${viewerKey || "default"}`;
+}
+
+function approvalCaughtUpKey(viewerKey: string) {
+  return `${APPROVAL_CAUGHT_UP_PREFIX}:${viewerKey || "default"}`;
 }
 
 async function readJson<T>(key: string): Promise<T | null> {
@@ -163,4 +168,13 @@ export async function loadChoreEditorPreferences(viewerKey: string): Promise<Cho
 
 export async function saveChoreEditorPreferences(viewerKey: string, preferences: ChoreEditorPreferences) {
   await writeJson(choreEditorKey(viewerKey), preferences);
+}
+
+export async function loadApprovalCaughtUpDismissed(viewerKey: string): Promise<boolean> {
+  const stored = await readJson<{ dismissed?: boolean }>(approvalCaughtUpKey(viewerKey));
+  return stored?.dismissed === true;
+}
+
+export async function saveApprovalCaughtUpDismissed(viewerKey: string, dismissed: boolean) {
+  await writeJson(approvalCaughtUpKey(viewerKey), { dismissed });
 }

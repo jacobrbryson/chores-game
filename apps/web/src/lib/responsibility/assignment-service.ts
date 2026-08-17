@@ -607,6 +607,17 @@ async function finalizeRoutineCompletion(input: {
     reason: "complete_routine",
   });
   const celebrationName = assignment.assigneeName || actor.name;
+  // Snapshot the routine's steps onto the celebration event so the Family Feed
+  // can collapse the per-step chore events into this single card.
+  const skippedStepIds = new Set(assignment.skippedStepIds);
+  const activitySteps = [...assignment.steps]
+    .sort((a, b) => a.order - b.order)
+    .map((step) => ({
+      choreId: step.choreId,
+      title: step.title,
+      coinValue: step.coinValue,
+      skipped: skippedStepIds.has(step.id),
+    }));
   await emitFamilyActivity({
     familyId,
     idToken,
@@ -618,6 +629,7 @@ async function finalizeRoutineCompletion(input: {
     message: `🎉 ${celebrationName} finished the "${assignment.routineName}" routine${completionBonusCoinsAwarded > 0 ? ` and earned ${completionBonusCoinsAwarded} bonus coins` : ""}!`,
     routineId: assignment.routineId,
     routineName: assignment.routineName,
+    routineSteps: activitySteps,
     relatedIds: [playerUid, assignment.assigneeId],
     source: kiosk?.source,
     authenticatedUid: kiosk?.authenticatedUid,

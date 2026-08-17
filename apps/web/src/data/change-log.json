@@ -1,5 +1,29 @@
 [
   {
+    "id": "mobile-custom-avatar-display",
+    "date": "2026-08-16",
+    "type": "Bug Fix",
+    "subject": "Custom avatars now appear throughout the mobile app",
+    "description": "Your selected avatar now appears correctly on your mobile profile and in the profile menu, matching the website.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "mobile-reviewed-popup-dismissal",
+    "date": "2026-08-16",
+    "type": "Bug Fix",
+    "subject": "The mobile approval message remembers when it was dismissed",
+    "description": "After parents dismiss the All Chores Reviewed message on mobile, it now stays out of the way as they move around the app. It returns after a new chore needs approval and the family is caught up again.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "routine-feed-roll-up",
+    "date": "2026-08-16",
+    "type": "Feature",
+    "subject": "The Family Feed now tells the story, not every step",
+    "description": "A finished routine is one \"Routine completed\" card listing every chore it covered, with the coins earned for each and any steps that were skipped — including routines your family finished before this change. A busy day is one card too: repeat chores from the same person collapse into a single celebration, like \"🔥 Thomas is on fire with 8 chores completed today\", and chores a parent adds are summarized the same way, each with the full list underneath. Routines still in progress keep showing each step as it is finished.",
+    "image": "/file.svg"
+  },
+  {
     "id": "chore-assignments-follow-the-person",
     "date": "2026-08-15",
     "type": "Bug Fix",

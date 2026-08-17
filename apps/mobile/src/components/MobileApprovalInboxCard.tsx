@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import {
   groupApprovalsByChild,
@@ -8,10 +8,15 @@ import {
 } from "@packages/core";
 import { useMobileApprovalActions, useMobileApprovalInbox } from "@/lib/approvals";
 import { useMobileLocale } from "@/lib/locale";
+import {
+  loadApprovalCaughtUpDismissed,
+  saveApprovalCaughtUpDismissed,
+} from "@/lib/mobile-preferences";
 import { colors, radius, spacing, typography } from "@/theme";
 import { Button, CoinPill } from "@/components/ui";
 
 type Props = {
+  viewerKey?: string;
   // Opens the full Approvals screen. `approveAll` is set when the queue contains
   // chores that still need a coin value, which only the full screen can collect.
   onOpenApprovals: (options?: { approveAll?: boolean }) => void;
@@ -45,7 +50,11 @@ function buildSuccessSummary(
 
 // High-visibility dashboard card surfacing chores awaiting parent approval, the
 // mobile counterpart of web's ApprovalInboxCard. Admin-only; players see nothing.
-export function MobileApprovalInboxCard({ onOpenApprovals, onApprovalsChanged }: Props) {
+export function MobileApprovalInboxCard({
+  viewerKey = "",
+  onOpenApprovals,
+  onApprovalsChanged,
+}: Props) {
   const { t } = useMobileLocale();
   // Pick a singular/plural key variant since the translator does only simple
   // {token} interpolation (no ICU plurals).
@@ -58,10 +67,10 @@ export function MobileApprovalInboxCard({ onOpenApprovals, onApprovalsChanged }:
   const { chores, directory, viewerRole, loading, reload } = useMobileApprovalInbox();
   const { busy, approveAll } = useMobileApprovalActions();
   const [successSummary, setSuccessSummary] = useState<SuccessSummary | null>(null);
-  // Unlike web this dismissal is per-mount rather than persisted: the mobile
-  // dashboard is remounted on every visit, so a stored flag would have to be
-  // re-armed on a schedule the screen does not own.
-  const [caughtUpDismissed, setCaughtUpDismissed] = useState(false);
+  const [caughtUpPreference, setCaughtUpPreference] = useState<{
+    viewerKey: string;
+    dismissed: boolean;
+  } | null>(null);
 
   const familyLabel = t("approvals.familyBucket");
   const groups = useMemo(
@@ -69,6 +78,31 @@ export function MobileApprovalInboxCard({ onOpenApprovals, onApprovalsChanged }:
     [chores, directory, familyLabel],
   );
   const summary = useMemo(() => summarizeApprovals(groups), [groups]);
+  const caughtUpPreferenceReady = caughtUpPreference?.viewerKey === viewerKey;
+  const caughtUpDismissed = caughtUpPreferenceReady && caughtUpPreference.dismissed;
+
+  // Navigation remounts the dashboard, so keep the dismissal in the same
+  // per-viewer preference store used by the rest of the mobile dashboard.
+  useEffect(() => {
+    let cancelled = false;
+    void loadApprovalCaughtUpDismissed(viewerKey).then((dismissed) => {
+      if (!cancelled) {
+        setCaughtUpPreference({ viewerKey, dismissed });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewerKey]);
+
+  // Seeing a new approval re-arms the caught-up message. Once that new queue is
+  // reviewed, the parent gets one fresh success state that can be dismissed.
+  useEffect(() => {
+    if (summary.total > 0 && caughtUpDismissed) {
+      setCaughtUpPreference({ viewerKey, dismissed: false });
+      void saveApprovalCaughtUpDismissed(viewerKey, false);
+    }
+  }, [caughtUpDismissed, summary.total, viewerKey]);
   const childNameByKey = useMemo(
     () => new Map(groups.map((group) => [group.key, group.name] as const)),
     [groups],
@@ -119,6 +153,9 @@ export function MobileApprovalInboxCard({ onOpenApprovals, onApprovalsChanged }:
   }
 
   if (summary.total === 0) {
+    if (!caughtUpPreferenceReady) {
+      return null;
+    }
     if (caughtUpDismissed) {
       return null;
     }
@@ -151,7 +188,8 @@ export function MobileApprovalInboxCard({ onOpenApprovals, onApprovalsChanged }:
           variant="secondary"
           onPress={() => {
             setSuccessSummary(null);
-            setCaughtUpDismissed(true);
+            setCaughtUpPreference({ viewerKey, dismissed: true });
+            void saveApprovalCaughtUpDismissed(viewerKey, true);
           }}
         />
       </View>

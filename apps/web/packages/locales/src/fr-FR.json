@@ -409,6 +409,22 @@
       "viewReward": "Voir la récompense",
       "reviewApproval": "Examiner"
     },
+    "routineSteps": {
+      "skipped": "Ignorée",
+      "coins": "{coins} pièces"
+    },
+    "dayRollup": {
+      "title": "Tâches terminées",
+      "titleAdded": "Tâches ajoutées",
+      "steady": "✅ {name} a terminé {count} tâches {when}.",
+      "roll": "✨ {name} est lancé(e) avec {count} tâches terminées {when} !",
+      "fire": "🔥 {name} est en feu avec {count} tâches terminées {when} !",
+      "unstoppable": "🚀 {name} est inarrêtable avec {count} tâches terminées {when} !",
+      "added": "📝 {name} a ajouté {count} tâches {when}.",
+      "today": "aujourd'hui",
+      "yesterday": "hier",
+      "onDate": "le {date}"
+    },
     "events": {
       "family_award_created": "Nouvelle récompense familiale",
       "chore_created": "Nouvelle tâche ajoutée",

@@ -8,6 +8,7 @@ import { createApiClient } from "@packages/api-client";
 import type { AppLocale } from "@packages/locales";
 import { Platform } from "react-native";
 import { collapseRoutineChores } from "@/lib/routine-chores";
+import { resolveMobileAvatarUrl as resolveAvatarUrlAgainstOrigin } from "@/lib/mobile-avatar-url";
 import {
   mobileFamilyFriendAwardCopyPath,
   mobileFamilyFriendRoutineCopyPath,
@@ -22,6 +23,10 @@ import {
 
 const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api/v1";
 export const appBaseUrl = baseUrl.replace(/\/api\/v1\/?$/, "");
+
+export function resolveMobileAvatarUrl(value?: string) {
+  return resolveAvatarUrlAgainstOrigin(value, appBaseUrl);
+}
 
 // How long to wait before treating a request as a dead connection. Without this,
 // an unreachable backend (server not running, wrong LAN IP, firewall) leaves
@@ -251,7 +256,24 @@ export type MobileFeedItem = {
     rewardDescription?: string;
     routineId?: string;
     routineName?: string;
+    // Present on routine_completed events: the chores the finished routine
+    // covered, so one card replaces the per-step completion events.
+    routineSteps?: MobileFeedRoutineStep[];
+    // Present on a daily roll-up card: the chores one person finished (or
+    // added) on `day`.
+    day?: string;
+    dayKind?: "completed" | "created";
+    dayChoreCount?: number;
+    dayCoinsEarned?: number;
+    dayChores?: MobileFeedRoutineStep[];
   };
+};
+
+export type MobileFeedRoutineStep = {
+  choreId: string;
+  title: string;
+  coinValue: number;
+  skipped: boolean;
 };
 
 export type MobileFeedPage = {
@@ -266,7 +288,12 @@ export type MobileFeedPage = {
 };
 
 export async function fetchMobileFeed(page = 1, limit = 20, scope: "all" | "friends" = "all"): Promise<MobileFeedPage> {
-  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    // Daily roll-ups are grouped by the viewer's calendar day.
+    tzOffsetMinutes: String(new Date().getTimezoneOffset()),
+  });
   if (scope === "friends") params.set("scope", "friends");
   const payload = await apiFetch(`/feed?${params.toString()}`);
   const pagination = payload?.pagination ?? {};

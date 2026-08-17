@@ -90,6 +90,7 @@ export function HomeScreen({
           first thing a parent sees, matching the web dashboard. */}
       {onOpenApprovals ? (
         <MobileApprovalInboxCard
+          viewerKey={viewerKey}
           onOpenApprovals={onOpenApprovals}
           onApprovalsChanged={onDiscoveryRefresh}
         />

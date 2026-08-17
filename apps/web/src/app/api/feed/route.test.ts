@@ -229,6 +229,194 @@ describe("GET /api/feed", () => {
     expect(completed.metadata).toMatchObject({ choreId: "c1" });
   });
 
+  it("condenses a finished routine into one card and hides its per-step events", async () => {
+    setSession("admin");
+    mockRunQuery.mockResolvedValue([
+      notificationDoc("routine-done", {
+        kind: "routine_completed",
+        actorUid: "child-uid",
+        actorEmail: "child@example.com",
+        actorName: "Child",
+        relatedIds: ["child-uid"],
+        title: "Routine completed",
+        message: '🎉 Child finished the "Water plants" routine and earned 5 bonus coins!',
+        routineId: "routine-1",
+        routineName: "Water plants",
+        routineStepsJson: JSON.stringify([
+          { choreId: "step-1", title: "Fill dog water bowl", coinValue: 5, skipped: false },
+          { choreId: "step-2", title: "Water the grass", coinValue: 5, skipped: true },
+        ]),
+        createdAt: "2026-06-05T10:00:05.000Z",
+      }),
+      notificationDoc("step-1-done", {
+        kind: "chore_completed",
+        actorUid: "child-uid",
+        relatedIds: ["child-uid"],
+        title: "Chore completed",
+        message: 'Child completed "Fill dog water bowl" (step 1 of 2...) and earned 5 coins.',
+        choreId: "step-1",
+        createdAt: "2026-06-05T10:00:00.000Z",
+      }),
+      notificationDoc("step-2-approved", {
+        kind: "chore_approved",
+        actorUid: "parent-uid",
+        relatedIds: ["child-uid"],
+        title: "Chore approved",
+        message: 'Parent approved "Water the grass".',
+        choreId: "step-2",
+        createdAt: "2026-06-05T10:00:04.000Z",
+      }),
+      notificationDoc("unrelated-chore", {
+        kind: "chore_completed",
+        actorUid: "child-uid",
+        relatedIds: ["child-uid"],
+        title: "Chore completed",
+        message: 'Child completed "Clean main floor".',
+        choreId: "loose-chore",
+        createdAt: "2026-06-05T09:00:00.000Z",
+      }),
+    ]);
+
+    const { GET } = await import("./route");
+    const body = await (await GET(feedRequest())).json();
+    expect(body.items.map((item: { id: string }) => item.id)).toEqual([
+      "routine-done",
+      "unrelated-chore",
+    ]);
+    expect(body.items[0].metadata.routineSteps).toEqual([
+      { choreId: "step-1", title: "Fill dog water bowl", coinValue: 5, skipped: false },
+      { choreId: "step-2", title: "Water the grass", coinValue: 5, skipped: true },
+    ]);
+  });
+
+  it("rolls a busy day up into one card per person, in the viewer's timezone", async () => {
+    setSession("admin");
+    const completion = (id: string, choreId: string, createdAt: string) =>
+      notificationDoc(id, {
+        kind: "chore_completed",
+        actorUid: "child-uid",
+        actorEmail: "child@example.com",
+        actorName: "Child",
+        relatedIds: ["child-uid"],
+        title: "Chore completed",
+        message: `Child completed "${choreId}" and earned 5 coins.`,
+        choreId,
+        choreTitle: choreId,
+        createdAt,
+      });
+    mockRunQuery.mockResolvedValue([
+      // 01:00 UTC is still the previous evening at UTC-6, so all four land on
+      // the same local day and roll up together.
+      completion("d4", "Wipe counters", "2026-06-06T01:00:00.000Z"),
+      completion("d3", "Take out trash", "2026-06-05T23:00:00.000Z"),
+      completion("d2", "Dishes", "2026-06-05T18:00:00.000Z"),
+      completion("d1", "Make bed", "2026-06-05T15:00:00.000Z"),
+      completion("older", "Sweep", "2026-06-01T15:00:00.000Z"),
+    ]);
+
+    const { GET } = await import("./route");
+    const body = await (await GET(feedRequest("?tzOffsetMinutes=360"))).json();
+    expect(body.items).toHaveLength(2);
+    expect(body.items[0].metadata).toMatchObject({
+      day: "2026-06-05",
+      dayChoreCount: 4,
+      dayCoinsEarned: 20,
+    });
+    expect(body.items[0].message).toBe(
+      "✨ Child is on a roll with 4 chores completed on Jun 5!",
+    );
+    expect(body.items[0].metadata.dayChores.map((chore: { title: string }) => chore.title)).toEqual([
+      "Make bed",
+      "Dishes",
+      "Take out trash",
+      "Wipe counters",
+    ]);
+    // A single completion on its own day is left as a normal card.
+    expect(body.items[1].id).toBe("older");
+  });
+
+  it("rolls up the chores a parent added on the same day", async () => {
+    setSession("admin");
+    const added = (id: string, title: string, createdAt: string) =>
+      notificationDoc(id, {
+        kind: "chore_created",
+        actorUid: "parent-uid",
+        actorEmail: "parent@example.com",
+        actorName: "Parent",
+        relatedIds: ["parent-uid"],
+        title: "New chore added",
+        message: `Parent added "${title}" (5 coins).`,
+        choreId: id,
+        createdAt,
+      });
+    mockRunQuery.mockResolvedValue([
+      added("a3", "Sweep the porch", "2026-06-05T12:00:00.000Z"),
+      added("a2", "Go through kid's clothes", "2026-06-05T11:00:00.000Z"),
+      added("a1", "Wash the car", "2026-06-05T10:00:00.000Z"),
+    ]);
+
+    const { GET } = await import("./route");
+    const body = await (await GET(feedRequest("?tzOffsetMinutes=0"))).json();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]).toMatchObject({
+      type: "chore_created",
+      message: "📝 Parent added 3 chores on Jun 5.",
+      metadata: { dayKind: "created", dayChoreCount: 3 },
+    });
+    expect(body.items[0].metadata.dayChores.map((chore: { title: string }) => chore.title)).toEqual([
+      "Wash the car",
+      "Go through kid's clothes",
+      "Sweep the porch",
+    ]);
+  });
+
+  it("rebuilds the chore list for routines completed before step snapshots existed", async () => {
+    setSession("admin");
+    mockRunQuery.mockResolvedValue([
+      notificationDoc("legacy-step-2", {
+        kind: "chore_completed",
+        actorUid: "child-uid",
+        actorName: "Child",
+        relatedIds: ["child-uid"],
+        title: "Chore completed",
+        message:
+          'Child completed "Water vegetables" (step 2 of 2 in the "Water plants" routine) and earned 5 coins.',
+        choreId: "step-2",
+        choreTitle: "Water vegetables",
+        createdAt: "2026-06-05T10:00:06.000Z",
+      }),
+      notificationDoc("legacy-routine", {
+        kind: "routine_completed",
+        actorUid: "child-uid",
+        actorName: "Child",
+        relatedIds: ["child-uid"],
+        title: "Routine completed",
+        message: '🎉 Child finished the "Water plants" routine and earned 5 bonus coins!',
+        createdAt: "2026-06-05T10:00:05.000Z",
+      }),
+      notificationDoc("legacy-step-1", {
+        kind: "chore_completed",
+        actorUid: "child-uid",
+        actorName: "Child",
+        relatedIds: ["child-uid"],
+        title: "Chore completed",
+        message:
+          'Child completed "Fill dog water bowl" (step 1 of 2 in the "Water plants" routine) and earned 5 coins.',
+        choreId: "step-1",
+        choreTitle: "Fill dog water bowl",
+        createdAt: "2026-06-05T09:30:00.000Z",
+      }),
+    ]);
+
+    const { GET } = await import("./route");
+    const body = await (await GET(feedRequest())).json();
+    expect(body.items.map((item: { id: string }) => item.id)).toEqual(["legacy-routine"]);
+    expect(body.items[0].metadata.routineSteps).toEqual([
+      { choreId: "step-1", title: "Fill dog water bowl", coinValue: 5, skipped: false },
+      { choreId: "step-2", title: "Water vegetables", coinValue: 5, skipped: false },
+    ]);
+  });
+
   it("normalizes legacy admin-on-behalf completions to the assigned child", async () => {
     setSession("admin");
     mockRunQuery.mockResolvedValue([
