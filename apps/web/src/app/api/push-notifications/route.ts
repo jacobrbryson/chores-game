@@ -88,10 +88,19 @@ function parseSettings(value: unknown) {
   ) {
     return null;
   }
+  // achievementUnlocked arrived after the first three toggles shipped: a client
+  // that predates it stays valid and simply leaves that toggle off.
+  if (
+    candidate.achievementUnlocked !== undefined &&
+    typeof candidate.achievementUnlocked !== "boolean"
+  ) {
+    return null;
+  }
   return normalizePushNotificationSettings({
     choreCompleted: candidate.choreCompleted,
     rewardClaimed: candidate.rewardClaimed,
     choreApprovalRequired: candidate.choreApprovalRequired,
+    achievementUnlocked: candidate.achievementUnlocked === true,
   });
 }
 
@@ -339,6 +348,12 @@ function resolveSampleContent(type: PushNotificationType) {
       body: "This sample confirms approval-request push notifications are working.",
     };
   }
+  if (type === "achievement_unlocked") {
+    return {
+      title: "Sample achievement notification",
+      body: "This sample confirms achievement-unlocked push notifications are working.",
+    };
+  }
   return {
     title: "Sample chore completed notification",
     body: "This sample confirms chore-completed push notifications are working.",
@@ -370,7 +385,8 @@ export async function POST(request: NextRequest) {
   const type =
     body.type === "reward_claimed" ||
     body.type === "chore_approval_required" ||
-    body.type === "chore_completed"
+    body.type === "chore_completed" ||
+    body.type === "achievement_unlocked"
       ? body.type
       : null;
   if (!type) {

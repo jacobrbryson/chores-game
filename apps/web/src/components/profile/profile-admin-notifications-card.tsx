@@ -39,11 +39,13 @@ export function ProfileAdminNotificationsCard({
     choreCompleted: false,
     rewardClaimed: false,
     choreApprovalRequired: false,
+    achievementUnlocked: false,
   };
   const allChecked =
     settings.choreCompleted &&
     settings.rewardClaimed &&
-    settings.choreApprovalRequired;
+    settings.choreApprovalRequired &&
+    settings.achievementUnlocked;
   const toggleLabels: Array<{
     key: PushNotificationToggleKey;
     label: string;
@@ -64,6 +66,11 @@ export function ProfileAdminNotificationsCard({
       key: "choreApprovalRequired",
       label: t("profile.notifications.pushApprovalRequired"),
       sampleType: "chore_approval_required",
+    },
+    {
+      key: "achievementUnlocked",
+      label: t("profile.notifications.pushAchievementUnlocked"),
+      sampleType: "achievement_unlocked",
     },
   ];
 

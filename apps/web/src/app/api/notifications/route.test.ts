@@ -331,4 +331,67 @@ describe("GET /api/notifications", () => {
       value: { stringValue: "child-uid" },
     });
   });
+
+  // summary=count powers the header badge. It used to build the entire list —
+  // projecting, sorting, searching and paginating — then throw it away and return
+  // only the number, which made it the slowest route in production. These lock in
+  // that the fast path still answers with exactly the same count.
+  describe("summary=count", () => {
+    it("matches the list-mode unseenCount for an admin and returns no items", async () => {
+      setSession("admin");
+      mockQueries([seenMarkerDoc("parent-uid", "n1")]);
+      const { GET } = await import("./route");
+
+      const listBody = await (await GET(getRequest())).json();
+      const countResponse = await GET(getRequest("?summary=count"));
+      const countBody = await countResponse.json();
+
+      expect(countResponse.status).toBe(200);
+      expect(countBody.unseenCount).toBe(listBody.unseenCount);
+      expect(countBody.unseenCount).toBe(1);
+      expect(countBody.notifications).toEqual([]);
+    });
+
+    it("matches the list-mode unseenCount for a player, honouring visibility rules", async () => {
+      setSession("player");
+      mockQueries([]);
+      const { GET } = await import("./route");
+
+      const listBody = await (await GET(getRequest())).json();
+      const countBody = await (await GET(getRequest("?summary=count"))).json();
+
+      // n2 is addressed to a sibling and must not be counted; n1 was triggered by
+      // this child so it is auto-seen. Only n3 remains unseen.
+      expect(countBody.unseenCount).toBe(listBody.unseenCount);
+      expect(countBody.unseenCount).toBe(1);
+    });
+
+    it("projects the notification query to only the fields the count needs", async () => {
+      setSession("admin");
+      mockQueries([]);
+      const { GET } = await import("./route");
+
+      await GET(getRequest("?summary=count"));
+
+      const call = mockRunQuery.mock.calls.find(
+        ([structuredQuery]) => structuredQuery?.from?.[0]?.collectionId === "notifications",
+      );
+      expect(call?.[0].select).toEqual({
+        fields: [{ fieldPath: "kind" }, { fieldPath: "actorUid" }, { fieldPath: "relatedIds" }],
+      });
+    });
+
+    it("does not project the query in list mode, which needs whole documents", async () => {
+      setSession("admin");
+      mockQueries([]);
+      const { GET } = await import("./route");
+
+      await GET(getRequest());
+
+      const call = mockRunQuery.mock.calls.find(
+        ([structuredQuery]) => structuredQuery?.from?.[0]?.collectionId === "notifications",
+      );
+      expect(call?.[0].select).toBeUndefined();
+    });
+  });
 });

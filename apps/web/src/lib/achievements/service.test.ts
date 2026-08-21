@@ -16,12 +16,14 @@ const {
   mockListDocuments,
   mockListAllDocuments,
   mockPublishAchievementUnlocked,
+  mockSendAchievementUnlockedPush,
 } = vi.hoisted(() => ({
   mockCreateOrReplaceDocument: vi.fn(),
   mockGetDocument: vi.fn(),
   mockListDocuments: vi.fn(),
   mockListAllDocuments: vi.fn(),
   mockPublishAchievementUnlocked: vi.fn(),
+  mockSendAchievementUnlockedPush: vi.fn(),
 }));
 
 const achievementDocs = new Map<string, Record<string, FirestoreValue>>();
@@ -58,6 +60,10 @@ function completedFlag(achievementId: string) {
 
 vi.mock("@/lib/ws/publish-achievement-unlocked", () => ({
   publishAchievementUnlocked: mockPublishAchievementUnlocked,
+}));
+
+vi.mock("@/lib/push/delivery", () => ({
+  sendAchievementUnlockedPush: mockSendAchievementUnlockedPush,
 }));
 
 describe("achievement service", () => {
@@ -282,6 +288,30 @@ describe("achievement service", () => {
         title: "Primera tarea completada",
         wittyTitle: "Tarea pequena, leyenda enorme",
         description: "Completa tu primera tarea.",
+      }),
+    );
+  });
+
+  it("pushes the unlock to the earner in their locale", async () => {
+    // The realtime toast only reaches an app that is open. A parent approving a
+    // chore hours later unlocks a child's achievement while the child is away,
+    // so the same unlock also has to go out as a push addressed to the earner.
+    const { trackAchievementEvent } = await import("./service");
+    await trackAchievementEvent({
+      uid: "player-1",
+      familyId: "fam-1",
+      idToken: "token",
+      viewerRole: "player",
+      eventId: "evt-push",
+      metricDeltas: { chores_completed: 1 },
+    });
+    expect(mockSendAchievementUnlockedPush).toHaveBeenCalledTimes(1);
+    expect(mockSendAchievementUnlockedPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        familyId: "fam-1",
+        uid: "player-1",
+        title: "Logro desbloqueado",
+        body: "Tarea pequena, leyenda enorme - Completa tu primera tarea.",
       }),
     );
   });

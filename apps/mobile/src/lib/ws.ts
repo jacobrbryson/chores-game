@@ -6,6 +6,20 @@ export type FamilyActivityEvent = {
   type?: string;
 };
 
+// Emitted by the WS server when a player crosses an achievement target. Mirrors
+// apps/ws/src/achievement-unlocked-event.ts and the web listener's payload.
+export type AchievementUnlockedEvent = {
+  type: "achievement:unlocked";
+  achievementId: string;
+  title: string;
+  wittyTitle: string;
+  description: string;
+  imageUrl: string;
+  completedAt: string;
+  userId: string;
+  familyId: string;
+};
+
 let socket: Socket | null = null;
 let identifiedAuthToken = "";
 let pendingIdentity: { authToken: string } | null = null;

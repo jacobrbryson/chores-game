@@ -59,6 +59,7 @@ export type PushNotificationSettings = {
   choreCompleted: boolean;
   rewardClaimed: boolean;
   choreApprovalRequired: boolean;
+  achievementUnlocked: boolean;
 };
 
 export type PushNotificationsProfileSummary = {
@@ -77,4 +78,5 @@ export type PushNotificationToggleKey =
 export type PushNotificationSampleType =
   | "chore_completed"
   | "reward_claimed"
-  | "chore_approval_required";
+  | "chore_approval_required"
+  | "achievement_unlocked";

@@ -13,6 +13,13 @@ import {
   type MobileDiscoverySummary,
 } from "@/lib/api";
 import { MobileLocaleProvider, useMobileLocale } from "@/lib/locale";
+import {
+  addMobilePushResponseListener,
+  configureMobilePushHandler,
+  readMobilePushLaunchUrl,
+  readStoredPushToken,
+  registerMobilePushDevice,
+} from "@/lib/push";
 import { colors, spacing, typography } from "@/theme";
 import { AchievementsScreen } from "@/screens/AchievementsScreen";
 import { ApprovalsScreen } from "@/screens/ApprovalsScreen";
@@ -21,6 +28,7 @@ import { HomeScreen } from "@/screens/HomeScreen";
 import { LoginPlaceholderScreen } from "@/screens/LoginPlaceholderScreen";
 import { ManageFamilyScreen } from "@/screens/ManageFamilyScreen";
 import { MobileKioskScreen } from "@/screens/MobileKioskScreen";
+import { MobileAchievementUnlockListener } from "@/components/MobileAchievementUnlockListener";
 import { NotificationsScreen } from "@/screens/NotificationsScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { RewardsScreen } from "@/screens/RewardsScreen";
@@ -36,6 +44,26 @@ type TabKey =
   | "manage-family";
 
 const EMPTY_DISCOVERY: MobileDiscoverySummary = { sections: {}, totalCount: 0 };
+
+configureMobilePushHandler();
+
+// Maps the web path the server puts on a push payload to the tab that shows the
+// same thing in the app. Anything unrecognized just opens the app.
+function tabForPushUrl(url: string): TabKey | null {
+  if (url.startsWith("/achievements")) {
+    return "achievements";
+  }
+  if (url.startsWith("/notifications")) {
+    return "notifications";
+  }
+  if (url.startsWith("/chores")) {
+    return "all-chores";
+  }
+  if (url.startsWith("/family")) {
+    return "manage-family";
+  }
+  return null;
+}
 
 // Nav item -> discovery section. The Dashboard item carries the Chores count;
 // Tapping Store or Achievements marks that section seen on view.
@@ -150,6 +178,53 @@ function AppContent({
     });
     return () => subscription.remove();
   }, [authState, loadDiscovery]);
+
+  // Re-register this device's push token on every authenticated launch. Expo
+  // rotates tokens (reinstalls, restores, OS updates) and the account signed in
+  // here may have changed, so the stored registration is refreshed rather than
+  // trusted. Devices that never opted in have no stored token and are skipped —
+  // this never prompts on its own; the Profile switch does that.
+  useEffect(() => {
+    if (authState !== "authenticated") {
+      return;
+    }
+    let active = true;
+    void (async () => {
+      const storedToken = await readStoredPushToken();
+      if (!active || !storedToken) {
+        return;
+      }
+      await registerMobilePushDevice();
+    })();
+    return () => {
+      active = false;
+    };
+  }, [authState, sessionMe?.uid]);
+
+  // Tapping a notification opens the matching tab, whether the app was already
+  // running or launched by the tap.
+  useEffect(() => {
+    if (authState !== "authenticated") {
+      return;
+    }
+    let active = true;
+    const openUrl = (url: string) => {
+      const nextTab = tabForPushUrl(url);
+      if (nextTab) {
+        setTab(nextTab);
+      }
+    };
+    void readMobilePushLaunchUrl().then((url) => {
+      if (active && url) {
+        openUrl(url);
+      }
+    });
+    const removeListener = addMobilePushResponseListener(openUrl);
+    return () => {
+      active = false;
+      removeListener();
+    };
+  }, [authState]);
 
   const discoveryCounts = useMemo<Partial<Record<MainNavigationItemId, number>>>(
     () => ({
@@ -276,6 +351,7 @@ function AppContent({
               void sessionRequest.promise;
             }}
           />
+          <MobileAchievementUnlockListener sessionKey={sessionMe?.uid ?? ""} />
         </SafeAreaView>
       </SafeAreaProvider>
     );
@@ -326,6 +402,12 @@ function AppContent({
           />
         ) : null}
         <View style={styles.screen}>{screen}</View>
+        {authState === "authenticated" ? (
+          <MobileAchievementUnlockListener
+            sessionKey={sessionMe?.uid ?? ""}
+            onOpenAchievements={() => handleNavigate("achievements")}
+          />
+        ) : null}
       </SafeAreaView>
     </SafeAreaProvider>
   );

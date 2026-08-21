@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { dedupedFetch } from "@/lib/api/deduped-fetch";
 import { AddEditChoresDialog, FAMILY_ASSIGNEE_OPTION_ID, type AddEditChoreSavedResult } from "@/components/add-edit-chores-dialog";
 import { GhostChoreEmptyStateSuggestions } from "@/components/ghost-chore-suggestions";
 import { Alert } from "@/components/alert";
@@ -640,7 +641,7 @@ export function TodayChoresPanel({
     let cancelled = false;
     async function loadPreference() {
       try {
-        const response = await fetch("/api/preferences", { cache: "no-store" });
+        const response = await dedupedFetch("/api/preferences", { cache: "no-store" });
         if (!response.ok) {
           return;
         }

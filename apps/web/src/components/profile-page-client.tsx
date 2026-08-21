@@ -735,6 +735,7 @@ export function ProfilePageClient({
           choreCompleted: false,
           rewardClaimed: false,
           choreApprovalRequired: false,
+          achievementUnlocked: false,
         },
         hasStoredSubscription: false,
         subscriptionCount: 0,
@@ -748,6 +749,7 @@ export function ProfilePageClient({
                 choreCompleted: checked,
                 rewardClaimed: checked,
                 choreApprovalRequired: checked,
+                achievementUnlocked: checked,
               }
             : {
                 ...next.settings,

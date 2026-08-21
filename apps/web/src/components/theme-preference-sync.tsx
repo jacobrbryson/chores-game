@@ -1,5 +1,6 @@
 "use client";
 
+import { dedupedFetch } from "@/lib/api/deduped-fetch";
 import { useEffect } from "react";
 import {
 	THEME_CHANGED_EVENT,
@@ -51,7 +52,7 @@ export function ThemePreferenceSync() {
 
 		async function loadServerPreference() {
 			try {
-				const response = await fetch("/api/preferences", { cache: "no-store" });
+				const response = await dedupedFetch("/api/preferences", { cache: "no-store" });
 				if (!response.ok || cancelled) {
 					return;
 				}

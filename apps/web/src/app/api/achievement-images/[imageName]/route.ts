@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import path from "node:path";
-import { readFile } from "node:fs/promises";
-import sharp from "sharp";
+
+/**
+ * Legacy raster endpoint for achievement art.
+ *
+ * The achievement catalog stores SVG paths, which React Native's <Image> cannot
+ * render, so mobile builds request the PNG twin through this route. It used to
+ * rasterize the SVG with sharp at request time by reading
+ * `public/achievements/placeholders/*.svg` off the container filesystem — that
+ * always 404s in production, because the deployed App Hosting container ships
+ * without a `public/` directory (every static asset is served from the GCS
+ * bucket via the rewrite in next.config.ts).
+ *
+ * Pre-rendered PNGs now live alongside the SVGs, so this route just points at
+ * them. Current mobile builds request the static path directly; this redirect
+ * exists so already-installed builds with the old URL baked in keep working.
+ */
 
 function sanitizeImageName(rawValue: string) {
   const trimmed = rawValue.trim();
@@ -12,7 +25,7 @@ function sanitizeImageName(rawValue: string) {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ imageName: string }> },
 ) {
   const params = await context.params;
@@ -21,33 +34,14 @@ export async function GET(
     return NextResponse.json({ error: "invalid_image_name" }, { status: 400 });
   }
 
-  const svgName = imageName.replace(/\.png$/i, ".svg");
-  const svgPath = path.join(
-    process.cwd(),
-    "public",
-    "achievements",
-    "placeholders",
-    svgName,
+  const target = new URL(
+    `/achievements/placeholders-png/${imageName}`,
+    request.nextUrl.origin,
   );
-
-  try {
-    const svgBuffer = await readFile(svgPath);
-    const pngBuffer = await sharp(svgBuffer)
-      .resize(256, 256, {
-        fit: "contain",
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      })
-      .png()
-      .toBuffer();
-
-    return new NextResponse(new Uint8Array(pngBuffer), {
-      status: 200,
-      headers: {
-        "Content-Type": "image/png",
-        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
-      },
-    });
-  } catch {
-    return NextResponse.json({ error: "image_not_found" }, { status: 404 });
-  }
+  return NextResponse.redirect(target, {
+    status: 308,
+    headers: {
+      "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+    },
+  });
 }

@@ -54,6 +54,7 @@ export function readMemberPushNotificationSettings(
     choreCompleted: readBoolean(fields, "pushNotifyChoreCompleted"),
     rewardClaimed: readBoolean(fields, "pushNotifyRewardClaimed"),
     choreApprovalRequired: readBoolean(fields, "pushNotifyChoreApprovalRequired"),
+    achievementUnlocked: readBoolean(fields, "pushNotifyAchievementUnlocked"),
   });
 }
 
@@ -74,6 +75,7 @@ export function buildMemberPushSettingsFields(
       pushNotifyChoreCompleted: boolField(settings.choreCompleted),
       pushNotifyRewardClaimed: boolField(settings.rewardClaimed),
       pushNotifyChoreApprovalRequired: boolField(settings.choreApprovalRequired),
+      pushNotifyAchievementUnlocked: boolField(settings.achievementUnlocked),
       pushNotificationPermission: stringField(permission),
       pushNotificationsUpdatedAt: timestampField(now),
     },
@@ -81,6 +83,7 @@ export function buildMemberPushSettingsFields(
       "pushNotifyChoreCompleted",
       "pushNotifyRewardClaimed",
       "pushNotifyChoreApprovalRequired",
+      "pushNotifyAchievementUnlocked",
       "pushNotificationPermission",
       "pushNotificationsUpdatedAt",
     ],
@@ -102,6 +105,7 @@ export function buildStoredPushSubscriptionFields(input: {
     pushNotifyChoreCompleted: boolField(input.settings.choreCompleted),
     pushNotifyRewardClaimed: boolField(input.settings.rewardClaimed),
     pushNotifyChoreApprovalRequired: boolField(input.settings.choreApprovalRequired),
+    pushNotifyAchievementUnlocked: boolField(input.settings.achievementUnlocked),
     subscriptionCiphertext: stringField(
       encryptPushSubscriptionPayload(JSON.stringify(input.subscription)),
     ),

@@ -45,6 +45,10 @@ module.exports = {
         ? [["@react-native-google-signin/google-signin", { iosUrlScheme }]]
         : []),
       "expo-apple-authentication",
+      // Push notifications (achievement unlocks, family activity). The plugin
+      // wires up the Android notification icon/channel and the iOS entitlement;
+      // delivery itself needs FCM/APNs credentials on the EAS project.
+      ["expo-notifications", { icon: icon192, color: "#0072b2" }],
     ],
     android: {
       package: "com.orcwood.familychores",

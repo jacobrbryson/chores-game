@@ -318,6 +318,132 @@ progress — all either the actual mutation or values returned in the response.
 
 ---
 
+## The dashboard (`/`) is an architecture problem, not a route problem
+
+Measured in production. **The dashboard fires 18 API requests**, all starting
+within 3ms of each other, plus a second wave at ~5.4s:
+
+| Route | Duration in the burst |
+|---|---|
+| `/api/feed?page=1&limit=20` | 6891ms |
+| `/api/discovery/summary?sections=feed` | 6868ms |
+| `/api/notifications?summary=count` | 6828ms |
+| `/api/family/summary` | 5159ms |
+| `/api/store?brief=1` | 4338ms |
+| `/api/store` | 4259ms |
+| `/api/discovery/summary` (×2 more variants) | 3564–3984ms |
+| `/api/family-friends` | 3881ms |
+| `/api/achievements?mode=listener` | 3488ms |
+| `/api/google-tasks` | 3456ms |
+| `/api/preferences` | 3267ms |
+| `/api/chores?status=needs_approval` | 1959ms |
+| …plus `/api/kiosk`, `/api/discovery/seen`, `/api/family/onboarding-status` | 286–350ms |
+| **second wave** — `/api/chores/completion-stats`, `/api/preferences` (again) | starts at 5.4s |
+
+**These same routes are fast in isolation.** Measured one at a time on the same
+session: `/api/preferences` 415ms, `/api/google-tasks` 251ms, `/api/store?brief=1`
+561ms. Fired as a burst of four they barely change. It is the burst of **18** that
+collapses them to 3–7s.
+
+### Why 18 requests cost far more than 18× one request
+
+Every one of those routes independently:
+
+1. parses the session cookie,
+2. calls `getPrimaryFamilyId` → one `users/{uid}` read,
+3. resolves the viewer's role → one or two `families/*/members/*` reads,
+4. then does its own work.
+
+That is **~36–54 Firestore reads spent re-deriving the same two facts** — who the
+viewer is and which family they belong to — 18 times over, before any route does
+anything useful. Add each route's real work and one dashboard load costs on the
+order of 200+ Firestore round trips against a single-CPU instance.
+
+**No amount of per-route tuning closes a 3s → 0.5s gap from here.** Even if every
+route were individually perfect, 18 round trips each re-doing the auth preamble
+cannot fit in 500ms. The remaining work has to remove requests and remove the
+repeated preamble, not shave milliseconds inside them.
+
+### Done: cut the burst instead of batching it
+
+The batched-endpoint idea was investigated and **something cheaper turned out to
+be available first** — a large part of the burst was work for content the viewer
+was not looking at.
+
+1. **Dashboard tab panels no longer mount before their tab is opened.**
+   `dashboard-home.tsx` rendered both panels always, hidden via `hidden={...}`, so
+   the Feed panel fetched on every dashboard load even on the Chores tab. That
+   accounted for the **two slowest requests in the entire load** —
+   `/api/feed` (6891ms) and `/api/discovery/summary?sections=feed` (6868ms).
+   A panel now mounts on first activation and stays mounted, so the original
+   intent — preserving chores filters/charts/realtime state across tab switches —
+   still holds. Verified: zero `/api/feed` requests before the tab is opened, it
+   loads on click, and switching away and back does **not** refetch.
+2. **The three `/api/discovery/summary` variants are now one request.** Callers
+   asked for different `?sections=` slices, so they were three distinct URLs, each
+   paying its own auth and `buildDiscoveryViewerContext` pass. All callers now
+   fetch the canonical all-sections URL and narrow client-side (recomputing their
+   own `totalCount` to match the server's semantics), which lets `dedupedFetch`
+   collapse them into one round trip. Badge counts verified unchanged.
+3. **The two concurrent `/api/preferences` GETs** (theme sync + today-chores
+   panel) now go through `dedupedFetch`.
+
+Local counts: **18 → 14 distinct requests**, with the two slowest removed
+entirely. Local duplicate counts are inflated by React StrictMode's double-effect
+in dev and should be read from production, not here.
+
+### The two changes that were originally proposed
+
+1. **Phase 3 — put `familyId` (and role) in the session cookie.** Deletes steps 2
+   and 3 above from *every* route, ~150 of them, for zero Firestore reads. This is
+   the single highest-leverage change left and it is already specified below.
+2. **Collapse the dashboard's 18 requests.** Either a batched dashboard endpoint
+   that does one auth pass and shares the family/member reads across all the
+   panels, or server-render the initial payload so the page paints without a
+   client fetch wave at all (`/` and `/family` are `"use client"` today, so the
+   sequence is HTML → JS → hydrate → 18 fetches). Also fold the ~5.4s second wave
+   (`completion-stats`, a duplicate `/api/preferences`) into it.
+
+Only after those two is per-route Firestore trimming worth revisiting.
+
+## PRODUCTION measurements (family-chores.app, real data)
+
+Taken after deploying everything below. The `Server-Timing` header works in
+production, so these are real numbers rather than extrapolations.
+
+### `/family` page load — warm, 2 samples
+
+| Metric | Sample 1 | Sample 2 |
+|---|---|---|
+| Document response | 187ms | — |
+| **First contentful paint** | **268ms** | **452ms** |
+| Last API finishes | 3230ms | 3025ms |
+| API requests | 11 | 11 |
+| Duplicate requests | **0** | **0** |
+
+### Slowest routes in production
+
+| Route | Duration |
+|---|---|
+| **`/api/notifications?summary=count`** | **2587–2966ms** |
+| `/api/family/summary` | 2149–2254ms (21 Firestore calls) |
+| `/api/store` | 1258–1397ms |
+| `/api/store?brief=1` | 1338ms |
+| `/api/discovery/summary` (×2 variants) | ~1016–1094ms |
+
+### What the numbers settle
+
+- **Call counts transferred exactly as predicted; milliseconds did not.**
+  `/api/family/summary` is 21 Firestore calls in both dev and production, but
+  ~2547ms in dev vs ~1178ms measured in isolation in production.
+- **Per-call latency is still ~60ms in production.** For a Cloud Run instance
+  co-located with Firestore this is high — single-digit to low-double-digit ms
+  would be expected. **This is real evidence for Phase 1 item 3: verify the Cloud
+  Run region actually matches the Firestore region.** It is invisible in code and
+  would cheaply improve every one of the 21 calls at once.
+- **`/api/notifications?summary=count` is now the slowest route in the app** — see
+  Phase 4 item 5 below.
+
 ## Measured results (clean dev server, real family data)
 
 Taken after a full dev-server restart, first (compiling) pass discarded.
@@ -469,6 +595,30 @@ Order by the Phase 0 table. Expected top entries:
    `Promise.all` or a batched `commitWrites`.
 4. **Split `/api/family/summary`** (1102 lines returning one mega-payload) into a
    small shell response the page needs to paint, plus deferred panel endpoints.
+5. ~~**`/api/notifications?summary=count` computes an entire list to return one
+   integer.**~~ **Fixed — but the win is unconfirmed.** The count path no longer
+   builds `NotificationItem`s, sorts, search-filters or paginates; it counts
+   directly from the query result, and the notifications query is projected via
+   `select` to just `kind`, `actorUid`, `relatedIds`.
+
+   **Correctness is proven, speed is not.** Four tests assert the fast path
+   returns *exactly* the list-mode `unseenCount` for both admin and player,
+   including the quest-exclusion, player-visibility and triggered-by-viewer
+   rules. But locally the count path measured 584–738ms against 680ms for the
+   full list — no clear improvement, because both still make the same two
+   `runQuery` round trips plus the requester lookup, and this family's
+   notification set is small.
+
+   **If the production cost turns out to be the round trips rather than the
+   payload, this fix will not move the number much.** The deeper fix would be to
+   avoid querying notifications for a count at all — maintain a denormalized
+   unseen counter per viewer — which is a materially bigger change and should
+   only be taken on if production measurement justifies it.
+
+   Also note the 2587–2966ms figure was captured *during a page load* with 11
+   concurrent requests. `/api/family/summary` measured 2254ms under that same
+   contention but 1178ms in isolation, so the notifications route in isolation is
+   likely well under its page-load figure. Re-measure both ways after deploying.
 
 ---
 

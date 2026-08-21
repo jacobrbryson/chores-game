@@ -21,7 +21,9 @@ import {
 } from "@/lib/achievements/catalog";
 import { getAchievementCatalogCopy } from "@/lib/achievements/catalog-locales";
 import { publishAchievementUnlocked } from "@/lib/ws/publish-achievement-unlocked";
-import { resolveLocalePreference, type AppLocale } from "@packages/locales";
+import { runAfterResponse } from "@/lib/async/after-response";
+import { sendAchievementUnlockedPush } from "@/lib/push/delivery";
+import { createTranslator, resolveLocalePreference, type AppLocale } from "@packages/locales";
 
 type ViewerRole = "admin" | "player";
 
@@ -533,6 +535,30 @@ export async function trackAchievementEvent(input: TrackAchievementInput) {
         }),
       ),
     );
+    // The realtime event above only reaches a client that is open right now. An
+    // unlock often lands while the earner is away — a parent approving a chore
+    // hours later can complete a child's achievement — so it also goes out as a
+    // push to that person's own browsers and devices. Push delivery makes an
+    // external HTTP call per recipient, so it runs after the response flushes.
+    const pushLocale = achievementLocale;
+    const pushUnlocked = unlocked;
+    await runAfterResponse("achievements:push", async () => {
+      const t = createTranslator({ locale: pushLocale });
+      for (const payload of pushUnlocked) {
+        try {
+          await sendAchievementUnlockedPush({
+            familyId: input.familyId,
+            idToken: input.idToken,
+            uid: input.uid,
+            title: t("achievements.unlockedNotification"),
+            body: `${payload.wittyTitle} - ${payload.description}`,
+          });
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "unknown";
+          console.error("[PUSH_NOTIFICATION_SEND_ERROR]", reason);
+        }
+      }
+    });
   }
   await writeAchievementEventAudit({
     idToken: input.idToken,

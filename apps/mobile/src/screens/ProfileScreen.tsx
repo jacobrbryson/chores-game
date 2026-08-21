@@ -12,6 +12,13 @@ import {
   resolveMobileAvatarUrl,
   type MobileProfileSummary,
 } from "@/lib/api";
+import {
+  DEFAULT_MOBILE_PUSH_SETTINGS,
+  getMobilePushPermission,
+  readStoredPushToken,
+  registerMobilePushDevice,
+  unregisterMobilePushDevice,
+} from "@/lib/push";
 import { useMobileLocale } from "@/lib/locale";
 import { colors, spacing, typography } from "@/theme";
 import { AppScreen, AvatarBadge, Button, Card, CoinPill, ErrorState, LoadingState, SectionHeader } from "@/components/ui";
@@ -58,6 +65,11 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
   const [newsletterLoading, setNewsletterLoading] = useState(false);
   const [newsletterSaving, setNewsletterSaving] = useState(false);
   const [newsletterError, setNewsletterError] = useState("");
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushSupported, setPushSupported] = useState(true);
+  const [pushDenied, setPushDenied] = useState(false);
+  const [pushSaving, setPushSaving] = useState(false);
+  const [pushError, setPushError] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -93,6 +105,28 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
         setState({ loading: false, error: err instanceof Error ? err.message : "profile_unavailable", data: null });
       });
   }, [t]);
+
+  // This device counts as "on" when it has handed the server a push token. The
+  // OS permission alone is not enough — the user can grant it and still have
+  // turned notifications off here.
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const [permission, storedToken] = await Promise.all([
+        getMobilePushPermission(),
+        readStoredPushToken(),
+      ]);
+      if (!active) {
+        return;
+      }
+      setPushSupported(permission !== "unsupported");
+      setPushDenied(false);
+      setPushEnabled(permission === "granted" && Boolean(storedToken));
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (state.data?.role !== "admin") {
@@ -146,6 +180,30 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
       setFamilySummaryError(error instanceof Error ? error.message : "claim_award_failed");
     } finally {
       setClaimingAwardId("");
+    }
+  }
+
+  async function onTogglePushNotifications() {
+    if (pushSaving) {
+      return;
+    }
+    setPushSaving(true);
+    setPushError("");
+    try {
+      if (pushEnabled) {
+        await unregisterMobilePushDevice();
+        setPushEnabled(false);
+        return;
+      }
+      const status = await registerMobilePushDevice(DEFAULT_MOBILE_PUSH_SETTINGS);
+      setPushSupported(status !== "unsupported");
+      setPushDenied(status === "denied");
+      setPushEnabled(status === "registered");
+      if (status === "failed") {
+        setPushError(t("profile.notifications.pushDeviceError"));
+      }
+    } finally {
+      setPushSaving(false);
     }
   }
 
@@ -212,6 +270,36 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
             {localeError ? <Text style={styles.error}>{localeError}</Text> : null}
           </Card>
 
+          <Card>
+            <SectionHeader title={t("profile.notifications.pushDeviceTitle")} />
+            <Text style={styles.detail}>{t("profile.notifications.pushDeviceDescription")}</Text>
+            <Text style={[styles.detail, styles.newsletterStatus]}>
+              {!pushSupported
+                ? t("profile.notifications.pushDeviceUnsupported")
+                : pushDenied
+                  ? t("profile.notifications.pushDeviceDenied")
+                  : pushEnabled
+                    ? t("profile.notifications.pushDeviceOn")
+                    : t("profile.notifications.pushDeviceOff")}
+            </Text>
+            {pushSupported ? (
+              <View style={styles.languageWrap}>
+                <Button
+                  label={
+                    pushSaving
+                      ? t("profile.notifications.pushDeviceSaving")
+                      : pushEnabled
+                        ? t("profile.notifications.pushDeviceTurnOff")
+                        : t("profile.notifications.pushDeviceTurnOn")
+                  }
+                  disabled={pushSaving}
+                  onPress={() => void onTogglePushNotifications()}
+                />
+              </View>
+            ) : null}
+            {pushError ? <Text style={styles.error}>{pushError}</Text> : null}
+          </Card>
+
           {state.data.role === "admin" ? (
             <Card>
               <SectionHeader title={t("profile.notificationsTitle")} />
@@ -219,7 +307,7 @@ export function ProfileScreen({ right, onGoDashboard }: Props) {
 
               <View style={styles.notificationGroup}>
                 <Text style={styles.notificationGroupTitle}>{t("profile.notifications.pushTitle")}</Text>
-                <Text style={styles.detail}>{t("profile.notifications.pushNoWebSupport")}</Text>
+                <Text style={styles.detail}>{t("profile.notifications.pushTypesOnWeb")}</Text>
               </View>
 
               <View style={[styles.notificationGroup, styles.notificationGroupBorder]}>

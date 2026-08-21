@@ -1,6 +1,6 @@
 import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
-import { toAppAssetUrl } from "@/lib/api";
+import { resolveAchievementImageUrl, usesNativeSafeImage } from "@/lib/achievement-image";
 import { colors, radius, spacing, typography } from "@/theme";
 import { useMobileLocale } from "@/lib/locale";
 import { Badge, ProgressBar } from "@/components/ui";
@@ -41,23 +41,6 @@ function formatCompletedDate(
       year: "numeric",
     }).format(date),
   });
-}
-
-function usesNativeSafeImage(url: string) {
-  const normalized = url.trim().toLowerCase();
-  return Boolean(normalized) && !normalized.endsWith(".svg");
-}
-
-function resolveAchievementImageUrl(url: string) {
-  const normalized = url.trim();
-  if (!normalized) {
-    return "";
-  }
-  if (normalized.toLowerCase().endsWith(".svg")) {
-    const rasterName = normalized.split("/").pop()?.replace(/\.svg$/i, ".png") ?? "";
-    return rasterName ? toAppAssetUrl(`/api/achievement-images/${rasterName}`) : "";
-  }
-  return toAppAssetUrl(normalized);
 }
 
 function buildMonogram(value: string) {

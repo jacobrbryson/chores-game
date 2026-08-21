@@ -366,6 +366,22 @@ export async function GET(request: NextRequest) {
               from: [{ collectionId: "notifications" }],
               orderBy: [{ field: { fieldPath: "createdAt" }, direction: "DESCENDING" }],
               limit: RECENT_NOTIFICATION_LIMIT,
+              // The unseen count only needs the three fields the visibility and
+              // seen checks read. Projecting to them keeps the response
+              // proportional to the arithmetic instead of pulling every title and
+              // message body for notifications that are never rendered. The list
+              // mode still needs whole documents.
+              ...(summaryMode
+                ? {
+                    select: {
+                      fields: [
+                        { fieldPath: "kind" },
+                        { fieldPath: "actorUid" },
+                        { fieldPath: "relatedIds" },
+                      ],
+                    },
+                  }
+                : {}),
             },
             idToken,
             `families/${familyId}`,
@@ -392,6 +408,35 @@ export async function GET(request: NextRequest) {
             .map((doc) => readString(doc.fields, "notificationId"))
             .filter((value) => value.length > 0),
         );
+
+        // Count-only callers (the header badge) previously fell through the whole
+        // list pipeline — building a NotificationItem per document, sorting,
+        // search-filtering and paginating — and then returned an empty array with
+        // just the count, discarding all of it. That made this the slowest route
+        // in production (2587-2966ms). Counting directly applies exactly the same
+        // three rules the projection below encodes: quest kinds are excluded,
+        // players only see notifications naming them, and a notification the
+        // viewer triggered counts as already seen.
+        if (summaryMode) {
+          const unseenCount = notificationDocs.reduce((total, doc) => {
+            const kind = readString(doc.fields, "kind");
+            if (kind.startsWith("quest_")) {
+              return total;
+            }
+            if (
+              requester.role !== "admin" &&
+              !isVisibleToPlayer(readStringArray(doc.fields, "relatedIds"), requester.aliases)
+            ) {
+              return total;
+            }
+            const triggeredByViewer = readString(doc.fields, "actorUid") === session.uid;
+            if (triggeredByViewer) {
+              return total;
+            }
+            return seenIds.has(documentIdFromName(doc.name)) ? total : total + 1;
+          }, 0);
+          return { notifications: [] as NotificationItem[], unseenCount };
+        }
 
         const visible = notificationDocs
           .map((doc): NotificationItem | null => {
@@ -432,10 +477,6 @@ export async function GET(request: NextRequest) {
         const filtered = notifications.filter((entry) => matchesSearch(entry, query));
         const sorted = sortNotifications(filtered, sortBy, sortDir);
         const pagination = paginate(sorted, requestedPage, pageSize);
-
-        if (summaryMode) {
-          return { notifications: [] as NotificationItem[], unseenCount };
-        }
 
         return {
           notifications: pagination.rows,

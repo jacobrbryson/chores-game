@@ -53,6 +53,23 @@ export function DashboardHome({ viewerKey }: DashboardHomeProps) {
   });
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
   const [reacceptanceDone, setReacceptanceDone] = useState(false);
+  // Tabs whose panel has been opened at least once this session. A panel mounts
+  // the first time its tab becomes active and then stays mounted (see the render
+  // block below), so the inactive tab costs nothing on first load but tab
+  // switching still preserves state.
+  const [activatedTabs, setActivatedTabs] = useState<Set<DashboardHomeTabId>>(
+    () => new Set([activeTab]),
+  );
+  useEffect(() => {
+    setActivatedTabs((previous) => {
+      if (previous.has(activeTab)) {
+        return previous;
+      }
+      const next = new Set(previous);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
   const { summary: discoverySummary } = useDiscoverySummary(["feed"]);
   const feedUnseenCount = getSectionCount(discoverySummary, "feed");
 
@@ -138,18 +155,27 @@ export function DashboardHome({ viewerKey }: DashboardHomeProps) {
           variant="pills"
         />
       </div>
-      {/* Both panels stay mounted; the inactive one is hidden so the existing dashboard
-          chores state (filters, charts, realtime subscription) is preserved across tab
-          switches instead of remounting. */}
+      {/* A panel mounts the first time its tab is opened and stays mounted after
+          that, so the existing chores state (filters, charts, realtime
+          subscription) is still preserved across tab switches.
+          Previously both panels mounted immediately, which meant the unopened tab
+          fetched its data on every dashboard load: the Feed tab alone contributed
+          /api/feed and a /api/discovery/summary call — the two slowest requests in
+          the load (6891ms and 6868ms in production) — for a panel the viewer may
+          never look at. */}
       <div hidden={activeTab !== "feed"}>
-        <FamilyFeedPanel />
+        {activatedTabs.has("feed") ? <FamilyFeedPanel /> : null}
       </div>
       <div hidden={activeTab !== "chores"}>
-        {/* Player "Your Journey" identity widget. Self-hides until a pillar has
-            XP; parent dashboard growth details are available from child avatars
-            in the chore list. */}
-        {onboardingStatus?.viewerRole === "player" ? <IdentityJourneyWidget /> : null}
-        <FamilyCard />
+        {activatedTabs.has("chores") ? (
+          <>
+            {/* Player "Your Journey" identity widget. Self-hides until a pillar has
+                XP; parent dashboard growth details are available from child avatars
+                in the chore list. */}
+            {onboardingStatus?.viewerRole === "player" ? <IdentityJourneyWidget /> : null}
+            <FamilyCard />
+          </>
+        ) : null}
       </div>
     </div>
   );

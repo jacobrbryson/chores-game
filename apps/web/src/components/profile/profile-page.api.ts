@@ -45,6 +45,7 @@ export async function getPushNotificationsSummary() {
       choreCompleted?: boolean;
       rewardClaimed?: boolean;
       choreApprovalRequired?: boolean;
+      achievementUnlocked?: boolean;
     };
     hasStoredSubscription?: boolean;
     subscriptionCount?: number;
@@ -60,6 +61,7 @@ export async function getPushNotificationsSummary() {
       choreCompleted: payload.settings?.choreCompleted === true,
       rewardClaimed: payload.settings?.rewardClaimed === true,
       choreApprovalRequired: payload.settings?.choreApprovalRequired === true,
+      achievementUnlocked: payload.settings?.achievementUnlocked === true,
     },
     hasStoredSubscription: payload.hasStoredSubscription === true,
     subscriptionCount: Math.max(0, payload.subscriptionCount ?? 0),

@@ -1,9 +1,11 @@
-import { documentIdFromName, listDocuments } from "@/lib/firestore/rest";
+import { deleteDocument, documentIdFromName, listDocuments } from "@/lib/firestore/rest";
 import {
   pushNotificationTargetUrl,
   pushSettingsAllowType,
   type PushNotificationType,
 } from "@/lib/push/constants";
+import { readStoredPushDeviceRecord, type StoredPushDeviceRecord } from "@/lib/push/devices";
+import { sendExpoPushNotifications } from "@/lib/push/expo";
 import { readStoredPushSubscriptionRecord } from "@/lib/push/subscriptions";
 import { isWebPushConfigured, sendWebPushNotification } from "@/lib/push/web-push";
 
@@ -16,6 +18,8 @@ type SendFamilyPushNotificationsInput = {
   body: string;
 };
 
+type PushPayload = { title: string; body: string; url: string; tag: string };
+
 type ResolvedPushRecipient = NonNullable<
   ReturnType<typeof readStoredPushSubscriptionRecord>
 >;
@@ -27,12 +31,27 @@ async function listResolvedPushRecipients(familyId: string, idToken: string) {
     .flatMap((entry) => (entry ? [entry] : []));
 }
 
-async function sendPushPayload(
-  recipients: ResolvedPushRecipient[],
-  payload: { title: string; body: string; url: string; tag: string },
-) {
+// Native (Expo) app registrations live alongside the browser ones. A family
+// with no mobile installs simply has an empty collection, so this stays cheap.
+async function listResolvedPushDevices(familyId: string, idToken: string) {
+  const docs = await listDocuments(`families/${familyId}/pushDevices`, idToken, 300);
+  return docs
+    .map((doc) => readStoredPushDeviceRecord(documentIdFromName(doc.name), doc.fields))
+    .flatMap((entry) => (entry ? [entry] : []));
+}
+
+async function loadPushRegistrations(familyId: string, idToken: string) {
+  const [subscriptions, devices] = await Promise.all([
+    isWebPushConfigured()
+      ? listResolvedPushRecipients(familyId, idToken)
+      : Promise.resolve([] as ResolvedPushRecipient[]),
+    listResolvedPushDevices(familyId, idToken),
+  ]);
+  return { subscriptions, devices };
+}
+
+async function sendWebPushPayload(recipients: ResolvedPushRecipient[], payload: PushPayload) {
   if (recipients.length === 0) {
-    console.info("[PUSH_NOTIFICATION_DEBUG] no_recipients");
     return;
   }
 
@@ -58,13 +77,58 @@ async function sendPushPayload(
   });
 }
 
-export async function sendFamilyPushNotifications(input: SendFamilyPushNotificationsInput) {
-  if (!isWebPushConfigured()) {
-    console.info("[PUSH_NOTIFICATION_DEBUG] web_push_not_configured");
+async function sendDevicePushPayload(
+  familyId: string,
+  idToken: string,
+  devices: StoredPushDeviceRecord[],
+  payload: PushPayload,
+) {
+  if (devices.length === 0) {
     return;
   }
 
-  const recipients = (await listResolvedPushRecipients(input.familyId, input.idToken))
+  const { invalidTokens } = await sendExpoPushNotifications(
+    devices.map((device) => ({
+      to: device.expoPushToken,
+      title: payload.title,
+      body: payload.body,
+      // The app reads `url` when the notification is tapped so it opens the
+      // same place the web notification does.
+      data: { url: payload.url, tag: payload.tag },
+      channelId: "default",
+    })),
+  );
+
+  // Expo reports uninstalled or revoked devices as DeviceNotRegistered. Drop
+  // those registrations so a dead device stops costing a send every time.
+  const staleIds = devices
+    .filter((device) => invalidTokens.includes(device.expoPushToken))
+    .map((device) => device.id);
+  await Promise.allSettled(
+    staleIds.map((id) => deleteDocument(`families/${familyId}/pushDevices/${id}`, idToken)),
+  );
+}
+
+async function sendToAllTransports(input: {
+  familyId: string;
+  idToken: string;
+  recipients: ResolvedPushRecipient[];
+  devices: StoredPushDeviceRecord[];
+  payload: PushPayload;
+}) {
+  await Promise.all([
+    sendWebPushPayload(input.recipients, input.payload),
+    sendDevicePushPayload(input.familyId, input.idToken, input.devices, input.payload),
+  ]);
+}
+
+export async function sendFamilyPushNotifications(input: SendFamilyPushNotificationsInput) {
+  const { subscriptions, devices } = await loadPushRegistrations(input.familyId, input.idToken);
+
+  const recipients = subscriptions
+    .filter((entry) => entry.uid !== input.actorUid)
+    .filter((entry) => pushSettingsAllowType(entry.settings, input.type));
+  const deviceRecipients = devices
     .filter((entry) => entry.uid !== input.actorUid)
     .filter((entry) => pushSettingsAllowType(entry.settings, input.type));
 
@@ -74,14 +138,66 @@ export async function sendFamilyPushNotifications(input: SendFamilyPushNotificat
       kind: input.type,
       familyId: input.familyId,
       totalRecipients: recipients.length,
+      totalDevices: deviceRecipients.length,
     }),
   );
 
-  await sendPushPayload(recipients, {
-    title: input.title,
-    body: input.body,
-    url: pushNotificationTargetUrl(input.type),
-    tag: `family-chores-${input.type}`,
+  await sendToAllTransports({
+    familyId: input.familyId,
+    idToken: input.idToken,
+    recipients,
+    devices: deviceRecipients,
+    payload: {
+      title: input.title,
+      body: input.body,
+      url: pushNotificationTargetUrl(input.type),
+      tag: `family-chores-${input.type}`,
+    },
+  });
+}
+
+// An achievement unlock is addressed to the person who earned it, not to the
+// rest of the family — and the earner is often not whoever triggered it (a
+// parent approving a chore can complete a child's achievement). So this targets
+// one uid instead of excluding the actor the way family broadcasts do.
+export async function sendAchievementUnlockedPush(input: {
+  familyId: string;
+  idToken: string;
+  uid: string;
+  title: string;
+  body: string;
+}) {
+  const { subscriptions, devices } = await loadPushRegistrations(input.familyId, input.idToken);
+
+  const recipients = subscriptions
+    .filter((entry) => entry.uid === input.uid)
+    .filter((entry) => pushSettingsAllowType(entry.settings, "achievement_unlocked"));
+  const deviceRecipients = devices
+    .filter((entry) => entry.uid === input.uid)
+    .filter((entry) => pushSettingsAllowType(entry.settings, "achievement_unlocked"));
+
+  console.info(
+    "[PUSH_NOTIFICATION_DEBUG]",
+    JSON.stringify({
+      kind: "achievement_unlocked",
+      familyId: input.familyId,
+      uid: input.uid,
+      totalRecipients: recipients.length,
+      totalDevices: deviceRecipients.length,
+    }),
+  );
+
+  await sendToAllTransports({
+    familyId: input.familyId,
+    idToken: input.idToken,
+    recipients,
+    devices: deviceRecipients,
+    payload: {
+      title: input.title,
+      body: input.body,
+      url: pushNotificationTargetUrl("achievement_unlocked"),
+      tag: "family-chores-achievement_unlocked",
+    },
   });
 }
 
@@ -92,14 +208,10 @@ export async function sendPushTestNotificationToUid(input: {
   title: string;
   body: string;
 }) {
-  if (!isWebPushConfigured()) {
-    console.info("[PUSH_NOTIFICATION_DEBUG] web_push_not_configured");
-    return { recipientCount: 0 };
-  }
+  const { subscriptions, devices } = await loadPushRegistrations(input.familyId, input.idToken);
 
-  const recipients = (await listResolvedPushRecipients(input.familyId, input.idToken)).filter(
-    (entry) => entry.uid === input.uid,
-  );
+  const recipients = subscriptions.filter((entry) => entry.uid === input.uid);
+  const deviceRecipients = devices.filter((entry) => entry.uid === input.uid);
 
   console.info(
     "[PUSH_NOTIFICATION_DEBUG]",
@@ -108,15 +220,22 @@ export async function sendPushTestNotificationToUid(input: {
       familyId: input.familyId,
       uid: input.uid,
       totalRecipients: recipients.length,
+      totalDevices: deviceRecipients.length,
     }),
   );
 
-  await sendPushPayload(recipients, {
-    title: input.title,
-    body: input.body,
-    url: "/profile",
-    tag: "family-chores-test",
+  await sendToAllTransports({
+    familyId: input.familyId,
+    idToken: input.idToken,
+    recipients,
+    devices: deviceRecipients,
+    payload: {
+      title: input.title,
+      body: input.body,
+      url: "/profile",
+      tag: "family-chores-test",
+    },
   });
 
-  return { recipientCount: recipients.length };
+  return { recipientCount: recipients.length + deviceRecipients.length };
 }

@@ -19,7 +19,7 @@ Release-asset audit:
 - General icon and splash source exist at `apps/mobile/assets/icon-512.png` (512×512), with splash background `#ebf4fb`.
 - Adaptive icon is configured, but it reuses the general icon. Its art reaches the canvas edges and needs a dedicated safe-zone-checked foreground before final submission so Android masks do not clip it.
 - Splash is configured and generated in the native project, but there is no separate splash artwork. Verify it on representative Android versions and replace it if the result is not acceptable.
-- No camera, microphone, location, contacts, notification, or media-library permission is required by the current mobile code.
+- The app requests the Android 13+ `POST_NOTIFICATIONS` runtime permission, and only when the user turns notifications on from Profile. No camera, microphone, location, contacts, or media-library permission is required by the current mobile code.
 
 ## One-time account and app setup
 
@@ -37,6 +37,17 @@ Release-asset audit:
 7. If using EAS Submit, create a Google Cloud service account, grant it the minimum Play Console release permission for this app, create its JSON key, and upload that key to EAS under the Android application's service credentials. Do not commit the JSON. With the app record and service credential in place, EAS Submit can create the first internal-track release; leave it as a draft for review.
 
 Official references: [create an app](https://support.google.com/googleplay/android-developer/answer/9859152), [Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756), [EAS Android submission](https://docs.expo.dev/submit/android/), and [EAS app credentials](https://docs.expo.dev/app-signing/app-credentials/).
+
+## Push notification credentials
+
+The app registers an Expo push token when the user turns on notifications in Profile, and the server sends to it through the Expo push service (`https://exp.host/--/api/v2/push/send`). No key lives in this repository or in the server environment for that transport — Expo delivers to FCM/APNs using the credentials held against the EAS project, so both must be uploaded once before any device receives a notification.
+
+1. **Android (FCM V1).** In the Firebase project for `com.orcwood.familychores`, add an Android app with that package name and download `google-services.json`. In Firebase **Project settings → Service accounts**, generate a private key JSON for the Firebase Admin SDK. From `apps/mobile`, run `eas credentials --platform android`, choose the profile, and upload the FCM V1 service-account key under push notifications. Do not commit either JSON.
+2. **iOS (APNs).** Run `eas credentials --platform ios` and let EAS create and retain the APNs key for the `com.orcwood.familychores` bundle id, or upload an existing `.p8` key from the Apple Developer account.
+3. Rebuild and reinstall after uploading credentials — a build made before the credentials exist can still request a token, but delivery fails until the project is configured.
+4. Verify end to end on a physical device (a simulator/emulator has no push token): turn notifications on in **Profile → Notifications on this device**, then have that account complete a chore that finishes an achievement. The web profile's per-type toggles also expose a "Send sample" button for each notification type.
+
+Official references: [Expo push notifications setup](https://docs.expo.dev/push-notifications/push-notifications-setup/) and [FCM credentials](https://docs.expo.dev/push-notifications/fcm-credentials/).
 
 ## Signing fingerprints and Google Sign-In
 

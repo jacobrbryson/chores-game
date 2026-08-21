@@ -1,5 +1,29 @@
 [
   {
+    "id": "mobile-achievement-art-missing",
+    "date": "2026-08-21",
+    "type": "Bug Fix",
+    "subject": "Achievement artwork now shows up in the mobile app",
+    "description": "Every achievement on the mobile app's Achievement Board appeared as an empty coloured square instead of its badge art. The app was asking the server to convert each badge into a phone-friendly image on the spot, and that conversion never worked once the app was live. The badges are now delivered ready to display, so the full artwork appears on the Achievement Board the same way it does on the website.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "achievement-unlock-push-notifications",
+    "date": "2026-08-21",
+    "type": "Feature",
+    "subject": "Get a notification when you unlock an achievement",
+    "description": "Achievements often finish while you are away from the app — a parent approving a chore later in the day can be what completes one. Now the person who earned it gets a notification on their phone, tablet, or browser, even when the app is closed. On the mobile app, turn it on under Profile → Notifications on this device. On the website, parents can pick which family events send a notification, including achievement unlocks, from the notification settings on their profile.",
+    "image": "/file.svg"
+  },
+  {
+    "id": "mobile-achievement-unlock-notification",
+    "date": "2026-08-21",
+    "type": "Bug Fix",
+    "subject": "The mobile app now tells you when you unlock an achievement",
+    "description": "Unlocking an achievement on the mobile app happened silently — you only found out by opening the Achievements screen. A pop-up now appears the moment you earn one, showing its art, name, and description, just like the website. Tap it to jump straight to your Achievement Board, or tap the x to dismiss it. It works in Kiosk Mode too.",
+    "image": "/file.svg"
+  },
+  {
     "id": "parent-can-update-child-email",
     "date": "2026-08-17",
     "type": "Feature",

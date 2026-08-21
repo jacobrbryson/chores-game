@@ -866,6 +866,7 @@ service cloud.firestore {
               "pushNotifyChoreCompleted",
               "pushNotifyRewardClaimed",
               "pushNotifyChoreApprovalRequired",
+              "pushNotifyAchievementUnlocked",
               "pushNotificationPermission",
               "pushNotificationsUpdatedAt",
               "updatedAt",
@@ -1157,6 +1158,7 @@ service cloud.firestore {
           && request.resource.data.pushNotifyChoreCompleted is bool
           && request.resource.data.pushNotifyRewardClaimed is bool
           && request.resource.data.pushNotifyChoreApprovalRequired is bool
+          && request.resource.data.pushNotifyAchievementUnlocked is bool
           && request.resource.data.createdAt is timestamp
           && request.resource.data.updatedAt is timestamp;
         allow update: if isFamilyAdmin(familyId)
@@ -1169,9 +1171,52 @@ service cloud.firestore {
           && request.resource.data.pushNotifyChoreCompleted is bool
           && request.resource.data.pushNotifyRewardClaimed is bool
           && request.resource.data.pushNotifyChoreApprovalRequired is bool
+          && request.resource.data.pushNotifyAchievementUnlocked is bool
           && request.resource.data.createdAt is timestamp
           && request.resource.data.updatedAt is timestamp;
         allow delete: if isFamilyAdmin(familyId) && resource.data.uid == request.auth.uid;
+      }
+
+      // Native app push registrations: one document per installed device,
+      // holding an encrypted Expo push token plus that device's notification
+      // toggles. Unlike the browser subscriptions above these are not
+      // admin-only — a child with their own phone registers their own device —
+      // but a member may only write a document that carries their own uid.
+      // Classification: FAMILY_PRIVATE.
+      match /pushDevices/{deviceId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.familyId == familyId
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.deviceTokenCiphertext is string
+          && request.resource.data.tokenHash is string
+          && request.resource.data.platform is string
+          && request.resource.data.permission is string
+          && request.resource.data.pushNotifyChoreCompleted is bool
+          && request.resource.data.pushNotifyRewardClaimed is bool
+          && request.resource.data.pushNotifyChoreApprovalRequired is bool
+          && request.resource.data.pushNotifyAchievementUnlocked is bool
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp;
+        allow update: if isFamilyMember(familyId)
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.familyId == familyId
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.deviceTokenCiphertext is string
+          && request.resource.data.tokenHash is string
+          && request.resource.data.platform is string
+          && request.resource.data.permission is string
+          && request.resource.data.pushNotifyChoreCompleted is bool
+          && request.resource.data.pushNotifyRewardClaimed is bool
+          && request.resource.data.pushNotifyChoreApprovalRequired is bool
+          && request.resource.data.pushNotifyAchievementUnlocked is bool
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp;
+        // Members retire their own device; family admins may also clear one out,
+        // which is what lets the server drop a registration Expo reports as
+        // uninstalled while sending on someone else's behalf.
+        allow delete: if isFamilyMember(familyId)
+          && (resource.data.uid == request.auth.uid || isFamilyAdmin(familyId));
       }
 
       match /choreUsage/{usageId} {

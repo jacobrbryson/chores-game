@@ -82,17 +82,40 @@ export function useDiscoverySummary(
     seqRef.current += 1;
     const seq = seqRef.current;
     try {
-      const query = sectionsKey ? `?sections=${encodeURIComponent(sectionsKey)}` : "";
-      const response = await dedupedFetch(`/api/discovery/summary${query}`, { cache: "no-store" });
+      // Always request the canonical (all-sections) summary rather than
+      // ?sections=<subset>, then narrow client-side.
+      //
+      // Several components each want a different slice — the nav wants
+      // chores/store/achievements, the dashboard wants feed, the footer wants
+      // changelog/requested_changes — and as distinct URLs those were three
+      // separate requests on every dashboard load, each paying its own auth and
+      // `buildDiscoveryViewerContext` pass. Sharing one URL lets dedupedFetch
+      // collapse them into a single round trip, and computing every section once
+      // is cheaper than building that context three times.
+      const response = await dedupedFetch("/api/discovery/summary", { cache: "no-store" });
       if (!response.ok) {
         throw new Error(`DISCOVERY_HTTP_${response.status}`);
       }
       const payload = (await response.json()) as DiscoverySummary;
       if (seq === seqRef.current) {
-        setSummary({
-          sections: payload.sections ?? {},
-          totalCount: payload.totalCount ?? 0,
-        });
+        const allSections = payload.sections ?? {};
+        if (!sectionsKey) {
+          setSummary({ sections: allSections, totalCount: payload.totalCount ?? 0 });
+          return;
+        }
+        // Narrow to this caller's sections and recompute its aggregate, matching
+        // the server's semantics for a ?sections= request (totalCount is the sum
+        // of the returned top-level counts; children roll up into their parent).
+        const sections: DiscoverySummary["sections"] = {};
+        let totalCount = 0;
+        for (const key of sectionsKey.split(",")) {
+          const entry = allSections[key];
+          if (entry) {
+            sections[key] = entry;
+            totalCount += entry.count ?? 0;
+          }
+        }
+        setSummary({ sections, totalCount });
       }
     } catch {
       // Fail soft: leave the last good summary; badges simply don't update.
