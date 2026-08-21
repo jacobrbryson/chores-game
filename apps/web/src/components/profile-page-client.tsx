@@ -2,6 +2,7 @@
 
 import { DEFAULT_LOCALE, normalizeLocale, type AppLocale } from "@packages/locales";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { dedupedFetch } from "@/lib/api/deduped-fetch";
 import { Alert } from "@/components/alert";
 import { Button } from "@/components/button";
 import { GoogleSignInButton } from "@/components/google-signin-button";
@@ -169,7 +170,7 @@ export function ProfilePageClient({
     setIsLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/store", { cache: "no-store" });
+      const response = await dedupedFetch("/api/store", { cache: "no-store" });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? `PROFILE_STORE_HTTP_${response.status}`);

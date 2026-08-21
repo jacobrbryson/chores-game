@@ -10,6 +10,7 @@ import {
 } from "@/lib/firestore/rest";
 import type { SessionUser } from "@/lib/auth/session";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
+import { runAfterResponse } from "@/lib/async/after-response";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
 import { GOOGLE_TASKS_CHORE_SOURCE } from "@/lib/google/tasks-sync";
 import { normalizeCoinValue } from "@/lib/chores/recurrence";
@@ -61,24 +62,26 @@ export async function handleDelete(params: {
     idToken,
     ["deleted", "deletedAt", "status", "updatedAt"],
   );
-  await writeAuditLogBestEffort({
-    familyId,
-    idToken,
-    eventType: "chore_status_changed",
-    actor: {
-      uid: session.uid,
-      email: session.email,
-      name: session.name || session.email,
-      role: requester.role,
-    },
-    userId: choreAssigneeId,
-    choreId,
-    choreTitle,
-    source: choreSource || "manual",
-    previous: { status: currentStatus, deleted: readBoolean(existingChoreDoc.fields, "deleted") },
-    next: { status: "Deleted", deleted: true },
-    reason: "delete",
-  });
+  await runAfterResponse("delete:audit-log", () =>
+    writeAuditLogBestEffort({
+      familyId,
+      idToken,
+      eventType: "chore_status_changed",
+      actor: {
+        uid: session.uid,
+        email: session.email,
+        name: session.name || session.email,
+        role: requester.role,
+      },
+      userId: choreAssigneeId,
+      choreId,
+      choreTitle,
+      source: choreSource || "manual",
+      previous: { status: currentStatus, deleted: readBoolean(existingChoreDoc.fields, "deleted") },
+      next: { status: "Deleted", deleted: true },
+      reason: "delete",
+    }),
+  );
   if (currentStatus === "Approved") {
     const payoutByAssignee = buildPayoutByAssignee({
       assigneeIds: choreAssigneeIds,
@@ -115,21 +118,26 @@ export async function handleDelete(params: {
     choreTitle,
     relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
   });
-  await publishFamilyActivity({ type: "chore_deleted", familyId, choreId, occurredAt: now });
-  if (choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid) {
-    await syncGoogleTasksBestEffort({
-      uid: choreGoogleTaskOwnerUid,
-      idToken,
-      force: true,
-      minIntervalSeconds: 0,
-    });
-  } else if (isRequesterAssignee(choreAssigneeId, session.uid, session.memberId, session.email)) {
-    await syncGoogleTasksBestEffort({
-      uid: session.uid,
-      idToken,
-      force: true,
-      minIntervalSeconds: 0,
-    });
+  await runAfterResponse("delete:publish", () =>
+    publishFamilyActivity({ type: "chore_deleted", familyId, choreId, occurredAt: now }),
+  );
+  // Mirrors the deletion back to Google Tasks. `force` stays — that is the point
+  // of the call — but the external round trip runs after the response.
+  const googleTasksSyncUid =
+    choreSource === GOOGLE_TASKS_CHORE_SOURCE && choreGoogleTaskOwnerUid
+      ? choreGoogleTaskOwnerUid
+      : isRequesterAssignee(choreAssigneeId, session.uid, session.memberId, session.email)
+        ? session.uid
+        : "";
+  if (googleTasksSyncUid) {
+    await runAfterResponse("delete:google-tasks-sync", () =>
+      syncGoogleTasksBestEffort({
+        uid: googleTasksSyncUid,
+        idToken,
+        force: true,
+        minIntervalSeconds: 0,
+      }),
+    );
   }
 
   return { kind: "ok" as const };

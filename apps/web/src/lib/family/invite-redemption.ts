@@ -1,5 +1,6 @@
 import { writeAdminAuditLogBestEffort } from "@/lib/audit/log";
 import { contactEmail, familyVisibleEmail } from "@/lib/auth/private-relay";
+import { buildIdpUserAuthFields } from "@/lib/auth/idp-user-fields";
 import {
   findFamilyInviteByCode,
   markFamilyInviteAccepted,
@@ -60,6 +61,10 @@ export type RedeemFamilyInviteInput = {
   /** The signing-in account's address; may be an Apple private relay. */
   email: string;
   displayName: string;
+  /** Auth-sync fields, needed when this redemption creates `users/{uid}`. */
+  locale?: string;
+  photoUrl?: string;
+  provider?: "google" | "apple";
 };
 
 /**
@@ -163,14 +168,45 @@ export async function redeemFamilyInvite(
     ).catch(() => undefined);
   }
 
+  // Sign-in no longer writes `users/{uid}` for a family-less account, so this
+  // may be creating the document rather than updating it. Admin credentials
+  // bypass the Firestore rules, so nothing would reject a three-field write —
+  // it would just leave a user document with no email, role, or locale. Write
+  // the full shape when the document is absent.
+  const userDocExists = (await tryGetDocument(`users/${input.uid}`)) !== null;
   await adminPatchDocument(
     `users/${input.uid}`,
-    {
-      uid: stringField(input.uid),
-      familyIds: stringArrayField([accepted.familyId]),
-      lastFamilyUpdateAt: timestampField(now),
-    },
-    ["uid", "familyIds", "lastFamilyUpdateAt"],
+    userDocExists
+      ? {
+          uid: stringField(input.uid),
+          familyIds: stringArrayField([accepted.familyId]),
+          lastFamilyUpdateAt: timestampField(now),
+        }
+      : buildIdpUserAuthFields({
+          uid: input.uid,
+          role: accepted.role,
+          locale: input.locale || DEFAULT_LOCALE,
+          email: contactEmail(input.email),
+          displayName: input.displayName,
+          photoUrl: input.photoUrl ?? "",
+          provider: input.provider ?? "google",
+          familyId: accepted.familyId,
+          now,
+        }),
+    userDocExists
+      ? ["uid", "familyIds", "lastFamilyUpdateAt"]
+      : [
+          "uid",
+          "role",
+          "locale",
+          "email",
+          "displayName",
+          "photoUrl",
+          "provider",
+          "lastSignInAt",
+          "familyIds",
+          "lastFamilyUpdateAt",
+        ],
   );
 
   await markFamilyInviteAccepted({

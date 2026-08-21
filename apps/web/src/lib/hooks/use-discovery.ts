@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { dedupedFetch } from "@/lib/api/deduped-fetch";
 
 // Client-side discovery (What's New) helpers. Keep all discovery fetches behind
 // these helpers instead of scattering raw fetch calls across components.
@@ -82,7 +83,7 @@ export function useDiscoverySummary(
     const seq = seqRef.current;
     try {
       const query = sectionsKey ? `?sections=${encodeURIComponent(sectionsKey)}` : "";
-      const response = await fetch(`/api/discovery/summary${query}`, { cache: "no-store" });
+      const response = await dedupedFetch(`/api/discovery/summary${query}`, { cache: "no-store" });
       if (!response.ok) {
         throw new Error(`DISCOVERY_HTTP_${response.status}`);
       }

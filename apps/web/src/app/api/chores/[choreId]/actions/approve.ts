@@ -9,6 +9,7 @@ import {
   timestampField,
 } from "@/lib/firestore/rest";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
+import { runAfterResponse } from "@/lib/async/after-response";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
 import { trackEvent } from "@/lib/analytics/service";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
@@ -81,19 +82,21 @@ export async function handleApprove(ctx: ChoreActionContext): Promise<ChoreActio
     idToken,
     ["status", "approvalPayoutsJson", "coinValue", "updatedAt"],
   );
-  await writeAuditLogBestEffort({
-    familyId,
-    idToken,
-    eventType: "chore_status_changed",
-    actor: { uid: session.uid, email: session.email, name: actorName, role: requester.role },
-    userId: choreAssigneeId,
-    choreId,
-    choreTitle,
-    source: readString(existingChoreDoc.fields, "source") || "manual",
-    previous: { status: currentStatus, coinValue: choreCoinValue },
-    next: { status: "Approved", coinValue: approvedCoinValue },
-    reason: "approve",
-  });
+  await runAfterResponse("approve:audit-log", () =>
+    writeAuditLogBestEffort({
+      familyId,
+      idToken,
+      eventType: "chore_status_changed",
+      actor: { uid: session.uid, email: session.email, name: actorName, role: requester.role },
+      userId: choreAssigneeId,
+      choreId,
+      choreTitle,
+      source: readString(existingChoreDoc.fields, "source") || "manual",
+      previous: { status: currentStatus, coinValue: choreCoinValue },
+      next: { status: "Approved", coinValue: approvedCoinValue },
+      reason: "approve",
+    }),
+  );
   const payoutResult = await applyPayoutByAssignee({
     familyId,
     idToken,
@@ -156,64 +159,75 @@ export async function handleApprove(ctx: ChoreActionContext): Promise<ChoreActio
     newSkillBonusAwarded: newSkillBonus.awarded,
     newSkillBonusAmount: newSkillBonus.totalCoins,
   });
-  await publishFamilyActivity({ type: "chore_approved", familyId, choreId, occurredAt: now });
-  await trackAchievementEventBestEffort({
-    uid: session.uid,
-    familyId,
-    idToken,
-    viewerRole: "admin",
-    eventId: `chore_approve_${choreId}`,
-    metricDeltas: { admin_chores_approved: 1 },
-  });
-  try {
-    for (const assigneeAlias of choreAssigneeIds) {
-      const assigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
-      if (!assigneeUid) {
-        continue;
+  await runAfterResponse("approve:publish-chore-approved", () =>
+    publishFamilyActivity({ type: "chore_approved", familyId, choreId, occurredAt: now }),
+  );
+  // Achievement crediting: the approver's own metric plus a per-assignee loop
+  // costing several round trips each. None of it feeds the response.
+  await runAfterResponse("approve:achievements", async () => {
+    await trackAchievementEventBestEffort({
+      uid: session.uid,
+      familyId,
+      idToken,
+      viewerRole: "admin",
+      eventId: `chore_approve_${choreId}`,
+      metricDeltas: { admin_chores_approved: 1 },
+    });
+    try {
+      for (const assigneeAlias of choreAssigneeIds) {
+        const assigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
+        if (!assigneeUid) {
+          continue;
+        }
+        const canTrack = await userHasFamilyMembership(assigneeUid, familyId, idToken);
+        if (!canTrack) {
+          continue;
+        }
+        await trackAchievementEventBestEffort({
+          uid: assigneeUid,
+          familyId,
+          idToken,
+          viewerRole: "player",
+          eventId: `chore_approved_${choreId}_${assigneeUid}`,
+          metricDeltas: {
+            chores_approved: 1,
+            coins_earned: payoutByAssignee.get(assigneeAlias) ?? 0,
+          },
+          approvalStreakDelta: "increment",
+        });
       }
-      const canTrack = await userHasFamilyMembership(assigneeUid, familyId, idToken);
-      if (!canTrack) {
-        continue;
-      }
-      await trackAchievementEventBestEffort({
-        uid: assigneeUid,
-        familyId,
-        idToken,
-        viewerRole: "player",
-        eventId: `chore_approved_${choreId}_${assigneeUid}`,
-        metricDeltas: {
-          chores_approved: 1,
-          coins_earned: payoutByAssignee.get(assigneeAlias) ?? 0,
-        },
-        approvalStreakDelta: "increment",
-      });
+    } catch (error) {
+      const reason =
+        error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
+      console.error("[ACHIEVEMENT_TRACK_AFTER_CHORE_ERROR]", reason);
     }
-  } catch (error) {
-    const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
-    console.error("[ACHIEVEMENT_TRACK_AFTER_CHORE_ERROR]", reason);
-  }
+  });
   // Analytics: best-effort and observational. chore_approved answers "how many
   // approvals this week"; coins_earned mirrors the wallet credit that just landed.
-  await trackEvent({
-    event: ANALYTICS_EVENTS.chore_approved,
-    familyId,
-    userId: session.uid,
-    role: requester.role,
-    metadata: {
-      choreId,
-      coinValue: approvedCoinValue,
-      source: readString(existingChoreDoc.fields, "source") || "manual",
-    },
+  await runAfterResponse("approve:analytics", async () => {
+    await Promise.all([
+      trackEvent({
+        event: ANALYTICS_EVENTS.chore_approved,
+        familyId,
+        userId: session.uid,
+        role: requester.role,
+        metadata: {
+          choreId,
+          coinValue: approvedCoinValue,
+          source: readString(existingChoreDoc.fields, "source") || "manual",
+        },
+      }),
+      payoutApplied && approvedCoinValue > 0
+        ? trackEvent({
+            event: ANALYTICS_EVENTS.coins_earned,
+            familyId,
+            userId: session.uid,
+            role: requester.role,
+            metadata: { choreId, coins: approvedCoinValue, source: "chore_approval" },
+          })
+        : Promise.resolve(),
+    ]);
   });
-  if (payoutApplied && approvedCoinValue > 0) {
-    await trackEvent({
-      event: ANALYTICS_EVENTS.coins_earned,
-      familyId,
-      userId: session.uid,
-      role: requester.role,
-      metadata: { choreId, coins: approvedCoinValue, source: "chore_approval" },
-    });
-  }
   return {
     kind: "ok" as const,
     syncOwnerUid: "",

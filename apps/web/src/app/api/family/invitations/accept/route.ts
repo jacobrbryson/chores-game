@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
+import { linkUserPrimaryFamily } from "@/lib/family/user-link";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { keyableEmail } from "@/lib/auth/private-relay";
 import {
@@ -13,7 +14,6 @@ import {
   readString,
   readStringArray,
   readTimestamp,
-  stringArrayField,
   stringField,
   timestampField,
 } from "@/lib/firestore/rest";
@@ -58,19 +58,6 @@ function normalizeMemberStatus(value: string) {
   return "";
 }
 
-async function relinkUserPrimaryFamily(uid: string, familyId: string, idToken: string) {
-  const now = new Date().toISOString();
-  await patchDocument(
-    `users/${uid}`,
-    {
-      uid: stringField(uid),
-      familyIds: stringArrayField([familyId]),
-      lastFamilyUpdateAt: timestampField(now),
-    },
-    idToken,
-    ["familyIds", "lastFamilyUpdateAt", "uid"],
-  );
-}
 
 export async function POST(request: NextRequest) {
   const session = getSessionFromRequest(request);
@@ -196,7 +183,15 @@ export async function POST(request: NextRequest) {
                 throw error;
               }
             }
-            await relinkUserPrimaryFamily(session.uid, familyId, idToken);
+            // Role must match the member document the rules will read, which in
+            // this branch is the already-active uid-keyed one, not the invite.
+            await linkUserPrimaryFamily({
+              uid: session.uid,
+              familyId,
+              role: getInviteRole(existingUidMemberDoc),
+              session,
+              idToken,
+            });
             return { kind: "ok" as const, familyId };
           }
         }
@@ -238,7 +233,13 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          await relinkUserPrimaryFamily(session.uid, familyId, idToken);
+          await linkUserPrimaryFamily({
+            uid: session.uid,
+            familyId,
+            role: inviteRole,
+            session,
+            idToken,
+          });
         } catch (error) {
           const reason = error instanceof Error ? error.message : "unknown";          throw error;
         }        return { kind: "ok" as const, familyId };

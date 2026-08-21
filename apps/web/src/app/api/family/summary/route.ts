@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
+import { formatServerTiming } from "@/lib/observability/request-context";
+import { runAfterResponse } from "@/lib/async/after-response";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { keyableEmail } from "@/lib/auth/private-relay";
@@ -400,7 +402,7 @@ export async function GET(request: NextRequest) {
     request.nextUrl.searchParams.get("tzOffsetMinutes"),
   );
   try {
-    const { data, session: refreshedSession, refreshed } =
+    const { data, session: refreshedSession, refreshed, timing } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
         let userDoc: Awaited<ReturnType<typeof getDocument>> | null = null;
         try {
@@ -438,18 +440,32 @@ export async function GET(request: NextRequest) {
           await relinkUserPrimaryFamily(session.uid, familyId, idToken);
         }
 
-        await syncGoogleTasksForUser({
-          uid: session.uid,
-          idToken,
-          minIntervalSeconds: 60,
-        });
+        // Skip the sync entirely for the majority of users who have never linked
+        // Google Tasks — it makes external Google API calls plus its own archive
+        // read, and blocked every dashboard load. `/api/chores` has gated this
+        // since its own performance pass; this is the backport of that fix.
+        if (viewerGoogleTasksLinked) {
+          await runAfterResponse("summary:google-tasks-sync", () =>
+            syncGoogleTasksForUser({
+              uid: session.uid,
+              idToken,
+              minIntervalSeconds: 60,
+            }),
+          );
+        }
 
-        await rolloverOverdueRoutineAssignmentsBestEffort({
-          familyId,
-          idToken,
-          today: offsetIsoDateAt(Date.now(), timezoneOffsetMinutes),
-          actor: { uid: session.uid, email: session.email, name: session.name },
-        });
+        // Rolling overdue routine assignments forward is a write loop on a read
+        // path. Deferred past the response so the dashboard is not waiting on it.
+        // Trade-off: the first load after an assignment goes overdue renders the
+        // pre-rollover due date, and the next load shows it rolled forward.
+        await runAfterResponse("summary:routine-rollover", () =>
+          rolloverOverdueRoutineAssignmentsBestEffort({
+            familyId,
+            idToken,
+            today: offsetIsoDateAt(Date.now(), timezoneOffsetMinutes),
+            actor: { uid: session.uid, email: session.email, name: session.name },
+          }),
+        );
 
         const [familyDoc, memberDocs, choreDocs, categories, claimedSkillBonusKeys] =
           await Promise.all([
@@ -638,10 +654,16 @@ export async function GET(request: NextRequest) {
             let ledgerLifetimeCoinsEarned = 0;
             if (member.uid) {
               try {
+                // Runs once per family member, paging up to 1000 ledger entries
+                // each, to derive a single integer. Masking to the three fields
+                // the reducer below actually reads keeps the payload proportional
+                // to the arithmetic instead of to the full ledger history.
+                // (The durable fix is a denormalized lifetime counter on the
+                // member document — see Phase 4 item 1.)
                 const ledgerDocs = await listAllDocuments(
                   `users/${member.uid}/walletLedger`,
                   idToken,
-                  { cap: 1000 },
+                  { cap: 1000, mask: ["countsTowardBalance", "creditAmount", "delta"] },
                 );
                 ledgerLifetimeCoinsEarned = ledgerDocs.reduce((total, ledgerDoc) => {
                   if (readBoolean(ledgerDoc.fields, "countsTowardBalance") === false) {
@@ -1056,6 +1078,7 @@ export async function GET(request: NextRequest) {
     }
 
     const response = NextResponse.json(data);
+    response.headers.set("Server-Timing", formatServerTiming(timing));
     if (shouldSetSessionCookie) {
       setSessionUserCookie(response, nextSession);
     }

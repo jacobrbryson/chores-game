@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { CoinIcon } from "@/components/coin-icon";
 import { DiscoveryBadge } from "@/components/discovery-badge";
 import { getSectionCount, useDiscoverySummary } from "@/lib/hooks/use-discovery";
+import { dedupedFetch } from "@/lib/api/deduped-fetch";
 
 type HeaderStoreLinkProps = {
 	visible: boolean;
@@ -34,7 +35,7 @@ export function HeaderStoreLink({ visible }: HeaderStoreLinkProps) {
 			return;
 		}
 		try {
-			const response = await fetch("/api/store?brief=1", {
+			const response = await dedupedFetch("/api/store?brief=1", {
 				cache: "no-store",
 			});
 			if (!response.ok) {

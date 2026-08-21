@@ -1,11 +1,10 @@
 import { randomUUID } from "node:crypto";
 import {
   boolField,
-  createOrReplaceDocument,
+  commitWrites,
   getDocument,
   integerField,
   listAllDocuments,
-  patchDocument,
   readBoolean,
   readInteger,
   readString,
@@ -17,6 +16,7 @@ import {
   type FirestoreValue,
 } from "@/lib/firestore/rest";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
+import { runAfterResponse } from "@/lib/async/after-response";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
 import { trackEvent } from "@/lib/analytics/service";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
@@ -78,6 +78,9 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
   };
   let responsibilityXp: ChoreXpOutcome = EMPTY_RESPONSIBILITY_XP;
   let routineProgress: RoutineStepProgressOutcome | null = null;
+  // Built during the recurrence branch, written alongside the status change in a
+  // single commit below.
+  let spawnedChoreFields: Record<string, FirestoreValue> | null = null;
 
   const existingChoreDoc = await getDocument(`families/${familyId}/chores/${choreId}`, idToken);
   const choreTitle = readString(existingChoreDoc.fields, "title") || "Untitled chore";
@@ -152,8 +155,12 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
   const completionDate = now.slice(0, 10);
   if (choreRecurrence.recurrenceType !== "none") {
     const nextDueDate = nextRecurringDueDate(completionDate, choreRecurrence, completionDate);
+    // Only three fields are read below, so mask the response to them. Without the
+    // mask this pages every field of every chore in the family — measured at
+    // 445-850ms, the single most expensive call on the completion path.
     const allChoreDocs = await listAllDocuments(`families/${familyId}/chores`, idToken, {
       cap: MAX_CHORE_SCAN,
+      mask: ["sortOrder", "status", "deleted"],
     });
     const openChores = allChoreDocs.filter((doc) => {
       if (readBoolean(doc.fields, "deleted")) {
@@ -173,9 +180,7 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
         return Number.isFinite(raw) ? Math.max(maxValue, Math.trunc(raw)) : maxValue;
       }, -1) + 1;
     spawnedNextChoreId = randomUUID();
-    await createOrReplaceDocument(
-      `families/${familyId}/chores/${spawnedNextChoreId}`,
-      {
+    spawnedChoreFields = {
         title: stringField(choreTitle),
         choreType: stringField(choreType),
         status: stringField("Open"),
@@ -205,9 +210,7 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
         createdAt: timestampField(now),
         sortOrder: integerField(nextSortOrder),
         source: stringField("manual"),
-      },
-      idToken,
-    );
+    };
   }
   const completionPatchFields: Record<string, FirestoreValue> = {
     status: stringField(nextStatus),
@@ -228,31 +231,55 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
     completionPatchFields.coinValue = integerField(approvedCoinValue);
     completionUpdateMask.push("approvalPayoutsJson", "coinValue");
   }
-  await patchDocument(
-    `families/${familyId}/chores/${choreId}`,
-    completionPatchFields,
+  // The status change and (for a recurring chore) the spawned next occurrence go
+  // out as a single commit rather than two sequential round trips. Batching also
+  // makes them atomic: previously a failure on the status patch could leave an
+  // orphaned next occurrence already created.
+  await commitWrites(
+    [
+      ...(spawnedNextChoreId && spawnedChoreFields
+        ? [
+            {
+              update: {
+                path: `families/${familyId}/chores/${spawnedNextChoreId}`,
+                fields: spawnedChoreFields,
+              },
+            },
+          ]
+        : []),
+      {
+        update: {
+          path: `families/${familyId}/chores/${choreId}`,
+          fields: completionPatchFields,
+          updateMask: completionUpdateMask,
+        },
+      },
+    ],
     idToken,
-    completionUpdateMask,
   );
-  await writeAuditLogBestEffort({
-    familyId,
-    idToken,
-    eventType: "chore_status_changed",
-    actor: { uid: session.uid, email: session.email, name: actorName, role: requester.role },
-    userId: choreAssigneeId,
-    choreId,
-    choreTitle,
-    source: choreSource || "manual",
-    previous: { status: currentStatus },
-    next: {
-      status: nextStatus,
-      coinValue: approvedCoinValue,
-      submittedAt: now,
-      spawnedNextChoreId,
-      requireApproval: completionNeedsApproval,
-    },
-    reason: "complete",
-  });
+  // Audit logging is immutable-record keeping, not part of the response. Defer it
+  // past the flush so the user is not waiting on the write.
+  await runAfterResponse("complete:audit-log", () =>
+    writeAuditLogBestEffort({
+      familyId,
+      idToken,
+      eventType: "chore_status_changed",
+      actor: { uid: session.uid, email: session.email, name: actorName, role: requester.role },
+      userId: choreAssigneeId,
+      choreId,
+      choreTitle,
+      source: choreSource || "manual",
+      previous: { status: currentStatus },
+      next: {
+        status: nextStatus,
+        coinValue: approvedCoinValue,
+        submittedAt: now,
+        spawnedNextChoreId,
+        requireApproval: completionNeedsApproval,
+      },
+      reason: "complete",
+    }),
+  );
   let payoutApplied = false;
   if (nextStatus === "Approved") {
     const payoutResult = await applyPayoutByAssignee({
@@ -343,17 +370,22 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
     newSkillBonusAwarded: newSkillBonus.awarded,
     newSkillBonusAmount: newSkillBonus.totalCoins,
   });
-  await publishFamilyActivity({
-    type: "chore_completed",
-    familyId,
-    choreId,
-    occurredAt: now,
-    source: kioskActivity.source,
-    authenticatedUid: kioskActivity.authenticatedUid,
-    completedForPlayerId: kioskActivity.completedForPlayerId,
-    newSkillBonusAwarded: newSkillBonus.awarded,
-    newSkillBonusAmount: newSkillBonus.totalCoins,
-  });
+  // Realtime fan-out to the WS service. Nothing in the response depends on it and
+  // it is the single most likely call to block (cold WS container), so it runs
+  // after the response is flushed.
+  await runAfterResponse("complete:publish-chore-completed", () =>
+    publishFamilyActivity({
+      type: "chore_completed",
+      familyId,
+      choreId,
+      occurredAt: now,
+      source: kioskActivity.source,
+      authenticatedUid: kioskActivity.authenticatedUid,
+      completedForPlayerId: kioskActivity.completedForPlayerId,
+      newSkillBonusAwarded: newSkillBonus.awarded,
+      newSkillBonusAmount: newSkillBonus.totalCoins,
+    }),
+  );
   // Responsibility Identity: when this completion unlocked a new title for the
   // completing child, announce it as its own celebratory feed line (reusing the
   // chore_completed kind — no new ActivityKind/WS type needed).
@@ -373,11 +405,13 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
       authenticatedUid: kioskActivity.authenticatedUid,
       completedForPlayerId: kioskActivity.completedForPlayerId,
     });
-    await publishFamilyActivity({
-      type: "identity_title_unlocked",
-      familyId,
-      occurredAt: now,
-    });
+    await runAfterResponse("complete:publish-title-unlocked", () =>
+      publishFamilyActivity({
+        type: "identity_title_unlocked",
+        familyId,
+        occurredAt: now,
+      }),
+    );
   }
   // Credit achievements to every assignee on the chore. Group, family, and
   // multi-assignee chores store an empty singular assigneeId, so resolving a
@@ -385,82 +419,95 @@ export async function handleComplete(ctx: ChoreActionContext): Promise<ChoreActi
   // achievements for them. Mirror the approval path and walk the full assignee
   // list instead, deduping resolved uids.
   const completionHour = new Date(now).getUTCHours();
-  const creditedCompletionUids = new Set<string>();
-  for (const assigneeAlias of choreAssigneeIds) {
-    const completionAssigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
-    if (!completionAssigneeUid || creditedCompletionUids.has(completionAssigneeUid)) {
-      continue;
+  // Achievement crediting costs several sequential round trips *per assignee*
+  // (uid resolution, membership check, derived maximums, the write) and feeds
+  // nothing in the response — the client learns about unlocks over the realtime
+  // channel. Run the whole loop after the response is flushed.
+  await runAfterResponse("complete:achievements", async () => {
+    const creditedCompletionUids = new Set<string>();
+    for (const assigneeAlias of choreAssigneeIds) {
+      const completionAssigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
+      if (!completionAssigneeUid || creditedCompletionUids.has(completionAssigneeUid)) {
+        continue;
+      }
+      const canTrack = await userHasFamilyMembership(completionAssigneeUid, familyId, idToken);
+      if (!canTrack) {
+        continue;
+      }
+      creditedCompletionUids.add(completionAssigneeUid);
+      const derivedMaximums = await computeCompletionDerivedMaximumsBestEffort({
+        familyId,
+        uid: completionAssigneeUid,
+        idToken,
+        completedAtIso: now,
+      });
+      await trackAchievementEventBestEffort({
+        uid: completionAssigneeUid,
+        familyId,
+        idToken,
+        viewerRole: "player",
+        eventId: `chore_complete_${choreId}_${nextStatus}_${completionAssigneeUid}`,
+        metricDeltas: {
+          chores_completed: 1,
+          coins_earned: payoutApplied ? (payoutByAssignee.get(assigneeAlias) ?? 0) : 0,
+          morning_chores_completed: completionHour < 12 ? 1 : 0,
+          evening_chores_completed: completionHour >= 18 ? 1 : 0,
+          google_task_chores_completed: choreSource === GOOGLE_TASKS_CHORE_SOURCE ? 1 : 0,
+          reopened_chores_completed: hadPriorSubmission ? 1 : 0,
+        },
+        metricMaximums: derivedMaximums,
+        consumeRejectionFlagOnComplete: true,
+      });
     }
-    const canTrack = await userHasFamilyMembership(completionAssigneeUid, familyId, idToken);
-    if (!canTrack) {
-      continue;
-    }
-    creditedCompletionUids.add(completionAssigneeUid);
-    const derivedMaximums = await computeCompletionDerivedMaximumsBestEffort({
-      familyId,
-      uid: completionAssigneeUid,
-      idToken,
-      completedAtIso: now,
-    });
-    await trackAchievementEventBestEffort({
-      uid: completionAssigneeUid,
-      familyId,
-      idToken,
-      viewerRole: "player",
-      eventId: `chore_complete_${choreId}_${nextStatus}_${completionAssigneeUid}`,
-      metricDeltas: {
-        chores_completed: 1,
-        coins_earned: payoutApplied ? (payoutByAssignee.get(assigneeAlias) ?? 0) : 0,
-        morning_chores_completed: completionHour < 12 ? 1 : 0,
-        evening_chores_completed: completionHour >= 18 ? 1 : 0,
-        google_task_chores_completed: choreSource === GOOGLE_TASKS_CHORE_SOURCE ? 1 : 0,
-        reopened_chores_completed: hadPriorSubmission ? 1 : 0,
-      },
-      metricMaximums: derivedMaximums,
-      consumeRejectionFlagOnComplete: true,
-    });
-  }
+  });
   // Analytics: best-effort, observational, never blocks the transition. trackEvent
   // swallows its own failures. Emits the chore completion plus a coins_earned
   // event when a payout actually landed and identity_title_unlocked on a new
   // title, so feature-adoption questions are answerable without new code later.
-  await trackEvent({
-    event: ANALYTICS_EVENTS.chore_completed,
-    familyId,
-    userId: session.uid,
-    role: requester.role,
-    metadata: {
-      choreId,
-      status: nextStatus,
-      requireApproval: completionNeedsApproval,
-      coinValue: approvedCoinValue,
-      source: choreSource || "manual",
-      choreType,
-      recurring: choreRecurrence.recurrenceType !== "none",
-      routineStep: Boolean(choreRoutineAssignmentId),
-    },
+  // Up to three separate admin Firestore writes, all purely observational. They
+  // run in one deferred block after the response, and in parallel with each
+  // other — nothing here is ordered.
+  await runAfterResponse("complete:analytics", async () => {
+    await Promise.all([
+      trackEvent({
+        event: ANALYTICS_EVENTS.chore_completed,
+        familyId,
+        userId: session.uid,
+        role: requester.role,
+        metadata: {
+          choreId,
+          status: nextStatus,
+          requireApproval: completionNeedsApproval,
+          coinValue: approvedCoinValue,
+          source: choreSource || "manual",
+          choreType,
+          recurring: choreRecurrence.recurrenceType !== "none",
+          routineStep: Boolean(choreRoutineAssignmentId),
+        },
+      }),
+      payoutApplied && approvedCoinValue > 0
+        ? trackEvent({
+            event: ANALYTICS_EVENTS.coins_earned,
+            familyId,
+            userId: session.uid,
+            role: requester.role,
+            metadata: { choreId, coins: approvedCoinValue, source: "chore_completion" },
+          })
+        : Promise.resolve(),
+      responsibilityXp.title?.unlocked && responsibilityXp.title.pillar
+        ? trackEvent({
+            event: ANALYTICS_EVENTS.identity_title_unlocked,
+            familyId,
+            userId: session.uid,
+            role: requester.role,
+            metadata: {
+              pillar: responsibilityXp.title.pillar,
+              tier: responsibilityXp.title.tier,
+            },
+          })
+        : Promise.resolve(),
+    ]);
   });
-  if (payoutApplied && approvedCoinValue > 0) {
-    await trackEvent({
-      event: ANALYTICS_EVENTS.coins_earned,
-      familyId,
-      userId: session.uid,
-      role: requester.role,
-      metadata: { choreId, coins: approvedCoinValue, source: "chore_completion" },
-    });
-  }
-  if (responsibilityXp.title?.unlocked && responsibilityXp.title.pillar) {
-    await trackEvent({
-      event: ANALYTICS_EVENTS.identity_title_unlocked,
-      familyId,
-      userId: session.uid,
-      role: requester.role,
-      metadata: {
-        pillar: responsibilityXp.title.pillar,
-        tier: responsibilityXp.title.tier,
-      },
-    });
-  }
   return {
     kind: "ok" as const,
     syncOwnerUid,

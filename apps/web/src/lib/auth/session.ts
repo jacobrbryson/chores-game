@@ -21,6 +21,11 @@ export type SessionUser = {
   name: string;
   picture: string;
   locale: AppLocale;
+  // Which identity provider signed this session in. Carried on the cookie so a
+  // family-setup completion can write a rules-valid `users/{uid}` document: the
+  // doc is no longer created at sign-in, and `isValidSelfUserCreate` requires
+  // `provider` to be present and to be one of google/apple.
+  provider?: "google" | "apple";
   firebaseIdToken?: string;
   firebaseRefreshToken?: string;
   authUid?: string;
@@ -238,6 +243,7 @@ export function parseSessionToken(token: string | undefined): SessionUser | null
       name: parsed.name,
       picture: parsed.picture,
       locale: parsed.locale || DEFAULT_LOCALE,
+      provider: parsed.provider === "apple" || parsed.provider === "google" ? parsed.provider : undefined,
       firebaseIdToken: parsed.firebaseIdToken,
       firebaseRefreshToken: parsed.firebaseRefreshToken,
       authUid: parsed.authUid,

@@ -171,18 +171,31 @@ export async function upsertIdpUser(input: {
     ? suppliedName || existingDisplayName
     : identity.name ?? session.displayName ?? "";
   const photoUrl = identity.picture ?? session.photoUrl ?? "";
-  const fields = buildIdpUserAuthFields({
-    uid: session.localId,
-    role,
-    locale,
-    email: normalizedEmail,
-    displayName,
-    photoUrl,
-    provider,
-    familyId: linkedFamilyId,
-    now,
-  });
-  await patchDocument(`users/${session.localId}`, fields, session.idToken, Object.keys(fields));
+  // A first-time sign-in with no family resolved is not yet an account: the
+  // caller sends these users to the create-or-join step, and most never finish
+  // it. Writing `users/{uid}` here left a permanent orphan row (role "player",
+  // no familyIds) for every abandoned sign-in. Defer the write instead — the
+  // family-setup completion paths create the document through
+  // `linkUserPrimaryFamily`, which knows how to satisfy `isValidSelfUserCreate`.
+  //
+  // Only brand-new accounts are deferred. An existing document is always kept
+  // current, including for users who are already orphaned from before this
+  // change, so `lastSignInAt` does not silently go stale.
+  const userDocDeferred = !hasExistingUserDoc && !linkedFamilyId;
+  if (!userDocDeferred) {
+    const fields = buildIdpUserAuthFields({
+      uid: session.localId,
+      role,
+      locale,
+      email: normalizedEmail,
+      displayName,
+      photoUrl,
+      provider,
+      familyId: linkedFamilyId,
+      now,
+    });
+    await patchDocument(`users/${session.localId}`, fields, session.idToken, Object.keys(fields));
+  }
 
   if (linkedFamilyId && input.touchMemberLastSignIn) {
     try {
@@ -207,6 +220,8 @@ export async function upsertIdpUser(input: {
     photoUrl,
     isNewUser: !hasExistingUserDoc,
     familyResolution,
+    userDocDeferred,
+    provider,
   };
 }
 
@@ -222,6 +237,7 @@ export function buildIdpSessionUser(
     email: result.normalizedEmail,
     name: result.displayName,
     picture: result.photoUrl,
+    provider: result.provider,
     firebaseIdToken: firebaseSession.idToken,
     firebaseRefreshToken: firebaseSession.refreshToken,
   };

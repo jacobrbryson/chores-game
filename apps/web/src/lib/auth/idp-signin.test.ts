@@ -31,6 +31,9 @@ describe("upsertIdpUser", () => {
 
   it("persists Apple's first-authorization name", async () => {
     vi.mocked(getDocument).mockRejectedValue(new Error("FIRESTORE_HTTP_404"));
+    // A family has to resolve for the user document to be written at all; the
+    // family-less case is deferred and covered separately below.
+    vi.mocked(findFirstFamilyIdByMemberUid).mockResolvedValueOnce("family-from-uid");
     const result = await upsertIdpUser({
       session,
       identity: { subject: "apple-sub", name: "Taylor Apple" },
@@ -38,6 +41,34 @@ describe("upsertIdpUser", () => {
     });
     expect(result.displayName).toBe("Taylor Apple");
     expect(vi.mocked(patchDocument).mock.calls[0][1].displayName).toEqual({ stringValue: "Taylor Apple" });
+  });
+
+  it("defers the user document for a first sign-in with no family", async () => {
+    // Writing users/{uid} here is what left an orphan player row behind for
+    // every abandoned create-or-join-a-family step.
+    vi.mocked(getDocument).mockRejectedValue(new Error("FIRESTORE_HTTP_404"));
+    const result = await upsertIdpUser({
+      session,
+      identity: { subject: "google-sub", name: "Abandoned Signup" },
+      provider: "google",
+    });
+    expect(result.userDocDeferred).toBe(true);
+    expect(vi.mocked(patchDocument)).not.toHaveBeenCalled();
+  });
+
+  it("still refreshes an existing user document that has no family", async () => {
+    // Accounts orphaned before the deferral must not go stale.
+    vi.mocked(getDocument).mockResolvedValueOnce({
+      name: "users/firebase-uid",
+      fields: { role: { stringValue: "player" }, locale: { stringValue: "en-US" } },
+    });
+    const result = await upsertIdpUser({
+      session,
+      identity: { subject: "google-sub", name: "Existing Orphan" },
+      provider: "google",
+    });
+    expect(result.userDocDeferred).toBe(false);
+    expect(vi.mocked(patchDocument)).toHaveBeenCalled();
   });
 
   it("does not overwrite an existing Apple name when later authorization omits it", async () => {
@@ -67,7 +98,9 @@ describe("upsertIdpUser", () => {
     });
     expect(result.familyResolution).toBe("needs_family_setup");
     expect(result.role).toBe("player");
-    expect(vi.mocked(patchDocument).mock.calls[0][1]).not.toHaveProperty("familyIds");
+    // No unmatched family is bootstrapped, and with nothing to link there is no
+    // user document write at all.
+    expect(vi.mocked(patchDocument)).not.toHaveBeenCalled();
   });
 
   it("resolves family membership by uid, never by email", async () => {

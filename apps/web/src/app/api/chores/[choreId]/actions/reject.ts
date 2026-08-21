@@ -7,6 +7,7 @@ import {
   timestampField,
 } from "@/lib/firestore/rest";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
+import { runAfterResponse } from "@/lib/async/after-response";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
 import { getRequesterContext } from "@/lib/chores/access";
 import {
@@ -49,24 +50,26 @@ export async function handleReject(ctx: ChoreActionContext): Promise<ChoreAction
     idToken,
     ["status", "rejectionFeedback", "updatedAt"],
   );
-  await writeAuditLogBestEffort({
-    familyId,
-    idToken,
-    eventType: "chore_status_changed",
-    actor: {
-      uid: session.uid,
-      email: session.email,
-      name: actorName,
-      role: requester.role,
-    },
-    userId: choreAssigneeId,
-    choreId,
-    choreTitle,
-    source: readString(existingChoreDoc.fields, "source") || "manual",
-    previous: { status: currentStatus },
-    next: { status: "Rejected", rejectionFeedback: feedback },
-    reason: "reject",
-  });
+  await runAfterResponse("reject:audit-log", () =>
+    writeAuditLogBestEffort({
+      familyId,
+      idToken,
+      eventType: "chore_status_changed",
+      actor: {
+        uid: session.uid,
+        email: session.email,
+        name: actorName,
+        role: requester.role,
+      },
+      userId: choreAssigneeId,
+      choreId,
+      choreTitle,
+      source: readString(existingChoreDoc.fields, "source") || "manual",
+      previous: { status: currentStatus },
+      next: { status: "Rejected", rejectionFeedback: feedback },
+      reason: "reject",
+    }),
+  );
   await emitFamilyActivityBestEffort({
     familyId,
     idToken,
@@ -82,42 +85,51 @@ export async function handleReject(ctx: ChoreActionContext): Promise<ChoreAction
     choreTitle,
     relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
   });
-  await publishFamilyActivity({
-    type: "chore_updated",
-    familyId,
-    choreId,
-    occurredAt: now,
-  });
-  try {
-    // Flag a pending rejection for every assignee (group/family/multi-assignee
-    // chores store an empty singular assigneeId), mirroring the completion and
-    // approval paths so Bounce Back can fire for them too.
-    const choreAssigneeIds = await resolveChoreAssigneeIds(familyId, existingChoreDoc.fields, idToken);
-    const flaggedRejectionUids = new Set<string>();
-    for (const assigneeAlias of choreAssigneeIds) {
-      const assigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
-      if (!assigneeUid || flaggedRejectionUids.has(assigneeUid)) {
-        continue;
-      }
-      const canTrack = await userHasFamilyMembership(assigneeUid, familyId, idToken);
-      if (!canTrack) {
-        continue;
-      }
-      flaggedRejectionUids.add(assigneeUid);
-      await trackAchievementEventBestEffort({
-        uid: assigneeUid,
+  await runAfterResponse("reject:publish-chore-updated", () =>
+    publishFamilyActivity({
+      type: "chore_updated",
+      familyId,
+      choreId,
+      occurredAt: now,
+    }),
+  );
+  await runAfterResponse("reject:achievements", async () => {
+    try {
+      // Flag a pending rejection for every assignee (group/family/multi-assignee
+      // chores store an empty singular assigneeId), mirroring the completion and
+      // approval paths so Bounce Back can fire for them too.
+      const choreAssigneeIds = await resolveChoreAssigneeIds(
         familyId,
+        existingChoreDoc.fields,
         idToken,
-        viewerRole: "player",
-        eventId: `chore_reject_${choreId}_${assigneeUid}`,
-        rejectionFlagSet: true,
-        approvalStreakDelta: "reset",
-      });
+      );
+      const flaggedRejectionUids = new Set<string>();
+      for (const assigneeAlias of choreAssigneeIds) {
+        const assigneeUid = await resolveAssigneeUid(familyId, assigneeAlias, idToken);
+        if (!assigneeUid || flaggedRejectionUids.has(assigneeUid)) {
+          continue;
+        }
+        const canTrack = await userHasFamilyMembership(assigneeUid, familyId, idToken);
+        if (!canTrack) {
+          continue;
+        }
+        flaggedRejectionUids.add(assigneeUid);
+        await trackAchievementEventBestEffort({
+          uid: assigneeUid,
+          familyId,
+          idToken,
+          viewerRole: "player",
+          eventId: `chore_reject_${choreId}_${assigneeUid}`,
+          rejectionFlagSet: true,
+          approvalStreakDelta: "reset",
+        });
+      }
+    } catch (error) {
+      const reason =
+        error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
+      console.error("[ACHIEVEMENT_TRACK_AFTER_CHORE_ERROR]", reason);
     }
-  } catch (error) {
-    const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
-    console.error("[ACHIEVEMENT_TRACK_AFTER_CHORE_ERROR]", reason);
-  }
+  });
   return {
     kind: "ok" as const,
     syncOwnerUid: "",

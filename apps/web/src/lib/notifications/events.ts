@@ -8,6 +8,7 @@ import {
   timestampField,
 } from "@/lib/firestore/rest";
 import { sendFamilyPushNotifications } from "@/lib/push/delivery";
+import { runAfterResponse } from "@/lib/async/after-response";
 import type { PushNotificationType } from "@/lib/push/constants";
 
 type ActivityKind =
@@ -143,19 +144,27 @@ export async function emitFamilyActivity(input: EmitFamilyActivityInput) {
     input.idToken,
   );
 
+  // The activity document above is written inline so the Family Activity Feed is
+  // correct the instant the caller's response lands. Push delivery is not: it
+  // reads the family's push recipients and then makes one web-push HTTP call per
+  // recipient to Apple/Google, which is unbounded external latency that no
+  // response depends on. It runs after the response is flushed.
   if (input.pushType) {
-    try {
-      await sendFamilyPushNotifications({
-        familyId: input.familyId,
-        idToken: input.idToken,
-        actorUid: input.actorUid,
-        type: input.pushType,
-        title: input.title,
-        body: input.message,
-      });
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "unknown";
-      console.error("[PUSH_NOTIFICATION_SEND_ERROR]", reason);
-    }
+    const pushType = input.pushType;
+    await runAfterResponse("notifications:push", async () => {
+      try {
+        await sendFamilyPushNotifications({
+          familyId: input.familyId,
+          idToken: input.idToken,
+          actorUid: input.actorUid,
+          type: pushType,
+          title: input.title,
+          body: input.message,
+        });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "unknown";
+        console.error("[PUSH_NOTIFICATION_SEND_ERROR]", reason);
+      }
+    });
   }
 }

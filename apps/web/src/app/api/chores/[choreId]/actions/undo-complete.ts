@@ -9,6 +9,7 @@ import {
   timestampField,
 } from "@/lib/firestore/rest";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
+import { runAfterResponse } from "@/lib/async/after-response";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
 import { GOOGLE_TASKS_CHORE_SOURCE } from "@/lib/google/tasks-sync";
 import { normalizeCoinValue } from "@/lib/chores/recurrence";
@@ -90,23 +91,25 @@ export async function handleUndoComplete(ctx: ChoreActionContext): Promise<Chore
     idToken,
     ["status", "updatedAt", "spawnedNextChoreId", "rejectionFeedback", "approvalPayoutsJson"],
   );
-  await writeAuditLogBestEffort({
-    familyId,
-    idToken,
-    eventType: "chore_status_changed",
-    actor: { uid: session.uid, email: session.email, name: actorName, role: requester.role },
-    userId: choreAssigneeId,
-    choreId,
-    choreTitle,
-    source: choreSource || "manual",
-    previous: {
-      status: currentStatus,
-      spawnedNextChoreId,
-      approvalPayoutsJson: readString(existingChoreDoc.fields, "approvalPayoutsJson"),
-    },
-    next: { status: "Open", spawnedNextChoreId: "" },
-    reason: "undo_complete",
-  });
+  await runAfterResponse("undo-complete:audit-log", () =>
+    writeAuditLogBestEffort({
+      familyId,
+      idToken,
+      eventType: "chore_status_changed",
+      actor: { uid: session.uid, email: session.email, name: actorName, role: requester.role },
+      userId: choreAssigneeId,
+      choreId,
+      choreTitle,
+      source: choreSource || "manual",
+      previous: {
+        status: currentStatus,
+        spawnedNextChoreId,
+        approvalPayoutsJson: readString(existingChoreDoc.fields, "approvalPayoutsJson"),
+      },
+      next: { status: "Open", spawnedNextChoreId: "" },
+      reason: "undo_complete",
+    }),
+  );
   const payoutByAssignee = buildPayoutByAssignee({
     assigneeIds: choreAssigneeIds,
     totalCoinValue: choreCoinValue,
@@ -151,7 +154,9 @@ export async function handleUndoComplete(ctx: ChoreActionContext): Promise<Chore
     choreTitle,
     relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
   });
-  await publishFamilyActivity({ type: "chore_updated", familyId, choreId, occurredAt: now });
+  await runAfterResponse("undo-complete:publish", () =>
+    publishFamilyActivity({ type: "chore_updated", familyId, choreId, occurredAt: now }),
+  );
   return {
     kind: "ok" as const,
     syncOwnerUid,

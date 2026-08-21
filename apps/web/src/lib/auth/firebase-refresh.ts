@@ -1,4 +1,10 @@
 import { getAuthenticatedSessionIdentity, type SessionUser } from "@/lib/auth/session";
+import {
+  createRequestStore,
+  readTiming,
+  runWithRequestStore,
+  type RequestTiming,
+} from "@/lib/observability/request-context";
 
 type FirebaseRefreshResponse = {
   id_token: string;
@@ -124,22 +130,35 @@ export async function runWithRefreshedFirebaseToken<T>(
     throw new Error("MISSING_FIREBASE_SESSION");
   }
 
+  // Every protected route funnels its Firestore work through here, which makes
+  // this the one place to establish the per-request context that powers both the
+  // Server-Timing instrumentation and per-request read memoization.
+  //
+  // A fresh store per attempt is deliberate: on a 401 the callback is retried
+  // with a refreshed token, and reusing the first attempt's store would let
+  // reads cached under the expired token leak into the retry.
+  let timing: RequestTiming = { firestoreCalls: 0, firestoreMs: 0, memoHits: 0 };
   const attempt = async (token: string | undefined) => {
     if (!token) {
       throw new Error("MISSING_FIREBASE_ID_TOKEN");
     }
-    return work(token);
+    const store = createRequestStore();
+    try {
+      return await runWithRequestStore(store, () => work(token));
+    } finally {
+      timing = readTiming(store);
+    }
   };
 
   if (shouldRefreshBeforeFirestore(session)) {
     const refreshedSession = await refreshFirebaseSessionOnce(session);
     const data = await attempt(refreshedSession.firebaseIdToken);
-    return { data, session: refreshedSession, refreshed: true as const };
+    return { data, session: refreshedSession, refreshed: true as const, timing };
   }
 
   try {
     const data = await attempt(session.firebaseIdToken);
-    return { data, session, refreshed: false as const };
+    return { data, session, refreshed: false as const, timing };
   } catch (error) {
     if (
       !isFirestoreUnauthorizedError(error) &&
@@ -151,5 +170,5 @@ export async function runWithRefreshedFirebaseToken<T>(
 
   const refreshedSession = await refreshFirebaseSessionOnce(session);
   const data = await attempt(refreshedSession.firebaseIdToken);
-  return { data, session: refreshedSession, refreshed: true as const };
+  return { data, session: refreshedSession, refreshed: true as const, timing };
 }

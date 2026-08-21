@@ -4,6 +4,8 @@ import { runWithRefreshedFirebaseToken } from "@/lib/auth/firebase-refresh";
 import { getSessionFromRequest } from "@/lib/auth/request-session";
 import { setSessionUserCookie } from "@/lib/auth/session-cookie";
 import { createFamilyForUser } from "@/lib/family/bootstrap";
+import { getViewerRole } from "@/lib/family/access";
+import { linkUserPrimaryFamily } from "@/lib/family/user-link";
 import {
   boolField,
   createOrReplaceDocument,
@@ -11,7 +13,6 @@ import {
   findFirstFamilyIdByMemberUid,
   getDocument,
   listDocuments,
-  patchDocument,
   readBoolean,
   readString,
   readStringArray,
@@ -100,19 +101,6 @@ async function getUserFamilyIds(uid: string, idToken: string) {
   }
 }
 
-async function relinkUserPrimaryFamily(uid: string, familyId: string, idToken: string) {
-  const now = new Date().toISOString();
-  await patchDocument(
-    `users/${uid}`,
-    {
-      uid: stringField(uid),
-      familyIds: stringArrayField([familyId]),
-      lastFamilyUpdateAt: timestampField(now),
-    },
-    idToken,
-    ["familyIds", "lastFamilyUpdateAt", "uid"],
-  );
-}
 
 export async function POST(request: NextRequest) {
   const session = getSessionFromRequest(request);
@@ -159,7 +147,13 @@ export async function POST(request: NextRequest) {
           const recoveredFamilyId = await findFirstFamilyIdByMemberUid(session.uid, idToken);
           if (recoveredFamilyId) {
             familyId = recoveredFamilyId;
-            await relinkUserPrimaryFamily(session.uid, familyId, idToken);
+            await linkUserPrimaryFamily({
+              uid: session.uid,
+              familyId,
+              role: await getViewerRole(familyId, session.uid, idToken),
+              session,
+              idToken,
+            });
           } else {
             familyId = await createFamilyForUser({
               uid: session.uid,
@@ -167,9 +161,18 @@ export async function POST(request: NextRequest) {
               userEmail: session.email,
               idToken,
             });
-            // createFamilyForUser no longer writes the user doc; the signed-in
-            // admin already has one, so relink their primary family explicitly.
-            await relinkUserPrimaryFamily(session.uid, familyId, idToken);
+            // createFamilyForUser does not write the user doc, and sign-in no
+            // longer does either for a family-less account, so this may be the
+            // first `users/{uid}` write. createFamilyForUser has already created
+            // the admin member document, which the create rule requires to
+            // exist and to match the role written here.
+            await linkUserPrimaryFamily({
+              uid: session.uid,
+              familyId,
+              role: "admin",
+              session,
+              idToken,
+            });
           }
           familyIds = [familyId];
         }

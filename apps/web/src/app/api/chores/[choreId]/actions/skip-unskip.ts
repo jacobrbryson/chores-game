@@ -6,6 +6,7 @@ import {
   timestampField,
 } from "@/lib/firestore/rest";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
+import { runAfterResponse } from "@/lib/async/after-response";
 import { writeAuditLogBestEffort } from "@/lib/audit/log";
 import { buildKioskActivityMetadata } from "@/lib/auth/kiosk";
 import { getRequesterContext, isRequesterAssignee } from "@/lib/chores/access";
@@ -60,19 +61,21 @@ export async function handleSkip(ctx: ChoreActionContext): Promise<ChoreActionOu
     idToken,
     ["status", "skippedAt", "updatedAt"],
   );
-  await writeAuditLogBestEffort({
-    familyId,
-    idToken,
-    eventType: "chore_status_changed",
-    actor: { uid: session.uid, email: session.email, name: actorName, role: requester.role },
-    userId: choreAssigneeId,
-    choreId,
-    choreTitle,
-    source: readString(existingChoreDoc.fields, "source") || "manual",
-    previous: { status: currentStatus },
-    next: { status: "Skipped" },
-    reason: "skip",
-  });
+  await runAfterResponse("skip-unskip:audit-log", () =>
+    writeAuditLogBestEffort({
+      familyId,
+      idToken,
+      eventType: "chore_status_changed",
+      actor: { uid: session.uid, email: session.email, name: actorName, role: requester.role },
+      userId: choreAssigneeId,
+      choreId,
+      choreTitle,
+      source: readString(existingChoreDoc.fields, "source") || "manual",
+      previous: { status: currentStatus },
+      next: { status: "Skipped" },
+      reason: "skip",
+    }),
+  );
   const assigneeUid = await resolveAssigneeUid(familyId, choreAssigneeId, idToken);
   const kioskActivity = buildKioskActivityMetadata(session, choreAssigneeId || assigneeUid);
   const routineProgress = await recordRoutineStepSkipBestEffort({
@@ -101,7 +104,9 @@ export async function handleSkip(ctx: ChoreActionContext): Promise<ChoreActionOu
     authenticatedUid: kioskActivity.authenticatedUid,
     completedForPlayerId: kioskActivity.completedForPlayerId,
   });
-  await publishFamilyActivity({ type: "chore_updated", familyId, choreId, occurredAt: now });
+  await runAfterResponse("skip-unskip:publish", () =>
+    publishFamilyActivity({ type: "chore_updated", familyId, choreId, occurredAt: now }),
+  );
   return {
     kind: "ok" as const,
     syncOwnerUid: "",
@@ -141,19 +146,21 @@ export async function handleUnskip(ctx: ChoreActionContext): Promise<ChoreAction
     idToken,
     ["status", "skippedAt", "updatedAt"],
   );
-  await writeAuditLogBestEffort({
-    familyId,
-    idToken,
-    eventType: "chore_status_changed",
-    actor: { uid: session.uid, email: session.email, name: actorName, role: requester.role },
-    userId: choreAssigneeId,
-    choreId,
-    choreTitle,
-    source: readString(existingChoreDoc.fields, "source") || "manual",
-    previous: { status: currentStatus },
-    next: { status: "Open" },
-    reason: "unskip",
-  });
+  await runAfterResponse("skip-unskip:audit-log", () =>
+    writeAuditLogBestEffort({
+      familyId,
+      idToken,
+      eventType: "chore_status_changed",
+      actor: { uid: session.uid, email: session.email, name: actorName, role: requester.role },
+      userId: choreAssigneeId,
+      choreId,
+      choreTitle,
+      source: readString(existingChoreDoc.fields, "source") || "manual",
+      previous: { status: currentStatus },
+      next: { status: "Open" },
+      reason: "unskip",
+    }),
+  );
   await recordRoutineStepUnskipBestEffort({
     familyId,
     idToken,
@@ -172,7 +179,9 @@ export async function handleUnskip(ctx: ChoreActionContext): Promise<ChoreAction
     choreTitle,
     relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
   });
-  await publishFamilyActivity({ type: "chore_updated", familyId, choreId, occurredAt: now });
+  await runAfterResponse("skip-unskip:publish", () =>
+    publishFamilyActivity({ type: "chore_updated", familyId, choreId, occurredAt: now }),
+  );
   return {
     kind: "ok" as const,
     syncOwnerUid: "",

@@ -37,6 +37,9 @@ export async function POST(request: NextRequest) {
       uid: session.uid,
       email: session.email ?? "",
       displayName: session.name ?? "",
+      locale: session.locale,
+      photoUrl: session.picture ?? "",
+      provider: session.provider,
     });
 
     if (!result.ok) {

@@ -16,6 +16,13 @@ type FamilyActivityPublishEvent = {
   newSkillBonusAmount?: number;
 };
 
+// Hard ceiling on the WS publish. The WS service runs with a low minInstances,
+// so a POST here can land on a cold container — and without a timeout a hung or
+// slow WS server stalls the caller indefinitely. Publishing is best-effort
+// (failures are already swallowed below), so abandoning a slow publish is always
+// preferable to making a family wait on it.
+const WS_PUBLISH_TIMEOUT_MS = 2000;
+
 export async function publishFamilyActivity(event: FamilyActivityPublishEvent) {
   const isProduction = process.env.NODE_ENV === "production";
   const wsServerUrl = (process.env.NEXT_PUBLIC_WS_URL ?? "").trim();
@@ -45,22 +52,30 @@ export async function publishFamilyActivity(event: FamilyActivityPublishEvent) {
       : [];
     await Promise.all(
       [event.familyId, ...friendFamilyIds].map(async (targetFamilyId) => {
-        const response = await fetch(`${wsServerUrl.replace(/\/$/, "")}/events/family-activity`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${secret}`,
-          },
-          body: JSON.stringify({
-            ...event,
-            familyId: targetFamilyId,
-            occurredAt: event.occurredAt ?? new Date().toISOString(),
-          }),
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          const body = await response.text();
-          console.warn("publish failed", { status: response.status, body });
+        // Each target is independent: a timeout publishing to one friend family
+        // must not abandon the publish to the others (Promise.all would reject
+        // on the first failure and mask the rest).
+        try {
+          const response = await fetch(`${wsServerUrl.replace(/\/$/, "")}/events/family-activity`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${secret}`,
+            },
+            body: JSON.stringify({
+              ...event,
+              familyId: targetFamilyId,
+              occurredAt: event.occurredAt ?? new Date().toISOString(),
+            }),
+            cache: "no-store",
+            signal: AbortSignal.timeout(WS_PUBLISH_TIMEOUT_MS),
+          });
+          if (!response.ok) {
+            const body = await response.text();
+            console.warn("publish failed", { status: response.status, body });
+          }
+        } catch {
+          console.warn("publish failed", { targetFamilyId, reason: "timeout_or_network" });
         }
       }),
     );

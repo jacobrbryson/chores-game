@@ -1,5 +1,6 @@
 "use client";
 
+import { dedupedFetch } from "@/lib/api/deduped-fetch";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
 	PARTY_CONFETTI_SELECTION_CHANGED_EVENT,
@@ -259,7 +260,7 @@ export function PartyConfettiOverlay({
 		let cancelled = false;
 		async function loadSelectionFromServer() {
 			try {
-				const response = await fetch(STORE_BRIEF_PATH, { cache: "no-store" });
+				const response = await dedupedFetch(STORE_BRIEF_PATH, { cache: "no-store" });
 				if (!response.ok || cancelled) {
 					return;
 				}

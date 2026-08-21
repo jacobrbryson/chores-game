@@ -16,6 +16,7 @@ import { ModalShell } from "@/components/modal-shell";
 import { IdentitySummaryStrip } from "@/components/identity-summary-strip";
 import type { FamilySummaryResponse } from "@/lib/family/types";
 import type { PillarIdentity } from "@/lib/responsibility/identity";
+import { dedupedFetch } from "@/lib/api/deduped-fetch";
 
 const PROFILE_AVATAR_STORAGE_KEY_PREFIX = "profile_avatar_cache_v1";
 
@@ -250,7 +251,7 @@ export function ProfileMenu({
 
   async function loadHeaderCoinBalance() {
     try {
-      const response = await fetch("/api/store?brief=1", { cache: "no-store" });
+      const response = await dedupedFetch("/api/store?brief=1", { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -265,7 +266,7 @@ export function ProfileMenu({
 
   async function loadProfileAvatar() {
     try {
-      const response = await fetch("/api/store", { cache: "no-store" });
+      const response = await dedupedFetch("/api/store", { cache: "no-store" });
       if (!response.ok) {
         return;
       }

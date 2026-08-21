@@ -1,3 +1,5 @@
+import { recordFirestoreCall } from "@/lib/observability/request-context";
+
 type FirestorePrimitive =
   | { stringValue: string }
   | { integerValue: string }
@@ -47,6 +49,19 @@ function toDocumentName(path: string) {
 }
 
 async function requestFirestore<T>(path: string, idToken: string, init?: RequestInit) {
+  const startedAt = Date.now();
+  try {
+    return await requestFirestoreUninstrumented<T>(path, idToken, init);
+  } finally {
+    recordFirestoreCall(Date.now() - startedAt);
+  }
+}
+
+async function requestFirestoreUninstrumented<T>(
+  path: string,
+  idToken: string,
+  init?: RequestInit,
+) {
   const response = await fetch(`${getBasePath()}/${path}`, {
     ...init,
     headers: {
@@ -69,6 +84,15 @@ async function requestFirestore<T>(path: string, idToken: string, init?: Request
   }
 
   return (await response.json()) as T;
+}
+
+async function instrumentedFetch(input: string, init: RequestInit) {
+  const startedAt = Date.now();
+  try {
+    return await fetch(input, init);
+  } finally {
+    recordFirestoreCall(Date.now() - startedAt);
+  }
 }
 
 function familyIdFromMemberDocumentName(name: string) {
@@ -96,7 +120,7 @@ export async function listDocuments(path: string, idToken: string, pageSize = 50
 export async function listAllDocuments(
   path: string,
   idToken: string,
-  options?: { cap?: number; pageSize?: number },
+  options?: { cap?: number; pageSize?: number; mask?: string[] },
 ) {
   const cap = options?.cap ?? 5000;
   const pageSize = Math.min(300, Math.max(1, options?.pageSize ?? 300));
@@ -106,6 +130,13 @@ export async function listAllDocuments(
     const params = new URLSearchParams({ pageSize: String(pageSize) });
     if (pageToken) {
       params.set("pageToken", pageToken);
+    }
+    // Field mask: Firestore returns whole documents by default. When a caller
+    // only needs a couple of fields (e.g. scanning for a max sortOrder), asking
+    // for those alone cuts the response from every field of every document to
+    // just the ones used — the dominant cost when paging a large collection.
+    for (const field of options?.mask ?? []) {
+      params.append("mask.fieldPaths", field);
     }
     const response = await requestFirestore<{
       documents?: FirestoreDocument[];
@@ -153,7 +184,7 @@ export async function createOrReplaceDocument(
 }
 
 export async function deleteDocument(path: string, idToken: string) {
-  const response = await fetch(`${getBasePath()}/${path}`, {
+  const response = await instrumentedFetch(`${getBasePath()}/${path}`, {
     method: "DELETE",
     headers: {
       Authorization: `Bearer ${idToken}`,
@@ -199,7 +230,7 @@ export async function commitWrites(writes: CommitWrite[], idToken: string) {
     })),
   };
 
-  const response = await fetch(getCommitPath(), {
+  const response = await instrumentedFetch(getCommitPath(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -226,7 +257,7 @@ export async function findFirstFamilyIdByMemberUid(uid: string, idToken: string)
     return "";
   }
 
-  const response = await fetch(getRunQueryPath(), {
+  const response = await instrumentedFetch(getRunQueryPath(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -287,7 +318,7 @@ export async function findFirstFamilyIdByMemberEmail(email: string, idToken: str
     return "";
   }
 
-  const response = await fetch(getRunQueryPath(), {
+  const response = await instrumentedFetch(getRunQueryPath(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -353,7 +384,7 @@ export async function runQuery(
   const url = parentPath
     ? `${getBasePath()}/${parentPath}:runQuery`
     : getRunQueryPath();
-  const response = await fetch(url, {
+  const response = await instrumentedFetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

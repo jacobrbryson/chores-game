@@ -43,7 +43,9 @@ export async function POST(request: NextRequest) {
       provider: "apple",
       touchMemberLastSignIn: true,
     });
-    if (result.isNewUser) {
+    // Deferred user document means there is no account to seed against yet;
+    // the next sign-in after family setup still reports isNewUser and seeds then.
+    if (result.isNewUser && !result.userDocDeferred) {
       try {
         await seedDiscoveryStateForNewUser(firebaseSession.localId, result.memberId, firebaseSession.idToken);
       } catch (error) {

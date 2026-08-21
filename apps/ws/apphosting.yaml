@@ -1,7 +1,13 @@
 # Settings for Backend (on Cloud Run).
 # See https://firebase.google.com/docs/app-hosting/configure#cloud-run
 runConfig:
-  minInstances: 0
+  # Keep one instance warm. API routes POST to this service to fan out realtime
+  # family activity; with minInstances: 0 those publishes could land on a cold
+  # container and add seconds to user-facing mutations like completing a chore.
+  # The publish is now deferred past the response and capped by a 2s timeout, so
+  # a cold start no longer blocks the user — but it would still silently drop
+  # realtime updates for the rest of the family.
+  minInstances: 1
 
 # Environment variables sourced from Secret Manager.
 # Create one secret per variable name below.

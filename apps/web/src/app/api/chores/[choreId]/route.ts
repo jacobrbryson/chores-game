@@ -27,6 +27,8 @@ import {
   parseOptionalNewSkillEnabled,
 } from "@/lib/chores/input";
 import { syncGoogleTasksBestEffort } from "@/lib/chores/activity-helpers";
+import { formatServerTiming } from "@/lib/observability/request-context";
+import { runAfterResponse } from "@/lib/async/after-response";
 import { buildChoreDetailPayload } from "@/lib/chores/chore-serializer";
 import {
   MAX_ACTIVE_CHORES_PER_ASSIGNEE,
@@ -148,7 +150,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ cho
   }
 
   try {
-    const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
+    const { data, session: refreshedSession, refreshed, timing } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
         const familyId = await getPrimaryFamilyId(session.uid, idToken);
@@ -183,6 +185,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ cho
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);
     }
+    response.headers.set("Server-Timing", formatServerTiming(timing));
     return response;
   } catch (error) {
     const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
@@ -282,7 +285,7 @@ export async function PATCH(
   }
 
   try {
-    const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
+    const { data, session: refreshedSession, refreshed, timing } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
         const familyId = await getPrimaryFamilyId(session.uid, idToken);
@@ -315,12 +318,18 @@ export async function PATCH(
         };
         const outcome = await dispatchChoreAction(action, ctx);
         if (outcome.kind === "ok" && outcome.syncOwnerUid) {
-          await syncGoogleTasksBestEffort({
-            uid: outcome.syncOwnerUid,
-            idToken,
-            force: true,
-            minIntervalSeconds: 0,
-          });
+          // Pushes the status change back to Google Tasks. `force` is kept — this
+          // sync exists precisely to mirror the transition upstream, so the rate
+          // limiter must not skip it — but it is an external API call on the
+          // hottest mutation in the app, so it no longer blocks the response.
+          await runAfterResponse("chore-action:google-tasks-sync", () =>
+            syncGoogleTasksBestEffort({
+              uid: outcome.syncOwnerUid,
+              idToken,
+              force: true,
+              minIntervalSeconds: 0,
+            }),
+          );
         }
         return outcome;
       },
@@ -369,6 +378,7 @@ export async function PATCH(
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);
     }
+    response.headers.set("Server-Timing", formatServerTiming(timing));
     return response;
   } catch (error) {
     const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";
@@ -395,7 +405,7 @@ export async function DELETE(
   }
 
   try {
-    const { data, session: refreshedSession, refreshed } = await runWithRefreshedFirebaseToken(
+    const { data, session: refreshedSession, refreshed, timing } = await runWithRefreshedFirebaseToken(
       session,
       async (idToken) => {
         const familyId = await getPrimaryFamilyId(session.uid, idToken);
@@ -432,6 +442,7 @@ export async function DELETE(
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);
     }
+    response.headers.set("Server-Timing", formatServerTiming(timing));
     return response;
   } catch (error) {
     const reason = error instanceof Error && error.message ? error.message.slice(0, 180) : "unknown";

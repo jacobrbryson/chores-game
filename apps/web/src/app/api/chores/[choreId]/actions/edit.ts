@@ -9,6 +9,7 @@ import {
   timestampField,
 } from "@/lib/firestore/rest";
 import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
+import { runAfterResponse } from "@/lib/async/after-response";
 import { GOOGLE_TASKS_CHORE_SOURCE } from "@/lib/google/tasks-sync";
 import { DEFAULT_CHORE_COIN_VALUE, recurrenceLabel } from "@/lib/chores/recurrence";
 import { normalizeChoreType } from "@/lib/chores/types";
@@ -79,7 +80,9 @@ export async function handleSetCategories(ctx: ChoreActionContext): Promise<Chor
     choreTitle,
     relatedIds: choreAssigneeId ? [choreAssigneeId] : [],
   });
-  await publishFamilyActivity({ type: "chore_updated", familyId, choreId, occurredAt: now });
+  await runAfterResponse("edit:publish", () =>
+    publishFamilyActivity({ type: "chore_updated", familyId, choreId, occurredAt: now }),
+  );
   return okOutcome("");
 }
 
@@ -279,6 +282,8 @@ export async function handleEdit(ctx: ChoreActionContext): Promise<ChoreActionOu
     choreTitle: normalizedDescription || previousTitle,
     relatedIds: Array.from(new Set([...resolvedAssigneeIds, previousAssigneeId].filter(Boolean))),
   });
-  await publishFamilyActivity({ type: "chore_updated", familyId, choreId, occurredAt: now });
+  await runAfterResponse("edit:publish", () =>
+    publishFamilyActivity({ type: "chore_updated", familyId, choreId, occurredAt: now }),
+  );
   return okOutcome(syncOwnerUid);
 }

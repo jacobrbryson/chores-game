@@ -6,6 +6,7 @@ const mockSetSessionUserCookie = vi.fn();
 const mockGetDocument = vi.fn();
 const mockListDocuments = vi.fn();
 const mockPatchDocument = vi.fn();
+const mockCommitWrites = vi.fn();
 const mockApplyWalletDelta = vi.fn();
 const mockEmitFamilyActivity = vi.fn();
 const mockPublishFamilyActivity = vi.fn();
@@ -29,6 +30,7 @@ vi.mock("@/lib/firestore/rest", () => ({
   integerField: (value: number) => value,
   listAllDocuments: vi.fn().mockResolvedValue([]),
   listDocuments: mockListDocuments,
+  commitWrites: mockCommitWrites,
   patchDocument: mockPatchDocument,
   readBoolean: (fields: Record<string, unknown> | undefined, key: string) => Boolean(fields?.[key]),
   readInteger: (fields: Record<string, unknown> | undefined, key: string) => {
@@ -166,6 +168,7 @@ describe("PATCH /api/chores/[choreId] new skill bonus", () => {
       return { data, session, refreshed: false };
     });
     mockPatchDocument.mockResolvedValue(undefined);
+    mockCommitWrites.mockResolvedValue(undefined);
     mockApplyWalletDelta.mockResolvedValue(15);
     mockEmitFamilyActivity.mockResolvedValue(undefined);
     mockPublishFamilyActivity.mockResolvedValue(undefined);
@@ -278,6 +281,7 @@ describe("PATCH /api/chores/[choreId] new skill bonus at approval", () => {
       return { data, session, refreshed: false };
     });
     mockPatchDocument.mockResolvedValue(undefined);
+    mockCommitWrites.mockResolvedValue(undefined);
     mockApplyWalletDelta.mockResolvedValue(15);
     mockEmitFamilyActivity.mockResolvedValue(undefined);
     mockPublishFamilyActivity.mockResolvedValue(undefined);

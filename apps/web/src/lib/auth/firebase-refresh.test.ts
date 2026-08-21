@@ -53,7 +53,15 @@ describe("runWithRefreshedFirebaseToken", () => {
 
     const result = await runWithRefreshedFirebaseToken(session, work);
 
-    expect(result).toEqual({ data: "ok", session, refreshed: false });
+    // `timing` carries the per-request Firestore instrumentation (see
+    // request-context.ts). The callback here makes no Firestore calls, so the
+    // counters are zero.
+    expect(result).toEqual({
+      data: "ok",
+      session,
+      refreshed: false,
+      timing: { firestoreCalls: 0, firestoreMs: 0, memoHits: 0 },
+    });
     expect(work).toHaveBeenCalledWith(session.firebaseIdToken);
     expect(fetch).not.toHaveBeenCalled();
   });

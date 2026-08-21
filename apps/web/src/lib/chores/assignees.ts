@@ -10,6 +10,7 @@ import {
 } from "@/lib/firestore/rest";
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
 import { normalizeEmail } from "@/lib/chores/input";
+import { memoizePerRequest } from "@/lib/observability/request-context";
 
 const MAX_CHORE_SCAN = 5000;
 
@@ -141,6 +142,19 @@ export async function resolveAssigneeUid(
   if (!assigneeId) {
     return "";
   }
+  // Called repeatedly for the same assignee within one mutation (payouts, bonus
+  // awards, achievement crediting all resolve it independently). Member identity
+  // does not change mid-request.
+  return memoizePerRequest(`assigneeUid:${familyId}:${assigneeId}`, () =>
+    resolveAssigneeUidUncached(familyId, assigneeId, idToken),
+  );
+}
+
+async function resolveAssigneeUidUncached(
+  familyId: string,
+  assigneeId: string,
+  idToken: string,
+) {
   const normalizedAssignee = normalizeEmail(assigneeId);
   let matchedEmail = "";
   try {
@@ -238,6 +252,12 @@ export async function listActiveFamilyMemberIds(familyId: string, idToken: strin
 }
 
 export async function userHasFamilyMembership(uid: string, familyId: string, idToken: string) {
+  return memoizePerRequest(`familyMembership:${familyId}:${uid}`, () =>
+    userHasFamilyMembershipUncached(uid, familyId, idToken),
+  );
+}
+
+async function userHasFamilyMembershipUncached(uid: string, familyId: string, idToken: string) {
   try {
     const userDoc = await getDocument(`users/${uid}`, idToken);
     const familyIds = readStringArray(userDoc.fields, "familyIds");
