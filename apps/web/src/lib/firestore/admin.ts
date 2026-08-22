@@ -1,3 +1,4 @@
+import { recordFirestoreCall } from "@/lib/observability/request-context";
 import { createSign } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import type { FirestoreDocument, FirestoreValue } from "@/lib/firestore/rest";
@@ -175,6 +176,18 @@ async function getAdminAccessToken() {
 }
 
 async function requestFirestoreAdmin<T>(url: string, init?: RequestInit) {
+  const startedAt = Date.now();
+  try {
+    return await requestFirestoreAdminUninstrumented<T>(url, init);
+  } finally {
+    // Admin-credential calls were invisible to the per-request Server-Timing
+    // counters, so a route could look cheap on Firestore while spending most of
+    // its time here. They count toward the same budget as user-scoped calls.
+    recordFirestoreCall(Date.now() - startedAt);
+  }
+}
+
+async function requestFirestoreAdminUninstrumented<T>(url: string, init?: RequestInit) {
   const token = await getAdminAccessToken();
   const response = await fetch(url, {
     ...init,

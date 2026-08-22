@@ -15,6 +15,10 @@ export type RequestTiming = {
   firestoreCalls: number;
   firestoreMs: number;
   memoHits: number;
+  // Documents materialised from Firestore responses. Call count alone hides the
+  // difference between five cheap reads and one query that streams back
+  // thousands of documents to be parsed and mapped in JS.
+  documentsRead: number;
 };
 
 type RequestStore = RequestTiming & {
@@ -72,7 +76,7 @@ function getStorage(): AsyncStore<RequestStore> | null {
 }
 
 export function createRequestStore(): RequestStore {
-  return { firestoreCalls: 0, firestoreMs: 0, memoHits: 0, memo: new Map() };
+  return { firestoreCalls: 0, firestoreMs: 0, memoHits: 0, documentsRead: 0, memo: new Map() };
 }
 
 export function runWithRequestStore<T>(store: RequestStore, fn: () => Promise<T>): Promise<T> {
@@ -85,6 +89,7 @@ export function readTiming(store: RequestStore): RequestTiming {
     firestoreCalls: store.firestoreCalls,
     firestoreMs: store.firestoreMs,
     memoHits: store.memoHits,
+    documentsRead: store.documentsRead,
   };
 }
 
@@ -96,6 +101,13 @@ export function recordFirestoreCall(durationMs: number) {
   }
   store.firestoreCalls += 1;
   store.firestoreMs += durationMs;
+}
+
+export function recordDocumentsRead(count: number) {
+  const store = getStorage()?.getStore();
+  if (store) {
+    store.documentsRead += count;
+  }
 }
 
 // Deduplicates an async read within one request. The *promise* is cached, so
@@ -138,6 +150,7 @@ export function formatServerTiming(timing?: RequestTiming): string {
   return [
     `fs;desc="firestore calls";dur=${timing.firestoreMs}`,
     `fscount;desc="${timing.firestoreCalls} calls"`,
+    `fsdocs;desc="${timing.documentsRead} docs"`,
     `memo;desc="${timing.memoHits} cached reads"`,
   ].join(", ");
 }

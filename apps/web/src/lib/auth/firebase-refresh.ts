@@ -137,7 +137,7 @@ export async function runWithRefreshedFirebaseToken<T>(
   // A fresh store per attempt is deliberate: on a 401 the callback is retried
   // with a refreshed token, and reusing the first attempt's store would let
   // reads cached under the expired token leak into the retry.
-  let timing: RequestTiming = { firestoreCalls: 0, firestoreMs: 0, memoHits: 0 };
+  let timing: RequestTiming = { firestoreCalls: 0, firestoreMs: 0, memoHits: 0, documentsRead: 0 };
   const attempt = async (token: string | undefined) => {
     if (!token) {
       throw new Error("MISSING_FIREBASE_ID_TOKEN");

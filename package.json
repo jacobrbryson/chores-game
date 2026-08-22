@@ -23,6 +23,7 @@
     "migration:email-keying-dry-run": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ./scripts/lib/ts-alias-register.mjs scripts/email-keying-dry-run.ts",
     "migration:cleanup-invite-lookups": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ./scripts/lib/ts-alias-register.mjs scripts/cleanup-orphaned-invite-lookups.ts",
     "migration:rewrite-chore-assignees": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ./scripts/lib/ts-alias-register.mjs scripts/rewrite-email-chore-assignees.ts",
+    "migration:backfill-chore-fields": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ./scripts/lib/ts-alias-register.mjs scripts/backfill-chore-fields.ts",
     "migration:delete-orphaned-family": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ./scripts/lib/ts-alias-register.mjs scripts/delete-orphaned-family.ts",
     "migration:expire-pending-invites": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ./scripts/lib/ts-alias-register.mjs scripts/expire-pending-email-invites.ts",
     "deploy:web": "node scripts/deploy-web.mjs",

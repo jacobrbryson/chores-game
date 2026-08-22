@@ -28,6 +28,8 @@ import { publishFamilyActivity } from "@/lib/ws/publish-family-activity";
 import { createFamilySocketAuthToken } from "@/lib/ws/family-auth-token";
 import { GOOGLE_TASKS_CHORE_SOURCE, syncGoogleTasksForUser } from "@/lib/google/tasks-sync";
 import { rolloverOverdueRoutineAssignmentsBestEffort } from "@/lib/responsibility/assignment-service";
+import { runAfterResponse } from "@/lib/async/after-response";
+import { formatServerTiming } from "@/lib/observability/request-context";
 import { resolveMemberPrimaryColor } from "@/lib/theme/member-primary-color";
 import {
   type ChoreRecurrenceType,
@@ -911,7 +913,7 @@ export async function GET(request: NextRequest) {
     : null;
   const operationStartedAt = Date.now();
   try {
-    const { data, session: refreshedSession, refreshed } =
+    const { data, session: refreshedSession, refreshed, timing } =
       await runWithRefreshedFirebaseToken(session, async (idToken) => {
         let familyId = "";
         let viewerGoogleTasksLinked = false;
@@ -954,21 +956,31 @@ export async function GET(request: NextRequest) {
         // linked Google Tasks. We already know the viewer's link state from the
         // user doc above, so skip the sync entirely when it can't do anything.
         if (viewerGoogleTasksLinked) {
-          await syncGoogleTasksForUser({
-            uid: session.uid,
-            idToken,
-            minIntervalSeconds: 60,
-          });
+          await runAfterResponse("chores:google-tasks-sync", () =>
+            syncGoogleTasksForUser({
+              uid: session.uid,
+              idToken,
+              minIntervalSeconds: 60,
+            }),
+          );
         }
-        await rolloverOverdueRoutineAssignmentsBestEffort({
-          familyId,
-          idToken,
-          today: offsetIsoDateAt(Date.now(), timezoneOffsetMinutes),
-          actor: { uid: session.uid, email: session.email, name: session.name },
-        });
-        const viewerRole = await getViewerRole(familyId, session.uid, idToken);
+        // Rolling overdue routine assignments forward is a write loop on a read
+        // path. This is the same deferral already applied to /api/family/summary;
+        // it was missed here, and this route is the slowest on the dashboard
+        // (2374ms measured in isolation in production).
+        // Trade-off matches summary: the first load after an assignment goes
+        // overdue renders the pre-rollover due date, the next one shows it moved.
+        await runAfterResponse("chores:routine-rollover", () =>
+          rolloverOverdueRoutineAssignmentsBestEffort({
+            familyId,
+            idToken,
+            today: offsetIsoDateAt(Date.now(), timezoneOffsetMinutes),
+            actor: { uid: session.uid, email: session.email, name: session.name },
+          }),
+        );
 
-        const [memberDocs, docs, categories] = await Promise.all([
+        const [viewerRole, memberDocs, docs, categories] = await Promise.all([
+          getViewerRole(familyId, session.uid, idToken),
           listDocuments(`families/${familyId}/members`, idToken, 200),
           listFamilyChoreDocuments(familyId, idToken),
           listFamilyCategories(familyId, idToken),
@@ -1233,6 +1245,7 @@ export async function GET(request: NextRequest) {
     if (refreshed) {
       setSessionUserCookie(response, refreshedSession);
     }
+    response.headers.set("Server-Timing", formatServerTiming(timing));
     const choresPagination = "pagination" in data ? data.pagination : undefined;
     void recordOperationMetric({
       area: "chores",

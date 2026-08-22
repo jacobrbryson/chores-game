@@ -25,7 +25,7 @@ function sanitizeImageName(rawValue: string) {
 }
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   context: { params: Promise<{ imageName: string }> },
 ) {
   const params = await context.params;
@@ -34,13 +34,13 @@ export async function GET(
     return NextResponse.json({ error: "invalid_image_name" }, { status: 400 });
   }
 
-  const target = new URL(
-    `/achievements/placeholders-png/${imageName}`,
-    request.nextUrl.origin,
-  );
-  return NextResponse.redirect(target, {
+  // A relative Location, not NextResponse.redirect(). Behind Cloud Run the
+  // request origin is the container's internal bind address (0.0.0.0:8080),
+  // so building an absolute URL from it sends clients somewhere unreachable.
+  return new NextResponse(null, {
     status: 308,
     headers: {
+      Location: `/achievements/placeholders-png/${imageName}`,
       "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
     },
   });

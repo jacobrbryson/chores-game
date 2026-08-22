@@ -1,4 +1,4 @@
-import { recordFirestoreCall } from "@/lib/observability/request-context";
+import { recordDocumentsRead, recordFirestoreCall } from "@/lib/observability/request-context";
 
 type FirestorePrimitive =
   | { stringValue: string }
@@ -110,6 +110,7 @@ export async function listDocuments(path: string, idToken: string, pageSize = 50
     encodedPath,
     idToken,
   );
+  recordDocumentsRead(response.documents?.length ?? 0);
   return response.documents ?? [];
 }
 
@@ -142,6 +143,7 @@ export async function listAllDocuments(
       documents?: FirestoreDocument[];
       nextPageToken?: string;
     }>(`${path}?${params.toString()}`, idToken);
+    recordDocumentsRead(response.documents?.length ?? 0);
     for (const doc of response.documents ?? []) {
       documents.push(doc);
       if (documents.length >= cap) {
@@ -406,9 +408,11 @@ export async function runQuery(
   }
 
   const rows = (await response.json()) as FirestoreRunQueryResult[];
-  return rows
+  const documents = rows
     .map((row) => row.document)
     .filter((doc): doc is FirestoreDocument => Boolean(doc));
+  recordDocumentsRead(documents.length);
+  return documents;
 }
 
 export function documentIdFromName(name: string) {

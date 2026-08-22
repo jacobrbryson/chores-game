@@ -184,6 +184,98 @@ HTML → JS → hydrate → fetch waterfall before anything renders.
 
 ---
 
+## The chore archive scan — measured, and why it is not a database-engine problem
+
+`/api/chores?status=needs_approval&limit=100`, measured with per-request
+instrumentation:
+
+| | value |
+|---|---|
+| Firestore calls | 5 |
+| **Documents materialised** | **1523** |
+| Firestore time | ~510ms |
+| **Non-Firestore server time** | **~1.5–2.0s** |
+| Response body | 2KB |
+
+The family has ~50 active chores. The archive holds **1523** chore documents,
+because a recurring chore spawns a new document on every completion. Every
+request for *any* chore view reads all of them
+(`listFamilyChoreDocuments`, `limit: MAX_CHORE_ARCHIVE = 5000`) and filters in JS.
+
+**Roughly 80% of this request is JS parsing and mapping 1523 documents to return
+zero rows.** That is the single biggest remaining cost in the app.
+
+### Why this does not argue for a relational database
+
+A `WHERE status='Submitted'` in Postgres would return 0 rows instead of 1523 —
+which is exactly right, and exactly what a Firestore `where` clause does too. The
+reason the code doesn't already do that is documented at
+[route.ts:171](apps/web/src/app/api/chores/route.ts:171): a server-side filter on
+`deleted` or `orderBy createdAt` would **silently drop legacy chore documents that
+lack those fields**.
+
+So the blocker is **data hygiene, not the query engine** — and a Postgres
+migration would not let you skip it. Importing into a typed schema forces you to
+resolve those same missing fields first. Fixing the data in place gets the same
+win without the migration.
+
+### The backfill turned out to be unnecessary — the data is already clean
+
+`scripts/backfill-chore-fields.ts` was written and its **dry run has been run
+against production**:
+
+```
+chore documents scanned:   2041
+families in scope:         22
+missing 'deleted':         0
+missing 'status':          0
+missing 'createdAt':       0
+documents to write:        0
+```
+
+**Every chore document across all 22 families already carries `deleted`, `status`
+and `createdAt`.** The legacy-data hazard documented at
+[route.ts:171](apps/web/src/app/api/chores/route.ts:171) — the stated reason the
+route cannot filter server-side — does not exist in the real data. The comment is
+stale, and the guard it justifies is costing ~2s per request for nothing.
+
+**No migration is required. The filtered query is safe to write today.**
+
+The script is kept (registered as `npm run migration:backfill-chore-fields`)
+because it is the cheap way to re-verify that precondition before shipping a
+query that depends on it, and to repair the data if a future write path ever
+reintroduces a partial document.
+
+### Status census — how much a filtered query saves
+
+The largest family's archive (the one measured above):
+
+| Bucket | Documents |
+|---|---|
+| Approved | 702 |
+| **Deleted** | **480** |
+| Submitted | 264 |
+| Open | 62 |
+| Rejected | 2 |
+| **Total** | **1510** |
+
+- `where deleted == false` alone removes **480 of 1510 documents (32%)** from
+  *every* chore request, with no behaviour change.
+- `status=needs_approval` should read the **264** Submitted documents, not 1510 —
+  and after date filtering it returned zero rows.
+- The Open-chore views need **62** documents out of 1510.
+
+### The fix, in order
+
+1. **Push the filters into the query.** `where deleted == false` for every view,
+   plus a status filter when the caller asked for one. Verified safe by the dry
+   run above.
+2. Add a regression guard asserting the route's `documentsRead` stays bounded, so
+   an unfiltered read cannot creep back in.
+3. Revisit archive growth separately: 702 Approved documents for one family comes
+   from recurring chores spawning a document per completion, and it grows without
+   bound regardless of how well the query filters.
+
 ## Should we switch to a relational database?
 
 **Not now.** The traced write path shows the bottleneck is the *number of
@@ -388,9 +480,34 @@ was not looking at.
 3. **The two concurrent `/api/preferences` GETs** (theme sync + today-chores
    panel) now go through `dedupedFetch`.
 
-Local counts: **18 → 14 distinct requests**, with the two slowest removed
-entirely. Local duplicate counts are inflated by React StrictMode's double-effect
-in dev and should be read from production, not here.
+**Measured in production after deploying:** 18 → **15 requests**, last API
+7104ms → **~5100ms** (≈29% faster). `/api/feed` is no longer requested at all, and
+`/api/discovery/summary` is a single call.
+
+### Production, alone vs in the burst (after that deploy)
+
+| Route | Alone | In burst | Contention |
+|---|---|---|---|
+| `/api/chores?status=needs_approval` | **2374ms** | 4979ms | 2.1× |
+| `/api/discovery/summary` (all sections) | 790ms | 4175ms | 5.3× |
+| `/api/notifications?summary=count` | **922ms** | 4058ms | 4.4× |
+| `/api/family/summary` | 1086ms | 2386ms | 2.2× |
+
+- **The notifications count fix is confirmed:** 1713ms → **922ms** alone, ~46% faster.
+- **Consolidating discovery worked:** three requests (6868 + 3984 + 3564ms in the
+  burst) became one at 790ms alone.
+- **`/api/chores?status=needs_approval` is now the ceiling at 2374ms alone.** No
+  arrangement of the other requests gets the dashboard under 500ms while one
+  route costs 2.4s by itself.
+
+### Not yet deployed
+
+`/api/chores` was still awaiting `rolloverOverdueRoutineAssignmentsBestEffort` on
+the request path — the deferral applied to `/api/family/summary` was never
+backported here, on what is now the dashboard's slowest route. Fixed, plus
+`getViewerRole` moved into the existing `Promise.all` instead of running before
+it, and `Server-Timing` added to the route. Locally it now reports **5 Firestore
+calls**. Needs a deploy to measure.
 
 ### The two changes that were originally proposed
 

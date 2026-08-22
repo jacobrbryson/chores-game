@@ -1,6 +1,7 @@
 import { DEFAULT_LOCALE, resolveLocalePreference } from "@packages/locales";
 import type { SessionUser } from "@/lib/auth/session";
 import { buildIdpUserAuthFields, type AuthProvider } from "@/lib/auth/idp-user-fields";
+import { claimOrcwoodProviderLinkBestEffort } from "@/lib/auth/orcwood-provider-link";
 import {
   findFirstFamilyIdByMemberUid,
   getDocument,
@@ -196,6 +197,17 @@ export async function upsertIdpUser(input: {
     });
     await patchDocument(`users/${session.localId}`, fields, session.idToken, Object.keys(fields));
   }
+
+  // Record the uid Firebase just assigned in the shared Orcwood index, so
+  // orcwood.com resolves this person to this uid instead of allocating them a
+  // second account. Runs for every sign-in, including one that has not
+  // finished family setup — the Auth user exists either way, and the identity
+  // is what the index is keyed on.
+  await claimOrcwoodProviderLinkBestEffort({
+    provider,
+    subject: identity.subject,
+    uid: session.localId,
+  });
 
   if (linkedFamilyId && input.touchMemberLastSignIn) {
     try {

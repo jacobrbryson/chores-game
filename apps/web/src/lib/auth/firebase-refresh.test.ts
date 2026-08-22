@@ -60,7 +60,7 @@ describe("runWithRefreshedFirebaseToken", () => {
       data: "ok",
       session,
       refreshed: false,
-      timing: { firestoreCalls: 0, firestoreMs: 0, memoHits: 0 },
+      timing: { firestoreCalls: 0, firestoreMs: 0, memoHits: 0, documentsRead: 0 },
     });
     expect(work).toHaveBeenCalledWith(session.firebaseIdToken);
     expect(fetch).not.toHaveBeenCalled();
