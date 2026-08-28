@@ -1409,6 +1409,7 @@
     "memberNameLabel": "Nom",
     "memberEmailLabel": "E-mail",
     "memberRoleLabel": "Rôle",
+    "memberRoleLocked": "Le rôle est défini à l’ajout du membre et ne peut pas être modifié ici.",
     "categoryNameLabel": "Nom de la catégorie",
     "categoryColorLabel": "Couleur de la puce",
     "categoryMembersLabel": "Limiter aux membres de la famille",

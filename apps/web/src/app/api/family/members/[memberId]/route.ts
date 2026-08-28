@@ -66,7 +66,22 @@ export async function PATCH(
     return NextResponse.json({ error: "member_id_required" }, { status: 400 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { locale?: unknown; birthYear?: unknown };
+  const body = (await request.json().catch(() => ({}))) as {
+    locale?: unknown;
+    birthYear?: unknown;
+    name?: unknown;
+  };
+
+  // Name update (optional, admin only). The mobile Manage Family sheet edits a
+  // member's display name; same 2–80 char bound the add-member route enforces.
+  const nameRequested = typeof body.name === "string";
+  const nextName = nameRequested ? (body.name as string).trim() : "";
+  if (nameRequested && (nextName.length < 2 || nextName.length > 80)) {
+    return NextResponse.json(
+      { error: "name_must_be_between_2_and_80_chars" },
+      { status: 400 },
+    );
+  }
 
   // Locale update (optional). When `locale` is present it must be valid.
   const localeRequested = typeof body.locale === "string" && body.locale.length > 0;
@@ -88,7 +103,7 @@ export async function PATCH(
     nextBirthYear = year;
   }
 
-  if (!localeRequested && !birthYearRequested) {
+  if (!localeRequested && !birthYearRequested && !nameRequested) {
     return NextResponse.json({ error: "nothing_to_update" }, { status: 400 });
   }
 
@@ -110,6 +125,7 @@ export async function PATCH(
         const targetUid = readString(targetDoc.fields, "uid").trim();
         const currentLocale = readString(targetDoc.fields, "locale").trim();
         const currentBirthYear = readInteger(targetDoc.fields, "birthYear");
+        const currentName = readString(targetDoc.fields, "name").trim();
         const isSelf = memberId === session.memberId || memberId === session.uid || targetUid === session.uid;
 
         // Locale: self or admin. Birth year: admin only (parents manage children).
@@ -117,6 +133,11 @@ export async function PATCH(
           return { kind: "not_allowed" as const };
         }
         if (birthYearRequested && !isAdmin) {
+          return { kind: "not_allowed" as const };
+        }
+        // Name: admin only. Firestore rules also cap a self-update to the
+        // preferences allowlist, so a player renaming themselves would 403.
+        if (nameRequested && !isAdmin) {
           return { kind: "not_allowed" as const };
         }
 
@@ -129,6 +150,10 @@ export async function PATCH(
           memberPatch.locale = stringField(nextLocale);
           memberMask.push("locale");
           localeChanged = true;
+        }
+        if (nameRequested && nextName !== currentName) {
+          memberPatch.name = stringField(nextName);
+          memberMask.push("name");
         }
         if (birthYearRequested) {
           const desired = nextBirthYear ?? 0;
@@ -166,6 +191,19 @@ export async function PATCH(
             reason: "parent_changed_member_locale",
           });
         }
+        if (memberMask.includes("name")) {
+          await writeAuditLogBestEffort({
+            familyId,
+            idToken,
+            eventType: "member_name_changed",
+            actor: { uid: session.uid, email: session.email, name: session.name, role: session.role },
+            userId: targetUid || memberId,
+            source: "family_member_name",
+            previous: { name: currentName },
+            next: { name: nextName },
+            reason: "parent_changed_member_name",
+          });
+        }
         if (memberMask.includes("birthYear")) {
           await writeAuditLogBestEffort({
             familyId,
@@ -185,6 +223,7 @@ export async function PATCH(
           locale: localeChanged ? nextLocale ?? undefined : undefined,
           localeChanged,
           birthYear: birthYearRequested ? nextBirthYear : currentBirthYear || undefined,
+          name: nameRequested ? nextName : currentName,
           targetUid,
         };
       });
@@ -200,7 +239,12 @@ export async function PATCH(
       data.localeChanged && data.locale && data.targetUid && data.targetUid === session.uid
         ? { ...refreshedSession, locale: data.locale }
         : refreshedSession;
-    const response = NextResponse.json({ success: true, locale: data.locale, birthYear: data.birthYear });
+    const response = NextResponse.json({
+      success: true,
+      locale: data.locale,
+      birthYear: data.birthYear,
+      name: data.name,
+    });
     if (refreshed || nextSession.locale !== refreshedSession.locale) {
       setSessionUserCookie(response, nextSession);
     }

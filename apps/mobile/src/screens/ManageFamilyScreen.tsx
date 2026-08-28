@@ -148,6 +148,10 @@ export function ManageFamilyScreen({ right, onGoDashboard }: Props) {
     memberSheet?.mode === "create" ||
     (memberSheet?.mode === "edit" && memberSheet.member?.role === "player");
 
+  // Role is set when the member is added and never changed afterwards — there is
+  // no server route for it, and promoting a child to parent is not a silent edit.
+  const roleLocked = memberSheet?.mode === "edit";
+
   async function submitMember() {
     if (busy) {
       return;
@@ -168,7 +172,13 @@ export function ManageFamilyScreen({ right, onGoDashboard }: Props) {
     try {
       if (memberSheet?.mode === "edit" && memberSheet.member) {
         const member = memberSheet.member;
-        await updateMobileFamilyMember(member.id, { name, role: memberRole });
+        // Send only what actually changed. The member PATCH rejects a body with
+        // no supported field (`nothing_to_update`), which used to abort the save
+        // before the email call below ever ran. Role is not editable after the
+        // member is created — on either client — so it is never sent.
+        if (name !== member.name.trim()) {
+          await updateMobileFamilyMember(member.id, { name });
+        }
         // The email change is a separate, more guarded call: it can require
         // verification, so it must not be folded into the plain member patch.
         const emailChanged = email !== (member.email ?? "").trim().toLowerCase();
@@ -484,9 +494,14 @@ export function ManageFamilyScreen({ right, onGoDashboard }: Props) {
                       <Pressable
                         key={value}
                         accessibilityRole="radio"
-                        accessibilityState={{ selected: active }}
+                        accessibilityState={{ selected: active, disabled: roleLocked }}
+                        disabled={roleLocked}
                         onPress={() => setMemberRole(value)}
-                        style={[styles.chip, active ? styles.chipActive : null]}>
+                        style={[
+                          styles.chip,
+                          active ? styles.chipActive : null,
+                          roleLocked && !active ? styles.chipDisabled : null,
+                        ]}>
                         <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>
                           {value === "admin" ? t("family.roleAdmin") : t("family.rolePlayer")}
                         </Text>
@@ -494,6 +509,7 @@ export function ManageFamilyScreen({ right, onGoDashboard }: Props) {
                     );
                   })}
                 </View>
+                {roleLocked ? <Text style={styles.rowMeta}>{t("family.memberRoleLocked")}</Text> : null}
               </View>
             </ScrollView>
             <View style={styles.sheetActions}>
@@ -731,6 +747,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   chipActive: { borderColor: colors.brandStrong, backgroundColor: colors.brandStrong },
+  chipDisabled: { backgroundColor: "#f1f5f9", opacity: 0.6 },
   chipText: { color: colors.text, fontSize: typography.small, fontWeight: "800" },
   chipTextActive: { color: "#fff" },
   swatchGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },

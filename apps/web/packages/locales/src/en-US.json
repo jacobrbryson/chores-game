@@ -1409,6 +1409,7 @@
     "memberNameLabel": "Name",
     "memberEmailLabel": "Email",
     "memberRoleLabel": "Role",
+    "memberRoleLocked": "Role is set when you add someone and can't be changed here.",
     "categoryNameLabel": "Category name",
     "categoryColorLabel": "Chip color",
     "categoryMembersLabel": "Limit to family members",

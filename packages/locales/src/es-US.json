@@ -1409,6 +1409,7 @@
     "memberNameLabel": "Nombre",
     "memberEmailLabel": "Correo electrónico",
     "memberRoleLabel": "Rol",
+    "memberRoleLocked": "El rol se define al agregar a alguien y no se puede cambiar aquí.",
     "categoryNameLabel": "Nombre de la categoría",
     "categoryColorLabel": "Color de la etiqueta",
     "categoryMembersLabel": "Limitar a miembros de la familia",

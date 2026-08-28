@@ -1,5 +1,13 @@
 [
   {
+    "id": "mobile-member-edit-save-fix",
+    "date": "2026-08-28",
+    "type": "Bug Fix",
+    "subject": "Saving a child's email from the mobile app works again",
+    "description": "Editing a family member in the mobile app failed the moment you tapped Save, with a \"nothing to update\" message, so a parent could never set or change their child's email address from their phone. The Save button now applies a new name and hands the email change to the same verified flow the website uses, showing the invite code or confirmation right in the sheet. A member's role is shown but no longer editable after they are added, matching the website.",
+    "image": "/file.svg"
+  },
+  {
     "id": "mobile-achievement-art-missing",
     "date": "2026-08-21",
     "type": "Bug Fix",
